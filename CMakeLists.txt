@@ -137,17 +137,6 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 
-
-
-
-##### RC-VIP
-#add_executable(${PROJECT_NAME}_pwm_test src/test_programs/pwm_test.cpp)
-#target_link_libraries(${PROJECT_NAME}_pwm_test wiringPi rt ${catkin_LIBRARIES})
-
-
-
-
-
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -210,3 +199,15 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+
+##### RC-VIP
+install(PROGRAMS
+  scripts/my_python_script
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+add_executable(pwm_test src/test_programs/pwm_test.cpp)
+target_link_libraries(pwm_test wiringPi rt crypt ${catkin_LIBRARIES})
+
+
