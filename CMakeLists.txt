@@ -203,7 +203,7 @@ include_directories(
 
 ##### RC-VIP
 install(PROGRAMS
-  scripts/my_python_script
+  src/drive_relay.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
