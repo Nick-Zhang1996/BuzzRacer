@@ -1,10 +1,10 @@
 #! /usr/bin/python
 
-#import wiringpi2 as wpi
-#import time
+import wiringpi2 as wpi
+import time
 
-#pin = 6
+pin = 6
 
-#wpi.wiringPiSetup()
-#wpi.pinMode(pin, 
-
+wpi.wiringPiSetup()
+wpi.pinMode(pin, 1)
+print wpi.digitalRead(pin)
