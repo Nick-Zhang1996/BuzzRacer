@@ -16,5 +16,6 @@ int main (void)
   int pin = 6;
   softPwmCreate(pin, 0, 100);
   softPwmWrite(pin, 100);
+  printf(digitalRead(pin));
   return 0;
 }
