@@ -36,12 +36,26 @@ ser = serial.Serial("/dev/arduino", 9600)
 rate = rospy.Rate(20)
 while not rospy.is_shutdown():
 	if cs.updated:
-		print "updated throttle = %.2f, steer = %.2f" % (cs.throttle, cs.steer_angle)
+		# print "updated throttle = %.2f, steer = %.2f" % (cs.throttle, cs.steer_angle)
 		cs.updated = False
 
-	ser.write("$%d\n" % cs.throttle)
-	new_line_from_arduino = ser.readline()
-	print new_line_from_arduino	
+	ser.write("$%.3f, %.3f\n" % (cs.throttle, cs.steer_angle))
+
+	while ser.in_waiting == 0:
+		pass
+	
+	in_line = ser.readline().replace("\r\n","")
+	"""while ser.in_waiting > 0:
+		c = ser.read()
+		#print "init char", c
+		if c == "#":
+			in_line = ""
+			while c not in ("\r", "\n"):
+				c = ser.read()
+				in_line += c"""
+			
+	data_rcv = in_line#.split("\r\n")
+	print data_rcv
 
 	rate.sleep()
 

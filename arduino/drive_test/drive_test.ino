@@ -1,8 +1,16 @@
 #include <PWM.h>
+#include <Servo.h>
 
-const int pinDrive = 9;
+const int pinDrive = 3;
+const int pinServo = 5;
+Servo servo;
 
-int throttle = 0;
+const int right_limit = 60;
+const int left_limit = 150;
+const int steer_center = (right_limit + left_limit) / 2;
+
+int throttle_val = 0;
+int steering_val = steer_center;
 
 /*
  * getMessage: read new throttle value from serial with
@@ -11,16 +19,37 @@ int throttle = 0;
  * more digits.
  */
 void getMessage() {
-  char first = Serial.read();
-  if(first == '$' && Serial.available() > 0) {
-    float incoming_throttle_data = Serial.parseFloat();
-    if(incoming_throttle_data < 0 || incoming_throttle_data > 1) {
-      throttle = 0;
-      Serial.print("invalid throttle speed: ");
-      Serial.println(throttle);
-    } else {
-      incoming_throttle_data *= 255;
-      throttle = (int) incoming_throttle_data;
+  while(Serial.available() > 0) {
+    char first = Serial.read();
+    if(first == '$') {
+      float incoming_throttle_data = Serial.parseFloat();
+      int temp_throttle = (int) (incoming_throttle_data * 255.0);
+      if(temp_throttle < 0 || temp_throttle > 255) {
+        throttle_val = 0;
+        Serial.print("invalid throttle speed: ");
+        Serial.println(incoming_throttle_data);
+      } else {
+        throttle_val = temp_throttle;
+        //Serial.println(throttle);
+      }
+
+      float incoming_steering_data = Serial.parseFloat();
+      float slope = (right_limit - left_limit) / 2.0;
+      int temp_steer = (int) ((incoming_steering_data * slope) + steer_center);
+      if(temp_steer < right_limit || temp_steer > left_limit) {
+        steering_val = steer_center;
+        Serial.print("invalid steering input: ");
+        //Serial.println(incoming_steering_data);
+        Serial.println(temp_steer);
+      } else {
+        steering_val = temp_steer;
+      }
+
+      String message = "";
+      message.concat(throttle_val);
+      message.concat(",");
+      message.concat(steering_val);
+      Serial.println(message);
     }
   }
 }
@@ -34,10 +63,15 @@ void setup() {
 
   bool success = SetPinFrequencySafe(pinDrive, 2000);
   Serial.println(success ? "successfully set frequency" : "error: could not set frequency");
+
+  servo.attach(pinServo);
 }
 
 void loop() {
   getMessage();
-  pwmWrite(pinDrive, throttle);
+  pwmWrite(pinDrive, throttle_val);
+  servo.write(steering_val);
+  
+  delay(10);
 }
 
