@@ -204,6 +204,7 @@ include_directories(
 ##### RC-VIP
 install(PROGRAMS
   src/drive_relay.py
+  src/joystick_drive.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -9,6 +9,7 @@ drive_relay.py:
 import rospy
 from std_msgs.msg import Float64 as float_msg
 import serial
+import time
 
 # callbacks happen in separate threads. Use class to access data across threads
 class CarState:
@@ -32,6 +33,7 @@ rospy.Subscriber("/throttle", float_msg, throttle_callback)
 rospy.Subscriber("/steer_angle", float_msg, steer_callback)
 
 ser = serial.Serial("/dev/arduino", 9600)
+ser.readline()
 
 rate = rospy.Rate(20)
 while not rospy.is_shutdown():
@@ -39,10 +41,14 @@ while not rospy.is_shutdown():
 		# print "updated throttle = %.2f, steer = %.2f" % (cs.throttle, cs.steer_angle)
 		cs.updated = False
 
-	ser.write("$%.3f, %.3f\n" % (cs.throttle, cs.steer_angle))
+	send_str = "$%.3f,%.3f\n" % (cs.throttle, cs.steer_angle)
 
-	while ser.in_waiting == 0:
-		pass
+	print send_str.replace("\n","")
+
+	ser.write(send_str)
+
+#	while ser.in_waiting == 0 and not rospy.is_shutdown():
+#		time.sleep(0.001)
 	
 	in_line = ser.readline().replace("\r\n","")
 	"""while ser.in_waiting > 0:
@@ -54,7 +60,7 @@ while not rospy.is_shutdown():
 				c = ser.read()
 				in_line += c"""
 			
-	data_rcv = in_line#.split("\r\n")
+	data_rcv = in_line
 	print data_rcv
 
 	rate.sleep()
