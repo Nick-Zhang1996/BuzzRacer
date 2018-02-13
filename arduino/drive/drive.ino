@@ -73,7 +73,9 @@ void setup() {
 }
 
 void loop() {
-  getMessage();
+  if (Serial.available() > 0) {
+    getMessage();
+  }
   driveOutput.write(throttle_val);
   steerOutput.write(steering_val);
   delay(10);
