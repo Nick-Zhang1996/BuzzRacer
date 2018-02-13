@@ -69,7 +69,7 @@ void setup() {
 
   driveOutput.write(0);
   delay(5000);
-  Serial.print("#ready");
+  Serial.print("#ready\n");
 }
 
 void loop() {
