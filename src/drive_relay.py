@@ -33,35 +33,23 @@ rospy.Subscriber("/throttle", float_msg, throttle_callback)
 rospy.Subscriber("/steer_angle", float_msg, steer_callback)
 
 ser = serial.Serial("/dev/arduino", 9600)
+#read #ready from Serial
 ser.readline()
 
 rate = rospy.Rate(20)
 while not rospy.is_shutdown():
+	#When the car states changes, send changes to Arduino
 	if cs.updated:
-		# print "updated throttle = %.2f, steer = %.2f" % (cs.throttle, cs.steer_angle)
 		cs.updated = False
+		send_str = "$%.3f,%.3f\n" % (cs.throttle, cs.steer_angle)
+		#Print and send data to arduino
+		print send_str.replace("\n","")
+		ser.write(send_str)
 
-	send_str = "$%.3f,%.3f\n" % (cs.throttle, cs.steer_angle)
-
-	print send_str.replace("\n","")
-
-	ser.write(send_str)
-
-#	while ser.in_waiting == 0 and not rospy.is_shutdown():
-#		time.sleep(0.001)
-	
-	in_line = ser.readline().replace("\r\n","")
-	"""while ser.in_waiting > 0:
-		c = ser.read()
-		#print "init char", c
-		if c == "#":
-			in_line = ""
-			while c not in ("\r", "\n"):
-				c = ser.read()
-				in_line += c"""
-			
-	data_rcv = in_line
-	print data_rcv
+		#Receive confirmation from arduino and print it
+		in_line = ser.readline().replace("\r\n","")
+		data_rcv = in_line
+		print data_rcv
 
 	rate.sleep()
 
