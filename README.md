@@ -4,7 +4,7 @@ The car runs on an Odroid XU4 and an Arduino Nano
 
   * 16.04 Ubuntu Mate w/ ROS Kinetic
   * Username: odroid, Password: galanti5
-  * Using Mayhul’s GTWifi login
+  * Using a student's GTWifi login
   * IP address: https://autorc.herokuapp.com/
     * Whenever the odroid starts up and connects to the wifi, the IP address and timestamp is published to that website 
 
@@ -33,9 +33,10 @@ Run `catkin_make` from ~/catkin_ws
   * Servo PWM goes from 60 (right) to 150 (left)
   * Pin 3 connected to ESC, Pin 5 connected to Serivo
 
-
-
-
-
-	
-
+## Setting up a new car
+This is very incomplete for now.
+"""
+1) Setup Arduino software on the car.
+2) apt-get packages: ros-kinetic-rosserial-arduino ros-kinetic-rosserial and many more
+3) rosrun rosserial_arduino make_libraries.py ~/Arduino/libraries assuming Arduino's folder is in home
+"""
