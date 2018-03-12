@@ -37,9 +37,10 @@ void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
 
 ros::Subscriber<std_msgs::Float64> subThrottle("throttle", &readThrottleTopic);
 
-ros::Subscriber<std_msgs::Float64> subSteering("steering", &readSteeringTopic);
+ros::Subscriber<std_msgs::Float64> subSteering("steer_angle", &readSteeringTopic);
 
 void setup() {
+    Serial.begin(9600);
     nh.initNode();
     nh.subscribe(subThrottle);
     nh.subscribe(subSteering);
@@ -59,5 +60,6 @@ void loop() {
        
     drive.write(throttleServoVal);
     steer.write(steeringServoVal);
+    Serial.println("Hello");
     delay(10);
 }
