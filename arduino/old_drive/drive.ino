@@ -69,11 +69,13 @@ void setup() {
 
   driveOutput.write(0);
   delay(5000);
-  Serial.print("#ready");
+  Serial.print("#ready\n");
 }
 
 void loop() {
-  getMessage();
+  if (Serial.available() > 0) {
+    getMessage();
+  }
   driveOutput.write(throttle_val);
   steerOutput.write(steering_val);
   delay(10);
