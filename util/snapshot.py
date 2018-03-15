@@ -10,6 +10,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 
 def snap(data):
+    print('called')
     try:
         cv_image = bridge.imgmsg_to_cv2(data, "bgr8")
     except CvBridgeError as e:
@@ -19,10 +20,11 @@ def snap(data):
     frame = cv_image
 
     retval = cv2.imwrite(filename,frame)
+    print(retval)
 
     # uncomment to show live video
-    cv2.imshow('frame',frame)
-    sleep(2)
+    #cv2.imshow('frame',frame)
+    #sleep(2)
     exit(retval)
     return
 
@@ -40,6 +42,8 @@ bridge = CvBridge()
 # start recording
 rospy.init_node('recording_node', anonymous=False)
 #create subscriber for camera input
-rospy.Subscriber("camera/image_raw", Image, record,queue_size=1)
+rospy.Subscriber("/image_raw", Image, snap,queue_size=1)
+print('online')
 rospy.spin()
+print('finish')
 
