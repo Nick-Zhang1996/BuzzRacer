@@ -6,6 +6,8 @@ from os.path import isfile, join
 
 class imageutil:
 
+    # provide path to the folder that contains mtx.p and dist.p
+    # if no path is given, user is expected to call calibration() and establish new matrixes
     def __init__(self, path_to_file = None):
         self.mtx = None
         self.dist = None
@@ -22,6 +24,7 @@ class imageutil:
             return
 
     def calibration(self,path_to_file,path_to_output):
+        print('calibrating....')
         filenames = [f for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         objpoints_set=[]
         imgpoints_set=[]
@@ -45,6 +48,7 @@ class imageutil:
                 pickle.dump(dist, f, pickle.HIGHEST_PROTOCOL)
         self.mtx = mtx
         self.dist = dist
+        print('calibration completed')
 
         return mtx, dist
 
@@ -54,7 +58,7 @@ class imageutil:
 
 
 if __name__ == '__main__':
-    folder = "/Users/Nickzhang/uav_challenge/test_module/resources/"
+    folder = "../"
     t = imageutil(None)
     t.calibration(folder+"calibration/",folder+"calibrated/")
     path_to_file = folder+"calibration/"
