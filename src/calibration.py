@@ -21,6 +21,8 @@ class imageutil:
                  self.mtx = pickle.load(f)
             with open(path_to_file+'dist.p', 'rb') as f:
                  self.dist = pickle.load(f)
+            #XXX need to check failure cases
+            print('matrixes loaded')
             return
 
     def calibration(self,path_to_file,path_to_output):
