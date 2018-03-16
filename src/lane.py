@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pickle
 import warnings
+from calibration import imageutil
 
 x_size = 640
 y_size = 480
+cam = imageutil ('../calibrated/')
 
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
@@ -102,6 +104,7 @@ def sobel_threshold(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     
 def testimg(filename):
     image = cv2.imread(filename)
+    image = cam.undistort(image)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     pipeline(image)
     return
