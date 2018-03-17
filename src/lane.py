@@ -10,6 +10,12 @@ x_size = 640
 y_size = 480
 cam = imageutil ('../calibrated/')
 
+src_points = np.array([[68,344],[153,295],[496,303],[591,353]])
+dst_points = np.array([[0.25*x_size,0.25*y_size],[0.25*x_size,0.567*y_size],[0.75*x_size,0.567*y_size],[0.75*x_size,0.25*y_size]])
+
+src_points = src_points.astype(np.float32)
+dst_points = dst_points.astype(np.float32)
+
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
     plt.show()
@@ -22,6 +28,11 @@ def normalize(data):
     stddev = np.std(data)
     data = (data-mean)/stddev
     return data
+
+def warp(image):
+
+    warped = cv2.warpPerspective(image, M, (image.shape[1],image.shape[0]), flags=cv2.INTER_LINEAR)
+    return warped
 
 # takes a grayscale frame, return a centerline
 def pipeline(frame):
@@ -113,6 +124,8 @@ def testimg(filename):
 if __name__ == '__main__':
     print('begin')
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    M = cv2.getPerspectiveTransform(src_points, dst_points)
+    Minv = cv2.getPerspectiveTransform(dst_points,src_points)
     #total 8 pics
     for i in range(8):
         testimg(testpics[i])
