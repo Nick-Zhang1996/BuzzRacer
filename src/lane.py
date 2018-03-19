@@ -58,13 +58,27 @@ def pipeline(frame):
 
     # normalize
     frame = normalize(frame)
-    sobel_threshold(frame)
+    findCenterline(frame)
 
-    #frame[frame>1]=1
-    #frame[frame<1]=0
+# given a binary image BINARY, where 1 means data and 0 means nothing
+# return the best fit polynomial
+def fitPoly(binary):
+    nonzero = binary.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+    leftx = nonzerox
+    lefty = nonzeroy
+
+    left_fit = np.polyfit(lefty, leftx, 2)
+    return left_fit
+
+
+# find the centerline of two polynomials
+def findCenterFromSide(left,right):
+    return (left+right)/2
 
 #direction
-def findCenter(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
+def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
 
     # Calculate the x and y gradients
     sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
@@ -115,45 +129,46 @@ def findCenter(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     # find the two longest left edges
     line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
 
-    flag_one_left_edge = False
-    flag_no_left_edge = false
 
     # list of centroids with corresponding left/right edge (of a white line)
-    centroids_list = []
-    # 1 means left, 2 means right
-    centroid_which_edge = []
-    centroid_related_label = []
+    long_edge_centroids = []
+    long_edge_lr = ""
+    long_edge_label = []
+
     # case 1: two lanes completely captured (we have two long left edges)
     if ( all(stats[line_labels,cv2.CC_STAT_AREA]>300)):
 
-        if (centroids[line_labels[0]][0]>centroids[line_labels[1]][0]):
-            right_label = line_labels[0]
-        else:
-            right_label = line_labels[1]
-        right_label = (labels==right_label)
+        long_edge_centroids.append(centroids[line_labels[0]])
+        long_edge_lr += 'L'
+        long_edge_label.append(labels==line_labels[0])
 
-        centroids_list.append(centroids[line_labels])
-        centroid_which_edge.append(1)
-        centroid_which_edge.append(1)
+
+        long_edge_centroids.append(centroids[line_labels[1]])
+        long_edge_lr += 'L'
+        long_edge_label.append(labels==line_labels[1])
+
 
     # case 2: only one lane is in view
     # we don't know which lane it is, only that it's a left edge
     elif ( any(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-        flag_one_left_edge = True
         if (centroids[line_labels[0]][0]>centroids[line_labels[1]][0]):
-            left_edge_label = line_labels[0]
-        else:
-            left_edge_label = line_labels[1]
 
-        centroid_which_edge.append(1)
+            long_edge_centroids.append(centroids[line_labels[0]])
+            long_edge_lr += 'L'
+            long_edge_label.append(labels==line_labels[0])
+
+        else:
+
+            long_edge_centroids.append(centroids[line_labels[1]])
+            long_edge_lr += 'L'
+            long_edge_label.append(labels==line_labels[1])
+
     else:
     # if there's nothing
-        flag_no_left_edge = True
+        pass
 
 
 
-
-   # find LEFT line
     # find right edge of lanes
     # XXX gray>1.5 is a sketchy solution that cut data size in half
     binary_output =  np.zeros_like(gray,dtype=np.uint8)
@@ -173,47 +188,104 @@ def findCenter(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
 
 
     line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
-    flag_one_right_edge = False
-    flag_no_right_edge = False
-    # find the left line
+
     # case 1: two lanes completely captured (we have two long right edges)
     if ( all(stats[line_labels,cv2.CC_STAT_AREA]>300)):
 
-        if (centroids[line_labels[0]][0]<centroids[line_labels[1]][0]):
-            left_label = line_labels[0]
-        else:
-            left_label = line_labels[1]
-        left_label = (labels==left_label)
+        long_edge_centroids.append(centroids[line_labels[0]])
+        long_edge_lr += 'R'
+        long_edge_label.append(labels==line_labels[0])
+
+
+        long_edge_centroids.append(centroids[line_labels[1]])
+        long_edge_lr += 'R'
+        long_edge_label.append(labels==line_labels[1])
+
 
     # case 2: only one lane is in view
     # we don't know which lane it is, only that it's a right edge
     elif ( any(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-        flag_one_right_edge = True
-        if (centroids[line_labels[0]][0]<centroids[line_labels[1]][0]):
-            right_edge_label = line_labels[0]
+        if (centroids[line_labels[0]][0]>centroids[line_labels[1]][0]):
+
+            long_edge_centroids.append(centroids[line_labels[0]])
+            long_edge_lr += 'R'
+            long_edge_label.append(labels==line_labels[0])
+
         else:
-            right_edge_label = line_labels[1]
+
+            long_edge_centroids.append(centroids[line_labels[1]])
+            long_edge_lr += 'R'
+            long_edge_label.append(labels==line_labels[1])
+
     else:
     # if there's nothing
-        flag_no_right_edge = True
+        pass
 
-    #(LR) -> left edge, right edge, from left to right
+    # now we analyze the long edges we have
+    # case notation: e.g.(LR) -> left edge, right edge, from left to right
+
     # this logical is based on the assumption that the edges we find are lane edges
     # now we distinguish between several situations
-    # case 1: we only see one edge of any sort, go to it till we see more (L,R)
-    # case 2: we see two edges of different sorts (LR,RL)
-        # if they are correctly oriented, we have a track(RL)
-        # if not, we are stepping on a lane, and don't know which that lane is (LR)
-        # in this case drive on this lane until we see the other lane (TODO- find what lane it is)
-    # case 3: we see three edges (LLR,LRL,RLL,RRL,RLR,LRR)
-        # we have no idea what's happening (LLR,RLL,RRL,LRR)
-        # we see one lane completely, the other partially (LRL,RLR)
-    # case 4: we see four edges, in correct order (LRLR)
+    flag_fail_to_find = False
+    flag_good_road = False
 
-    binary_output =  np.zeros_like(gray,dtype=np.uint8)
-    binary_output[right_label]=1
-    binary_output[left_label]=2
-    showmg(gray,sobelx,norm,binary_output)
+    # case 1: if we find one and only one pattern (?RL?), we got a match
+    if (long_edge_lr.count('RL')==1):
+        index = long_edge_lr.find('RL')
+        with warnings.catch_warnings(record=True) as w:
+            left_poly = fitPoly(long_edge_label[index])
+            index += 1
+            right_poly = fitPoly(long_edge_label[index])
+            flag_good_road = True
+            if len(w)>0:
+                raise Exception('fail to fit poly')
+
+            else:
+                center_poly = findCenterFromSide(left_poly,right_poly)
+    
+    # case 2: we only see one edge of any sort, go to it till we see more (L,R)
+    if (len(long_edge_lr)==1):
+        with warnings.catch_warnings(record=True) as w:
+            center_poly = fitPoly(long_edge_label[0])
+            if len(w)>0:
+                raise Exception('fail to fit poly')
+
+    # case 3: if we get  (LR), then we are stepping on a lane, but don't know which that lane is (LR)
+    # in this case drive on this lane until we see the other lane (TODO- find what lane it is)
+    elif (long_edge_lr == 'LR'):
+        index = 0
+        with warnings.catch_warnings(record=True) as w:
+            left_poly = fitPoly(long_edge_label[index])
+            index += 1
+            right_poly = fitPoly(long_edge_label[index])
+            if len(w)>0:
+                raise Exception('fail to fit poly')
+
+        center_poly = findCenterFromSide(left_poly,right_poly)
+        # if it's turning right, it's probably a left lane
+        # vice versa
+        # NOT IMPLEMENTED
+    # otherwise we are completely lost
+    else:
+        flag_fail_to_find = True
+        pass
+    
+
+    binary_output=None
+    if (flag_good_road == True):
+        # Generate x and y values for plotting
+        ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
+        left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
+        right_fitx = right_poly[0]*ploty**2 + right_poly[1]*ploty + right_poly[2] 
+        # Recast the x and y points into usable format for cv2.fillPoly()
+        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        pts = np.hstack((pts_left, pts_right))
+
+        # Draw the lane onto the warped blank image
+        binary_output =  np.zeros_like(gray,dtype=np.uint8)
+        cv2.fillPoly(binary_output, np.int_([pts]), 1)
+        showmg(gray,sobelx,norm,binary_output)
 
     return binary_output
     
