@@ -251,9 +251,15 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
         pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
         pts = np.hstack((pts_left, pts_right))
 
-        # Draw the lane onto the warped blank image
+        # Draw the lane onto the blank image
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         cv2.fillPoly(binary_output, np.int_([pts]), 1)
+
+        # Draw centerline onto the image
+        centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
+        pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
+        cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
+
         showmg(gray,sobelx,norm,binary_output)
 
     return binary_output
