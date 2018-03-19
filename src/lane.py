@@ -79,6 +79,7 @@ def findCenterFromSide(left,right):
 
 #direction
 def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
+    showg(gray)
 
     # Calculate the x and y gradients
     sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
@@ -135,38 +136,14 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     long_edge_lr = ""
     long_edge_label = []
 
-    # case 1: two lanes completely captured (we have two long left edges)
-    if ( all(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-
-        long_edge_centroids.append(centroids[line_labels[0]])
+    if (stats[line_labels[0],cv2.CC_STAT_AREA]>300):
+        long_edge_centroids.append(centroids[line_labels[0],0])
         long_edge_lr += 'L'
         long_edge_label.append(labels==line_labels[0])
-
-
-        long_edge_centroids.append(centroids[line_labels[1]])
+    if (stats[line_labels[1],cv2.CC_STAT_AREA]>300):
+        long_edge_centroids.append(centroids[line_labels[1],0])
         long_edge_lr += 'L'
         long_edge_label.append(labels==line_labels[1])
-
-
-    # case 2: only one lane is in view
-    # we don't know which lane it is, only that it's a left edge
-    elif ( any(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-        if (centroids[line_labels[0]][0]>centroids[line_labels[1]][0]):
-
-            long_edge_centroids.append(centroids[line_labels[0]])
-            long_edge_lr += 'L'
-            long_edge_label.append(labels==line_labels[0])
-
-        else:
-
-            long_edge_centroids.append(centroids[line_labels[1]])
-            long_edge_lr += 'L'
-            long_edge_label.append(labels==line_labels[1])
-
-    else:
-    # if there's nothing
-        pass
-
 
 
     # find right edge of lanes
@@ -189,37 +166,26 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
 
     line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
 
-    # case 1: two lanes completely captured (we have two long right edges)
-    if ( all(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-
-        long_edge_centroids.append(centroids[line_labels[0]])
+    if ( stats[line_labels[0],cv2.CC_STAT_AREA]>300):
+        long_edge_centroids.append(centroids[line_labels[0],0])
         long_edge_lr += 'R'
         long_edge_label.append(labels==line_labels[0])
 
+    if ( stats[line_labels[1],cv2.CC_STAT_AREA]>300):
 
-        long_edge_centroids.append(centroids[line_labels[1]])
+        long_edge_centroids.append(centroids[line_labels[1],0])
         long_edge_lr += 'R'
         long_edge_label.append(labels==line_labels[1])
 
 
-    # case 2: only one lane is in view
-    # we don't know which lane it is, only that it's a right edge
-    elif ( any(stats[line_labels,cv2.CC_STAT_AREA]>300)):
-        if (centroids[line_labels[0]][0]>centroids[line_labels[1]][0]):
-
-            long_edge_centroids.append(centroids[line_labels[0]])
-            long_edge_lr += 'R'
-            long_edge_label.append(labels==line_labels[0])
-
-        else:
-
-            long_edge_centroids.append(centroids[line_labels[1]])
-            long_edge_lr += 'R'
-            long_edge_label.append(labels==line_labels[1])
-
-    else:
-    # if there's nothing
-        pass
+    # rank the edges based on centroid
+    order = np.argsort(long_edge_centroids)
+    long_edge_centroids = np.array(long_edge_centroids)[order]
+    temp_lr = ""
+    for i in order:
+        temp_lr += long_edge_lr[i]
+    long_edge_lr = temp_lr
+    long_edge_label = np.array(long_edge_label)[order]
 
     # now we analyze the long edges we have
     # case notation: e.g.(LR) -> left edge, right edge, from left to right
