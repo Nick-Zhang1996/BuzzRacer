@@ -11,13 +11,18 @@ y_size = 480
 cam = imageutil ('../calibrated/')
 
 src_points = np.array([[68,344],[153,295],[496,303],[591,353]])
-dst_points = np.array([[0.25*x_size,0.25*y_size],[0.25*x_size,0.567*y_size],[0.75*x_size,0.567*y_size],[0.75*x_size,0.25*y_size]])
+dst_points = np.array([[0.25*x_size,y_size-0.25*y_size],[0.25*x_size,y_size-0.567*y_size],[0.75*x_size,y_size-0.567*y_size],[0.75*x_size,y_size-0.25*y_size]])
 
 src_points = src_points.astype(np.float32)
 dst_points = dst_points.astype(np.float32)
 
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
+    plt.show()
+    return
+
+def show(img):
+    plt.imshow(img,interpolation='nearest')
     plt.show()
     return
 
@@ -79,7 +84,7 @@ def findCenterFromSide(left,right):
 
 #direction
 def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
-    showg(gray)
+    #showg(gray)
 
     # Calculate the x and y gradients
     sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
@@ -195,6 +200,7 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     flag_fail_to_find = False
     flag_good_road = False
     flag_one_lane = False
+    centerPoly = None
 
     # case 1: if we find one and only one pattern (?RL?), we got a match
     if (long_edge_lr.count('RL')==1):
@@ -260,7 +266,14 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
         pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
         cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
 
+        fillspace = np.zeros([240,640])
+        temp = np.vstack([fillspace,binary_output])
+        temp = np.dstack([temp,temp,temp])
+        temp = cam.undistort(temp)
+        warped = warp(temp)
+
         showmg(gray,sobelx,norm,binary_output)
+        show(warped)
 
     return binary_output
     
