@@ -194,6 +194,7 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     # now we distinguish between several situations
     flag_fail_to_find = False
     flag_good_road = False
+    flag_one_lane = False
 
     # case 1: if we find one and only one pattern (?RL?), we got a match
     if (long_edge_lr.count('RL')==1):
@@ -202,11 +203,11 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
             left_poly = fitPoly(long_edge_label[index])
             index += 1
             right_poly = fitPoly(long_edge_label[index])
-            flag_good_road = True
             if len(w)>0:
                 raise Exception('fail to fit poly')
 
             else:
+                flag_good_road = True
                 center_poly = findCenterFromSide(left_poly,right_poly)
     
     # case 2: we only see one edge of any sort, go to it till we see more (L,R)
@@ -227,7 +228,9 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
             if len(w)>0:
                 raise Exception('fail to fit poly')
 
-        center_poly = findCenterFromSide(left_poly,right_poly)
+            else:
+                flag_one_lane = True
+                center_poly = findCenterFromSide(left_poly,right_poly)
         # if it's turning right, it's probably a left lane
         # vice versa
         # NOT IMPLEMENTED
@@ -238,7 +241,7 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     
 
     binary_output=None
-    if (flag_good_road == True):
+    if (flag_good_road == True or flag_one_lane == True):
         # Generate x and y values for plotting
         ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
         left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
@@ -258,7 +261,8 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
     
 def testimg(filename):
     image = cv2.imread(filename)
-    image = cam.undistort(image)
+    # we hold undistortion after lane finding because this operation discards data
+    #image = cam.undistort(image)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     pipeline(image)
     return
