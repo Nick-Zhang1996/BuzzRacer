@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pickle
 import warnings
+import rospy
+import threading
+
+from sensor_msgs.msg import Image
+from std_msgs.msg import Float64 as float_msg
 from calibration import imageutil
 
 x_size = 640
@@ -15,6 +20,36 @@ dst_points = np.array([[0.25*x_size,y_size-0.25*y_size],[0.25*x_size,y_size-0.56
 
 src_points = src_points.astype(np.float32)
 dst_points = dst_points.astype(np.float32)
+
+
+class driveSys:
+
+    @staticmethod
+    def init():
+
+        driveSys.bridge = CvBridge()
+        rospy.init_node('driveSys_node',log_level=rospy.DEBUG, anonymous=False)
+
+        #shutdown routine
+        #rospy.on_shutdown(driveSys.cleanup)
+        driveSys.throttle = 0
+        driveSys.steering = 0
+        driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
+        driveSys.steering_pub = rospy.Publisher("/steering",float_msg, queue_size=1)
+        driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
+        driveSys.sizex=x_size
+        driveSys.sizey=y_size
+
+        return
+
+    @staticmethod
+    def publish():
+        driveSys.throttle_pub.publish(driveSys.throttle)
+        driveSys.steering_pub.publish(driveSys.steering)
+        rospy.loginfo("throttle = %f steering = %f",driveSys.throttle,driveSys.steering)
+        image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
+        driveSys.test_pub.publish(image_message)
+        return
 
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
@@ -55,7 +90,18 @@ def warp(image):
     warped = cv2.warpPerspective(image, M, (image.shape[1],image.shape[0]), flags=cv2.INTER_LINEAR)
     return warped
 
+def imagecallback(data):
+    try:
+        cv_image = vision.bridge.imgmsg_to_cv2(data, "bgr8")
+    except CvBridgeError as e:
+        print(e)
+
+    pipeline(cv_image)
+
+
+    return
 # takes a grayscale frame, return a centerline
+# centerline is based on un-undistorted, un-unwarped image
 def pipeline(frame):
 
     #crop
@@ -63,7 +109,31 @@ def pipeline(frame):
 
     # normalize
     frame = normalize(frame)
-    findCenterline(frame)
+    center_poly = findCenterline(frame)
+    #ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
+    #centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
+    (steering,throttle) = drive(center_poly)
+    driveSys.throttle = throttle
+    driveSys.steering = steering
+    driveSys.publish()
+    return
+
+# given the centerline poly, drive the car
+# NEED WORK
+def drive(center_poly):
+    if (center_poly is None)
+        throttle = 0.1
+    else
+        throttle = 0.2
+        
+    ploty = 0.25*y_size
+    goalx = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
+    centerx = x_size/2
+    diff = goalx-centerx
+    steering = np.float32(diff)/150
+
+    return (steering, throttle)
+
 
 # given a binary image BINARY, where 1 means data and 0 means nothing
 # return the best fit polynomial
@@ -272,10 +342,11 @@ def findCenterline(gray, sobel_kernel=7, thresh=(0.6, 1.3)):
         temp = cam.undistort(temp)
         warped = warp(temp)
 
-        showmg(gray,sobelx,norm,binary_output)
-        show(warped)
+        driveSys.testimg = np.dstack([binary_output,binary_output,binary_output])
+        #showmg(gray,sobelx,norm,binary_output)
+        #show(warped)
 
-    return binary_output
+    return center_poly
     
     
 def testimg(filename):
@@ -289,9 +360,10 @@ def testimg(filename):
 
 if __name__ == '__main__':
     print('begin')
-    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
+    driveSys.init()
     #total 8 pics
     for i in range(8):
         testimg(testpics[i])
