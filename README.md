@@ -40,3 +40,10 @@ This is very incomplete for now.
 2) apt-get packages: ros-kinetic-rosserial-arduino ros-kinetic-rosserial and many more
 3) rosrun rosserial_arduino make_libraries.py ~/Arduino/libraries assuming Arduino's folder is in home
 """
+
+## Connecting to the router
+SSID: TP_Link_8DDA
+password: 90040948
+This information can also be found on the stickers underneath the router. Do NOT change these.
+Odroid information:
+odroid	74-DA-38-C7-F8-3D	192.168.0.2
