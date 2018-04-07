@@ -36,6 +36,7 @@ class driveSys:
         #rospy.on_shutdown(driveSys.cleanup)
         driveSys.throttle = 0
         driveSys.steering = 0
+        driveSys.vidin = rospy.Subscriber("image_raw", Image,driveSys.callback,queue_size=1,buff_size = 2**24)
         driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
         driveSys.steering_pub = rospy.Publisher("/steering",float_msg, queue_size=1)
         driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
@@ -43,6 +44,15 @@ class driveSys:
         driveSys.sizey=y_size
         driveSys.scaler = 25
 
+        return
+
+    # TODO handle basic cropping and color converting at this level, or better yet before it is published
+    # update current version of data, thread safe
+    @staticmethod
+    def callback(data):
+        driveSys.lock.acquire()
+        driveSys.data = data
+        driveSys.lock.release()
         return
 
     @staticmethod
@@ -55,16 +65,25 @@ class driveSys:
         return
     
     # handles frame pre-processing and post status update
-    @staticmethod
-    def pipeline(frame):
+    def dataPrep(data):
+        try:
+            frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
+        except CvBridgeError as e:
+            print(e)
 
         #crop
         frame = frame[240:,:]
 
-        steer = findCenterline(frame)
-        #ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-        #centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
-        (steering,throttle) = drive(center_poly)
+        retval = findCenterline(frame)
+        if (retval is not None):
+            (curvature,offset)=retval
+            throttle = 0.2
+            steer = driveSys.calcSteer(curvature,offset)
+        else:
+            throttle = 0
+            steer = 0
+
+
         driveSys.throttle = throttle
         driveSys.steering = steering
         driveSys.publish()
@@ -331,8 +350,7 @@ class driveSys:
             offset = -x0
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            steer = driveSys.calcSteer(curvature,offset)
-            return steer
+            return (curvature,offset)
 
 
         if (flag_one_lane == True):
@@ -406,17 +424,7 @@ class driveSys:
 
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            steer = driveSys.calcSteer(curvature,offset)
-            return steer
-
-        # calculate 1: offset from current center
-
-
-        # calculate 2: current curvature
-
-        # calculate the required turn radius
-
-        # calculate the desired steering output
+            return (curvature,offset)
 
         return None
 
@@ -465,34 +473,6 @@ def warp(image):
     return warped
 
 
-def imagecallback(data):
-    try:
-        cv_image = vision.bridge.imgmsg_to_cv2(data, "bgr8")
-    except CvBridgeError as e:
-        print(e)
-
-    driveSys.pipeline(cv_image)
-
-    return
-
-
-# given the centerline poly, drive the car
-# NEED WORK
-def drive(center_poly):
-    if (center_poly is None):
-        throttle = 0.0
-    else:
-        throttle = 0.2
-        
-    ploty = 0.25*y_size
-    goalx = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
-    centerx = x_size/2
-    diff = goalx-centerx
-    steering = np.float32(diff)/150
-
-    return (steering, throttle)
-
-
 # given a binary image BINARY, where 1 means data and 0 means nothing
 # return the best fit polynomial
 def fitPoly(binary):
@@ -530,8 +510,8 @@ if __name__ == '__main__':
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
-    #driveSys.init()
+    driveSys.init()
     #total 8 pics
-    for i in range(8):
-        testimg(testpics[i])
+    #for i in range(8):
+    #    testimg(testpics[i])
 
