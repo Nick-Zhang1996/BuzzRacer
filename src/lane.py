@@ -43,6 +43,18 @@ class driveSys:
         driveSys.sizex=x_size
         driveSys.sizey=y_size
         driveSys.scaler = 25
+        driveSys.lock = threading.lock()
+
+        driveSys.data = None
+        while not rospy.is_shutdown():
+            driveSys.lock.acquire()
+            localcopy = driveSys.data
+            driveSys.lock.release()
+
+            if localcopy is not None:
+                driveSys.drive(localcopy)
+
+        rospy.spin()
 
         return
 
@@ -65,7 +77,7 @@ class driveSys:
         return
     
     # handles frame pre-processing and post status update
-    def dataPrep(data):
+    def drive(data):
         try:
             frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
         except CvBridgeError as e:
