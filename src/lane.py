@@ -89,6 +89,7 @@ class driveSys:
         retval = findCenterline(frame)
         if (retval is not None):
             (curvature,offset)=retval
+            rospy.loginfo("curvature = %f offset = %f",curvature,offset)
             throttle = 0.2
             steer = driveSys.calcSteer(curvature,offset)
         else:
@@ -113,16 +114,20 @@ class driveSys:
     #   a predicted lane width
     @staticmethod
     def findCenterline(gray):
-        showg(gray)
+        #showg(gray)
         sobel_kernel=7
         thresh=(0.6, 1.3)
 
         # normalize
+        t.s('normalize')
         gray = normalize(gray)
+        t.e('normalize')
 
         # Calculate the x and y gradients
+        t.s('sobel')
         sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
         sobely = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=sobel_kernel)
+        t.e('sobel')
 
         #graddir = np.arctan2(sobely, sobelx)
 
@@ -133,6 +138,7 @@ class driveSys:
 
         
         # find left edges of while lanes
+        t.s('find left edges')
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         # XXX gray>1.5 is a sketchy solution that cut data size in half
         binary_output[(gray>1.5)&(sobelx>0) & (norm>1)] = 1
@@ -185,9 +191,11 @@ class driveSys:
             long_edge_lr += 'L'
             long_edge_label.append(labels==line_labels[1])
 
+        t.e('find left edges')
 
         # find right edge of lanes
         # XXX gray>1.5 is a sketchy solution that cut data size in half
+        t.s('find right edges')
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         binary_output[(gray>1.5)&(sobelx<0) & (norm>1)] = 1
         
@@ -227,11 +235,13 @@ class driveSys:
         long_edge_lr = temp_lr
         long_edge_label = np.array(long_edge_label)[order]
 
+        t.e('find right edges')
         # now we analyze the long edges we have
         # case notation: e.g.(LR) -> left edge, right edge, from left to right
 
         # this logical is based on the assumption that the edges we find are lane edges
         # now we distinguish between several situations
+        t.s('find centerline')
         flag_fail_to_find = False
         flag_good_road = False
         flag_one_lane = False
@@ -362,6 +372,7 @@ class driveSys:
             offset = -x0
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
+            t.e('find centerline')
             return (curvature,offset)
 
 
@@ -436,8 +447,10 @@ class driveSys:
 
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
+            t.e('find centerline')
             return (curvature,offset)
 
+        t.e('find centerline')
         return None
 
 
@@ -522,7 +535,10 @@ if __name__ == '__main__':
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
+    
+    t = execution_timer(True)
     driveSys.init()
+    t.summary()
     #total 8 pics
     #for i in range(8):
     #    testimg(testpics[i])
