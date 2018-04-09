@@ -12,6 +12,8 @@ from std_msgs.msg import Float64 as float_msg
 from calibration import imageutil
 from cv_bridge import CvBridge, CvBridgeError
 
+from timeUtil import execution_timer
+
 x_size = 640
 y_size = 480
 crop_y_size = 240
@@ -38,12 +40,13 @@ class driveSys:
         driveSys.steering = 0
         driveSys.vidin = rospy.Subscriber("image_raw", Image,driveSys.callback,queue_size=1,buff_size = 2**24)
         driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
-        driveSys.steering_pub = rospy.Publisher("/steering",float_msg, queue_size=1)
+        driveSys.steering_pub = rospy.Publisher("/steer_angle",float_msg, queue_size=1)
         driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
+	driveSys.testimg = None
         driveSys.sizex=x_size
         driveSys.sizey=y_size
         driveSys.scaler = 25
-        driveSys.lock = threading.lock()
+        driveSys.lock = threading.Lock()
 
         driveSys.data = None
         while not rospy.is_shutdown():
@@ -72,11 +75,13 @@ class driveSys:
         driveSys.throttle_pub.publish(driveSys.throttle)
         driveSys.steering_pub.publish(driveSys.steering)
         rospy.loginfo("throttle = %f steering = %f",driveSys.throttle,driveSys.steering)
-        image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
-        driveSys.test_pub.publish(image_message)
+	if (driveSys.testimg is not None):
+		image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
+		driveSys.test_pub.publish(image_message)
         return
     
     # handles frame pre-processing and post status update
+    @staticmethod
     def drive(data):
         try:
             frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
@@ -86,11 +91,12 @@ class driveSys:
         #crop
         frame = frame[240:,:]
 
-        retval = findCenterline(frame)
+    	frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        retval = driveSys.findCenterline(frame)
         if (retval is not None):
             (curvature,offset)=retval
             rospy.loginfo("curvature = %f offset = %f",curvature,offset)
-            throttle = 0.2
+            throttle = 0.247
             steer = driveSys.calcSteer(curvature,offset)
         else:
             throttle = 0
@@ -98,14 +104,14 @@ class driveSys:
 
 
         driveSys.throttle = throttle
-        driveSys.steering = steering
+        driveSys.steering = steer
         driveSys.publish()
         return
 
     # given curvature and offset, calculate appropriate steering value for the car
     @staticmethod
     def calcSteer(curvature,offset):
-        ref = curvature*100-offset*0.1
+        ref = -offset*0.3
         print('steer=',ref)
         return np.clip(ref,-1,1)
 
@@ -124,10 +130,10 @@ class driveSys:
         t.e('normalize')
 
         # Calculate the x and y gradients
-        t.s('sobel')
+        t.s('sobel\t')
         sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
         sobely = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=sobel_kernel)
-        t.e('sobel')
+        t.e('sobel\t')
 
         #graddir = np.arctan2(sobely, sobelx)
 
@@ -195,7 +201,7 @@ class driveSys:
 
         # find right edge of lanes
         # XXX gray>1.5 is a sketchy solution that cut data size in half
-        t.s('find right edges')
+        t.s('find right edg')
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         binary_output[(gray>1.5)&(sobelx<0) & (norm>1)] = 1
         
@@ -235,13 +241,13 @@ class driveSys:
         long_edge_lr = temp_lr
         long_edge_label = np.array(long_edge_label)[order]
 
-        t.e('find right edges')
+        t.e('find right edg')
         # now we analyze the long edges we have
         # case notation: e.g.(LR) -> left edge, right edge, from left to right
 
         # this logical is based on the assumption that the edges we find are lane edges
         # now we distinguish between several situations
-        t.s('find centerline')
+        t.s('find centerline - lr analysis')
         flag_fail_to_find = False
         flag_good_road = False
         flag_one_lane = False
@@ -298,6 +304,7 @@ class driveSys:
                 side = 'right'
             else:
                 side = 'left'
+        t.e('find centerline - lr analysis')
 
         
         binary_output=None
@@ -305,6 +312,8 @@ class driveSys:
 
             # DEBUG - for producing anice testimg
 
+	    '''
+	    t.s('generate testimg')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
             left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
@@ -325,9 +334,12 @@ class driveSys:
 
             driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
             # END-DEBUG
+	    t.e('generate testimg')
+	    '''
 
             # get centerline in top-down view
 
+	    t.s('change centerline perspective')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
             binary_output =  np.zeros_like(gray,dtype=np.uint8)
@@ -358,6 +370,9 @@ class driveSys:
 
             # fit SHOULD be y and x relation in cm, with car as origin
             fit = np.polyfit(y/driveSys.scaler, x/driveSys.scaler, 2)
+	    t.e('change centerline perspective')
+
+	    t.s('calc offset&curvature')
             # calculate curvature at y_pos
             a = center_poly[0]
             b = center_poly[1]
@@ -370,16 +385,18 @@ class driveSys:
             # right offset positive
             x0 = fit[0]*1**2 + fit[1]*1 + fit[2]
             offset = -x0
+	    t.e('calc offset&curvature')
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            t.e('find centerline')
             return (curvature,offset)
 
 
         if (flag_one_lane == True):
 
+	    '''
             # DEBUG - for producing anice testimg
 
+	    t.s('generate testimg')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
 
@@ -391,9 +408,12 @@ class driveSys:
             cv2.polylines(binary_output,np.int_([pts_side]), False, 1,1)
 
             driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
+	    t.e('generate testimg')
             # END-DEBUG
+	    '''
 
             # get sideline in top-down view
+	    t.s('change centerline perspective')
 
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
@@ -425,6 +445,8 @@ class driveSys:
 
             # fit SHOULD be y and x relation in cm, with car as origin
             fit = np.polyfit(y/driveSys.scaler, x/driveSys.scaler, 2)
+	    t.e('change centerline perspective')
+	    t.s('calc offset&curvature')
             # calculate curvature at y_pos
             a = fit[0]
             b = fit[1]
@@ -444,13 +466,12 @@ class driveSys:
             else:
                 offset += driveSys.lanewidth/2
                 
+	    t.e('calc offset&curvature')
 
             #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
             print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            t.e('find centerline')
             return (curvature,offset)
 
-        t.e('find centerline')
         return None
 
 
@@ -525,21 +546,27 @@ def testimg(filename):
     #crop
     image = image[240:,:]
     driveSys.scaler = 25
-    driveSys.findCenterline(image)
+
+    t.s()
+    (curvature,offset)=driveSys.findCenterline(image)
+    steer = driveSys.calcSteer(curvature,offset)
+    t.e()
+    print('steer = ',steer)
     return
     
 
+t = execution_timer(True)
 if __name__ == '__main__':
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    testpics =['../img/image.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
     
-    t = execution_timer(True)
-    driveSys.init()
-    t.summary()
+    #driveSys.init()
     #total 8 pics
-    #for i in range(8):
-    #    testimg(testpics[i])
+    for i in range(8):
+        testimg(testpics[i])
+    t.summary()
+    #testimg(testpics[0])
 
