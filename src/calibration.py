@@ -58,6 +58,10 @@ class imageutil:
         dst = cv2.undistort(img,self.mtx,self.dist)
         return dst
 
+    def undistortPts(self,src):
+        dst = cv2.undistortPoints(src,self.mtx,self.dist)
+        return dst
+
 
 if __name__ == '__main__':
     folder = "../"
@@ -71,6 +75,7 @@ if __name__ == '__main__':
     image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     #this throuws Segmentation fault: 11
     image = t.undistort(image)
+    print(t.undistortPts(np.zeros((1,1,2),dtype=np.float32)))
     plt.imshow(image)
     plt.show()
     

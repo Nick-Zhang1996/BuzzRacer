@@ -29,8 +29,3 @@ def transform(x, y):
     
     return actualX, actualY
 
-x,y = transform(344, 303)
-#print(y)
-
-                   
-    

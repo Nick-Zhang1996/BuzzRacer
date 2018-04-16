@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -46,6 +47,8 @@ class driveSys:
         driveSys.sizex=x_size
         driveSys.sizey=y_size
         driveSys.scaler = 25
+        # unit: cm
+        driveSys.lanewidth=15
         driveSys.lock = threading.Lock()
 
         driveSys.data = None
@@ -340,55 +343,27 @@ class driveSys:
             # get centerline in top-down view
 
 	    t.s('change centerline perspective')
-            # Generate x and y values for plotting
+
+            # prepare sample points
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            binary_output =  np.zeros_like(gray,dtype=np.uint8)
-
-            # Draw centerline onto the image
             centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
+
+            # convert back to uncropped space
+            ploty += y_size/2
             pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-            cv2.polylines(binary_output,np.int_([pts_center]), False, 1,1)
+            pts_center = cam.undistortPts(np.reshape(pts_center,(1,-1,2)))
 
-            # do weird transformation so we can change perspective
-            fillspace = np.zeros([240,640])
-            temp = np.vstack([fillspace,binary_output])
-            temp = np.dstack([temp,temp,temp])
-            temp = cam.undistort(temp)
-
-            warped = warp(temp)
-
-            nonzero = warped.nonzero()
-            # TODO add the shift in y domain
-            nonzeroy = y_size-np.array(nonzero[0])
-            nonzerox = np.array(nonzero[1]) - x_size/2
-
-            x = nonzerox
-            y = nonzeroy
-
-            # pixel per cm
-            # TODO get real value
-
-            # fit SHOULD be y and x relation in cm, with car as origin
-            fit = np.polyfit(y/driveSys.scaler, x/driveSys.scaler, 2)
+            # unwarp and change of units
+            for i in range(len(pts_center)):
+                pts_center[0,i,0],pts_center[0,i,1] = transform(pts_center[0,i,0],pts_center[0,i,1])
+                
+            # now pts_center should contain points in vehicle coordinate with x axis being rear axle,unit in cm
+            #fit(y,x)
+            fit = np.polyfit(pts_center[0,:,1],pts_center[0,:,0],2)
 	    t.e('change centerline perspective')
 
-	    t.s('calc offset&curvature')
-            # calculate curvature at y_pos
-            a = center_poly[0]
-            b = center_poly[1]
-            y_pos = np.array([0,y_size/3/driveSys.scaler,y_size/2/driveSys.scaler])
 
-            # signed curvature, right means curve to right
-            curvature = (2*a)/(1+(2*a*y_pos+b)**2)**1.5
-            curvature = np.mean(curvature)
-
-            # right offset positive
-            x0 = fit[0]*1**2 + fit[1]*1 + fit[2]
-            offset = -x0
-	    t.e('calc offset&curvature')
-            #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            return (curvature,offset)
+            return fit
 
 
         if (flag_one_lane == True):
@@ -412,67 +387,73 @@ class driveSys:
             # END-DEBUG
 	    '''
 
-            # get sideline in top-down view
+            # get centerline in top-down view
+
 	    t.s('change centerline perspective')
 
-            # Generate x and y values for plotting
+            # prepare sample points
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            binary_output =  np.zeros_like(gray,dtype=np.uint8)
-
-            # Draw centerline onto the image
             sidelinex = side_poly[0]*ploty**2 + side_poly[1]*ploty + side_poly[2]
+
+            # convert back to uncropped space
+            ploty += y_size/2
             pts_side = np.array(np.transpose(np.vstack([sidelinex, ploty])))
-            cv2.polylines(binary_output,np.int_([pts_side]), False, 1,1)
+            pts_side = cam.undistortPts(np.reshape(pts_side,(1,-1,2)))
 
-            # do weird transformation so we can change perspective
-            fillspace = np.zeros([240,640])
-            temp = np.vstack([fillspace,binary_output])
-            temp = np.dstack([temp,temp,temp])
-            temp = cam.undistort(temp)
-
-            warped = warp(temp)
-
-            nonzero = warped.nonzero()
-            # TODO add the shift in y domain
-            nonzeroy = y_size-np.array(nonzero[0])
-            nonzerox = np.array(nonzero[1]) - x_size/2
-
-            x = nonzerox
-            y = nonzeroy
-
-            # pixel per cm
-            # TODO get real value
-
-            # fit SHOULD be y and x relation in cm, with car as origin
-            fit = np.polyfit(y/driveSys.scaler, x/driveSys.scaler, 2)
-	    t.e('change centerline perspective')
-	    t.s('calc offset&curvature')
-            # calculate curvature at y_pos
-            a = fit[0]
-            b = fit[1]
-
-            y_pos = np.array([0,y_size/3/driveSys.scaler,y_size/2/driveSys.scaler])
-
-            # signed curvature, right means curve to right
-            curvature = (2*a)/(1+(2*a*y_pos+b)**2)**1.5
-            curvature = np.mean(curvature)
-
-            # right offset positive
-            x0 = fit[0]*1**2 + fit[1]*1 + fit[2]
-            offset = -x0
-            driveSys.lanewidth = 20
-            if (side=='left'):
-                offset -= driveSys.lanewidth/2
-            else:
-                offset += driveSys.lanewidth/2
+            # unwarp and change of units
+            for i in range(len(pts_side)):
+                pts_side[0,i,0],pts_side[0,i,1] = transform(pts_side[0,i,0],pts_side[0,i,1])
                 
-	    t.e('calc offset&curvature')
+                # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
+                #XXX this is really stupid and inefficient
+                if (side == 'left'):
+                    pts_side[0,i,0] = pts_side[0,i,0]+0.5*driveSys.lanewidth
+                else:
+                    pts_side[0,i,0] = pts_side[0,i,0]-0.5*driveSys.lanewidth
 
-            #rospy.logdebug("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            print("curvature = $1.1f, offset = %1.1f", curvature,offset)
-            return (curvature,offset)
+            # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
+            #fit(y,x)
+            fit = np.polyfit(pts_side[0,:,1],pts_side[0,:,0],2)
+
+	    t.e('change centerline perspective')
+
+
+            return fit
 
         return None
+
+    @staticmethod
+    def purePursuit(lookahead,fit):
+        # anchor point coincide with rear axle
+        # calculate target point
+        a = fit[0]
+        b = fit[1]
+        c = fit[2]
+        p = []
+        p.append(a**2)
+        p.append(a*b)
+        p.append(b**2+a*c+1)
+        p.append(b*c)
+        p.append(c**2-lookahead**2)
+        p = np.array(p)
+        roots = np.roots(p)
+        roots = roots[(roots<lookahead) & (roots>0)]
+        if (roots is None):
+            return None
+        roots.sort()
+        y = roots[-1]
+        x = (lookahead**2-y**2)**0.5
+
+        # find curvature to that point
+        curvature = (2*x)/(lookahead**2)
+
+        # find steering angle for this curvature
+        # not sure about this XXX
+        wheelbase = 10
+        steer_angle = math.atan(curvature * wheelbase)/math.pi*180
+        steer_output = steer_angle/30.0
+        return steer_output
+            
 
 
 # universal functions
@@ -504,6 +485,35 @@ def showmg(img1,img2=None,img3=None,img4=None):
     plt.show()
     return
 
+
+def transform(x, y):
+    # alpha = 20 degrees, verticalFOV(vFov) = 15 degrees, horizontalFOV(hFov) = 15 degrees, h = 5.4 cm
+    alpha = 3
+    vFov = 27.0
+    hFov = 40.0
+    h = 5.4
+
+    ob = h / math.cos(math.radians(90 - alpha - vFov))
+    op = math.cos(math.radians(vFov)) * ob
+    bp = math.sin(math.radians(vFov)) * ob
+
+    if y > 0 and y <= 240:
+        angle = math.degrees(math.atan((240-y)/240.0*bp/op)) + 90.0 - alpha
+        actualY = math.tan(math.radians(angle))*h
+    else:
+        angle = 90 - alpha - math.degrees(math.atan((y-240)/240*bp/op))
+        actualY = math.tan(math.radians(angle))*h
+
+    om = actualY * math.tan(math.radians(hFov))
+    
+    if x > 0 and x <= 320:
+        actualX = -(320-x)/320.0*om
+    else:
+        actualX = (x-320)/320.0*om
+        
+    actualY = actualY + 14
+    
+    return actualX, actualY
 # normalize an image with (0,255)
 def normalize(data):
     data = data.astype(np.float32)
@@ -545,11 +555,12 @@ def testimg(filename):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     #crop
     image = image[240:,:]
+    driveSys.lanewidth=15
     driveSys.scaler = 25
 
     t.s()
-    (curvature,offset)=driveSys.findCenterline(image)
-    steer = driveSys.calcSteer(curvature,offset)
+    fit = driveSys.findCenterline(image)
+    steer = driveSys.purePursuit(10,fit)
     t.e()
     print('steer = ',steer)
     return
@@ -559,7 +570,7 @@ t = execution_timer(True)
 if __name__ == '__main__':
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    testpics =['../img/image.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
     
@@ -568,5 +579,3 @@ if __name__ == '__main__':
     for i in range(8):
         testimg(testpics[i])
     t.summary()
-    #testimg(testpics[0])
-
