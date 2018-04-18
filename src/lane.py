@@ -43,7 +43,7 @@ class driveSys:
         driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
         driveSys.steering_pub = rospy.Publisher("/steer_angle",float_msg, queue_size=1)
         driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
-	driveSys.testimg = None
+        driveSys.testimg = None
         driveSys.sizex=x_size
         driveSys.sizey=y_size
         driveSys.scaler = 25
@@ -82,7 +82,7 @@ class driveSys:
 		image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
 		driveSys.test_pub.publish(image_message)
         return
-    
+
     # handles frame pre-processing and post status update
     @staticmethod
     def drive(data):
@@ -145,16 +145,16 @@ class driveSys:
         norm = normalize(norm)
         #norm > 1 to get good edges
 
-        
+
         # find left edges of while lanes
         t.s('find left edges')
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         # XXX gray>1.5 is a sketchy solution that cut data size in half
         binary_output[(gray>1.5)&(sobelx>0) & (norm>1)] = 1
         #showg(binary_output)
-        
+
         #label connected components
-        connectivity = 8 
+        connectivity = 8
         output = cv2.connectedComponentsWithStats(binary_output, connectivity, cv2.CV_32S)
         # The first cell is the number of labels
         num_labels = output[0]
@@ -167,7 +167,7 @@ class driveSys:
 
         '''
         # for DEBUG
-        
+
         # Map component labels to hue val
         label_hue = np.uint8(179*labels/np.max(labels))
         blank_ch = 255*np.ones_like(label_hue)
@@ -207,9 +207,9 @@ class driveSys:
         t.s('find right edg')
         binary_output =  np.zeros_like(gray,dtype=np.uint8)
         binary_output[(gray>1.5)&(sobelx<0) & (norm>1)] = 1
-        
+
         #label connected components
-        connectivity = 8 
+        connectivity = 8
         output = cv2.connectedComponentsWithStats(binary_output, connectivity, cv2.CV_32S)
         # The first cell is the number of labels
         num_labels = output[0]
@@ -269,7 +269,7 @@ class driveSys:
                 else:
                     flag_good_road = True
                     center_poly = findCenterFromSide(left_poly,right_poly)
-        
+
         # case 2: we only see one edge of any sort
         if (len(long_edge_lr)==1):
             with warnings.catch_warnings(record=True) as w:
@@ -280,7 +280,7 @@ class driveSys:
                     flag_one_lane = True
 
         # case 3: if we get  (LR), then we are stepping on a lane, but don't know which that lane is (LR)
-        # in this case drive on this lane until we see the other lane 
+        # in this case drive on this lane until we see the other lane
         elif (long_edge_lr == 'LR'):
             index = 0
             with warnings.catch_warnings(record=True) as w:
@@ -309,7 +309,7 @@ class driveSys:
                 side = 'left'
         t.e('find centerline - lr analysis')
 
-        
+
         binary_output=None
         if (flag_good_road == True):
 
@@ -320,7 +320,7 @@ class driveSys:
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
             left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
-            right_fitx = right_poly[0]*ploty**2 + right_poly[1]*ploty + right_poly[2] 
+            right_fitx = right_poly[0]*ploty**2 + right_poly[1]*ploty + right_poly[2]
             # Recast the x and y points into usable format for cv2.fillPoly()
             pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
             pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
@@ -356,7 +356,7 @@ class driveSys:
             # unwarp and change of units
             for i in range(len(pts_center)):
                 pts_center[0,i,0],pts_center[0,i,1] = transform(pts_center[0,i,0],pts_center[0,i,1])
-                
+
             # now pts_center should contain points in vehicle coordinate with x axis being rear axle,unit in cm
             #fit(y,x)
             fit = np.polyfit(pts_center[0,:,1],pts_center[0,:,0],2)
@@ -403,7 +403,7 @@ class driveSys:
             # unwarp and change of units
             for i in range(len(pts_side)):
                 pts_side[0,i,0],pts_side[0,i,1] = transform(pts_side[0,i,0],pts_side[0,i,1])
-                
+
                 # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
                 #XXX this is really stupid and inefficient
                 if (side == 'left'):
@@ -453,7 +453,7 @@ class driveSys:
         steer_angle = math.atan(curvature * wheelbase)/math.pi*180
         steer_output = steer_angle/30.0
         return steer_output
-            
+
 
 
 # universal functions
@@ -505,14 +505,14 @@ def transform(x, y):
         actualY = math.tan(math.radians(angle))*h
 
     om = actualY * math.tan(math.radians(hFov))
-    
+
     if x > 0 and x <= 320:
         actualX = -(320-x)/320.0*om
     else:
         actualX = (x-320)/320.0*om
-        
+
     actualY = actualY + 14
-    
+
     return actualX, actualY
 # normalize an image with (0,255)
 def normalize(data):
@@ -546,8 +546,8 @@ def fitPoly(binary):
 def findCenterFromSide(left,right):
     return (left+right)/2
 
-    
-# run the pipeline on a test img    
+
+# run the pipeline on a test img
 def testimg(filename):
     image = cv2.imread(filename)
     # we hold undistortion after lane finding because this operation discards data
@@ -564,18 +564,19 @@ def testimg(filename):
     t.e()
     print('steer = ',steer)
     return
-    
+
 
 t = execution_timer(True)
 if __name__ == '__main__':
-    print('begin')
-    #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    """print('begin')
+    #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png']
+    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png']
     M = cv2.getPerspectiveTransform(src_points, dst_points)
     Minv = cv2.getPerspectiveTransform(dst_points,src_points)
-    
+
     #driveSys.init()
     #total 8 pics
     for i in range(8):
         testimg(testpics[i])
-    t.summary()
+    t.summary()"""
+    driveSys.init()

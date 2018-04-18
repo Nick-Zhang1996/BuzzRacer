@@ -33,7 +33,7 @@ class imageutil:
         # Use 9*6 chessboard
         objpoints = np.zeros([9*6,3],np.float32)
         objpoints[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
-        
+
         for filename in filenames:
             image = cv2.imread(path_to_file+filename)
             ret, corners = cv2.findChessboardCorners(image, (9,6))
@@ -43,11 +43,11 @@ class imageutil:
                 objpoints_set.append(objpoints)
 
         ret, mtx, dist, rvecs,tvecs = cv2.calibrateCamera(objpoints_set,imgpoints_set,image.shape[0:2],None, None)
-                
+
         with open(path_to_output+'mtx.p', 'wb') as f:
-                pickle.dump(mtx, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(mtx, f)
         with open(path_to_output+'dist.p', 'wb') as f:
-                pickle.dump(dist, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(dist, f)
         self.mtx = mtx
         self.dist = dist
         print('calibration completed')
@@ -78,4 +78,4 @@ if __name__ == '__main__':
     print(t.undistortPts(np.zeros((1,1,2),dtype=np.float32)))
     plt.imshow(image)
     plt.show()
-    
+
