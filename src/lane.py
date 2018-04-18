@@ -7,6 +7,7 @@ import pickle
 import warnings
 import rospy
 import threading
+import time
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64 as float_msg
@@ -15,6 +16,8 @@ from cv_bridge import CvBridge, CvBridgeError
 
 from timeUtil import execution_timer
 
+
+debug_delay = 10000
 x_size = 640
 y_size = 480
 crop_y_size = 240
@@ -25,7 +28,7 @@ dst_points = np.array([[0.25*x_size,y_size-0.25*y_size],[0.25*x_size,y_size-0.56
 
 src_points = src_points.astype(np.float32)
 dst_points = dst_points.astype(np.float32)
-
+t = execution_timer(True)
 
 class driveSys:
 
@@ -50,6 +53,7 @@ class driveSys:
 		# unit: cm
 		driveSys.lanewidth=15
 		driveSys.lock = threading.Lock()
+		driveSys.outputDebug = False
 
 		driveSys.data = None
 		while not rospy.is_shutdown():
@@ -59,6 +63,11 @@ class driveSys:
 
 			if localcopy is not None:
 				driveSys.drive(localcopy)
+
+			millis = int(round(time.time() * 1000))
+			if millis % debug_delay < 200:
+				rospy.loginfo("debugging")
+				driveSys.outputDebug = True
 
 		rospy.spin()
 
@@ -96,6 +105,12 @@ class driveSys:
 		if fit is not None:
 			throttle = 0.247
 			steer = driveSys.purePursuit(10, fit)
+			if driveSys.outputDebug:
+				t.e()
+				t.summary()
+				saveImg(frame, steer, throttle)
+				driveSys.outputDebug = False
+				t.s()
 		else:
 			throttle = 0
 			steer = 0
@@ -555,10 +570,14 @@ def testimg(filename):
 	steer = driveSys.purePursuit(10,fit)
 	t.e()
 	print('steer = ',steer)
-	return
 
+def saveImg(frame, steering=0, throttle=0):
+    text = "Steering: %f, Throttle: %f" % (steering, throttle)
+    cv2.putText(frame, text, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255),2)
+    nameTime = str(round(time.time()))
+    name = './pics/' + nameTime + ".png"
+    mpimg.imsave(name, frame)
 
-t = execution_timer(True)
 if __name__ == '__main__':
 	"""print('begin')
 	#testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png']
@@ -571,4 +590,5 @@ if __name__ == '__main__':
 	for i in range(8):
 		testimg(testpics[i])
 	t.summary()"""
+	t.s()
 	driveSys.init()
