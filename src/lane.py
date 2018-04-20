@@ -415,6 +415,7 @@ class driveSys:
 
     @staticmethod
     def purePursuit(fit,lookahead=27):
+        pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
         a = fit[0]
@@ -428,6 +429,8 @@ class driveSys:
         p.append(c**2-lookahead**2)
         p = np.array(p)
         roots = np.roots(p)
+        roots = roots[np.abs(roots.imag)<0.00001]
+        roots = roots.real
         roots = roots[(roots<lookahead) & (roots>0)]
         if (roots is None):
             return None
@@ -441,7 +444,7 @@ class driveSys:
         # find steering angle for this curvature
         # not sure about this XXX
         wheelbase = 11
-        steer_angle = math.atan(wheelbase, 1/curvature)/math.pi*180
+        steer_angle = math.atan2(wheelbase, 1/curvature)/math.pi*180
         steer_output = steer_angle/30.0
         return steer_output
             
@@ -449,6 +452,20 @@ class driveSys:
 
 # universal functions
 
+def debugimg(poly):
+    # Generate x and y values for plotting
+    ploty = np.linspace(0,40,41)
+
+    binary_output =  np.zeros([41,20],dtype=np.uint8)
+
+    # Draw centerline onto the image
+    x = poly[0]*ploty**2 + poly[1]*ploty + poly[2]
+    x = x+10
+    ploty = 40-ploty
+    pts = np.array(np.transpose(np.vstack([x, ploty])))
+    cv2.polylines(binary_output,np.int_([pts]), False, 1,1)
+
+    return  binary_output
 
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
