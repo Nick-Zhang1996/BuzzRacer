@@ -20,13 +20,6 @@ y_size = 480
 crop_y_size = 240
 cam = imageutil('../calibrated/')
 
-src_points = np.array([[68,344],[153,295],[496,303],[591,353]])
-dst_points = np.array([[0.25*x_size,y_size-0.25*y_size],[0.25*x_size,y_size-0.567*y_size],[0.75*x_size,y_size-0.567*y_size],[0.75*x_size,y_size-0.25*y_size]])
-
-src_points = src_points.astype(np.float32)
-dst_points = dst_points.astype(np.float32)
-
-
 class driveSys:
 
     @staticmethod
@@ -43,7 +36,7 @@ class driveSys:
         driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
         driveSys.steering_pub = rospy.Publisher("/steer_angle",float_msg, queue_size=1)
         driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
-	driveSys.testimg = None
+        driveSys.testimg = None
         driveSys.sizex=x_size
         driveSys.sizey=y_size
         driveSys.scaler = 25
@@ -78,14 +71,14 @@ class driveSys:
         driveSys.throttle_pub.publish(driveSys.throttle)
         driveSys.steering_pub.publish(driveSys.steering)
         rospy.loginfo("throttle = %f steering = %f",driveSys.throttle,driveSys.steering)
-	if (driveSys.testimg is not None):
-		image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
-		driveSys.test_pub.publish(image_message)
+        if (driveSys.testimg is not None):
+            image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
+            driveSys.test_pub.publish(image_message)
         return
     
     # handles frame pre-processing and post status update
     @staticmethod
-    def drive(data):
+    def drive(data,noBridge = False):
         try:
             frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
         except CvBridgeError as e:
@@ -93,14 +86,13 @@ class driveSys:
 
         #crop
         frame = frame[240:,:]
-
-    	frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
             (curvature,offset)=retval
             rospy.loginfo("curvature = %f offset = %f",curvature,offset)
             throttle = 0.247
-            steer = driveSys.calcSteer(curvature,offset)
+            steer = driveSys.purePursuit(fit)
         else:
             throttle = 0
             steer = 0
@@ -312,11 +304,9 @@ class driveSys:
         
         binary_output=None
         if (flag_good_road == True):
-
             # DEBUG - for producing anice testimg
-
-	    '''
-	    t.s('generate testimg')
+            '''
+            t.s('generate testimg')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
             left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
@@ -337,8 +327,9 @@ class driveSys:
 
             driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
             # END-DEBUG
-	    t.e('generate testimg')
-	    '''
+            t.e('generate testimg')
+            '''
+            pass
 
             # get centerline in top-down view
 
@@ -423,7 +414,7 @@ class driveSys:
         return None
 
     @staticmethod
-    def purePursuit(lookahead,fit):
+    def purePursuit(fit,lookahead=27):
         # anchor point coincide with rear axle
         # calculate target point
         a = fit[0]
@@ -442,15 +433,15 @@ class driveSys:
             return None
         roots.sort()
         y = roots[-1]
-        x = (lookahead**2-y**2)**0.5
+        x = fit[0]*(y**2) + fit[1]*y + fit[2]
 
         # find curvature to that point
         curvature = (2*x)/(lookahead**2)
 
         # find steering angle for this curvature
         # not sure about this XXX
-        wheelbase = 10
-        steer_angle = math.atan(curvature * wheelbase)/math.pi*180
+        wheelbase = 11
+        steer_angle = math.atan(wheelbase, 1/curvature)/math.pi*180
         steer_output = steer_angle/30.0
         return steer_output
             
@@ -560,7 +551,7 @@ def testimg(filename):
 
     t.s()
     fit = driveSys.findCenterline(image)
-    steer = driveSys.purePursuit(10,fit)
+    steer = driveSys.purePursuit(fit)
     t.e()
     print('steer = ',steer)
     return
@@ -571,8 +562,6 @@ if __name__ == '__main__':
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    M = cv2.getPerspectiveTransform(src_points, dst_points)
-    Minv = cv2.getPerspectiveTransform(dst_points,src_points)
     
     #driveSys.init()
     #total 8 pics
