@@ -92,7 +92,8 @@ class driveSys:
             (curvature,offset)=retval
             rospy.loginfo("curvature = %f offset = %f",curvature,offset)
             throttle = 0.247
-            steer = driveSys.purePursuit(fit)
+            steer_angle = driveSys.purePursuit(fit)
+            steer = driveSys.calcSteer(steer_angle)
         else:
             throttle = 0
             steer = 0
@@ -103,12 +104,18 @@ class driveSys:
         driveSys.publish()
         return
 
-    # given curvature and offset, calculate appropriate steering value for the car
+
+    # given a steering angle, provide a -1.0-1.0 value for rostopic /steer_angle
+    # XXX this is a temporary measure, this should be handled by arduino
     @staticmethod
-    def calcSteer(curvature,offset):
-        ref = -offset*0.3
-        print('steer=',ref)
-        return np.clip(ref,-1,1)
+    def calcSteer(angle):
+        # values obtained from testing
+        val = 0.0479*angle+0.2734
+        print('steer=',val)
+        if (val>1 or val<-1):
+            print('insufficient steering')
+
+        return np.clip(val,-1,1)
 
     # given a gray image, spit out:
     #   a centerline curve x=f(y), 2nd polynomial. with car as (0,0)
@@ -445,8 +452,7 @@ class driveSys:
         # not sure about this XXX
         wheelbase = 11
         steer_angle = math.atan2(wheelbase, 1/curvature)/math.pi*180
-        steer_output = steer_angle/30.0
-        return steer_output
+        return steer_angle
             
 
 
