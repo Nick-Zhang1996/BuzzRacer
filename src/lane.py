@@ -92,7 +92,8 @@ class driveSys:
             (curvature,offset)=retval
             rospy.loginfo("curvature = %f offset = %f",curvature,offset)
             throttle = 0.247
-            steer = driveSys.purePursuit(fit)
+            steer_angle = driveSys.purePursuit(fit)
+            steer = driveSys.calcSteer(steer_angle)
         else:
             throttle = 0
             steer = 0
@@ -103,12 +104,18 @@ class driveSys:
         driveSys.publish()
         return
 
-    # given curvature and offset, calculate appropriate steering value for the car
+
+    # given a steering angle, provide a -1.0-1.0 value for rostopic /steer_angle
+    # XXX this is a temporary measure, this should be handled by arduino
     @staticmethod
-    def calcSteer(curvature,offset):
-        ref = -offset*0.3
-        print('steer=',ref)
-        return np.clip(ref,-1,1)
+    def calcSteer(angle):
+        # values obtained from testing
+        val = 0.0479*angle+0.2734
+        print('steer=',val)
+        if (val>1 or val<-1):
+            print('insufficient steering')
+
+        return np.clip(val,-1,1)
 
     # given a gray image, spit out:
     #   a centerline curve x=f(y), 2nd polynomial. with car as (0,0)
@@ -325,7 +332,7 @@ class driveSys:
             pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
             cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
 
-            driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
+            #driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
             # END-DEBUG
             t.e('generate testimg')
             '''
@@ -345,7 +352,7 @@ class driveSys:
             pts_center = cam.undistortPts(np.reshape(pts_center,(1,-1,2)))
 
             # unwarp and change of units
-            for i in range(len(pts_center)):
+            for i in range(len(pts_center[0])):
                 pts_center[0,i,0],pts_center[0,i,1] = transform(pts_center[0,i,0],pts_center[0,i,1])
                 
             # now pts_center should contain points in vehicle coordinate with x axis being rear axle,unit in cm
@@ -359,9 +366,9 @@ class driveSys:
 
         if (flag_one_lane == True):
 
-	    '''
             # DEBUG - for producing anice testimg
 
+            '''
 	    t.s('generate testimg')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
@@ -373,10 +380,10 @@ class driveSys:
             pts_side = np.array(np.transpose(np.vstack([sidelinex, ploty])))
             cv2.polylines(binary_output,np.int_([pts_side]), False, 1,1)
 
-            driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
+            #driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
 	    t.e('generate testimg')
+            '''
             # END-DEBUG
-	    '''
 
             # get centerline in top-down view
 
@@ -392,7 +399,7 @@ class driveSys:
             pts_side = cam.undistortPts(np.reshape(pts_side,(1,-1,2)))
 
             # unwarp and change of units
-            for i in range(len(pts_side)):
+            for i in range(len(pts_side[0])):
                 pts_side[0,i,0],pts_side[0,i,1] = transform(pts_side[0,i,0],pts_side[0,i,1])
                 
                 # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
@@ -415,6 +422,7 @@ class driveSys:
 
     @staticmethod
     def purePursuit(fit,lookahead=27):
+        pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
         a = fit[0]
@@ -422,12 +430,14 @@ class driveSys:
         c = fit[2]
         p = []
         p.append(a**2)
-        p.append(a*b)
-        p.append(b**2+a*c+1)
-        p.append(b*c)
+        p.append(2*a*b)
+        p.append(b**2+2*a*c+1)
+        p.append(2*b*c)
         p.append(c**2-lookahead**2)
         p = np.array(p)
         roots = np.roots(p)
+        roots = roots[np.abs(roots.imag)<0.00001]
+        roots = roots.real
         roots = roots[(roots<lookahead) & (roots>0)]
         if (roots is None):
             return None
@@ -441,14 +451,27 @@ class driveSys:
         # find steering angle for this curvature
         # not sure about this XXX
         wheelbase = 11
-        steer_angle = math.atan(wheelbase, 1/curvature)/math.pi*180
-        steer_output = steer_angle/30.0
-        return steer_output
+        steer_angle = math.atan(wheelbase*curvature)/math.pi*180
+        return steer_angle
             
 
 
 # universal functions
 
+def debugimg(poly):
+    # Generate x and y values for plotting
+    ploty = np.linspace(0,40,41)
+
+    binary_output =  np.zeros([41,20],dtype=np.uint8)
+
+    # Draw centerline onto the image
+    x = poly[0]*ploty**2 + poly[1]*ploty + poly[2]
+    x = x+10
+    ploty = 40-ploty
+    pts = np.array(np.transpose(np.vstack([x, ploty])))
+    cv2.polylines(binary_output,np.int_([pts]), False, 1,1)
+
+    return  binary_output
 
 def showg(img):
     plt.imshow(img,cmap='gray',interpolation='nearest')
@@ -476,8 +499,12 @@ def showmg(img1,img2=None,img3=None,img4=None):
     plt.show()
     return
 
+# matrix obtained from matlab linear fit, mse=1.79 on 17 data points
+def transform(x,y):
+    return 0.035*x-11.5713, -0.1111*y+74.1771
 
-def transform(x, y):
+# XXX this is not accurate
+def obs_transform(x, y):
     # alpha = 20 degrees, verticalFOV(vFov) = 15 degrees, horizontalFOV(hFov) = 15 degrees, h = 5.4 cm
     alpha = 3
     vFov = 27.0
@@ -551,14 +578,29 @@ def testimg(filename):
 
     t.s()
     fit = driveSys.findCenterline(image)
-    steer = driveSys.purePursuit(fit)
+    steer_angle = driveSys.purePursuit(fit)
+    steer = driveSys.calcSteer(steer_angle)
     t.e()
-    print('steer = ',steer)
     return
+
+# test perspective changing algorithm against measured value
+def testperspective():
+    src = np.array([[207,370], [220,387],[238,411],[430,368],[461,376],[486,379],[497,386],[554,385],[580,384],[612,384],[432,423],[330,333],[394,411],[390,398],[369,338],[600,394],[613,405]])
+    dest = np.array([[-5,33],  [-4,31],  [-3,29],[4,33],[5,32],[6,32],[6,31],[8,31],[9,31],[10,31],[3,28],[0,38],[2,29],[2,30],[2,37],[9,30],[9,29]])
+    mse = np.array([0,0],dtype=np.float64)
+    for (a,b) in zip(src,dest):
+        guess = transform(a[0],a[1])
+        diff = guess-b
+        mse += diff**2
+
+    print(mse**0.5)
+    return
+
     
 
 t = execution_timer(True)
 if __name__ == '__main__':
+
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
