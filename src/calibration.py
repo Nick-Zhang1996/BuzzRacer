@@ -59,7 +59,7 @@ class imageutil:
         return dst
 
     def undistortPts(self,src):
-        dst = cv2.undistortPoints(src,self.mtx,self.dist)
+        dst = cv2.undistortPoints(src,self.mtx,self.dist,P=self.mtx)
         return dst
 
 
@@ -73,9 +73,10 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     image = cv2.imread(filename)
     image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
-    #this throuws Segmentation fault: 11
+    plt.imshow(image)
+    plt.show()
     image = t.undistort(image)
-    print(t.undistortPts(np.zeros((1,1,2),dtype=np.float32)))
+    print(t.undistortPts(np.array([[[95,394],[104,70]]],dtype=np.float32)))
     plt.imshow(image)
     plt.show()
 
