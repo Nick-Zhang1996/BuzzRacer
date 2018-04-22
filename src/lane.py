@@ -332,7 +332,7 @@ class driveSys:
             pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
             cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
 
-            driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
+            #driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
             # END-DEBUG
             t.e('generate testimg')
             '''
@@ -352,7 +352,7 @@ class driveSys:
             pts_center = cam.undistortPts(np.reshape(pts_center,(1,-1,2)))
 
             # unwarp and change of units
-            for i in range(len(pts_center)):
+            for i in range(len(pts_center[0])):
                 pts_center[0,i,0],pts_center[0,i,1] = transform(pts_center[0,i,0],pts_center[0,i,1])
                 
             # now pts_center should contain points in vehicle coordinate with x axis being rear axle,unit in cm
@@ -366,9 +366,9 @@ class driveSys:
 
         if (flag_one_lane == True):
 
-	    '''
             # DEBUG - for producing anice testimg
 
+            '''
 	    t.s('generate testimg')
             # Generate x and y values for plotting
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
@@ -380,10 +380,10 @@ class driveSys:
             pts_side = np.array(np.transpose(np.vstack([sidelinex, ploty])))
             cv2.polylines(binary_output,np.int_([pts_side]), False, 1,1)
 
-            driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
+            #driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
 	    t.e('generate testimg')
+            '''
             # END-DEBUG
-	    '''
 
             # get centerline in top-down view
 
@@ -399,7 +399,7 @@ class driveSys:
             pts_side = cam.undistortPts(np.reshape(pts_side,(1,-1,2)))
 
             # unwarp and change of units
-            for i in range(len(pts_side)):
+            for i in range(len(pts_side[0])):
                 pts_side[0,i,0],pts_side[0,i,1] = transform(pts_side[0,i,0],pts_side[0,i,1])
                 
                 # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
@@ -430,9 +430,9 @@ class driveSys:
         c = fit[2]
         p = []
         p.append(a**2)
-        p.append(a*b)
-        p.append(b**2+a*c+1)
-        p.append(b*c)
+        p.append(2*a*b)
+        p.append(b**2+2*a*c+1)
+        p.append(2*b*c)
         p.append(c**2-lookahead**2)
         p = np.array(p)
         roots = np.roots(p)
@@ -451,7 +451,7 @@ class driveSys:
         # find steering angle for this curvature
         # not sure about this XXX
         wheelbase = 11
-        steer_angle = math.atan2(wheelbase, 1/curvature)/math.pi*180
+        steer_angle = math.atan(wheelbase*curvature)/math.pi*180
         return steer_angle
             
 
@@ -499,7 +499,7 @@ def showmg(img1,img2=None,img3=None,img4=None):
     plt.show()
     return
 
-
+# matrix obtained from matlab linear fit, mse=1.79 on 17 data points
 def transform(x,y):
     return 0.035*x-11.5713, -0.1111*y+74.1771
 
@@ -578,9 +578,9 @@ def testimg(filename):
 
     t.s()
     fit = driveSys.findCenterline(image)
-    steer = driveSys.purePursuit(fit)
+    steer_angle = driveSys.purePursuit(fit)
+    steer = driveSys.calcSteer(steer_angle)
     t.e()
-    print('steer = ',steer)
     return
 
 # test perspective changing algorithm against measured value
@@ -601,8 +601,6 @@ def testperspective():
 t = execution_timer(True)
 if __name__ == '__main__':
 
-    testperspective()
-    exit()
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
