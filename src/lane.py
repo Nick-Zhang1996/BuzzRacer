@@ -90,6 +90,7 @@ class driveSys:
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
             throttle = 0.247
+            fit = retval
             steer_angle = driveSys.purePursuit(fit)
             if (steer_angle is not None):
                 steer = driveSys.calcSteer(steer_angle)
@@ -191,6 +192,7 @@ class driveSys:
         long_edge_lr = ""
         long_edge_label = []
 
+        #XXX error: out of bond
         if (stats[line_labels[0],cv2.CC_STAT_AREA]>300):
             long_edge_centroids.append(centroids[line_labels[0],0])
             long_edge_lr += 'L'
@@ -463,10 +465,10 @@ class driveSys:
 def saveImg(frame, steering=0, throttle=0):
     #text = "Steering: %f, Throttle: %f" % (steering, throttle)
     #cv2.putText(frame, text, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255),2)
-    image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="bgr8")
+    image_message = driveSys.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
     nameTime = str(round(time.time()))
     name = './pics/' + nameTime + ".png"
-    cv2.imsave(name, frame)
+    cv2.imwrite(name, frame)
     rospy.loginfo("debug img %s saved", nameTime+'.png')
     return
 
