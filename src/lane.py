@@ -578,10 +578,27 @@ def testimg(filename):
     t.e()
     print('steer = ',steer)
     return
+
+# test perspective changing algorithm against measured value
+def testperspective():
+    src = np.array([[207,370], [220,387],[238,411],[430,368],[461,376],[486,379],[497,386],[554,385],[580,384],[612,384],[432,423],[330,333],[394,411],[390,398],[369,338],[600,394],[613,405]])
+    dest = np.array([[-5,33],  [-4,31],  [-3,29],[4,33],[5,32],[6,32],[6,31],[8,31],[9,31],[10,31],[28,3],[38,0],[2,29],[2,30],[2,37],[9,30],[9,29]])
+    mse = np.array([0,0],dtype=np.float64)
+    for (a,b) in zip(src,dest):
+        guess = transform(a[0],a[1])
+        diff = guess-b
+        mse += diff**2
+
+    print(mse)
+    return
+
     
 
 t = execution_timer(True)
 if __name__ == '__main__':
+
+    testperspective()
+    exit()
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
