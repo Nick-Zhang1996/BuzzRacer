@@ -80,20 +80,22 @@ class driveSys:
     @staticmethod
     def drive(data,noBridge = False):
         try:
-            frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
+            ori_frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
         except CvBridgeError as e:
             print(e)
 
         #crop
-        frame = frame[240:,:]
+        frame = ori_frame[240:,:]
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
-            (curvature,offset)=retval
-            rospy.loginfo("curvature = %f offset = %f",curvature,offset)
             throttle = 0.247
+            fit = retval
             steer_angle = driveSys.purePursuit(fit)
-            steer = driveSys.calcSteer(steer_angle)
+            if (steer_angle is not None):
+                steer = driveSys.calcSteer(steer_angle)
+            else:
+                saveImg(ori_frame)
         else:
             throttle = 0
             steer = 0
@@ -190,6 +192,7 @@ class driveSys:
         long_edge_lr = ""
         long_edge_label = []
 
+        #XXX error: out of bond
         if (stats[line_labels[0],cv2.CC_STAT_AREA]>300):
             long_edge_centroids.append(centroids[line_labels[0],0])
             long_edge_lr += 'L'
@@ -439,7 +442,7 @@ class driveSys:
         roots = roots[np.abs(roots.imag)<0.00001]
         roots = roots.real
         roots = roots[(roots<lookahead) & (roots>0)]
-        if (roots is None):
+        if ((roots is None) or (len(roots)==0)):
             return None
         roots.sort()
         y = roots[-1]
@@ -458,6 +461,20 @@ class driveSys:
 
 # universal functions
 
+# save frame as an image for debug
+def saveImg(frame, steering=0, throttle=0):
+    #text = "Steering: %f, Throttle: %f" % (steering, throttle)
+    #cv2.putText(frame, text, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255),2)
+    image_message = driveSys.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+    nameTime = str(round(time.time()))
+    name = './pics/' + nameTime + ".png"
+    cv2.imwrite(name, frame)
+    rospy.loginfo("debug img %s saved", nameTime+'.png')
+    return
+
+
+
+# generate a top-down view for transformed fitted curve
 def debugimg(poly):
     # Generate x and y values for plotting
     ploty = np.linspace(0,40,41)
@@ -598,15 +615,15 @@ def testperspective():
 
     
 
-t = execution_timer(True)
+t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
     
-    #driveSys.init()
+    driveSys.init()
     #total 8 pics
-    for i in range(8):
-        testimg(testpics[i])
-    t.summary()
+    #for i in range(8):
+    #    testimg(testpics[i])
+    #t.summary()
