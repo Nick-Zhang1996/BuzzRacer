@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(RC-VIP)
+project(rc-vip)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -14,7 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   std_msgs
+  rosserial_arduino
+  rosserial_client
 )
+
+catkin_package()
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -202,13 +206,25 @@ include_directories(
 
 
 ##### RC-VIP
-install(PROGRAMS
-  src/drive_relay.py
-  src/joystick_drive.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#install(PROGRAMS
+#  src/drive_relay.py
+#  src/joystick_drive.py
+#  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
+
+#add_executable(pwm_test src/test_programs/pwm_test.cpp)
+#target_link_libraries(pwm_test wiringPi rt crypt ${catkin_LIBRARIES})
+
+rosserial_generate_ros_lib(
+    PACKAGE  rosserial_arduino
+    SCRIPT make_libraries.py
 )
 
-add_executable(pwm_test src/test_programs/pwm_test.cpp)
-target_link_libraries(pwm_test wiringPi rt crypt ${catkin_LIBRARIES})
+rosserial_configure_client(
+    DIRECTORY firmware
+    TOOLCHAIN_FILE ${ROSSERIAL_ARDUINO_TOOLCHAIN}
+)
 
 
+rosserial_add_client_target(firmware arduino ALL)
+rosserial_add_client_target(firmware arduino-upload)
