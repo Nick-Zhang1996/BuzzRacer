@@ -120,8 +120,7 @@ class driveSys:
         return np.clip(val,-1,1)
 
     # given a gray image, spit out:
-    #   a centerline curve x=f(y), 2nd polynomial. with car as (0,0)
-    #   a predicted lane width
+    #   a centerline curve x=f(y), 2nd polynomial. with car's rear axle  as (0,0)
     @staticmethod
     def findCenterline(gray):
         #showg(gray)
