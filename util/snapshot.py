@@ -8,6 +8,7 @@ import cv2
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
+from calibration import imageutil
 
 def snap(data):
     print('called')
@@ -20,12 +21,11 @@ def snap(data):
     frame = cv_image
 
     retval = cv2.imwrite(filename,frame)
+    print('picture taken')
     print(retval)
 
-    # uncomment to show live video
-    #cv2.imshow('frame',frame)
-    #sleep(2)
-    exit(retval)
+    reason='job done'
+    rospy.signal_shutdown(reason)
     return
 
 #reading command line arguments
@@ -43,7 +43,5 @@ bridge = CvBridge()
 rospy.init_node('recording_node', anonymous=False)
 #create subscriber for camera input
 rospy.Subscriber("/image_raw", Image, snap,queue_size=1)
-print('online')
 rospy.spin()
-print('finish')
 
