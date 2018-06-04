@@ -133,14 +133,15 @@ class driveSys:
 
         ori = gray.copy()
 
-
-        #gray = normalize(gray)
         alpha = 20
         gauss = cv2.GaussianBlur(gray, (0, 0), sigmaX=alpha, sigmaY=alpha)
 
         gray = gray - gauss
         binary = normalize(gray)>1
         binary = binary.astype(np.uint8)
+
+
+        # TODO a erosion here may help separate bad labels later
 
         #label connected components
         connectivity = 8 
@@ -158,185 +159,31 @@ class driveSys:
 
         # apply known rejection standards here
         goodLabels = []
-        for i in range(num_labels):
-            if (stats[i,cv2.CC_STAT_AREA]<1000 or stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] < 220 or stats[i,cv2.CC_STAT_HEIGHT]<80):
-                binary[labels==i]=0
-            else:
+        # label 0 is background, start at 1
+        for i in range(1,num_labels):
+            if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 220 and stats[i,cv2.CC_STAT_HEIGHT]>80):
                 goodLabels.append(i)
 
-        if (len(goodLabels)==0):
-            print(' no good feature')
-            return
-        else:
-            print('good feature :  '+str(len(goodLabels)))
-
-        cv2.namedWindow('binary')
-        cv2.imshow('binary',binary)
-        cv2.createTrackbar('label','binary',1,len(goodLabels)-1,nothing)
-        last_selected = 1
-
-        # visualize the remaining labels
-        while(1):
-
-            selected = goodLabels[cv2.getTrackbarPos('label','binary')]
-
-            binaryGB = binary.copy()
-            binaryGB[labels==selected] = 0
-            testimg = 255*np.dstack([binary,binaryGB,binaryGB])
-            cv2.imshow('binary',testimg)
-
-            #list info here
-
-            if (selected != last_selected):
-                print('label --'+str(selected))
-                print('Area --\t'+str(stats[selected,cv2.CC_STAT_AREA]))
-                print('Bottom --\t'+str(stats[selected,cv2.CC_STAT_TOP]+stats[selected,cv2.CC_STAT_HEIGHT]))
-                print('Height --\t'+str(stats[selected,cv2.CC_STAT_HEIGHT]))
-                print('WIDTH --\t'+str(stats[selected,cv2.CC_STAT_WIDTH]))
-                print('---------------------------------\n\n')
-                last_selected = selected
-
-            k = cv2.waitKey(1) & 0xFF
-            if k == 27:
-                print('next')
-                break
-        cv2.destroyAllWindows()
-        return
-
-
-
-        # find the two longest left edges
-        line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
-
-
-        # list of centroids with corresponding left/right edge (of a white line)
-        long_edge_centroids = []
-        long_edge_lr = ""
-        long_edge_label = []
-
-        #XXX error: out of bond
-        if (stats[line_labels[0],cv2.CC_STAT_AREA]>300):
-            long_edge_centroids.append(centroids[line_labels[0],0])
-            long_edge_lr += 'L'
-            long_edge_label.append(labels==line_labels[0])
-        if (stats[line_labels[1],cv2.CC_STAT_AREA]>300):
-            long_edge_centroids.append(centroids[line_labels[1],0])
-            long_edge_lr += 'L'
-            long_edge_label.append(labels==line_labels[1])
-
-        t.e('find left edges')
-
-        # find right edge of lanes
-        # XXX gray>1.5 is a sketchy solution that cut data size in half
-        t.s('find right edg')
-        binary_output =  np.zeros_like(gray,dtype=np.uint8)
-        binary_output[(gray>1.5)&(sobelx<0) & (norm>1)] = 1
+        if (len(goodLabels)==1):
+            finalGoodLabel = goodLabels[0]
+        elif (len(goodLabels)==0):
+            print('no good feature')
+            # find no lane, let caller deal with it
+            return None
+        elif (len(goodLabels)>1):
+            # if there are more than 1 good label, pick the big one
+            finalGoodLabel = np.amax(stats[:,cv2.CC_STAT_AREA][1:])
+            rospy.logdebug("multiple good labels exist, no = "+str(len(goodLabels)))
+            # TODO we probably want to record that frame
         
-        #label connected components
-        connectivity = 8 
-        output = cv2.connectedComponentsWithStats(binary_output, connectivity, cv2.CV_32S)
-        # The first cell is the number of labels
-        num_labels = output[0]
-        # The second cell is the label matrix
-        labels = output[1]
-        # The third cell is the stat matrix
-        stats = output[2]
-        # The fourth cell is the centroid matrix
-        centroids = output[3]
+        with warnings.catch_warnings(record=True) as w:
+            centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
+            if len(w)>0:
+                #raise Exception('fail to fit poly')
+                print('fail to fit poly')
+                rospy.logdebug('fail to fit poly')
+                return None
 
-
-        line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
-
-        if ( stats[line_labels[0],cv2.CC_STAT_AREA]>300):
-            long_edge_centroids.append(centroids[line_labels[0],0])
-            long_edge_lr += 'R'
-            long_edge_label.append(labels==line_labels[0])
-
-        if ( stats[line_labels[1],cv2.CC_STAT_AREA]>300):
-
-            long_edge_centroids.append(centroids[line_labels[1],0])
-            long_edge_lr += 'R'
-            long_edge_label.append(labels==line_labels[1])
-
-
-        # rank the edges based on centroid
-        order = np.argsort(long_edge_centroids)
-        long_edge_centroids = np.array(long_edge_centroids)[order]
-        temp_lr = ""
-        for i in order:
-            temp_lr += long_edge_lr[i]
-        long_edge_lr = temp_lr
-        long_edge_label = np.array(long_edge_label)[order]
-
-        t.e('find right edg')
-        # now we analyze the long edges we have
-        # case notation: e.g.(LR) -> left edge, right edge, from left to right
-
-        # this logical is based on the assumption that the edges we find are lane edges
-        # now we distinguish between several situations
-        t.s('find centerline - lr analysis')
-        flag_fail_to_find = False
-        flag_good_road = False
-        flag_one_lane = False
-        centerPoly = None
-
-        # case 1: if we find one and only one pattern (?RL?), we got a match
-        if (long_edge_lr.count('RL')==1):
-            index = long_edge_lr.find('RL')
-            with warnings.catch_warnings(record=True) as w:
-                left_poly = fitPoly(long_edge_label[index])
-                index += 1
-                right_poly = fitPoly(long_edge_label[index])
-                if len(w)>0:
-                    raise Exception('fail to fit poly')
-
-                else:
-                    flag_good_road = True
-                    center_poly = findCenterFromSide(left_poly,right_poly)
-        
-        # case 2: we only see one edge of any sort
-        if (len(long_edge_lr)==1):
-            with warnings.catch_warnings(record=True) as w:
-                side_poly = fitPoly(long_edge_label[0])
-                if len(w)>0:
-                    raise Exception('fail to fit poly')
-                else:
-                    flag_one_lane = True
-
-        # case 3: if we get  (LR), then we are stepping on a lane, but don't know which that lane is (LR)
-        # in this case drive on this lane until we see the other lane 
-        elif (long_edge_lr == 'LR'):
-            index = 0
-            with warnings.catch_warnings(record=True) as w:
-                left_poly = fitPoly(long_edge_label[index])
-                index += 1
-                right_poly = fitPoly(long_edge_label[index])
-                if len(w)>0:
-                    raise Exception('fail to fit poly')
-
-                else:
-                    flag_one_lane = True
-                    side_poly = findCenterFromSide(left_poly,right_poly)
-
-        # otherwise we are completely lost
-        else:
-            flag_fail_to_find = True
-            pass
-
-        # based on whether the line inclines to the left or right, guess which side it is
-        if (flag_one_lane == True):
-            x0 = side_poly[0]*1**2 + side_poly[1]*1 + side_poly[2] - x_size/2
-            x1 = side_poly[0]*crop_y_size**2 + side_poly[1]*crop_y_size + side_poly[2] - x_size/2
-            if (x1-x0>0):
-                side = 'right'
-            else:
-                side = 'left'
-        t.e('find centerline - lr analysis')
-
-        
-        binary_output=None
-        if (flag_good_road == True):
-            # DEBUG - for producing anice testimg
             '''
             t.s('generate testimg')
             # Generate x and y values for plotting
@@ -361,93 +208,34 @@ class driveSys:
             # END-DEBUG
             t.e('generate testimg')
             '''
-            pass
-
             # get centerline in top-down view
 
 	    t.s('change centerline perspective')
 
-            # prepare sample points
-            ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
-
-            # convert back to uncropped space
-            ploty += y_size/2
-            pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-            pts_center = cam.undistortPts(np.reshape(pts_center,(1,-1,2)))
-
-            # unwarp and change of units
-            for i in range(len(pts_center[0])):
-                pts_center[0,i,0],pts_center[0,i,1] = transform(pts_center[0,i,0],pts_center[0,i,1])
-                
-            # now pts_center should contain points in vehicle coordinate with x axis being rear axle,unit in cm
-            #fit(y,x)
-            fit = np.polyfit(pts_center[0,:,1],pts_center[0,:,0],2)
-	    t.e('change centerline perspective')
-
-
-            return fit
-
-
-        if (flag_one_lane == True):
-
-            # DEBUG - for producing anice testimg
-
-            '''
-	    t.s('generate testimg')
-            # Generate x and y values for plotting
-            ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-
-            binary_output =  np.zeros_like(gray,dtype=np.uint8)
-
-            # Draw centerline onto the image
-            sidelinex = side_poly[0]*ploty**2 + side_poly[1]*ploty + side_poly[2]
-            pts_side = np.array(np.transpose(np.vstack([sidelinex, ploty])))
-            cv2.polylines(binary_output,np.int_([pts_side]), False, 1,1)
-
-            #driveSys.testimg = np.dstack(250*[binary_output,binary_output,binary_output])
-	    t.e('generate testimg')
-            '''
-            # END-DEBUG
-
-            # get centerline in top-down view
-
-	    t.s('change centerline perspective')
+            #XXX don't forget to calibrate new camera
 
             # prepare sample points
             ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            sidelinex = side_poly[0]*ploty**2 + side_poly[1]*ploty + side_poly[2]
+            centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
 
             # convert back to uncropped space
             ploty += y_size/2
-            pts_side = np.array(np.transpose(np.vstack([sidelinex, ploty])))
-            pts_side = cam.undistortPts(np.reshape(pts_side,(1,-1,2)))
+            ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
+            ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
             # unwarp and change of units
-            for i in range(len(pts_side[0])):
-                pts_side[0,i,0],pts_side[0,i,1] = transform(pts_side[0,i,0],pts_side[0,i,1])
+            for i in range(len(ptsCenter[0])):
+                ptsCenter[0,i,0],ptsCenter[0,i,1] = transform(ptsCenter[0,i,0],ptsCenter[0,i,1])
                 
-                # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
-                #XXX this is really stupid and inefficient
-                if (side == 'left'):
-                    pts_side[0,i,0] = pts_side[0,i,0]+0.5*driveSys.lanewidth
-                else:
-                    pts_side[0,i,0] = pts_side[0,i,0]-0.5*driveSys.lanewidth
-
-            # now pts_side should contain points in vehicle coordinate with x axis being rear axle,unit in cm
-            #fit(y,x)
-            fit = np.polyfit(pts_side[0,:,1],pts_side[0,:,0],2)
-
+            # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
+            fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
 	    t.e('change centerline perspective')
 
-
             return fit
-
-        return None
 
     @staticmethod
     def purePursuit(fit,lookahead=27):
-        pic = debugimg(fit)
+        #pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
         a = fit[0]
@@ -604,9 +392,19 @@ def warp(image):
 # given a binary image BINARY, where 1 means data and 0 means nothing
 # return the best fit polynomial
 def fitPoly(binary):
-    nonzero = binary.nonzero()
-    nonzeroy = np.array(nonzero[0])
-    nonzerox = np.array(nonzero[1])
+    # TODO would nonzero on a dense arrray consume lots of time?
+    data = binary.nonzero()
+    
+    if (len(data)!=2):
+        print(data)
+    # raise some error here
+        return
+    
+    reject = np.floor(np.random.rand(30)*len(data[0])).astype(np.int16)
+    data = np.delete(data,tuple(reject),axis=1)
+
+    nonzeroy = np.array(data[0])
+    nonzerox = np.array(data[1])
     x = nonzerox
     y = nonzeroy
 
@@ -638,11 +436,14 @@ def testimg(filename):
 
     t.s()
     fit = driveSys.findCenterline(image)
-    return
-    steer_angle = driveSys.purePursuit(fit)
-    steer = driveSys.calcSteer(steer_angle)
+    if (fit is None):
+        print("Oops, can't find lane in this frame")
+    else:
+        steer_angle = driveSys.purePursuit(fit)
+        steer = driveSys.calcSteer(steer_angle)
     t.e()
     return
+
 def nothing(x):
     pass
 
@@ -662,7 +463,7 @@ def testperspective():
 
     
 
-t = execution_timer(False)
+t = execution_timer(True)
 if __name__ == '__main__':
 
     print('begin')
@@ -698,4 +499,4 @@ if __name__ == '__main__':
     #driveSys.init()
     for i in range(27):
         testimg(testpics[i])
-    #t.summary()
+    t.summary()
