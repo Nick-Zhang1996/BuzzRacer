@@ -159,7 +159,7 @@ class driveSys:
         # apply known rejection standards here
         goodLabels = []
         for i in range(num_labels):
-            if (stats[i,cv2.CC_STAT_AREA]<1000 or stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] < 220) or stats[i,cv2.CC_STAT_HEIGHT]<80):
+            if (stats[i,cv2.CC_STAT_AREA]<1000 or stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] < 220 or stats[i,cv2.CC_STAT_HEIGHT]<80):
                 binary[labels==i]=0
             else:
                 goodLabels.append(i)
@@ -675,10 +675,27 @@ if __name__ == '__main__':
                 '../img/pic6.jpeg',
                 '../img/pic7.jpeg',
                 '../img/pic8.jpeg',
-                '../img/pic9.jpeg']
+                '../img/pic9.jpeg',
+                '../img/pic10.jpeg',
+                '../img/pic11.jpeg',
+                '../img/pic12.jpeg',
+                '../img/pic13.jpeg',
+                '../img/pic14.jpeg',
+                '../img/pic15.jpeg',
+                '../img/pic16.jpeg',
+                '../img/pic17.jpeg',
+                '../img/pic18.jpeg',
+                '../img/pic19.jpeg',
+                '../img/pic20.jpeg',
+                '../img/pic21.jpeg',
+                '../img/pic22.jpeg',
+                '../img/pic23.jpeg',
+                '../img/pic24.jpeg',
+                '../img/pic25.jpeg',
+                '../img/pic26.jpeg',
+                '../img/pic27.jpeg']
     
     #driveSys.init()
-    #total 8 pics
-    for i in range(9):
+    for i in range(27):
         testimg(testpics[i])
     #t.summary()
