@@ -3,6 +3,8 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
+# TODO - deal with non-smooth pathlines
+
 import numpy as np
 import math
 import cv2
@@ -128,39 +130,22 @@ class driveSys:
     #   a centerline curve x=f(y), 2nd polynomial. with car's rear axle  as (0,0)
     @staticmethod
     def findCenterline(gray):
-        #showg(gray)
-        sobel_kernel=7
-        thresh=(0.6, 1.3)
 
-        # normalize
-        t.s('normalize')
-        gray = normalize(gray)
-        t.e('normalize')
+        ori = gray.copy()
 
-        # Calculate the x and y gradients
-        t.s('sobel\t')
-        sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=sobel_kernel)
-        sobely = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=sobel_kernel)
-        t.e('sobel\t')
 
-        #graddir = np.arctan2(sobely, sobelx)
+        #gray = normalize(gray)
+        alpha = 20
+        gauss = cv2.GaussianBlur(gray, (0, 0), sigmaX=alpha, sigmaY=alpha)
 
-        # find the norm (magnitute) of gradient
-        norm = np.sqrt(np.square(sobelx)+np.square(sobely))
-        norm = normalize(norm)
-        #norm > 1 to get good edges
+        gray = gray - gauss
+        binary = normalize(gray)>1
+        binary = binary.astype(np.uint8)
 
-        
-        # find left edges of while lanes
-        t.s('find left edges')
-        binary_output =  np.zeros_like(gray,dtype=np.uint8)
-        # XXX gray>1.5 is a sketchy solution that cut data size in half
-        binary_output[(gray>1.5)&(sobelx>0) & (norm>1)] = 1
-        #showg(binary_output)
-        
         #label connected components
         connectivity = 8 
-        output = cv2.connectedComponentsWithStats(binary_output, connectivity, cv2.CV_32S)
+        #XXX will doing one w/o stats for fast removal quicker?
+        output = cv2.connectedComponentsWithStats(binary, connectivity, cv2.CV_32S)
         # The first cell is the number of labels
         num_labels = output[0]
         # The second cell is the label matrix
@@ -170,22 +155,55 @@ class driveSys:
         # The fourth cell is the centroid matrix
         centroids = output[3]
 
-        '''
-        # for DEBUG
-        
-        # Map component labels to hue val
-        label_hue = np.uint8(179*labels/np.max(labels))
-        blank_ch = 255*np.ones_like(label_hue)
-        labeled_img = cv2.merge([label_hue, blank_ch, blank_ch])
 
-        # cvt to BGR for display
-        labeled_img = cv2.cvtColor(labeled_img, cv2.COLOR_HSV2BGR)
+        # apply known rejection standards here
+        goodLabels = []
+        for i in range(num_labels):
+            if (stats[i,cv2.CC_STAT_AREA]<1000 or stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] < 220) or stats[i,cv2.CC_STAT_HEIGHT]<80):
+                binary[labels==i]=0
+            else:
+                goodLabels.append(i)
 
-        # set bg label to black
-        labeled_img[label_hue==0] = 0
+        if (len(goodLabels)==0):
+            print(' no good feature')
+            return
+        else:
+            print('good feature :  '+str(len(goodLabels)))
 
-        showg(labeled_img)
-        '''
+        cv2.namedWindow('binary')
+        cv2.imshow('binary',binary)
+        cv2.createTrackbar('label','binary',1,len(goodLabels)-1,nothing)
+        last_selected = 1
+
+        # visualize the remaining labels
+        while(1):
+
+            selected = goodLabels[cv2.getTrackbarPos('label','binary')]
+
+            binaryGB = binary.copy()
+            binaryGB[labels==selected] = 0
+            testimg = 255*np.dstack([binary,binaryGB,binaryGB])
+            cv2.imshow('binary',testimg)
+
+            #list info here
+
+            if (selected != last_selected):
+                print('label --'+str(selected))
+                print('Area --\t'+str(stats[selected,cv2.CC_STAT_AREA]))
+                print('Bottom --\t'+str(stats[selected,cv2.CC_STAT_TOP]+stats[selected,cv2.CC_STAT_HEIGHT]))
+                print('Height --\t'+str(stats[selected,cv2.CC_STAT_HEIGHT]))
+                print('WIDTH --\t'+str(stats[selected,cv2.CC_STAT_WIDTH]))
+                print('---------------------------------\n\n')
+                last_selected = selected
+
+            k = cv2.waitKey(1) & 0xFF
+            if k == 27:
+                print('next')
+                break
+        cv2.destroyAllWindows()
+        return
+
+
 
         # find the two longest left edges
         line_labels = np.argsort(stats[:,cv2.CC_STAT_AREA][1:])[-2:]+1
@@ -562,6 +580,21 @@ def normalize(data):
     data = (data-mean)/stddev
     return data
 
+# do a local normalization on grayscale image with [0,1] space
+# alpha and beta are the sigma values for the two blur
+def localNormalize(float_gray, alpha=2, beta=20):
+
+    blur = cv2.GaussianBlur(float_gray, (0, 0), sigmaX=alpha, sigmaY=alpha)
+    num = float_gray - blur
+
+    blur = cv2.GaussianBlur(num*num, (0, 0), sigmaX=beta, sigmaY=beta)
+    den = cv2.pow(blur, 0.5)
+
+    gray = num / den
+
+    cv2.normalize(gray, dst=gray, alpha=0.0, beta=1.0, norm_type=cv2.NORM_MINMAX)
+    return gray
+
 def warp(image):
 
     warped = cv2.warpPerspective(image, M, (image.shape[1],image.shape[0]), flags=cv2.INTER_LINEAR)
@@ -589,9 +622,15 @@ def findCenterFromSide(left,right):
 # run the pipeline on a test img    
 def testimg(filename):
     image = cv2.imread(filename)
+    if (image is None):
+        print('No such file'+filename)
+        return
+
     # we hold undistortion after lane finding because this operation discards data
     #image = cam.undistort(image)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = image.astype(np.float32)
+    image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
+
     #crop
     image = image[240:,:]
     driveSys.lanewidth=15
@@ -599,10 +638,14 @@ def testimg(filename):
 
     t.s()
     fit = driveSys.findCenterline(image)
+    return
     steer_angle = driveSys.purePursuit(fit)
     steer = driveSys.calcSteer(steer_angle)
     t.e()
     return
+def nothing(x):
+    pass
+
 
 # test perspective changing algorithm against measured value
 def testperspective():
@@ -624,10 +667,18 @@ if __name__ == '__main__':
 
     print('begin')
     #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    testpics =['../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
+    testpics =[ '../img/pic1.jpeg',
+                '../img/pic2.jpeg',
+                '../img/pic3.jpeg',
+                '../img/pic4.jpeg',
+                '../img/pic5.jpeg',
+                '../img/pic6.jpeg',
+                '../img/pic7.jpeg',
+                '../img/pic8.jpeg',
+                '../img/pic9.jpeg']
     
-    driveSys.init()
+    #driveSys.init()
     #total 8 pics
-    #for i in range(8):
-    #    testimg(testpics[i])
+    for i in range(9):
+        testimg(testpics[i])
     #t.summary()
