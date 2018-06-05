@@ -27,6 +27,9 @@ y_size = 480
 crop_y_size = 240
 cam = imageutil('../calibrated/')
 
+g_wheelbase = 15.8
+g_lookahead = 40
+
 class driveSys:
 
     @staticmethod
@@ -225,7 +228,7 @@ class driveSys:
 
             # unwarp and change of units
             for i in range(len(ptsCenter[0])):
-                ptsCenter[0,i,0],ptsCenter[0,i,1] = transform(ptsCenter[0,i,0],ptsCenter[0,i,1])
+                ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1])
                 
             # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
             fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
@@ -234,7 +237,7 @@ class driveSys:
             return fit
 
     @staticmethod
-    def purePursuit(fit,lookahead=27):
+    def purePursuit(fit,lookahead=g_lookahead):
         #pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
@@ -263,8 +266,7 @@ class driveSys:
 
         # find steering angle for this curvature
         # not sure about this XXX
-        wheelbase = 11
-        steer_angle = math.atan(wheelbase*curvature)/math.pi*180
+        steer_angle = math.atan(g_wheelbase*curvature)/math.pi*180
         return steer_angle
             
 
@@ -326,39 +328,10 @@ def showmg(img1,img2=None,img3=None,img4=None):
     plt.show()
     return
 
-# matrix obtained from matlab linear fit, mse=1.79 on 17 data points
-def transform(x,y):
-    return 0.035*x-11.5713, -0.1111*y+74.1771
+# matrix obtained from perspectiveCalibration.py, mse=0.7 on 63 data points
+def perspectiveTransform(x,y):
+    return 0.0602202317441 *x + -20.3249788445, -0.143366520425 *y + 102.226102561
 
-# XXX this is not accurate
-def obs_transform(x, y):
-    # alpha = 20 degrees, verticalFOV(vFov) = 15 degrees, horizontalFOV(hFov) = 15 degrees, h = 5.4 cm
-    alpha = 3
-    vFov = 27.0
-    hFov = 40.0
-    h = 5.4
-
-    ob = h / math.cos(math.radians(90 - alpha - vFov))
-    op = math.cos(math.radians(vFov)) * ob
-    bp = math.sin(math.radians(vFov)) * ob
-
-    if y > 0 and y <= 240:
-        angle = math.degrees(math.atan((240-y)/240.0*bp/op)) + 90.0 - alpha
-        actualY = math.tan(math.radians(angle))*h
-    else:
-        angle = 90 - alpha - math.degrees(math.atan((y-240)/240*bp/op))
-        actualY = math.tan(math.radians(angle))*h
-
-    om = actualY * math.tan(math.radians(hFov))
-    
-    if x > 0 and x <= 320:
-        actualX = -(320-x)/320.0*om
-    else:
-        actualX = (x-320)/320.0*om
-        
-    actualY = actualY + 14
-    
-    return actualX, actualY
 # normalize an image with (0,255)
 def normalize(data):
     data = data.astype(np.float32)
@@ -440,7 +413,10 @@ def testimg(filename):
         print("Oops, can't find lane in this frame")
     else:
         steer_angle = driveSys.purePursuit(fit)
-        steer = driveSys.calcSteer(steer_angle)
+        if (steer_angle is not None):
+            steer = driveSys.calcSteer(steer_angle)
+        else:
+            print("err: can't find steering angle")
     t.e()
     return
 
@@ -454,7 +430,7 @@ def testperspective():
     dest = np.array([[-5,33],  [-4,31],  [-3,29],[4,33],[5,32],[6,32],[6,31],[8,31],[9,31],[10,31],[3,28],[0,38],[2,29],[2,30],[2,37],[9,30],[9,29]])
     mse = np.array([0,0],dtype=np.float64)
     for (a,b) in zip(src,dest):
-        guess = transform(a[0],a[1])
+        guess = perspectiveTransform(a[0],a[1])
         diff = guess-b
         mse += diff**2
 
