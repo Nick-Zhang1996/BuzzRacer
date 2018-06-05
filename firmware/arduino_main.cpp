@@ -3,37 +3,45 @@
 #include <std_msgs/Float64.h>
 #include <Servo.h>
 
-//drive variables
-const int pinDrive = 3;
-const int pinServo = 5;
-Servo drive;
+//throttle variables
+const int pinServo = 3;
+const int pinDrive = 5;
+Servo throttle;
 Servo steer;
-const int steeringRightLimit = 60;
-const int steeringLeftLimit = 150;
-const int steeringCenter = (steeringRightLimit + steeringLeftLimit) / 2;
-int throttleServoVal = 0;
-int steeringServoVal = steeringCenter; 
+
+// values are in us (microseconds)
+const float steeringRightLimit = 30.0;
+const float steeringLeftLimit = -30.0;
+int throttleServoVal = 1500;
+int steeringServoVal = 1550;
 
 //ros variables
 ros::NodeHandle nh;
 
 void readThrottleTopic(const std_msgs::Float64 &throttleVal) {
-    int tempThrottle = (int) ((throttleVal.data)*180.0*.3);
-    if ((tempThrottle < 0) || (tempThrottle > 180)) {
-        throttleServoVal = 0;
+    if (throttleVal.data < 0.05) {
+        throttleServoVal = 1500;
+    } else if (throttle Val > 1.01) {
+        throttleServoVal = 1500;
     } else {
-        throttleServoVal = tempThrottle;
+        throttleServoVal = (int) map( throttleVal.data, 0.0, 1.0, 1460, 1450);
     }
+    // DISABLE THIS for moving motor
+    throttleServoVal = 1500;
+    return
 }
 
 void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
-    int tempSteering = (int) ((steeringVal.data) * ((steeringRightLimit - steeringLeftLimit)/2.0) + steeringCenter);
-    if (tempSteering < steeringRightLimit || tempSteering > steeringLeftLimit) {
-        steeringServoVal = steeringCenter;
-    } else {
-        steeringServoVal = tempSteering;
+    float tempSteering = constrain(steeringVal.data, steeringLeftLimit, steeringRightLimit);
+    if ( tempSteering > 0.0 ){
+        steeringServoVal = (int) map(tempSteering, 0.0, steeringRightLimit, 1550, 1900);
+    } else if ( tempSteering > 0.0 ){
+        steeringServoVal = (int) map(tempSteering, 0.0, steeringLeftLimit, 1550, 1150);
     }
+    return
 }
+
+
 
 ros::Subscriber<std_msgs::Float64> subThrottle("throttle", &readThrottleTopic);
 
@@ -47,19 +55,19 @@ void setup() {
 
     pinMode(pinDrive, OUTPUT);
     pinMode(pinServo, OUTPUT);
-    drive.attach(pinDrive);
+    throttle.attach(pinDrive);
     steer.attach(pinServo);
    
     //setup ESC
-    drive.write(0);
+    throttle.writeMicroseconds(1500);
     delay(5000);
 }
 
 void loop() {
     nh.spinOnce();
        
-    drive.write(throttleServoVal);
-    steer.write(steeringServoVal);
-    Serial.println("Hello");
+    throttle.writeMicroseconds(throttleServoVal);
+    steer.writeMicroseconds(steeringServoVal);
+    //Serial.println("Hello");
     delay(10);
 }
