@@ -29,6 +29,7 @@ cam = imageutil('../calibrated/')
 
 g_wheelbase = 15.8
 g_lookahead = 40
+g_max_steer_angle = 30.0
 
 class driveSys:
 
@@ -99,20 +100,26 @@ class driveSys:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
-            throttle = 0.247
+            throttle = 1.0
             fit = retval
             steer_angle = driveSys.purePursuit(fit)
-            if (steer_angle is not None):
-                steer = driveSys.calcSteer(steer_angle)
-            else:
-                saveImg(ori_frame)
+            if (steer_angle is None):
+                #saveImg(ori_frame)
+                pass
+            elif (steer_angle > max_steer_angle):
+                steer_angle = g_max_steer_angle
+                rospy.loginfo("insufficient steering")
+            elif (steer_angle < -max_steer_angle):
+                steer_angle = -g_max_steer_angle
+                rospy.loginfo("insufficient steering")
+
         else:
             throttle = 0
             steer = 0
 
 
         driveSys.throttle = throttle
-        driveSys.steering = steer
+        driveSys.steering = steer_angle
         driveSys.publish()
         return
 
