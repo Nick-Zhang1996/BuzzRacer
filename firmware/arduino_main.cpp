@@ -21,14 +21,14 @@ ros::NodeHandle nh;
 void readThrottleTopic(const std_msgs::Float64 &throttleVal) {
     if (throttleVal.data < 0.05) {
         throttleServoVal = 1500;
-    } else if (throttle Val > 1.01) {
+    } else if (throttleVal.data > 1.01) {
         throttleServoVal = 1500;
     } else {
         throttleServoVal = (int) map( throttleVal.data, 0.0, 1.0, 1460, 1450);
     }
-    // DISABLE THIS for moving motor
+    // COMMENT THIS OUT for moving motor
     throttleServoVal = 1500;
-    return
+    return;
 }
 
 void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
@@ -38,8 +38,10 @@ void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
     } else if ( tempSteering < 0.0 ){
         steeringServoVal = (int) map(tempSteering, 0.0, steeringLeftLimit, 1550, 1150);
     } else {
-        steeringServoVal = 1550
-    return
+        steeringServoVal = 1550;
+    }
+
+    return;
 }
 
 
