@@ -100,22 +100,27 @@ class driveSys:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
-            throttle = 1.0
             fit = retval
             steer_angle = driveSys.purePursuit(fit)
             if (steer_angle is None):
                 #saveImg(ori_frame)
-                pass
-            elif (steer_angle > max_steer_angle):
+                throttle = 0.0
+                steer_angle = 0.0
+            elif (steer_angle > g_max_steer_angle):
                 steer_angle = g_max_steer_angle
-                rospy.loginfo("insufficient steering")
-            elif (steer_angle < -max_steer_angle):
+                throttle = 0.3
+                rospy.loginfo("insufficient steering - R")
+            elif (steer_angle < - g_max_steer_angle):
                 steer_angle = -g_max_steer_angle
-                rospy.loginfo("insufficient steering")
+                throttle = 0.3
+                rospy.loginfo("insufficient steering - L")
+            else:
+                throttle = 1.0
 
         else:
             throttle = 0
-            steer = 0
+            steer_angle = 0
+            rospy.loginfo("can't find centerline")
 
 
         driveSys.throttle = throttle
@@ -188,10 +193,13 @@ class driveSys:
         
         with warnings.catch_warnings(record=True) as w:
             centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
+            if ( centerPoly is None):
+                rospy.loginfo("fail to fit poly - None")
+                return None
             if len(w)>0:
                 #raise Exception('fail to fit poly')
-                print('fail to fit poly')
-                rospy.logdebug('fail to fit poly')
+                #print('fail to fit poly')
+                rospy.loginfo('fail to fit poly')
                 return None
 
             '''
@@ -376,14 +384,19 @@ def fitPoly(binary):
     data = binary.nonzero()
     
     if (len(data)!=2):
+        rospy.logfatal("Data structure for fitPoly() is wrong")
         print(data)
     # raise some error here
-        return
+        return None
     
     reject = np.floor(np.random.rand(30)*len(data[0])).astype(np.int16)
     data = np.delete(data,tuple(reject),axis=1)
 
     nonzeroy = np.array(data[0])
+    if (len(nonzeroy) == 0):
+        rospy.loginfo("insufficient datapoints for fitPoly")
+        return None
+
     nonzerox = np.array(data[1])
     x = nonzerox
     y = nonzeroy
@@ -420,9 +433,7 @@ def testimg(filename):
         print("Oops, can't find lane in this frame")
     else:
         steer_angle = driveSys.purePursuit(fit)
-        if (steer_angle is not None):
-            steer = driveSys.calcSteer(steer_angle)
-        else:
+        if (steer_angle is None):
             print("err: can't find steering angle")
     t.e()
     return
@@ -430,23 +441,7 @@ def testimg(filename):
 def nothing(x):
     pass
 
-
-# test perspective changing algorithm against measured value
-def testperspective():
-    src = np.array([[207,370], [220,387],[238,411],[430,368],[461,376],[486,379],[497,386],[554,385],[580,384],[612,384],[432,423],[330,333],[394,411],[390,398],[369,338],[600,394],[613,405]])
-    dest = np.array([[-5,33],  [-4,31],  [-3,29],[4,33],[5,32],[6,32],[6,31],[8,31],[9,31],[10,31],[3,28],[0,38],[2,29],[2,30],[2,37],[9,30],[9,29]])
-    mse = np.array([0,0],dtype=np.float64)
-    for (a,b) in zip(src,dest):
-        guess = perspectiveTransform(a[0],a[1])
-        diff = guess-b
-        mse += diff**2
-
-    print(mse**0.5)
-    return
-
-    
-
-t = execution_timer(True)
+t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
@@ -479,7 +474,7 @@ if __name__ == '__main__':
                 '../img/pic26.jpeg',
                 '../img/pic27.jpeg']
     
-    #driveSys.init()
-    for i in range(27):
-        testimg(testpics[i])
-    t.summary()
+    driveSys.init()
+    #for i in range(27):
+    #    testimg(testpics[i])
+    #t.summary()
