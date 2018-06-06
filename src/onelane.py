@@ -21,6 +21,7 @@ from calibration import imageutil
 from cv_bridge import CvBridge, CvBridgeError
 
 from timeUtil import execution_timer
+from time import time
 
 x_size = 640
 y_size = 480
@@ -32,6 +33,9 @@ g_lookahead = 40
 g_max_steer_angle = 30.0
 
 class driveSys:
+
+    debugImageIndex = 0
+    lastDebugImageTimestamp = 0
 
     @staticmethod
     def init():
@@ -58,11 +62,12 @@ class driveSys:
         driveSys.data = None
         while not rospy.is_shutdown():
             driveSys.lock.acquire()
-            localcopy = driveSys.data
+            # XXX does this create only a reference?
+            driveSys.localcopy = driveSys.data
             driveSys.lock.release()
 
             if localcopy is not None:
-                driveSys.drive(localcopy)
+                driveSys.drive(driveSys.localcopy)
 
         rospy.spin()
 
@@ -103,9 +108,11 @@ class driveSys:
             fit = retval
             steer_angle = driveSys.purePursuit(fit)
             if (steer_angle is None):
-                #saveImg(ori_frame)
                 throttle = 0.0
                 steer_angle = 0.0
+                # we have a lane but no steer angle? worth digging
+                driveSys.saveImg()
+
             elif (steer_angle > g_max_steer_angle):
                 steer_angle = g_max_steer_angle
                 throttle = 0.3
@@ -121,6 +128,7 @@ class driveSys:
             throttle = 0
             steer_angle = 0
             rospy.loginfo("can't find centerline")
+            # not saving debug image here since this state is too general and contains the car not being placed on track at all, just pure garbage
 
 
         driveSys.throttle = throttle
@@ -181,25 +189,32 @@ class driveSys:
 
         if (len(goodLabels)==1):
             finalGoodLabel = goodLabels[0]
+
         elif (len(goodLabels)==0):
             print('no good feature')
             # find no lane, let caller deal with it
             return None
+
         elif (len(goodLabels)>1):
             # if there are more than 1 good label, pick the big one
             finalGoodLabel = np.amax(stats[:,cv2.CC_STAT_AREA][1:])
             rospy.logdebug("multiple good labels exist, no = "+str(len(goodLabels)))
-            # TODO we probably want to record that frame
+
+            # note: frequently this is 2
+            driveSys.saveImg()
         
         with warnings.catch_warnings(record=True) as w:
             centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
             if ( centerPoly is None):
                 rospy.loginfo("fail to fit poly - None")
+                driveSys.saveImg()
                 return None
+
             if len(w)>0:
                 #raise Exception('fail to fit poly')
                 #print('fail to fit poly')
                 rospy.loginfo('fail to fit poly')
+                driveSys.saveImg()
                 return None
 
             '''
@@ -285,19 +300,24 @@ class driveSys:
         return steer_angle
             
 
+    # save current as an image for debug
+    # NOTE: Files will be overridden every run
+    @staticmethod
+    def saveImg(steering=0, throttle=0):
+
+        if (time() - driveSys.lastDebugImageTimestamp < 0.1)
+            return
+
+        else:
+            driveSys.lastDebugImageTimestamp = time()
+            image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.localcopy, encoding="bgr8")
+            name = './pics/debug' + str(driveSys.debugImageIndex) + ".png"
+            cv2.imwrite(name, frame)
+            rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
+            return
 
 # universal functions
 
-# save frame as an image for debug
-def saveImg(frame, steering=0, throttle=0):
-    #text = "Steering: %f, Throttle: %f" % (steering, throttle)
-    #cv2.putText(frame, text, (20, 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255),2)
-    image_message = driveSys.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-    nameTime = str(round(time.time()))
-    name = './pics/' + nameTime + ".png"
-    cv2.imwrite(name, frame)
-    rospy.loginfo("debug img %s saved", nameTime+'.png')
-    return
 
 
 
