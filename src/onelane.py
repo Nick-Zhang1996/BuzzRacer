@@ -3,7 +3,7 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-# TODO - deal with non-smooth pathlines
+DEBUG = False
 
 import numpy as np
 import math
@@ -101,8 +101,12 @@ class driveSys:
             print(e)
 
         #crop
-        frame = ori_frame[240:,:]
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cam.undistort(ori_frame)
+        frame = frame[240:,:]
+
+        frame = frame.astype(np.float32)
+        frame = frame[:,:,0]-frame[:,:,2]+frame[:,:,1]-frame[:,:,2]
+
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
             fit = retval
@@ -187,6 +191,9 @@ class driveSys:
             if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 220 and stats[i,cv2.CC_STAT_HEIGHT]>80):
                 goodLabels.append(i)
 
+                # DEBUG
+                #binary[labels==i]=0
+
         if (len(goodLabels)==1):
             finalGoodLabel = goodLabels[0]
 
@@ -202,7 +209,47 @@ class driveSys:
 
             # note: frequently this is 2
             driveSys.saveImg()
+        else:
+            pass
         
+# BEGIN: DEBUG -----------------
+        '''
+        cv2.namedWindow('binary')
+        cv2.imshow('binary',binary)
+        cv2.createTrackbar('label','binary',0,len(goodLabels)-1,nothing)
+        last_selected = 1
+
+        # visualize the remaining labels
+        while(1):
+
+            selected = goodLabels[cv2.getTrackbarPos('label','binary')]
+
+            binaryGB = binary.copy()
+            binaryGB[labels==selected] = 0
+            testimg = 255*np.dstack([binary,binaryGB,binaryGB])
+            cv2.imshow('binary',testimg)
+
+            #list info here
+
+            if (selected != last_selected):
+                print('label --'+str(selected))
+                print('Area --\t'+str(stats[selected,cv2.CC_STAT_AREA]))
+                print('Bottom --\t'+str(stats[selected,cv2.CC_STAT_TOP]+stats[selected,cv2.CC_STAT_HEIGHT]))
+                print('Height --\t'+str(stats[selected,cv2.CC_STAT_HEIGHT]))
+                print('WIDTH --\t'+str(stats[selected,cv2.CC_STAT_WIDTH]))
+                print('---------------------------------\n\n')
+                last_selected = selected
+
+            k = cv2.waitKey(1) & 0xFF
+            if k == 27:
+                print('next')
+                break
+        cv2.destroyAllWindows()
+        return
+        '''
+
+# END: DEBUG -------------------------
+
         with warnings.catch_warnings(record=True) as w:
             centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
             if ( centerPoly is None):
@@ -304,13 +351,15 @@ class driveSys:
     # NOTE: Files will be overridden every run
     @staticmethod
     def saveImg(steering=0, throttle=0):
+        if (DEBUG):
+            return
 
-        if (time() - driveSys.lastDebugImageTimestamp < 0.1):
+        if (time() - driveSys.lastDebugImageTimestamp < 0.5):
             return
 
         else:
             driveSys.lastDebugImageTimestamp = time()
-            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "rgb8")
+            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
             name = '../img/debug' + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
             cv2.imwrite(name, cv2_image)
@@ -434,6 +483,8 @@ def findCenterFromSide(left,right):
 # run the pipeline on a test img    
 def testimg(filename):
     image = cv2.imread(filename)
+    # special handle for images saved wrong
+    image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     if (image is None):
         print('No such file'+filename)
         return
@@ -466,34 +517,33 @@ t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
-    #testpics =['../perspectiveCali/mid.png','../perspectiveCali/left.png','../img/0.png','../img/1.png','../img/2.png','../img/3.png','../img/4.png','../img/5.png','../img/6.png','../img/7.png'] 
-    testpics =[ '../img/pic1.jpeg',
-                '../img/pic2.jpeg',
-                '../img/pic3.jpeg',
-                '../img/pic4.jpeg',
-                '../img/pic5.jpeg',
-                '../img/pic6.jpeg',
-                '../img/pic7.jpeg',
-                '../img/pic8.jpeg',
-                '../img/pic9.jpeg',
-                '../img/pic10.jpeg',
-                '../img/pic11.jpeg',
-                '../img/pic12.jpeg',
-                '../img/pic13.jpeg',
-                '../img/pic14.jpeg',
-                '../img/pic15.jpeg',
-                '../img/pic16.jpeg',
-                '../img/pic17.jpeg',
-                '../img/pic18.jpeg',
-                '../img/pic19.jpeg',
-                '../img/pic20.jpeg',
-                '../img/pic21.jpeg',
-                '../img/pic22.jpeg',
-                '../img/pic23.jpeg',
-                '../img/pic24.jpeg',
-                '../img/pic25.jpeg',
-                '../img/pic26.jpeg',
-                '../img/pic27.jpeg']
+    testpics =[ '../img/debug1.png',
+                '../img/debug2.png',
+                '../img/debug3.png',
+                '../img/debug4.png',
+                '../img/debug5.png',
+                '../img/debug6.png',
+                '../img/debug7.png',
+                '../img/debug8.png',
+                '../img/debug9.png',
+                '../img/debug10.png',
+                '../img/debug11.png',
+                '../img/debug12.png',
+                '../img/debug13.png',
+                '../img/debug14.png',
+                '../img/debug15.png',
+                '../img/debug16.png',
+                '../img/debug17.png',
+                '../img/debug18.png',
+                '../img/debug19.png',
+                '../img/debug20.png',
+                '../img/debug21.png',
+                '../img/debug22.png',
+                '../img/debug23.png',
+                '../img/debug24.png',
+                '../img/debug25.png',
+                '../img/debug26.png',
+                '../img/debug27.png']
     
     driveSys.init()
     #for i in range(27):
