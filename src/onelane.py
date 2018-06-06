@@ -66,7 +66,7 @@ class driveSys:
             driveSys.localcopy = driveSys.data
             driveSys.lock.release()
 
-            if localcopy is not None:
+            if driveSys.localcopy is not None:
                 driveSys.drive(driveSys.localcopy)
 
         rospy.spin()
@@ -305,14 +305,15 @@ class driveSys:
     @staticmethod
     def saveImg(steering=0, throttle=0):
 
-        if (time() - driveSys.lastDebugImageTimestamp < 0.1)
+        if (time() - driveSys.lastDebugImageTimestamp < 0.1):
             return
 
         else:
             driveSys.lastDebugImageTimestamp = time()
-            image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.localcopy, encoding="bgr8")
-            name = './pics/debug' + str(driveSys.debugImageIndex) + ".png"
-            cv2.imwrite(name, frame)
+            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "rgb8")
+            name = '../img/debug' + str(driveSys.debugImageIndex) + ".png"
+            driveSys.debugImageIndex += 1
+            cv2.imwrite(name, cv2_image)
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
             return
 
