@@ -105,7 +105,7 @@ class driveSys:
         frame = frame[240:,:]
 
         frame = frame.astype(np.float32)
-        frame = frame[:,:,0]-frame[:,:,2]+frame[:,:,1]-frame[:,:,2]
+        frame = -frame[:,:,0]+frame[:,:,2]-frame[:,:,1]+frame[:,:,2]
 
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
