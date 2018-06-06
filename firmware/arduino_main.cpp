@@ -35,9 +35,10 @@ void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
     float tempSteering = constrain(steeringVal.data, steeringLeftLimit, steeringRightLimit);
     if ( tempSteering > 0.0 ){
         steeringServoVal = (int) map(tempSteering, 0.0, steeringRightLimit, 1550, 1900);
-    } else if ( tempSteering > 0.0 ){
+    } else if ( tempSteering < 0.0 ){
         steeringServoVal = (int) map(tempSteering, 0.0, steeringLeftLimit, 1550, 1150);
-    }
+    } else {
+        steeringServoVal = 1550
     return
 }
 
