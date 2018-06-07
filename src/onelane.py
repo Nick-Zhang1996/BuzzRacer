@@ -3,7 +3,7 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-DEBUG = True
+DEBUG = False
 
 import numpy as np
 import math
@@ -115,6 +115,7 @@ class driveSys:
                 throttle = 0.0
                 steer_angle = 0.0
                 # we have a lane but no steer angle? worth digging
+                rospy.logdebug("can't find steering angle for current path")
                 driveSys.saveImg()
 
             elif (steer_angle > g_max_steer_angle):
@@ -375,8 +376,8 @@ class driveSys:
             cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
             name = '../img/debug' + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
-            cv2.imwrite(name, cv2_image)
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
+            cv2.imwrite(name, cv2_image)
             return
 
 # universal functions
@@ -497,7 +498,7 @@ def findCenterFromSide(left,right):
 def testimg(filename):
     image = cv2.imread(filename)
     # special handle for images saved wrong
-    image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+    #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     if (image is None):
         print('No such file'+filename)
         return
@@ -523,14 +524,15 @@ def testimg(filename):
         if (steer_angle is None):
             print("err: can't find steering angle")
         else:
-            print(steer_angle)
+            if (DEBUG):
+                print(steer_angle)
     t.e()
     return
 
 def nothing(x):
     pass
 
-t = execution_timer(True)
+t = execution_timer(DEBUG)
 if __name__ == '__main__':
 
     print('begin')
@@ -562,7 +564,9 @@ if __name__ == '__main__':
                 '../img/debug26.png',
                 '../img/debug27.png']
     
-    #driveSys.init()
-    for i in range(27):
-        testimg(testpics[i])
-    t.summary()
+    if (DEBUG):
+        for i in range(27):
+            testimg(testpics[i])
+        t.summary()
+    else:
+        driveSys.init()
