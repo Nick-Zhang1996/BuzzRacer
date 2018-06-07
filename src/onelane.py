@@ -3,7 +3,7 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-DEBUG = False
+DEBUG = True
 
 import numpy as np
 import math
@@ -175,6 +175,8 @@ class driveSys:
         binary = normalize(gray)>1
         binary = binary.astype(np.uint8)
         t.e('Norm')
+        #showg(ori)
+        #showg(binary)
 
 
         # TODO a erosion here may help separate bad labels later
@@ -214,7 +216,7 @@ class driveSys:
 
         elif (len(goodLabels)>1):
             # if there are more than 1 good label, pick the big one
-            finalGoodLabel = np.amax(stats[:,cv2.CC_STAT_AREA][1:])
+            finalGoodLabel = goodLabels[np.argmax(stats[goodLabels,cv2.CC_STAT_AREA])]
             rospy.logdebug("multiple good labels exist, no = "+str(len(goodLabels)))
 
             # note: frequently this is 2
@@ -536,33 +538,34 @@ t = execution_timer(DEBUG)
 if __name__ == '__main__':
 
     print('begin')
-    testpics =[ '../img/debug1.png',
-                '../img/debug2.png',
-                '../img/debug3.png',
-                '../img/debug4.png',
-                '../img/debug5.png',
-                '../img/debug6.png',
-                '../img/debug7.png',
-                '../img/debug8.png',
-                '../img/debug9.png',
-                '../img/debug10.png',
-                '../img/debug11.png',
-                '../img/debug12.png',
-                '../img/debug13.png',
-                '../img/debug14.png',
-                '../img/debug15.png',
-                '../img/debug16.png',
-                '../img/debug17.png',
-                '../img/debug18.png',
-                '../img/debug19.png',
-                '../img/debug20.png',
-                '../img/debug21.png',
-                '../img/debug22.png',
-                '../img/debug23.png',
-                '../img/debug24.png',
-                '../img/debug25.png',
-                '../img/debug26.png',
-                '../img/debug27.png']
+    testpics =[ '../debug/debug1.png',
+                '../debug/debug2.png',
+                '../debug/debug3.png',
+                '../debug/debug4.png',
+                '../debug/debug5.png',
+                '../debug/debug6.png',
+                '../debug/debug7.png',
+                '../debug/debug8.png',
+                '../debug/debug9.png',
+                '../debug/debug10.png',
+                '../debug/debug11.png',
+                '../debug/debug12.png',
+                '../debug/debug13.png',
+                '../debug/debug14.png',
+                '../debug/debug15.png',
+                '../debug/debug16.png',
+                '../debug/debug17.png',
+                '../debug/debug18.png',
+                '../debug/debug19.png',
+                '../debug/debug20.png',
+                '../debug/debug21.png',
+                '../debug/debug22.png',
+                '../debug/debug23.png',
+                '../debug/debug24.png',
+                '../debug/debug25.png',
+                '../debug/debug26.png',
+                '../debug/debug27.png']
+    #testpics = ['../debug/debug11.png']
     
     if (DEBUG):
         for i in range(27):
