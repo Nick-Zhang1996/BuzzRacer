@@ -3,7 +3,7 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-DEBUG = False
+DEBUG = True
 
 import numpy as np
 import math
@@ -158,18 +158,27 @@ class driveSys:
     @staticmethod
     def findCenterline(gray):
 
+        t.s('copy original')
         ori = gray.copy()
+        t.e('copy original')
 
-        alpha = 20
-        gauss = cv2.GaussianBlur(gray, (0, 0), sigmaX=alpha, sigmaY=alpha)
 
-        gray = gray - gauss
+        t.s('blur')
+        #alpha = 20
+        #gauss = cv2.GaussianBlur(gray, (0, 0), sigmaX=alpha, sigmaY=alpha)
+        blurred = cv2.blur(gray, (30, 30))
+        t.e('blur')
+
+        t.s('Norm')
+        gray = gray - blurred
         binary = normalize(gray)>1
         binary = binary.astype(np.uint8)
+        t.e('Norm')
 
 
         # TODO a erosion here may help separate bad labels later
 
+        t.s('connected comp')
         #label connected components
         connectivity = 8 
         #XXX will doing one w/o stats for fast removal quicker?
@@ -211,6 +220,8 @@ class driveSys:
             driveSys.saveImg()
         else:
             pass
+
+        t.e('connected comp')
         
 # BEGIN: DEBUG -----------------
         '''
@@ -250,6 +261,7 @@ class driveSys:
 
 # END: DEBUG -------------------------
 
+        t.s('fitPoly')
         with warnings.catch_warnings(record=True) as w:
             centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
             if ( centerPoly is None):
@@ -263,55 +275,56 @@ class driveSys:
                 rospy.loginfo('fail to fit poly')
                 driveSys.saveImg()
                 return None
+        t.e('fitPoly')
 
-            '''
-            t.s('generate testimg')
-            # Generate x and y values for plotting
-            ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
-            right_fitx = right_poly[0]*ploty**2 + right_poly[1]*ploty + right_poly[2] 
-            # Recast the x and y points into usable format for cv2.fillPoly()
-            pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-            pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
-            pts = np.hstack((pts_left, pts_right))
+        '''
+        t.s('generate testimg')
+        # Generate x and y values for plotting
+        ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
+        left_fitx = left_poly[0]*ploty**2 + left_poly[1]*ploty + left_poly[2]
+        right_fitx = right_poly[0]*ploty**2 + right_poly[1]*ploty + right_poly[2] 
+        # Recast the x and y points into usable format for cv2.fillPoly()
+        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        pts = np.hstack((pts_left, pts_right))
 
-            # Draw the lane onto the blank image
-            binary_output =  np.zeros_like(gray,dtype=np.uint8)
-            cv2.fillPoly(binary_output, np.int_([pts]), 1)
+        # Draw the lane onto the blank image
+        binary_output =  np.zeros_like(gray,dtype=np.uint8)
+        cv2.fillPoly(binary_output, np.int_([pts]), 1)
 
-            # Draw centerline onto the image
-            centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
-            pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-            cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
+        # Draw centerline onto the image
+        centerlinex = center_poly[0]*ploty**2 + center_poly[1]*ploty + center_poly[2]
+        pts_center = np.array(np.transpose(np.vstack([centerlinex, ploty])))
+        cv2.polylines(binary_output,np.int_([pts_center]), False, 5,10)
 
-            #driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
-            # END-DEBUG
-            t.e('generate testimg')
-            '''
-            # get centerline in top-down view
+        #driveSys.testimg = np.dstack(40*[binary_output,binary_output,binary_output])
+        # END-DEBUG
+        t.e('generate testimg')
+        '''
+        # get centerline in top-down view
 
-	    t.s('change centerline perspective')
+        t.s('change centerline perspective')
 
-            #XXX don't forget to calibrate new camera
 
-            # prepare sample points
-            ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
-            centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
+        
+        # prepare sample points
+        ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
+        centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
 
-            # convert back to uncropped space
-            ploty += y_size/2
-            ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-            ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+        # convert back to uncropped space
+        ploty += y_size/2
+        ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
+        ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
-            # unwarp and change of units
-            for i in range(len(ptsCenter[0])):
-                ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1])
-                
-            # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
-            fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
-	    t.e('change centerline perspective')
+        # unwarp and change of units
+        for i in range(len(ptsCenter[0])):
+            ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1])
+            
+        # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
+        fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
+        t.e('change centerline perspective')
 
-            return fit
+        return fit
 
     @staticmethod
     def purePursuit(fit,lookahead=g_lookahead):
@@ -504,16 +517,20 @@ def testimg(filename):
     if (fit is None):
         print("Oops, can't find lane in this frame")
     else:
+        t.s('pure pursuit')
         steer_angle = driveSys.purePursuit(fit)
+        t.e('pure pursuit')
         if (steer_angle is None):
             print("err: can't find steering angle")
+        else:
+            print(steer_angle)
     t.e()
     return
 
 def nothing(x):
     pass
 
-t = execution_timer(False)
+t = execution_timer(True)
 if __name__ == '__main__':
 
     print('begin')
@@ -545,7 +562,7 @@ if __name__ == '__main__':
                 '../img/debug26.png',
                 '../img/debug27.png']
     
-    driveSys.init()
-    #for i in range(27):
-    #    testimg(testpics[i])
-    #t.summary()
+    #driveSys.init()
+    for i in range(27):
+        testimg(testpics[i])
+    t.summary()
