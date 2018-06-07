@@ -126,7 +126,7 @@ class driveSys:
                 throttle = 0.3
                 rospy.loginfo("insufficient steering - L")
             else:
-                throttle = 1.0
+                throttle = 0.5
 
         else:
             throttle = 0
