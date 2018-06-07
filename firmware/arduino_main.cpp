@@ -12,27 +12,34 @@ Servo steer;
 // values are in us (microseconds)
 const float steeringRightLimit = 30.0;
 const float steeringLeftLimit = -30.0;
-int throttleServoVal = 1500;
-int steeringServoVal = 1550;
+const int minThrottleVal = 1500;
+
+static int throttleServoVal = 1500;
+static int steeringServoVal = 1550;
+
+static unsigned long throttleTimestamp = 0;
+static unsigned long steeringTimestamp = 0;
 
 //ros variables
 ros::NodeHandle nh;
 
-void readThrottleTopic(const std_msgs::Float64 &throttleVal) {
-    if (throttleVal.data < 0.05) {
-        throttleServoVal = 1500;
-    } else if (throttleVal.data > 1.01) {
-        throttleServoVal = 1500;
+void readThrottleTopic(const std_msgs::Float64 &msg_throttle) {
+    throttleTimestamp = millis();
+    if (msg_throttle.data < 0.05) {
+        throttleServoVal = minThrottleVal;
+    } else if (msg_throttle.data > 1.01) {
+        throttleServoVal = minThrottleVal;
     } else {
-        throttleServoVal = (int) map( throttleVal.data, 0.0, 1.0, 1460, 1450);
+        throttleServoVal = (int) map( msg_throttle.data, 0.0, 1.0, 1460, 1450);
     }
     // COMMENT THIS OUT for moving motor
-    throttleServoVal = 1500;
+    //throttleServoVal = minThrottleVal;
     return;
 }
 
-void readSteeringTopic(const std_msgs::Float64 &steeringVal) {
-    float tempSteering = constrain(steeringVal.data, steeringLeftLimit, steeringRightLimit);
+void readSteeringTopic(const std_msgs::Float64 &msg_steerAngle) {
+    steeringTimestamp = millis();
+    float tempSteering = constrain(msg_steerAngle.data, steeringLeftLimit, steeringRightLimit);
     if ( tempSteering > 0.0 ){
         steeringServoVal = (int) map(tempSteering, 0.0, steeringRightLimit, 1550, 1900);
     } else if ( tempSteering < 0.0 ){
@@ -62,15 +69,20 @@ void setup() {
     steer.attach(pinServo);
    
     //setup ESC
-    throttle.writeMicroseconds(1500);
+    throttle.writeMicroseconds(minThrottleVal);
     delay(5000);
 }
 
 void loop() {
     nh.spinOnce();
+    if ( millis() - throttleTimestamp > 500 || millis() - steeringTimestamp > 500 ){
+        throttle.writeMicroseconds(minThrottleVal);
+    }   
+
+
+    
        
     throttle.writeMicroseconds(throttleServoVal);
     steer.writeMicroseconds(steeringServoVal);
-    //Serial.println("Hello");
     delay(10);
 }
