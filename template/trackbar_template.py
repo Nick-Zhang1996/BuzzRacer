@@ -29,6 +29,7 @@
         else:
             print('good feature :  '+str(len(goodLabels)))
 
+# ------- from here basically------
         cv2.namedWindow('binary')
         cv2.imshow('binary',binary)
         cv2.createTrackbar('label','binary',1,len(goodLabels)-1,nothing)
