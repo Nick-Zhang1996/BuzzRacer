@@ -14,6 +14,7 @@ import pickle
 import warnings
 import rospy
 import threading
+import os
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64 as float_msg
@@ -31,6 +32,7 @@ cam = imageutil('../calibrated/')
 g_wheelbase = 15.8
 g_lookahead = 40
 g_max_steer_angle = 30.0
+g_fileIndex = 1
 
 class driveSys:
 
@@ -204,7 +206,7 @@ class driveSys:
                 goodLabels.append(i)
 
                 # DEBUG
-                #binary[labels==i]=0
+                binary[labels==i]=0
 
         if (len(goodLabels)==1):
             finalGoodLabel = goodLabels[0]
@@ -220,7 +222,7 @@ class driveSys:
             rospy.logdebug("multiple good labels exist, no = "+str(len(goodLabels)))
 
             # note: frequently this is 2
-            driveSys.saveImg()
+            # driveSys.saveImg()
         else:
             pass
 
@@ -376,7 +378,7 @@ class driveSys:
         else:
             driveSys.lastDebugImageTimestamp = time()
             cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
-            name = '../img/debug' + str(driveSys.debugImageIndex) + ".png"
+            name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
             cv2.imwrite(name, cv2_image)
@@ -538,7 +540,8 @@ t = execution_timer(DEBUG)
 if __name__ == '__main__':
 
     print('begin')
-    testpics =[ '../debug/debug1.png',
+    testpics =[ '../debug/debug0.png',
+                '../debug/debug1.png',
                 '../debug/debug2.png',
                 '../debug/debug3.png',
                 '../debug/debug4.png',
@@ -565,10 +568,24 @@ if __name__ == '__main__':
                 '../debug/debug25.png',
                 '../debug/debug26.png',
                 '../debug/debug27.png']
-    #testpics = ['../debug/debug11.png']
+
+    testpics =[ '../debug/run2/debug0.png',
+                '../debug/run2/debug1.png',
+                '../debug/run2/debug2.png',
+                '../debug/run2/debug3.png']
+    g_saveDir = "../debug/run%d" % (g_fileIndex)
+    while (os.path.isdir(g_saveDir)):
+        g_fileIndex += 1
+        g_saveDir = "../debug/run%d" % (g_fileIndex)
+
+    g_saveDir = "../debug/run%d" % (g_fileIndex)
+    os.mkdir(g_saveDir)
+    g_saveDir += "/"
+
     
+
     if (DEBUG):
-        for i in range(27):
+        for i in range(4):
             testimg(testpics[i])
         t.summary()
     else:
