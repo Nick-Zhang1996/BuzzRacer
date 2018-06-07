@@ -136,6 +136,7 @@ class driveSys:
             steer_angle = 0
             rospy.loginfo("can't find centerline")
             # not saving debug image here since this state is too general and contains the car not being placed on track at all, just pure garbage
+            driveSys.saveImg()
 
 
         driveSys.throttle = throttle
