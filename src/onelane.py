@@ -14,7 +14,8 @@ import pickle
 import warnings
 import rospy
 import threading
-import os
+from os import listdir, mkdir
+from os.path import isfile, join, isdir
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64 as float_msg
@@ -203,11 +204,12 @@ class driveSys:
         goodLabels = []
         # label 0 is background, start at 1
         for i in range(1,num_labels):
-            if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 220 and stats[i,cv2.CC_STAT_HEIGHT]>80):
+            if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 160 and stats[i,cv2.CC_STAT_HEIGHT]>80):
                 goodLabels.append(i)
 
                 # DEBUG
-                binary[labels==i]=0
+                #binary[labels==i]=0
+        pass
 
         if (len(goodLabels)==1):
             finalGoodLabel = goodLabels[0]
@@ -502,10 +504,11 @@ def findCenterFromSide(left,right):
 # run the pipeline on a test img    
 def testimg(filename):
     image = cv2.imread(filename)
+    original = image.copy()
     # special handle for images saved wrong
     #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     if (image is None):
-        print('No such file'+filename)
+        print('No such file : '+filename)
         return
 
     # we hold undistortion after lane finding because this operation discards data
@@ -522,6 +525,13 @@ def testimg(filename):
     fit = driveSys.findCenterline(image)
     if (fit is None):
         print("Oops, can't find lane in this frame")
+        winname = filename
+        cv2.namedWindow(winname)        # Create a named window
+        cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
+        cv2.imshow(winname,original)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     else:
         t.s('pure pursuit')
         steer_angle = driveSys.purePursuit(fit)
@@ -537,57 +547,30 @@ def testimg(filename):
 def nothing(x):
     pass
 
-t = execution_timer(DEBUG)
+t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
-    testpics =[ '../debug/debug0.png',
-                '../debug/debug1.png',
-                '../debug/debug2.png',
-                '../debug/debug3.png',
-                '../debug/debug4.png',
-                '../debug/debug5.png',
-                '../debug/debug6.png',
-                '../debug/debug7.png',
-                '../debug/debug8.png',
-                '../debug/debug9.png',
-                '../debug/debug10.png',
-                '../debug/debug11.png',
-                '../debug/debug12.png',
-                '../debug/debug13.png',
-                '../debug/debug14.png',
-                '../debug/debug15.png',
-                '../debug/debug16.png',
-                '../debug/debug17.png',
-                '../debug/debug18.png',
-                '../debug/debug19.png',
-                '../debug/debug20.png',
-                '../debug/debug21.png',
-                '../debug/debug22.png',
-                '../debug/debug23.png',
-                '../debug/debug24.png',
-                '../debug/debug25.png',
-                '../debug/debug26.png',
-                '../debug/debug27.png']
 
-    testpics =[ '../debug/run2/debug0.png',
-                '../debug/run2/debug1.png',
-                '../debug/run2/debug2.png',
-                '../debug/run2/debug3.png']
-    g_saveDir = "../debug/run%d" % (g_fileIndex)
-    while (os.path.isdir(g_saveDir)):
-        g_fileIndex += 1
-        g_saveDir = "../debug/run%d" % (g_fileIndex)
-
-    g_saveDir = "../debug/run%d" % (g_fileIndex)
-    os.mkdir(g_saveDir)
-    g_saveDir += "/"
-
-    
 
     if (DEBUG):
-        for i in range(4):
+
+        path_to_file = '../debug/run3/'
+        #testpics =[ '../debug/run2/0.png']
+
+        testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
+        print(testpics)
+        for i in range(len(testpics)):
             testimg(testpics[i])
         t.summary()
     else:
+        g_saveDir = "../debug/run%d" % (g_fileIndex)
+        while (isdir(g_saveDir)):
+            g_fileIndex += 1
+            g_saveDir = "../debug/run%d" % (g_fileIndex)
+
+        g_saveDir = "../debug/run%d" % (g_fileIndex)
+        mkdir(g_saveDir)
+        g_saveDir += "/"
+
         driveSys.init()
