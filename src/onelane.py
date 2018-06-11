@@ -25,12 +25,15 @@ from cv_bridge import CvBridge, CvBridgeError
 from timeUtil import execution_timer
 from time import time
 
+from math import sin, cos, radians
+
 x_size = 640
 y_size = 480
 crop_y_size = 240
 cam = imageutil('../calibrated/')
 
-g_wheelbase = 15.8
+g_wheelbase = 25.8
+g_track = 16.0
 g_lookahead = 40
 g_max_steer_angle = 30.0
 g_fileIndex = 1
@@ -335,7 +338,7 @@ class driveSys:
         return fit
 
     @staticmethod
-    def purePursuit(fit,lookahead=g_lookahead):
+    def purePursuit(fit,lookahead=g_lookahead, returnTargetCoord = False):
         #pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
@@ -349,12 +352,17 @@ class driveSys:
         p.append(2*b*c)
         p.append(c**2-lookahead**2)
         p = np.array(p)
+        
+        # roots are y coord of pursuit points
         roots = np.roots(p)
         roots = roots[np.abs(roots.imag)<0.00001]
         roots = roots.real
         roots = roots[(roots<lookahead) & (roots>0)]
         if ((roots is None) or (len(roots)==0)):
-            return None
+            if (returnTargetCoord):
+                return None, (None,None)
+            else:
+                return None
         roots.sort()
         y = roots[-1]
         x = fit[0]*(y**2) + fit[1]*y + fit[2]
@@ -365,7 +373,10 @@ class driveSys:
         # find steering angle for this curvature
         # not sure about this XXX
         steer_angle = math.atan(g_wheelbase*curvature)/math.pi*180
-        return steer_angle
+        if (returnTargetCoord):
+            return steer_angle, (x,y)
+        else:
+            return steer_angle
             
 
     # save current as an image for debug
@@ -375,7 +386,7 @@ class driveSys:
         if (DEBUG):
             return
 
-        if (time() - driveSys.lastDebugImageTimestamp < 0.5):
+        if (time() - driveSys.lastDebugImageTimestamp < 1.0):
             return
 
         else:
@@ -534,14 +545,60 @@ def testimg(filename):
 
     else:
         t.s('pure pursuit')
-        steer_angle = driveSys.purePursuit(fit)
+        steer_angle, (x,y) = driveSys.purePursuit(fit, returnTargetCoord = True)
         t.e('pure pursuit')
         if (steer_angle is None):
             print("err: can't find steering angle")
         else:
             if (DEBUG):
+                drawKinematicsImg(fit, steer_angle, (x,y))
                 print(steer_angle)
     t.e()
+    return
+
+# draw a line of LENGTH at CENTER, angled at ANGLE (right positive, in deg)
+def drawLine(img, center, angle, length = 60, weight = 4, color = (255,255,255)):
+    dsin = lambda x : sin(radians(x))
+    dcos = lambda x : cos(radians(x))
+    bottomLeft = (int(center[0] - 0.5*length*dsin(angle)), int(center[1] - 0.5*length*dcos(angle)))
+    upperRight = (int(center[0] + 0.5*length*dsin(angle)), int(center[1] + 0.5*length*dcos(angle)))
+    cv2.line(img, bottomLeft, upperRight, color, weight)
+    return img
+
+# draw an image for debugging kinematics.
+# Given fit, the function returns an image including the following components
+# vehicle, front wheels, projected pathline, lookahead circle, target pursuit point
+def drawKinematicsImg(fit, steer_angle, targetCoord):
+    canvasSize = ( 800, 800)
+
+    img = np.zeros((canvasSize[0],canvasSize[1],3),dtype = np.uint8)
+    pixelPerCM = 10
+
+    # shift transforms car coord to canvas coord
+    shift = lambda x,y : (int(x*pixelPerCM+canvasSize[0]/2), int(canvasSize[1] - y*pixelPerCM))
+    shiftx = lambda x : int(x*pixelPerCM+canvasSize[0]/2)
+    shifty = lambda y :  int(canvasSize[1] - y*pixelPerCM)
+
+    toCanvas = lambda x : x*pixelPerCM
+
+    # draw the car
+    cv2.rectangle(img, shift(-g_track/2,g_wheelbase), shift(g_track/2, 0), (255,255,255),3)
+
+    # draw front wheels with correct steer_angle
+    drawLine(img, shift(-g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
+    drawLine(img, shift(g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
+
+    # draw the pathline
+    ploty = np.linspace(0, 400, 100 )
+    plotx = fit[0]*ploty**2 + fit[1]*ploty + fit[2]
+    cv2.polylines(img, np.array([map(shift,plotx,ploty)]), False, (255,255,255), 3)
+
+    # draw lookahead circle
+    cv2.circle(img, shift(0,0), toCanvas(g_lookahead), color = (0,0,255), thickness = 3)
+    cv2.circle(img, shift(*targetCoord), 10, color = (255,0,0), thickness = 2)
+
+    # debug texts
+    show(img)
     return
 
 def nothing(x):
@@ -552,14 +609,12 @@ if __name__ == '__main__':
 
     print('begin')
 
-
     if (DEBUG):
 
-        path_to_file = '../debug/run3/'
-        #testpics =[ '../debug/run2/0.png']
-
+        path_to_file = '../debug/run1/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
-        print(testpics)
+        
+        testpics =[ '../debug/run1/0.png']
         for i in range(len(testpics)):
             testimg(testpics[i])
         t.summary()
