@@ -286,20 +286,20 @@ class driveSys:
             if ( centerPoly is None):
                 rospy.loginfo("fail to fit poly - None")
                 driveSys.saveImg()
-            if (returnBinary):
-                return None, binary
-            else:
-                return None
+                if (returnBinary):
+                    return None, binary
+                else:
+                    return None
 
             if len(w)>0:
                 #raise Exception('fail to fit poly')
                 #print('fail to fit poly')
                 rospy.loginfo('fail to fit poly')
                 driveSys.saveImg()
-            if (returnBinary):
-                return None, binary
-            else:
-                return None
+                if (returnBinary):
+                    return None, binary
+                else:
+                    return None
         t.e('fitPoly')
 
         '''
@@ -342,6 +342,7 @@ class driveSys:
         ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
         # unwarp and change of units
+        # TODO use a map to spped it up
         for i in range(len(ptsCenter[0])):
             ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1]+240)
             
