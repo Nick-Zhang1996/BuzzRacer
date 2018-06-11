@@ -105,7 +105,7 @@ class driveSys:
     
     # handles frame pre-processing and post status update
     @staticmethod
-    def drive(data,noBridge = False):
+    def drive(data, noBridge = False):
         try:
             ori_frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
         except CvBridgeError as e:
@@ -169,7 +169,7 @@ class driveSys:
     # given a gray image, spit out:
     #   a centerline curve x=f(y), 2nd polynomial. with car's rear axle  as (0,0)
     @staticmethod
-    def findCenterline(gray):
+    def findCenterline(gray, returnBinary = False):
 
         t.s('copy original')
         ori = gray.copy()
@@ -212,7 +212,7 @@ class driveSys:
         goodLabels = []
         # label 0 is background, start at 1
         for i in range(1,num_labels):
-            if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 160 and stats[i,cv2.CC_STAT_HEIGHT]>80):
+            if (stats[i,cv2.CC_STAT_AREA]>1000 and stats[i,cv2.CC_STAT_TOP]+stats[i,cv2.CC_STAT_HEIGHT] > 190 and stats[i,cv2.CC_STAT_HEIGHT]>80):
                 goodLabels.append(i)
 
                 # DEBUG
@@ -225,7 +225,10 @@ class driveSys:
         elif (len(goodLabels)==0):
             print('no good feature')
             # find no lane, let caller deal with it
-            return None
+            if (returnBinary):
+                return None, binary
+            else:
+                return None
 
         elif (len(goodLabels)>1):
             # if there are more than 1 good label, pick the big one
@@ -283,6 +286,9 @@ class driveSys:
             if ( centerPoly is None):
                 rospy.loginfo("fail to fit poly - None")
                 driveSys.saveImg()
+            if (returnBinary):
+                return None, binary
+            else:
                 return None
 
             if len(w)>0:
@@ -290,6 +296,9 @@ class driveSys:
                 #print('fail to fit poly')
                 rospy.loginfo('fail to fit poly')
                 driveSys.saveImg()
+            if (returnBinary):
+                return None, binary
+            else:
                 return None
         t.e('fitPoly')
 
@@ -334,13 +343,16 @@ class driveSys:
 
         # unwarp and change of units
         for i in range(len(ptsCenter[0])):
-            ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1])
+            ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1]+240)
             
         # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
         fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
         t.e('change centerline perspective')
 
-        return fit
+        if (returnBinary):
+            return fit, binary
+        else:
+            return fit
 
     @staticmethod
     def purePursuit(fit,lookahead=g_lookahead, returnTargetCoord = False):
@@ -517,25 +529,74 @@ def findCenterFromSide(left,right):
     return (left+right)/2
 
     
+def testvid(filename):
+    cap = cv2.VideoCapture(filename)
+    if (cap is None):
+        print('No such file : '+filename)
+        return
+
+    cv2.namedWindow('original')
+    cv2.namedWindow('kinematics')
+    cv2.moveWindow('original', 40,30)
+    cv2.moveWindow('kinematics', 700,30)
+
+    debugImg = None
+
+    while(cap.isOpened()):
+        ret, image = cap.read()
+
+        # we hold undistortion after lane finding because this operation discards data
+        image = cam.undistort(image)
+        undistorted = image.copy()
+        image = image.astype(np.float32)
+        image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
+
+        #crop
+        # XXX is this messing up our perspective transformation?
+        #image = image[240:,:]
+
+        driveSys.lanewidth=15
+
+        driveSys.scaler = 25
+
+        t.s()
+        fit, debugImg = driveSys.findCenterline(image, returnBinary=True)
+        if (fit is None):
+            print("Oops, can't find lane in this frame")
+
+        else:
+            t.s('pure pursuit')
+            steer_angle, (x,y) = driveSys.purePursuit(fit, returnTargetCoord = True)
+            t.e('pure pursuit')
+            if (steer_angle is None):
+                print("err: curve found, but can't find steering angle")
+            else:
+                print(steer_angle)
+
+            #drawKinematicsImg(fit, steer_angle, (x,y))
+
+        cv2.imshow('originalistorted',undistorted)
+        if (debugImg is not None):
+        
+            cv2.imshow('kinematics',255*np.dstack([debugImg,debugImg,debugImg]).astype(np.uint8))
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    return
+
+
 # run the pipeline on a test img    
 def testimg(filename):
     print('----------')
     image = cv2.imread(filename)
     original = image.copy()
 
-
-    winname = filename
-    cv2.namedWindow(winname)        # Create a named window
-    cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
-    cv2.imshow(winname,original)
-    if (cv2.waitKey(10000) == ord('d')):
-        remove(filename)
-        print(filename+' removed')
-    else:
-        pass
-    cv2.destroyAllWindows()
     # special handle for images saved wrong
     #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+
     if (image is None):
         print('No such file : '+filename)
         return
@@ -574,11 +635,10 @@ def testimg(filename):
         if (steer_angle is None):
             print("err: curve found, but can't find steering angle")
         else:
-            if (DEBUG):
-                print(steer_angle)
+            print(steer_angle)
 
-        if (DEBUG):
-            drawKinematicsImg(fit, steer_angle, (x,y))
+        show(drawKinematicsImg(fit, steer_angle, (x,y)))
+
     t.e()
     return
 
@@ -632,8 +692,8 @@ def drawKinematicsImg(fit, steer_angle, targetCoord):
         pass
 
     # debug texts
-    show(img)
-    return
+    #show(img)
+    return img
 
 def nothing(x):
     pass
@@ -643,7 +703,10 @@ if __name__ == '__main__':
 
     print('begin')
 
-    if (DEBUG):
+
+
+    # ---------------- for pictures ------------------
+    '''
 
         path_to_file = '../debug/run2/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
@@ -651,6 +714,12 @@ if __name__ == '__main__':
         #testpics =[ '../debug/run1/0.png']
         for i in range(len(testpics)):
             testimg(testpics[i])
+    '''
+
+    # ---------------- for vids --------------
+    if (DEBUG):
+
+        testvid('../img/run1.avi')
         t.summary()
 
     else:
