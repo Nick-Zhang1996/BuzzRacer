@@ -40,12 +40,12 @@ bridge = CvBridge()
 # Define the codec and create VideoWriter object
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
 print(fourcc)
-out = VideoWriter(filename,fourcc, 30.0, (1280,960))
+out = VideoWriter(filename,fourcc, 30.0, (640,480))
 
 # start recording
 rospy.init_node('recording_node', anonymous=False)
 #create subscriber for camera input
-rospy.Subscriber("camera/image_raw", Image, record,queue_size=1)
+rospy.Subscriber("/image_raw", Image, record,queue_size=1)
 
 
 # stop the recording, for interactive using
