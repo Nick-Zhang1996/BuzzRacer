@@ -3,7 +3,6 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-DEBUG = True
 
 import numpy as np
 import math
@@ -14,8 +13,9 @@ import pickle
 import warnings
 import rospy
 import threading
-from os import listdir, mkdir
+from os import listdir, mkdir, remove
 from os.path import isfile, join, isdir
+from getpass import getuser
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64 as float_msg
@@ -26,6 +26,11 @@ from timeUtil import execution_timer
 from time import time
 
 from math import sin, cos, radians
+
+if (getuser()=='odroid'):
+    DEBUG = False
+else:
+    DEBUG = True
 
 x_size = 640
 y_size = 480
@@ -514,8 +519,21 @@ def findCenterFromSide(left,right):
     
 # run the pipeline on a test img    
 def testimg(filename):
+    print('----------')
     image = cv2.imread(filename)
     original = image.copy()
+
+
+    winname = filename
+    cv2.namedWindow(winname)        # Create a named window
+    cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
+    cv2.imshow(winname,original)
+    if (cv2.waitKey(10000) == ord('d')):
+        remove(filename)
+        print(filename+' removed')
+    else:
+        pass
+    cv2.destroyAllWindows()
     # special handle for images saved wrong
     #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
     if (image is None):
@@ -541,7 +559,12 @@ def testimg(filename):
         cv2.namedWindow(winname)        # Create a named window
         cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
         cv2.imshow(winname,original)
-        cv2.waitKey(0)
+        if (cv2.waitKey(10000) == ord('d')):
+            remove(filename)
+            print(filename+' removed')
+        else:
+            pass
+
         cv2.destroyAllWindows()
 
     else:
@@ -549,11 +572,13 @@ def testimg(filename):
         steer_angle, (x,y) = driveSys.purePursuit(fit, returnTargetCoord = True)
         t.e('pure pursuit')
         if (steer_angle is None):
-            print("err: can't find steering angle")
+            print("err: curve found, but can't find steering angle")
         else:
             if (DEBUG):
-                drawKinematicsImg(fit, steer_angle, (x,y))
                 print(steer_angle)
+
+        if (DEBUG):
+            drawKinematicsImg(fit, steer_angle, (x,y))
     t.e()
     return
 
@@ -571,6 +596,10 @@ def drawLine(img, center, angle, length = 60, weight = 4, color = (255,255,255))
 # vehicle, front wheels, projected pathline, lookahead circle, target pursuit point
 def drawKinematicsImg(fit, steer_angle, targetCoord):
     canvasSize = ( 800, 800)
+    if (steer_angle is None):
+        fitOnly = True
+    else:
+        fitOnly = False
 
     img = np.zeros((canvasSize[0],canvasSize[1],3),dtype = np.uint8)
     pixelPerCM = 10
@@ -585,18 +614,22 @@ def drawKinematicsImg(fit, steer_angle, targetCoord):
     # draw the car
     cv2.rectangle(img, shift(-g_track/2,g_wheelbase), shift(g_track/2, 0), (255,255,255),3)
 
-    # draw front wheels with correct steer_angle
-    drawLine(img, shift(-g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
-    drawLine(img, shift(g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
-
     # draw the pathline
     ploty = np.linspace(0, 400, 100 )
     plotx = fit[0]*ploty**2 + fit[1]*ploty + fit[2]
     cv2.polylines(img, np.array([map(shift,plotx,ploty)]), False, (255,255,255), 3)
 
-    # draw lookahead circle
-    cv2.circle(img, shift(0,0), toCanvas(g_lookahead), color = (0,0,255), thickness = 3)
-    cv2.circle(img, shift(*targetCoord), 10, color = (255,0,0), thickness = 2)
+    if (not fitOnly):
+
+        # draw front wheels with correct steer_angle
+        drawLine(img, shift(-g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
+        drawLine(img, shift(g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
+
+        # draw lookahead circle
+        cv2.circle(img, shift(0,0), toCanvas(g_lookahead), color = (0,0,255), thickness = 3)
+        cv2.circle(img, shift(*targetCoord), 10, color = (255,0,0), thickness = 2)
+    else:
+        pass
 
     # debug texts
     show(img)
@@ -612,10 +645,10 @@ if __name__ == '__main__':
 
     if (DEBUG):
 
-        path_to_file = '../debug/run1/'
+        path_to_file = '../debug/run2/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         
-        testpics =[ '../debug/run1/0.png']
+        #testpics =[ '../debug/run1/0.png']
         for i in range(len(testpics)):
             testimg(testpics[i])
         t.summary()
