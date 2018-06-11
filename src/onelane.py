@@ -523,13 +523,14 @@ def testimg(filename):
         return
 
     # we hold undistortion after lane finding because this operation discards data
-    #image = cam.undistort(image)
+    image = cam.undistort(image)
     image = image.astype(np.float32)
     image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
 
     #crop
     image = image[240:,:]
     driveSys.lanewidth=15
+
     driveSys.scaler = 25
 
     t.s()
@@ -560,8 +561,8 @@ def testimg(filename):
 def drawLine(img, center, angle, length = 60, weight = 4, color = (255,255,255)):
     dsin = lambda x : sin(radians(x))
     dcos = lambda x : cos(radians(x))
-    bottomLeft = (int(center[0] - 0.5*length*dsin(angle)), int(center[1] - 0.5*length*dcos(angle)))
-    upperRight = (int(center[0] + 0.5*length*dsin(angle)), int(center[1] + 0.5*length*dcos(angle)))
+    bottomLeft = (int(center[0] - 0.5*length*dsin(angle)), int(center[1] + 0.5*length*dcos(angle)))
+    upperRight = (int(center[0] + 0.5*length*dsin(angle)), int(center[1] - 0.5*length*dcos(angle)))
     cv2.line(img, bottomLeft, upperRight, color, weight)
     return img
 
@@ -618,6 +619,7 @@ if __name__ == '__main__':
         for i in range(len(testpics)):
             testimg(testpics[i])
         t.summary()
+
     else:
         g_saveDir = "../debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
