@@ -34,7 +34,7 @@ else:
 x_size = 640
 y_size = 480
 crop_y_size = 240
-cam = imageutil('../calibrated/')
+cam = imageutil('~/catkin_ws/src/rc-vip/calibrated/')
 
 g_wheelbase = 25.8
 g_track = 16.0
