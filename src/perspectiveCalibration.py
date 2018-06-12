@@ -15,7 +15,7 @@ filename = '../img/perspectiveCalibration23cm.png'
 
 # offset from front axle 
 zeroOffset = 23.0
-wheelbase = 15.8
+wheelbase = 25.8
 
 # size of interal corners, (row,column)
 patternSize = (9,7)
@@ -76,10 +76,12 @@ dy = yGuess - carFrameCorners[:,0,1]
 
 # root of mse
 rmse = np.average( (dx**2 + dy**2) ) **0.5
-print('rmse = ' + str(rmse))
+errx = np.average(np.abs(dx))
+erry = np.average(np.abs(dy))
+print('rmse = %.2f, errx = %.2f, erry = %.2f'%(rmse, errx, erry))
 
 
-print('------ Orthogonal Projection - lstsq--------')
+print('\n\n------ Orthogonal Projection - lstsq--------')
 
 # y = ax2+bx+cy2+dy+e, find least square solution to the linear algebra problem
 
@@ -94,11 +96,25 @@ B = carFrameCorners.reshape(-1,2)
 P, residuals, _, _ = np.linalg.lstsq(A,B)
 
 print(P)
-print(' individual average  Euclidean 2-norm ' + str((residuals/len(x))**0.5))
+print(' individual average  Euclidean 2-norm, errx = %.2f, erry = %.2f' % ((residuals[0]/len(x))**0.5,(residuals[1]/len(y))**0.5))
+
 print(' average Euclidean 2-norm ' + str((np.sum(residuals)/len(x))**0.5))
 
+print('\n\n------ Homography - Opencv -------')
+m, mask = cv2.findHomography(srcPoints = cameraFrameCorners.reshape(1,-1,2), dstPoints = carFrameCorners.reshape(1,-1,2))
 
+print(m)
 
+result = cv2.perspectiveTransform(cameraFrameCorners, m)
+xGuess = result[:,0,0]
+yGuess = result[:,0,1]
 
-pass
+dx = xGuess - carFrameCorners[:,0,0]
+dy = yGuess - carFrameCorners[:,0,1]
+
+# root of mse
+rmse = np.average( (dx**2 + dy**2) ) **0.5
+errx = np.average(np.abs(dx))
+erry = np.average(np.abs(dy))
+print('rmse = %.2f, errx = %.2f, erry = %.2f'%(rmse, errx, erry))
 
