@@ -3,7 +3,6 @@
 # Therefore, the pathline will be a clearly visiable dark tape on a pale background. The line is about 0.5cm wide
 # This file contains code that deals with the track setup at Nick's house, and may not be suitable for other uses
 
-
 import numpy as np
 import math
 import cv2
@@ -42,6 +41,12 @@ g_track = 16.0
 g_lookahead = 40
 g_max_steer_angle = 30.0
 g_fileIndex = 1
+
+g_transformMatrix = np.array(
+       [[ -7.28065913e-02,   7.37353326e-04,   2.42476984e+01],
+        [ -5.37538652e-03,  -1.42401754e-01,  -9.81881827e+00],
+        [ -1.00912583e-04,  -5.56329041e-03,   1.00000000e+00],]
+       )
 
 class driveSys:
 
@@ -333,18 +338,18 @@ class driveSys:
 
         
         # prepare sample points
-        ploty = np.linspace(0, gray.shape[0]-1, gray.shape[0] )
+        # XXX don't use constant here
+        ploty = np.linspace(240, 480-1, 240 )
         centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
 
         # convert back to uncropped space
-        ploty += y_size/2
+        ploty += 240
         ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
         ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
         # unwarp and change of units
         # TODO use a map to spped it up
-        for i in range(len(ptsCenter[0])):
-            ptsCenter[0,i,0],ptsCenter[0,i,1] = perspectiveTransform(ptsCenter[0,i,0],ptsCenter[0,i,1]+240)
+        ptsCenter = cv2.perspectiveTransform(ptsCenter, g_transformMatrix)
             
         # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
         fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
@@ -463,10 +468,6 @@ def showmg(img1,img2=None,img3=None,img4=None):
     plt.show()
     return
 
-# matrix obtained from perspectiveCalibration.py, mse=0.7 on 63 data points
-def perspectiveTransform(x,y):
-    return 0.0602202317441 *x + -20.3249788445, -0.143366520425 *y + 102.226102561
-
 # normalize an image with (0,255)
 def normalize(data):
     data = data.astype(np.float32)
@@ -509,8 +510,9 @@ def fitPoly(binary):
     # raise some error here
         return None
     
-    reject = np.floor(np.random.rand(30)*len(data[0])).astype(np.int16)
-    data = np.delete(data,tuple(reject),axis=1)
+    # TODO properly remove a portion of the datapoints
+    #reject = np.floor(np.random.rand(30)*len(data[0])).astype(np.int16)
+    #data = np.delete(data,tuple(reject),axis=1)
 
     nonzeroy = np.array(data[0])
     if (len(nonzeroy) == 0):
@@ -594,6 +596,7 @@ def testimg(filename):
     print('----------')
     image = cv2.imread(filename)
     original = image.copy()
+    show(original)
 
     # special handle for images saved wrong
     #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
@@ -602,7 +605,6 @@ def testimg(filename):
         print('No such file : '+filename)
         return
 
-    # we hold undistortion after lane finding because this operation discards data
     image = cam.undistort(image)
     image = image.astype(np.float32)
     image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
@@ -614,7 +616,9 @@ def testimg(filename):
     driveSys.scaler = 25
 
     t.s()
-    fit = driveSys.findCenterline(image)
+    fit, binary = driveSys.findCenterline(image, returnBinary = True)
+    showg(binary)
+
     if (fit is None):
         print("Oops, can't find lane in this frame")
         winname = filename
@@ -698,12 +702,36 @@ def drawKinematicsImg(fit, steer_angle, targetCoord):
 
 def nothing(x):
     pass
+def constrain(x,lower,upper):
+    x = lower if x<lower else x
+    x = upper if x>upper else x
+    return x
+
+# WARNING: extremely inefficient, DEBUG only
+def testPerspectiveTransform():
+    img = cv2.imread("../img/perspectiveCalibration23cm.png")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #showg(gray)
+    unwarppedSize = (500,500)
+    unwarpped = np.zeros( unwarppedSize, dtype= np.uint8)
+
+    for i in range(300,gray.shape[0]):
+        for j in range(gray.shape[1]):
+            ret = cv2.perspectiveTransform(np.array([[[float(j),float(i)]]]),g_transformMatrix)
+            x = ret[0,0,0]
+            y = ret[0,0,1]
+            x = x*10 
+            y = y*10 -300
+            x = constrain(int(x), 0, unwarppedSize[1]-1)
+            y = constrain(int(y), 0, unwarppedSize[0]-1)
+            unwarpped[y,x] = gray[i,j]
+    showg(unwarpped)
+    return
 
 t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
-
 
 
     # ---------------- for pictures ------------------
@@ -720,7 +748,15 @@ if __name__ == '__main__':
     # ---------------- for vids --------------
     if (DEBUG):
 
-        testvid('../img/run1.avi')
+        #testvid('../img/run1.avi')
+
+        path_to_file = '../debug/run2/'
+        testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
+        
+        testpics =[ '../debug/run1/39.png']
+        for i in range(len(testpics)):
+            testimg(testpics[i])
+
         t.summary()
 
     else:
