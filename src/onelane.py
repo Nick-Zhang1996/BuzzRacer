@@ -28,17 +28,19 @@ from math import sin, cos, radians
 
 if (getuser()=='odroid'):
     DEBUG = False
+    calibratedFilepath = "/home/odroid/catkin_ws/src/rc-vip/calibrated/"
 else:
     DEBUG = True
+    calibratedFilepath = "/home/nickzhang/catkin_ws/src/rc-vip/calibrated/"
 
 x_size = 640
 y_size = 480
 crop_y_size = 240
-cam = imageutil('~/catkin_ws/src/rc-vip/calibrated/')
+cam = imageutil(calibratedFilepath)
 
 g_wheelbase = 25.8
 g_track = 16.0
-g_lookahead = 40
+g_lookahead = 50
 g_max_steer_angle = 30.0
 g_fileIndex = 1
 
@@ -226,6 +228,7 @@ class driveSys:
 
         if (len(goodLabels)==1):
             finalGoodLabel = goodLabels[0]
+            binary = labels==finalGoodLabel
 
         elif (len(goodLabels)==0):
             print('no good feature')
@@ -240,6 +243,7 @@ class driveSys:
             finalGoodLabel = goodLabels[np.argmax(stats[goodLabels,cv2.CC_STAT_AREA])]
             rospy.logdebug("multiple good labels exist, no = "+str(len(goodLabels)))
 
+            binary = labels==finalGoodLabel
             # note: frequently this is 2
             # driveSys.saveImg()
         else:
@@ -287,7 +291,8 @@ class driveSys:
 
         t.s('fitPoly')
         with warnings.catch_warnings(record=True) as w:
-            centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8))
+            # XXX do we need the astype here?
+            centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8), yOffset = 240)
             if ( centerPoly is None):
                 rospy.loginfo("fail to fit poly - None")
                 driveSys.saveImg()
@@ -306,6 +311,10 @@ class driveSys:
                 else:
                     return None
         t.e('fitPoly')
+
+        #testimg = 100* np.dstack([binary, binary, binary])
+        #testimg = drawPoly(testimg.astype(np.uint8), centerPoly, 240,480, yOffset = -240)
+        #show(testimg)
 
         '''
         t.s('generate testimg')
@@ -338,14 +347,15 @@ class driveSys:
 
         
         # prepare sample points
+        # TODO do this symbolically
         # XXX don't use constant here
         ploty = np.linspace(240, 480-1, 240 )
         centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
 
         # convert back to uncropped space
-        ploty += 240
         ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-        ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+        #ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+        ptsCenter = ptsCenter[np.newaxis,...]
 
         # unwarp and change of units
         # TODO use a map to spped it up
@@ -353,6 +363,9 @@ class driveSys:
             
         # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
         fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
+
+        # DEBUG: draw the ptscenter and the fitline
+
         t.e('change centerline perspective')
 
         if (returnBinary):
@@ -360,6 +373,7 @@ class driveSys:
         else:
             return fit
 
+# fit-> x = f(y)
     @staticmethod
     def purePursuit(fit,lookahead=g_lookahead, returnTargetCoord = False):
         #pic = debugimg(fit)
@@ -424,6 +438,20 @@ class driveSys:
 # universal functions
 
 
+
+# draw a polynomial x = f(y) onto an IMG, with y =  [start,finish), when plotting, shift the curve in y direction by yOffset pixels. This is useful when the polynomial is represented in an uncropped version of the current img
+def drawPoly(img, poly, start, finish, color =  (255,255,255), thickness = 3, yOffset = 0):
+    ploty = np.linspace(start, finish-1, finish-start)
+    plotx = np.polyval(poly, ploty)
+    pts = np.array(np.transpose(np.vstack([plotx, ploty+yOffset])))
+    if (img.shape[-1] ==3):
+        cv2.polylines(img, np.int_([pts]), False, color = color,thickness = thickness)
+    elif (img.shape[-1] ==1):
+        cv2.polylines(img, np.int_([pts]), False, color = 1,thickness = thickness)
+    else:
+        print('channel != 1 or 3, expect a normal picture')
+
+    return img
 
 
 # generate a top-down view for transformed fitted curve
@@ -499,14 +527,17 @@ def warp(image):
 
 
 # given a binary image BINARY, where 1 means data and 0 means nothing
-# return the best fit polynomial
-def fitPoly(binary):
+# return the best fit polynomial x = f(y)
+# yOffset : offset to be added to the y coordinates of nonzero pixels
+# NOTE: the polynomial is in the image coordinate system, which may need additional work if
+# the image given is cropped or shifted. This can be done with yOffset. 
+def fitPoly(binary, yOffset = 0):
     # TODO would nonzero on a dense arrray consume lots of time?
     data = binary.nonzero()
     
     if (len(data)!=2):
-        rospy.logfatal("Data structure for fitPoly() is wrong")
-        print(data)
+        rospy.logfatal("Data structure for fitPoly() is wrong, expecting 2 channel for x and y")
+    #    print(data)
     # raise some error here
         return None
     
@@ -516,12 +547,12 @@ def fitPoly(binary):
 
     nonzeroy = np.array(data[0])
     if (len(nonzeroy) == 0):
-        rospy.loginfo("insufficient datapoints for fitPoly")
+        rospy.loginfo("fitPoly -- error: No nonzero points to work with")
         return None
 
     nonzerox = np.array(data[1])
     x = nonzerox
-    y = nonzeroy
+    y = nonzeroy + yOffset
 
     fit = np.polyfit(y, x, 2)
     return fit
@@ -618,6 +649,8 @@ def testimg(filename):
     t.s()
     fit, binary = driveSys.findCenterline(image, returnBinary = True)
     showg(binary)
+    unwarpped = showWarpedBinary(binary)
+    unwarpped = 100 * np.dstack([unwarpped, unwarpped, unwarpped])
 
     if (fit is None):
         print("Oops, can't find lane in this frame")
@@ -641,8 +674,8 @@ def testimg(filename):
             print("err: curve found, but can't find steering angle")
         else:
             print(steer_angle)
-
-        show(drawKinematicsImg(fit, steer_angle, (x,y)))
+            kinematics = drawKinematicsImg(fit, steer_angle, (x,y))
+            show(cv2.addWeighted(unwarpped, 0.8, kinematics, 1.0, 0.0))
 
     t.e()
     return
@@ -712,27 +745,55 @@ def testPerspectiveTransform():
     img = cv2.imread("../img/perspectiveCalibration23cm.png")
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     #showg(gray)
-    unwarppedSize = (500,500)
+    unwarppedSize = (800,800)
     unwarpped = np.zeros( unwarppedSize, dtype= np.uint8)
 
-    for i in range(300,gray.shape[0]):
+    for i in range(0,gray.shape[0]):
         for j in range(gray.shape[1]):
-            ret = cv2.perspectiveTransform(np.array([[[float(j),float(i)]]]),g_transformMatrix)
+            ret = cv2.perspectiveTransform(np.array([[[float(j),float(240+i)]]]),g_transformMatrix)
             x = ret[0,0,0]
             y = ret[0,0,1]
-            x = x*10 
-            y = y*10 -300
+            x = x*10 + 400
+            y = unwarppedSize[1] - (y*10)
             x = constrain(int(x), 0, unwarppedSize[1]-1)
             y = constrain(int(y), 0, unwarppedSize[0]-1)
             unwarpped[y,x] = gray[i,j]
+    print(count)
     showg(unwarpped)
     return
+
+# WARNING: extremely inefficient, DEBUG only
+# this takes a CROPPED binary (240 lower rows only)
+def showWarpedBinary(binary):
+
+    canvasSize = ( 800, 800)
+    pixelPerCM = 10
+    unwarpped = np.zeros( canvasSize, dtype= np.uint8)
+    nonzeroPts = binary.nonzero()
+    nonzeroPts = np.vstack([[nonzeroPts[1],nonzeroPts[0]+240]]).T.reshape(-1,1,2)
+    nonzeroPts = nonzeroPts.astype(np.float)
+
+    ret = cv2.perspectiveTransform( nonzeroPts, g_transformMatrix)
+    # 0->col->x
+    ret[:,0,0] = ret[:,0,0]*10 + canvasSize[0]/2
+    ret[:,0,1] = canvasSize[1] - (ret[:,0,1]*10)
+    x = ret[:,0,0]
+    y = ret[:,0,1]
+    x[x>=canvasSize[1]] = canvasSize[1]-1
+    x[x<0] = 0
+    y[y>=canvasSize[0]] = canvasSize[0]-1
+    y[y<0] = 0
+
+    unwarpped[[y.astype(np.int).tolist(),x.astype(np.int).tolist()]]=1
+    #showg(unwarpped)
+
+    return unwarpped
+
 
 t = execution_timer(False)
 if __name__ == '__main__':
 
     print('begin')
-
 
     # ---------------- for pictures ------------------
     '''
