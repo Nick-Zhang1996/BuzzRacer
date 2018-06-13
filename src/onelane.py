@@ -40,7 +40,7 @@ cam = imageutil(calibratedFilepath)
 
 g_wheelbase = 25.8
 g_track = 16.0
-g_lookahead = 50
+g_lookahead = 70
 g_max_steer_angle = 30.0
 g_fileIndex = 1
 
@@ -627,7 +627,19 @@ def testimg(filename):
     print('----------')
     image = cv2.imread(filename)
     original = image.copy()
-    show(original)
+
+    winname = filename
+    cv2.namedWindow(winname)        # Create a named window
+    cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
+    cv2.imshow(winname,original)
+    if (cv2.waitKey(10000) == ord('d')):
+        remove(filename)
+        print(filename+' removed')
+        cv2.destroyAllWindows()
+        return
+    else:
+        cv2.destroyAllWindows()
+
 
     # special handle for images saved wrong
     #image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
@@ -716,6 +728,7 @@ def drawKinematicsImg(fit, steer_angle, targetCoord):
     ploty = np.linspace(0, 400, 100 )
     plotx = fit[0]*ploty**2 + fit[1]*ploty + fit[2]
     cv2.polylines(img, np.array([map(shift,plotx,ploty)]), False, (255,255,255), 3)
+    cv2.polylines(img, np.array([map(shift,[13,-15,-72,72],[47,47,131,131])]),True, (255,0,0),3)
 
     if (not fitOnly):
 
@@ -811,20 +824,20 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run2/'
+        path_to_file = '../debug/run1/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         
-        testpics =[ '../debug/run1/39.png']
+        #testpics =[ '../debug/run1/39.png']
         for i in range(len(testpics)):
             testimg(testpics[i])
 
         t.summary()
 
     else:
-        g_saveDir = "../debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/src/debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
             g_fileIndex += 1
-            g_saveDir = "../debug/run%d" % (g_fileIndex)
+            g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/src/debug/run%d" % (g_fileIndex)
 
         g_saveDir = "../debug/run%d" % (g_fileIndex)
         mkdir(g_saveDir)
