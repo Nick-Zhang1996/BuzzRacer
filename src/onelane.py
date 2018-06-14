@@ -124,7 +124,7 @@ class driveSys:
         frame = frame[240:,:]
 
         frame = frame.astype(np.float32)
-        frame = -frame[:,:,0]+frame[:,:,2]-frame[:,:,1]+frame[:,:,2]
+        frame = frame[:,:,2]-frame[:,:,0]+frame[:,:,1]-frame[:,:,0]
 
         retval = driveSys.findCenterline(frame)
         if (retval is not None):
@@ -709,11 +709,11 @@ def testimg(filename):
 
     # handle undistortion later because this process loses important data
     # image = cam.undistort(image)
+    #crop
+    image = image[240:,:]
     image = image.astype(np.float32)
     image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
 
-    #crop
-    image = image[240:,:]
     driveSys.lanewidth=15
 
     driveSys.scaler = 25
@@ -917,14 +917,14 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run9/'
+        path_to_file = '../debug/run1/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         if len(testpics)==0 :
             print('empty folder')
 
         else:
 
-            #testpics =[ '../debug/run1/19.png']
+            testpics =[ '../debug/run7/2.png']
             for i in range(len(testpics)):
                 testimg(testpics[i])
 
