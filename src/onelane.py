@@ -114,7 +114,7 @@ class driveSys:
     @staticmethod
     def drive(data, noBridge = False):
         try:
-            ori_frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
+            frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
         except CvBridgeError as e:
             print(e)
 
@@ -931,12 +931,12 @@ if __name__ == '__main__':
             t.summary()
 
     else:
-        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/src/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
             g_fileIndex += 1
-            g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/src/debug/run%d" % (g_fileIndex)
+            g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
 
-        g_saveDir = "../debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
         mkdir(g_saveDir)
         g_saveDir += "/"
 
