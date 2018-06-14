@@ -118,8 +118,9 @@ class driveSys:
         except CvBridgeError as e:
             print(e)
 
+        # handle this later so we don't lose information here
+        #frame = cam.undistort(ori_frame)
         #crop
-        frame = cam.undistort(ori_frame)
         frame = frame[240:,:]
 
         frame = frame.astype(np.float32)
@@ -312,6 +313,7 @@ class driveSys:
                     return None
         t.e('fitPoly')
 
+        # debug the curve fitting in original image 
         #testimg = 100* np.dstack([binary, binary, binary])
         #testimg = drawPoly(testimg.astype(np.uint8), centerPoly, 240,480, yOffset = -240)
         #show(testimg)
@@ -349,13 +351,40 @@ class driveSys:
         # prepare sample points
         # TODO do this symbolically
         # XXX don't use constant here
+        # the centerPoly is in original, distorted space
         ploty = np.linspace(240, 480-1, 240 )
-        centerlinex = centerPoly[0]*ploty**2 + centerPoly[1]*ploty + centerPoly[2]
+        plotx = np.polyval(centerPoly, ploty)
+        mask = np.logical_and(plotx>0,plotx<640)
+        mask = np.logical_and(mask, ploty<480)
+        mask = np.logical_and(mask, ploty>0)
+        plotx = plotx[mask]
+        ploty = ploty[mask]
 
-        # convert back to uncropped space
-        ptsCenter = np.array(np.transpose(np.vstack([centerlinex, ploty])))
-        #ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
-        ptsCenter = ptsCenter[np.newaxis,...]
+
+        ptsCenter = np.array(np.transpose(np.vstack([plotx, ploty])))
+        ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+
+
+        # undistortPts() maps points to locations way beyond reasonable range
+        # thus it is necessary to discard datapoints beyond a certain range
+        # from experiments this threshold size is 1.3*originalSize
+        # for a (480,640) image, the center is (240,320), and the new half side length 
+        # is (240*1.3, 320*1.3) Note this space also extends to negative coordinates
+        # the four bounding coordinate is (TopLeft, TopRight, BottomL, BotR) (x,y)
+        # (-96,-72), (736,-72), (-96,552), (736,552)
+        # XXX this is not conclusive
+        x = ptsCenter[0,:,0] 
+        y = ptsCenter[0,:,1]
+        mask = np.logical_and(x>-96,x<736)
+        mask = np.logical_and(mask, y<552)
+        mask = np.logical_and(mask, y>-72)
+        ptsCenter = ptsCenter[:,mask,:]
+
+
+
+
+        # if for some reason the new dimension is not added in undistortPts, add it here
+        #ptsCenter = ptsCenter[np.newaxis,...]
 
         # unwarp and change of units
         # TODO use a map to spped it up
@@ -365,6 +394,35 @@ class driveSys:
         fit = np.polyfit(ptsCenter[0,:,1],ptsCenter[0,:,0],2)
 
         # DEBUG: draw the ptscenter and the fitline
+
+        # DEBUG: plot persp transformed points
+        #canvasSize = (800,800)
+        #debugimg = np.zeros((800,800),dtype=np.uint8)
+        #x = ptsCenter[0,:,0] 
+        #y = ptsCenter[0,:,1] 
+        #x *= 10
+        #y *= 10
+        #x += 400
+
+        #x[x>=canvasSize[1]] = canvasSize[1]-1
+        #x[x<0] = 0
+        #y[y>=canvasSize[0]] = canvasSize[0]-1
+        #y[y<0] = 0
+        #debugimg[[y.astype(np.int).tolist(),x.astype(np.int).tolist()]]=1
+
+        #py = np.linspace(0,10,801)
+        #px = np.polyval(fit,py)
+        #px *= 10
+        #py *= 10
+        #px += 400
+        #px[px>=canvasSize[1]] = canvasSize[1]-1
+        #px[px<0] = 0
+        #py[py>=canvasSize[0]] = canvasSize[0]-1
+        #py[py<0] = 0
+
+        #debugimg[[py.astype(np.int).tolist(),px.astype(np.int).tolist()]]=2
+
+        #showg(debugimg)
 
         t.e('change centerline perspective')
 
@@ -440,14 +498,15 @@ class driveSys:
 
 
 # draw a polynomial x = f(y) onto an IMG, with y =  [start,finish), when plotting, shift the curve in y direction by yOffset pixels. This is useful when the polynomial is represented in an uncropped version of the current img
+# if painting on a grayscale image, user must specify color as an int
 def drawPoly(img, poly, start, finish, color =  (255,255,255), thickness = 3, yOffset = 0):
     ploty = np.linspace(start, finish-1, finish-start)
     plotx = np.polyval(poly, ploty)
     pts = np.array(np.transpose(np.vstack([plotx, ploty+yOffset])))
     if (img.shape[-1] ==3):
         cv2.polylines(img, np.int_([pts]), False, color = color,thickness = thickness)
-    elif (img.shape[-1] ==1):
-        cv2.polylines(img, np.int_([pts]), False, color = 1,thickness = thickness)
+    elif (len(img.shape) == 2):
+        cv2.polylines(img, np.int_([pts]), False, color = color,thickness = thickness)
     else:
         print('channel != 1 or 3, expect a normal picture')
 
@@ -607,7 +666,7 @@ def testvid(filename):
             else:
                 print(steer_angle)
 
-            #drawKinematicsImg(fit, steer_angle, (x,y))
+            #genKinematicsImg(fit, steer_angle, (x,y))
 
         cv2.imshow('originalistorted',undistorted)
         if (debugImg is not None):
@@ -648,7 +707,8 @@ def testimg(filename):
         print('No such file : '+filename)
         return
 
-    image = cam.undistort(image)
+    # handle undistortion later because this process loses important data
+    # image = cam.undistort(image)
     image = image.astype(np.float32)
     image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
 
@@ -660,8 +720,9 @@ def testimg(filename):
 
     t.s()
     fit, binary = driveSys.findCenterline(image, returnBinary = True)
+    # NOTE binary here is distorted 
     showg(binary)
-    unwarpped = showWarpedBinary(binary)
+    unwarpped = genWarpedBinary(binary)
     unwarpped = 100 * np.dstack([unwarpped, unwarpped, unwarpped])
 
     if (fit is None):
@@ -686,7 +747,7 @@ def testimg(filename):
             print("err: curve found, but can't find steering angle")
         else:
             print(steer_angle)
-            kinematics = drawKinematicsImg(fit, steer_angle, (x,y))
+            kinematics = genKinematicsImg(fit, steer_angle, (x,y))
             show(cv2.addWeighted(unwarpped, 0.8, kinematics, 1.0, 0.0))
 
     t.e()
@@ -704,7 +765,8 @@ def drawLine(img, center, angle, length = 60, weight = 4, color = (255,255,255))
 # draw an image for debugging kinematics.
 # Given fit, the function returns an image including the following components
 # vehicle, front wheels, projected pathline, lookahead circle, target pursuit point
-def drawKinematicsImg(fit, steer_angle, targetCoord):
+# FIT : x = f(y) in car coord
+def genKinematicsImg(fit, steer_angle, targetCoord):
     canvasSize = ( 800, 800)
     if (steer_angle is None):
         fitOnly = True
@@ -725,10 +787,15 @@ def drawKinematicsImg(fit, steer_angle, targetCoord):
     cv2.rectangle(img, shift(-g_track/2,g_wheelbase), shift(g_track/2, 0), (255,255,255),3)
 
     # draw the pathline
-    ploty = np.linspace(0, 400, 100 )
+    ploty = np.linspace(0, 140, 141 )
     plotx = fit[0]*ploty**2 + fit[1]*ploty + fit[2]
     cv2.polylines(img, np.array([map(shift,plotx,ploty)]), False, (255,255,255), 3)
+    # Plot the camera view window, two sets are possible
+    # set 1: if working with undistorted image
     cv2.polylines(img, np.array([map(shift,[13,-15,-72,72],[47,47,131,131])]),True, (255,0,0),3)
+    # set 2: if working with distorted image (original frame)
+    # since the boundary would be a curve and I don't want to calculate that, you'll have to deal 
+    # with undistorted view
 
     if (not fitOnly):
 
@@ -771,13 +838,35 @@ def testPerspectiveTransform():
             x = constrain(int(x), 0, unwarppedSize[1]-1)
             y = constrain(int(y), 0, unwarppedSize[0]-1)
             unwarpped[y,x] = gray[i,j]
-    print(count)
     showg(unwarpped)
     return
 
 # WARNING: extremely inefficient, DEBUG only
+def testUndistort(gray):
+    #img = cv2.imread("../debug/run1/19.png")
+    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #showg(gray)
+    unwarppedSize = (800,800)
+    unwarpped = np.zeros( unwarppedSize, dtype= np.uint8)
+    count = 0
+
+    for i in range(0,gray.shape[0]):
+        for j in range(gray.shape[1]):
+            ret = cam.undistortPts(np.array([j,i], dtype = np.float).reshape(-1,1,2))
+            x = ret[0,0,0]
+            y = ret[0,0,1]
+            x = constrain(int(x), 0, unwarppedSize[1]-1)
+            y = constrain(int(y), 0, unwarppedSize[0]-1)
+            unwarpped[y,x] = gray[i,j]
+            count += 1 if gray[i,j]!=0 else 0
+    print(count)
+    showg(unwarpped)
+    
+    return
 # this takes a CROPPED binary (240 lower rows only)
-def showWarpedBinary(binary):
+# and generate an perspective transformed image that matches genKinematicsImg()
+# by default this takes an distorted img, if BINARY is undistorted, set UNDISTORTIMG to False
+def genWarpedBinary(binary, undistortImg = True):
 
     canvasSize = ( 800, 800)
     pixelPerCM = 10
@@ -785,6 +874,10 @@ def showWarpedBinary(binary):
     nonzeroPts = binary.nonzero()
     nonzeroPts = np.vstack([[nonzeroPts[1],nonzeroPts[0]+240]]).T.reshape(-1,1,2)
     nonzeroPts = nonzeroPts.astype(np.float)
+    if (undistortImg):
+        nonzeroPts = cam.undistortPts(nonzeroPts)
+    else: 
+        pass
 
     ret = cv2.perspectiveTransform( nonzeroPts, g_transformMatrix)
     # 0->col->x
@@ -824,14 +917,18 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run1/'
+        path_to_file = '../debug/run9/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
-        
-        #testpics =[ '../debug/run1/39.png']
-        for i in range(len(testpics)):
-            testimg(testpics[i])
+        if len(testpics)==0 :
+            print('empty folder')
 
-        t.summary()
+        else:
+
+            #testpics =[ '../debug/run1/19.png']
+            for i in range(len(testpics)):
+                testimg(testpics[i])
+
+            t.summary()
 
     else:
         g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/src/debug/run%d" % (g_fileIndex)
