@@ -24,7 +24,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from timeUtil import execution_timer
 from time import time
 
-from math import sin, cos, radians
+from math import sin, cos, radians, degrees, atan2
 
 if (getuser()=='odroid'):
     DEBUG = False
@@ -382,7 +382,7 @@ class driveSys:
         mask = np.logical_and(mask, y<552)
         mask = np.logical_and(mask, y>-72)
         ptsCenter = ptsCenter[:,mask,:]
-        if (len(ptsCenter)<50):
+        if (len(ptsCenter[0])<50):
             print('all datapoints out side of valid range')
             if (returnBinary):
                 return None, binary
@@ -443,7 +443,7 @@ class driveSys:
 
 # fit-> x = f(y)
     @staticmethod
-    def purePursuit(fit,lookahead=g_lookahead, returnTargetCoord = False):
+    def purePursuit(fit,lookahead=g_lookahead, returnDebugInfo = False):
         #pic = debugimg(fit)
         # anchor point coincide with rear axle
         # calculate target point
@@ -464,8 +464,8 @@ class driveSys:
         roots = roots.real
         roots = roots[(roots<lookahead) & (roots>0)]
         if ((roots is None) or (len(roots)==0)):
-            if (returnTargetCoord):
-                return None, (None,None)
+            if (returnDebugInfo):
+                return None, (None,None), None
             else:
                 return None
         roots.sort()
@@ -478,8 +478,8 @@ class driveSys:
         # find steering angle for this curvature
         # not sure about this XXX
         steer_angle = math.atan(g_wheelbase*curvature)/math.pi*180
-        if (returnTargetCoord):
-            return steer_angle, (x,y)
+        if (returnDebugInfo):
+            return steer_angle, (x,y), curvature
         else:
             return steer_angle
             
@@ -669,7 +669,7 @@ def testvid(filename):
 
         else:
             t.s('pure pursuit')
-            steer_angle, (x,y) = driveSys.purePursuit(fit, returnTargetCoord = True)
+            steer_angle, (x,y) = driveSys.purePursuit(fit, returnDebugInfo = True)
             t.e('pure pursuit')
             if (steer_angle is None):
                 print("err: curve found, but can't find steering angle")
@@ -731,7 +731,7 @@ def testimg(filename):
     t.s()
     fit, binary = driveSys.findCenterline(image, returnBinary = True)
     # NOTE binary here is distorted 
-    showg(binary)
+    #showg(binary)
     unwarpped = genWarpedBinary(binary)
     unwarpped = 100 * np.dstack([unwarpped, unwarpped, unwarpped])
 
@@ -751,13 +751,13 @@ def testimg(filename):
 
     else:
         t.s('pure pursuit')
-        steer_angle, (x,y) = driveSys.purePursuit(fit, returnTargetCoord = True)
+        steer_angle, (x,y) , curvature = driveSys.purePursuit(fit, returnDebugInfo = True)
         t.e('pure pursuit')
         if (steer_angle is None):
             print("err: curve found, but can't find steering angle")
         else:
             print(steer_angle)
-            kinematics = genKinematicsImg(fit, steer_angle, (x,y))
+            kinematics = genKinematicsImg(fit, steer_angle, (x,y), curvature)
             show(cv2.addWeighted(unwarpped, 0.8, kinematics, 1.0, 0.0))
 
     t.e()
@@ -776,7 +776,7 @@ def drawLine(img, center, angle, length = 60, weight = 4, color = (255,255,255))
 # Given fit, the function returns an image including the following components
 # vehicle, front wheels, projected pathline, lookahead circle, target pursuit point
 # FIT : x = f(y) in car coord
-def genKinematicsImg(fit, steer_angle, targetCoord):
+def genKinematicsImg(fit, steer_angle, targetCoord, curvature):
     canvasSize = ( 800, 800)
     if (steer_angle is None):
         fitOnly = True
@@ -791,7 +791,7 @@ def genKinematicsImg(fit, steer_angle, targetCoord):
     shiftx = lambda x : int(x*pixelPerCM+canvasSize[0]/2)
     shifty = lambda y :  int(canvasSize[1] - y*pixelPerCM)
 
-    toCanvas = lambda x : x*pixelPerCM
+    toCanvas = lambda x : int(x*pixelPerCM)
 
     # draw the car
     cv2.rectangle(img, shift(-g_track/2,g_wheelbase), shift(g_track/2, 0), (255,255,255),3)
@@ -800,22 +800,42 @@ def genKinematicsImg(fit, steer_angle, targetCoord):
     ploty = np.linspace(0, 140, 141 )
     plotx = fit[0]*ploty**2 + fit[1]*ploty + fit[2]
     cv2.polylines(img, np.array([map(shift,plotx,ploty)]), False, (255,255,255), 3)
+
     # Plot the camera view window, two sets are possible
     # set 1: if working with undistorted image
-    cv2.polylines(img, np.array([map(shift,[13,-15,-72,72],[47,47,131,131])]),True, (255,0,0),3)
+    cv2.polylines(img, np.array([map(shift,[13,-15,-72,72],[47,47,131,131])]),True, (100,0,0),3)
+
     # set 2: if working with distorted image (original frame)
     # since the boundary would be a curve and I don't want to calculate that, you'll have to deal 
     # with undistorted view
 
     if (not fitOnly):
+        x,y = targetCoord
 
         # draw front wheels with correct steer_angle
         drawLine(img, shift(-g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
         drawLine(img, shift(g_track/2, g_wheelbase), steer_angle, length = toCanvas(6))
 
         # draw lookahead circle
-        cv2.circle(img, shift(0,0), toCanvas(g_lookahead), color = (0,0,255), thickness = 3)
+        cv2.circle(img, shift(0,0), toCanvas(g_lookahead), color = (0,0,100), thickness = 3)
+        # target point
         cv2.circle(img, shift(*targetCoord), 10, color = (255,0,0), thickness = 2)
+
+        # draw the expected pathline leading to the target coordinate
+        start = 0 if curvature>0 else degrees(atan2(y,x))
+        end = degrees(atan2(y,x)) if curvature>0 else 180
+        radius = toCanvas(1/np.abs(curvature))
+        start = 0
+        end = 360
+        cv2.ellipse(img, 
+                    center = shift(int(1/curvature),0), 
+                    axes = (radius,radius), 
+                    angle = 0,
+                    startAngle = start, 
+                    endAngle = end , 
+                    color = (0,255,0), 
+                    thickness = 3
+                    )
     else:
         pass
 
@@ -927,14 +947,14 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run1/'
+        path_to_file = '../debug/run5/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         if len(testpics)==0 :
             print('empty folder')
 
         else:
 
-            testpics =[ '../debug/run7/2.png']
+            #testpics =[ '../debug/run1/0.png']
             for i in range(len(testpics)):
                 testimg(testpics[i])
 
