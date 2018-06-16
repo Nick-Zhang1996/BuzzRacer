@@ -121,6 +121,9 @@ class driveSys:
         # handle this later so we don't lose information here
         #frame = cam.undistort(ori_frame)
         #crop
+        #DEBUG: save every frame
+        driveSys.saveImg()
+
         frame = frame[240:,:]
 
         frame = frame.astype(np.float32)
@@ -379,6 +382,13 @@ class driveSys:
         mask = np.logical_and(mask, y<552)
         mask = np.logical_and(mask, y>-72)
         ptsCenter = ptsCenter[:,mask,:]
+        if (len(ptsCenter)<50):
+            print('all datapoints out side of valid range')
+            if (returnBinary):
+                return None, binary
+            else:
+                return None
+        
 
 
 
