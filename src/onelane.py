@@ -150,7 +150,7 @@ class driveSys:
                 throttle = 0.3
                 rospy.loginfo("insufficient steering - L")
             else:
-                steer_angle = steer_angle * driveSys.calcSteer(steer_angle)
+                steer_angle = driveSys.calcSteer(steer_angle)
                 throttle = 0.5
 
         else:
