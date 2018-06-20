@@ -8,5 +8,5 @@ source /home/odroid/catkin_ws/install/setup.bash
 rosrun rosserial_python serial_node.py /dev/ttyUSB0 & 1>>./log/drive_relay.stdout 2>>./log/drive_relay.stderr
 sleep 2
 
-python /home/odroid/catkin_ws/src/rc-vip/src/onelane.py
+python /home/odroid/catkin_ws/src/rc_vip/src/onelane.py
 # put your code in here

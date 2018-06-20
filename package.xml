@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>rc-vip</name>
+  <name>rc_vip</name>
   <version>0.0.0</version>
   <description>The RC-VIP package for autonomous driving platform</description>
 
@@ -32,6 +32,7 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>rosserial_arduino</depend>
   <build_depend>cv_bridge</build_depend>
+  <build_depend>message_generation</build_depend>
   <build_depend>image_transport</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>rosserial_client</build_depend>
@@ -50,6 +51,7 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>message_runtime</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
