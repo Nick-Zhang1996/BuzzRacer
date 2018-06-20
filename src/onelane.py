@@ -464,13 +464,43 @@ class driveSys:
             if (returnDebugInfo):
                 return None, (None,None), None
             else:
-            driveSys.lastDebugImageTimestamp = time()
-            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
-            name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
-            driveSys.debugImageIndex += 1
-            rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
-            cv2.imwrite(name, cv2_image)
-            return
+                return None
+
+
+        roots.sort()
+        y = roots[-1]
+        x = fit[0]*(y**2) + fit[1]*y + fit[2]
+
+        # find curvature to that point
+        curvature = (2*x)/(lookahead**2)
+
+        # find steering angle for this curvature
+        # not sure about this XXX
+        steer_angle = math.atan(g_wheelbase*curvature)/math.pi*180
+        if (returnDebugInfo):
+            return steer_angle, (x,y), curvature
+        else:
+            return steer_angle
+                    
+        
+# save current as an image for debug
+# NOTE: Files will be overridden every run
+@staticmethod
+def saveImg(steering=0, throttle=0):
+    if (DEBUG):
+        return
+
+    if (time() - driveSys.lastDebugImageTimestamp < 1.0):
+        return
+    else:
+
+        driveSys.lastDebugImageTimestamp = time()
+        cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
+        name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
+        driveSys.debugImageIndex += 1
+        rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
+        cv2.imwrite(name, cv2_image)
+    return
 
 # universal functions
 
