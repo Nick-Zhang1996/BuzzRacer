@@ -40,7 +40,7 @@ cam = imageutil(calibratedFilepath)
 
 g_wheelbase = 25.8
 g_track = 16.0
-g_lookahead = 70
+g_lookahead = 50
 g_max_steer_angle = 30.0
 g_fileIndex = 1
 g_slip_compensator = 1.4
@@ -123,7 +123,7 @@ class driveSys:
         #frame = cam.undistort(ori_frame)
         #crop
         #DEBUG: save every frame
-        driveSys.saveImg()
+        #driveSys.saveImg()
 
         frame = frame[240:,:]
 
@@ -150,7 +150,7 @@ class driveSys:
                 throttle = 0.3
                 rospy.loginfo("insufficient steering - L")
             else:
-                steer_angle = steer_angle * calcSteer(steer_angle)
+                steer_angle = steer_angle * driveSys.calcSteer(steer_angle)
                 throttle = 0.5
 
         else:
@@ -469,7 +469,7 @@ class driveSys:
 
         roots.sort()
         y = roots[-1]
-        x = fit[0]*(y**2) + fit[1]*y + fit[2]
+        x = np.polyval(fit,y)
 
         # find curvature to that point
         curvature = (2*x)/(lookahead**2)
@@ -483,24 +483,24 @@ class driveSys:
             return steer_angle
                     
         
-# save current as an image for debug
-# NOTE: Files will be overridden every run
-@staticmethod
-def saveImg(steering=0, throttle=0):
-    if (DEBUG):
-        return
+    # save current as an image for debug
+    # NOTE: Files will be overridden every run
+    @staticmethod
+    def saveImg(steering=0, throttle=0):
+        if (DEBUG):
+            return
 
-    if (time() - driveSys.lastDebugImageTimestamp < 1.0):
-        return
-    else:
+        if (time() - driveSys.lastDebugImageTimestamp < 1.0):
+            return
+        else:
 
-        driveSys.lastDebugImageTimestamp = time()
-        cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
-        name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
-        driveSys.debugImageIndex += 1
-        rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
-        cv2.imwrite(name, cv2_image)
-    return
+            driveSys.lastDebugImageTimestamp = time()
+            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
+            name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
+            driveSys.debugImageIndex += 1
+            rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
+            cv2.imwrite(name, cv2_image)
+        return
 
 # universal functions
 
@@ -946,7 +946,7 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run5/'
+        path_to_file = '../debug/run6/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         if len(testpics)==0 :
             print('empty folder')
