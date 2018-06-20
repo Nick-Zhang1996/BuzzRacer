@@ -28,10 +28,10 @@ from math import sin, cos, radians, degrees, atan2
 
 if (getuser()=='odroid'):
     DEBUG = False
-    calibratedFilepath = "/home/odroid/catkin_ws/src/rc-vip/calibrated/"
+    calibratedFilepath = "/home/odroid/catkin_ws/src/rc_vip/calibrated/"
 else:
     DEBUG = True
-    calibratedFilepath = "/home/nickzhang/catkin_ws/src/rc-vip/calibrated/"
+    calibratedFilepath = "/home/nickzhang/catkin_ws/src/rc_vip/calibrated/"
 
 x_size = 640
 y_size = 480
@@ -464,7 +464,8 @@ class driveSys:
             if (returnDebugInfo):
                 return None, (None,None), None
             else:
-                calcopy, "bgr8")
+            driveSys.lastDebugImageTimestamp = time()
+            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
             name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
@@ -929,12 +930,12 @@ if __name__ == '__main__':
             t.summary()
 
     else:
-        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
             g_fileIndex += 1
-            g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
+            g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
 
-        g_saveDir = "/home/odroid/catkin_ws/src/rc-vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         mkdir(g_saveDir)
         g_saveDir += "/"
 
