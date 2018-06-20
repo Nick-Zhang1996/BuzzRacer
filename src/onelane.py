@@ -43,6 +43,7 @@ g_track = 16.0
 g_lookahead = 70
 g_max_steer_angle = 30.0
 g_fileIndex = 1
+g_slip_compensator = 1.4
 
 g_transformMatrix = np.array(
        [[ -7.28065913e-02,   7.37353326e-04,   2.42476984e+01],
@@ -149,6 +150,7 @@ class driveSys:
                 throttle = 0.3
                 rospy.loginfo("insufficient steering - L")
             else:
+                steer_angle = steer_angle * calcSteer(steer_angle)
                 throttle = 0.5
 
         else:
@@ -165,17 +167,12 @@ class driveSys:
         return
 
 
-    # given a steering angle, provide a -1.0-1.0 value for rostopic /steer_angle
-    # XXX this is a temporary measure, this should be handled by arduino
+    # calculate the actual steering angle, compensate for slip angle
     @staticmethod
     def calcSteer(angle):
         # values obtained from testing
-        val = 0.0479*angle+0.2734
-        print('steer=',val)
-        if (val>1 or val<-1):
-            print('insufficient steering')
 
-        return np.clip(val,-1,1)
+        return np.clip(angle*g_slip_compensator,-g_max_steer_angle,g_max_steer_angle)
 
     # given a gray image, spit out:
     #   a centerline curve x=f(y), 2nd polynomial. with car's rear axle  as (0,0)
@@ -467,36 +464,7 @@ class driveSys:
             if (returnDebugInfo):
                 return None, (None,None), None
             else:
-                return None
-        roots.sort()
-        y = roots[-1]
-        x = fit[0]*(y**2) + fit[1]*y + fit[2]
-
-        # find curvature to that point
-        curvature = (2*x)/(lookahead**2)
-
-        # find steering angle for this curvature
-        # not sure about this XXX
-        steer_angle = math.atan(g_wheelbase*curvature)/math.pi*180
-        if (returnDebugInfo):
-            return steer_angle, (x,y), curvature
-        else:
-            return steer_angle
-            
-
-    # save current as an image for debug
-    # NOTE: Files will be overridden every run
-    @staticmethod
-    def saveImg(steering=0, throttle=0):
-        if (DEBUG):
-            return
-
-        if (time() - driveSys.lastDebugImageTimestamp < 1.0):
-            return
-
-        else:
-            driveSys.lastDebugImageTimestamp = time()
-            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
+                calcopy, "bgr8")
             name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
