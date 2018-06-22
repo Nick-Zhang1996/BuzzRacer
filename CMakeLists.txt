@@ -57,6 +57,7 @@ find_package(catkin REQUIRED COMPONENTS
  add_message_files(
    FILES
    CarSensors.msg
+   CarControl.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -78,6 +79,7 @@ find_package(catkin REQUIRED COMPONENTS
    DEPENDENCIES
    sensor_msgs
    std_msgs
+   rc_vip
  )
 
 catkin_package(
@@ -128,7 +130,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
