@@ -18,6 +18,7 @@ from getpass import getuser
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64 as float_msg
+from rc_vip.msg import CarSensors, CarControl
 from calibration import imageutil
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -67,9 +68,9 @@ class driveSys:
         driveSys.throttle = 0
         driveSys.steering = 0
         driveSys.vidin = rospy.Subscriber("image_raw", Image,driveSys.callback,queue_size=1,buff_size = 2**24)
-        driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
-        driveSys.steering_pub = rospy.Publisher("/steer_angle",float_msg, queue_size=1)
-        driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
+        driveSys.carControl_pub = rospy.Publisher("/carControl",carControl, queue_size=1)
+
+        #driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
         driveSys.testimg = None
         driveSys.sizex=x_size
         driveSys.sizey=y_size
@@ -103,8 +104,11 @@ class driveSys:
 
     @staticmethod
     def publish():
-        driveSys.throttle_pub.publish(driveSys.throttle)
-        driveSys.steering_pub.publish(driveSys.steering)
+        msg = CarControl()
+        msg.header.stamp = rospy.Time.now()
+        msg.throttle = driveSys.throttle
+        msg.steer_angle = driveSys.steer_angle
+        driveSys.carControl_pub.publish(msg)
         rospy.loginfo("throttle = %f steering = %f",driveSys.throttle,driveSys.steering)
         if (driveSys.testimg is not None):
             image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
@@ -694,19 +698,19 @@ def testvid(filename):
 def testimg(filename):
     print('----------')
     image = cv2.imread(filename)
-    original = image.copy()
+    #original = image.copy()
 
-    winname = filename
-    cv2.namedWindow(winname)        # Create a named window
-    cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
-    cv2.imshow(winname,original)
-    if (cv2.waitKey(10000) == ord('d')):
-        remove(filename)
-        print(filename+' removed')
-        cv2.destroyAllWindows()
-        return
-    else:
-        cv2.destroyAllWindows()
+    #winname = filename
+    #cv2.namedWindow(winname)        # Create a named window
+    #cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
+    #cv2.imshow(winname,original)
+    #if (cv2.waitKey(10000) == ord('d')):
+    #    remove(filename)
+    #    print(filename+' removed')
+    #    cv2.destroyAllWindows()
+    #    return
+    #else:
+    #    cv2.destroyAllWindows()
 
 
     # special handle for images saved wrong
@@ -729,24 +733,22 @@ def testimg(filename):
 
     t.s()
     fit, binary = driveSys.findCenterline(image, returnBinary = True)
-    # NOTE binary here is distorted 
-    #showg(binary)
-    unwarpped = genWarpedBinary(binary)
-    unwarpped = 100 * np.dstack([unwarpped, unwarpped, unwarpped])
+    #unwarpped = genWarpedBinary(binary)
+    #unwarpped = 100 * np.dstack([unwarpped, unwarpped, unwarpped])
 
     if (fit is None):
         print("Oops, can't find lane in this frame")
-        winname = filename
-        cv2.namedWindow(winname)        # Create a named window
-        cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
-        cv2.imshow(winname,original)
-        if (cv2.waitKey(10000) == ord('d')):
-            remove(filename)
-            print(filename+' removed')
-        else:
-            pass
+        #winname = filename
+        #cv2.namedWindow(winname)        # Create a named window
+        #cv2.moveWindow(winname, 40,30)  # Move it to (40,30)
+        #cv2.imshow(winname,original)
+        #if (cv2.waitKey(10000) == ord('d')):
+        #    remove(filename)
+        #    print(filename+' removed')
+        #else:
+        #    pass
 
-        cv2.destroyAllWindows()
+        #cv2.destroyAllWindows()
 
     else:
         t.s('pure pursuit')
@@ -756,8 +758,8 @@ def testimg(filename):
             print("err: curve found, but can't find steering angle")
         else:
             print(steer_angle)
-            kinematics = genKinematicsImg(fit, steer_angle, (x,y), curvature)
-            show(cv2.addWeighted(unwarpped, 0.8, kinematics, 1.0, 0.0))
+            #kinematics = genKinematicsImg(fit, steer_angle, (x,y), curvature)
+            #show(cv2.addWeighted(unwarpped, 0.8, kinematics, 1.0, 0.0))
 
     t.e()
     return
@@ -925,7 +927,7 @@ def genWarpedBinary(binary, undistortImg = True):
     return unwarpped
 
 
-t = execution_timer(False)
+t = execution_timer(True)
 if __name__ == '__main__':
 
     print('begin')
@@ -946,7 +948,7 @@ if __name__ == '__main__':
 
         #testvid('../img/run1.avi')
 
-        path_to_file = '../debug/run6/'
+        path_to_file = '../debug/run5/'
         testpics = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(path_to_file, f))]
         if len(testpics)==0 :
             print('empty folder')
