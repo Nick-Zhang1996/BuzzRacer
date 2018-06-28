@@ -142,7 +142,7 @@ include_directories(
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
@@ -233,5 +233,22 @@ rosserial_configure_client(
 )
 
 
+# -----------IMPORTANT   NOTE----------
+# if you modified/added new messages and used them in the arduino firmware, 
+# you need to re-build the message headers for rosserial, to do this:
+# 1. remove "ALL" from the arguments on the following line and build
+# 2.re-generate ros_lib in build space by
+#       a) rm -rf catkin_ws/build/rc_vip/ros_lib
+#       b) rosrun rosserial_arduino make_libraries.py ./  (when you are in build/rc_vip)
+# 3. restore "ALL" argument
+# 4. build package normally
 rosserial_add_client_target(firmware arduino ALL)
+
+
+# To upload to arduino, first verify the path to arduino serial port
+# is correct in firmware/CMakelist.txt
+# then invoke:
+# catkin build --no-deps  rc_vip --make-args rc_vip_firmware_arduino-upload
+# or simply run the uploadToArduino.sh in this folder
+# Remember if you modify the path to arduino device, you need to rebuild the project
 rosserial_add_client_target(firmware arduino-upload)

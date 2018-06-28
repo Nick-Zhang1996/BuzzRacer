@@ -22,10 +22,12 @@ static int steeringServoVal = 1550;
 static unsigned long throttleTimestamp = 0;
 static unsigned long steeringTimestamp = 0;
 
+unsigned long carControlTimestamp = 0;
+
 //ros variables
 ros::NodeHandle nh;
 
-void readCarControlTopic(const vip_rc::CarControl &msg_CarControl) {
+void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
     carControlTimestamp = millis();
 
     if (msg_CarControl.throttle < 0.005) {
@@ -48,7 +50,7 @@ void readCarControlTopic(const vip_rc::CarControl &msg_CarControl) {
         steeringServoVal = 1550;
     }
 
-    return
+    return;
 }
 
 
