@@ -54,7 +54,7 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
 }
 
 
-ros::Subscriber<rc_vip::CarControl> subCarControl("/carControl", &readCarControlTopic);
+ros::Subscriber<rc_vip::CarControl> subCarControl("rc_vip/carControl", &readCarControlTopic);
 
 void setup() {
     Serial.begin(115200);

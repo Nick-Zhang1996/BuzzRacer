@@ -17,7 +17,9 @@ from os.path import isfile, join, isdir
 from getpass import getuser
 
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float64 as float_msg
+from rc_vip.msg import CarSensors as carSensors_msg
+from rc_vip.msg import CarControl as carControl_msg
+
 from calibration import imageutil
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -28,23 +30,45 @@ from math import sin, cos, radians, degrees, atan2
 
 if (getuser()=='odroid'):
     DEBUG = False
-    calibratedFilepath = "/home/odroid/catkin_ws/src/rc_vip/calibrated/"
+    calibratedFilepath = "/home/odroid/catkin_ws/src/rc_vip/calibrated/odroid/"
+elif (getuser()=='ubuntu'):
+    # Raspberry pi
+    DEBUG = False
+    camTopicName = "image_raw"
+    calibratedFilepath = "/home/ubuntu/catkin_ws/src/rc_vip/calibrated/rpi/"
+elif (getuser()=='nickzhang'):
+    DEBUG = True
+    # modify this base on which platform the debug pictures was taken
+    calibratedFilepath = "/home/nickzhang/catkin_ws/src/rc_vip/calibrated/odroid/"
 else:
     DEBUG = True
-    calibratedFilepath = "/home/nickzhang/catkin_ws/src/rc_vip/calibrated/"
+    calibratedFilepath = "/home/"+getuser()+"/catkin_ws/src/rc_vip/calibrated/"
 
+# Image size, x->horizontal, y->vertical
 x_size = 640
 y_size = 480
+
+# row number for uppermost row to keep
+# e.g. a  number of 240 will keep [240:][:]
 crop_y_size = 240
 cam = imageutil(calibratedFilepath)
 
+# in centimeter
 g_wheelbase = 25.8
+# trackwidth
 g_track = 16.0
 g_lookahead = 50
+
+# in deg
 g_max_steer_angle = 30.0
+# min index for debug runfile folder
+# if run$(g_fileIndex)/ already exists, code will use the next available index
 g_fileIndex = 1
+# constant to account for slip angle, should have a function for this XXX
 g_slip_compensator = 1.4
 
+# perspective transformation matrix
+# dependent on camera type and relative location, see wiki for more info
 g_transformMatrix = np.array(
        [[ -7.28065913e-02,   7.37353326e-04,   2.42476984e+01],
         [ -5.37538652e-03,  -1.42401754e-01,  -9.81881827e+00],
@@ -65,11 +89,10 @@ class driveSys:
         #shutdown routine
         #rospy.on_shutdown(driveSys.cleanup)
         driveSys.throttle = 0
-        driveSys.steering = 0
-        driveSys.vidin = rospy.Subscriber("image_raw", Image,driveSys.callback,queue_size=1,buff_size = 2**24)
-        driveSys.throttle_pub = rospy.Publisher("/throttle",float_msg, queue_size=1)
-        driveSys.steering_pub = rospy.Publisher("/steer_angle",float_msg, queue_size=1)
-        driveSys.test_pub = rospy.Publisher('img_test',Image, queue_size=1)
+        driveSys.steer_angle = 0
+        driveSys.vidin = rospy.Subscriber(camTopicName, Image,driveSys.callback,queue_size=1,buff_size = 2**24)
+        driveSys.carControl_pub = rospy.Publisher("rc_vip/carControl",carControl_msg, queue_size=1)
+        #driveSys.test_pub = rospy.Publisher('rc_vip/testimg',Image, queue_size=1)
         driveSys.testimg = None
         driveSys.sizex=x_size
         driveSys.sizey=y_size
@@ -78,21 +101,20 @@ class driveSys:
         driveSys.lanewidth=15
         driveSys.lock = threading.Lock()
 
+        # the access point for image data, should contain latest data
+        # lock it when using
         driveSys.data = None
         while not rospy.is_shutdown():
+            # work on a local copy because we can't "request" latest camera frame due to ROS's topic mechanism
             driveSys.lock.acquire()
-            # XXX does this create only a reference?
             driveSys.localcopy = driveSys.data
             driveSys.lock.release()
 
             if driveSys.localcopy is not None:
                 driveSys.drive(driveSys.localcopy)
 
-        rospy.spin()
-
         return
 
-    # TODO handle basic cropping and color converting at this level, or better yet before it is published
     # update current version of data, thread safe
     @staticmethod
     def callback(data):
@@ -103,14 +125,18 @@ class driveSys:
 
     @staticmethod
     def publish():
-        driveSys.throttle_pub.publish(driveSys.throttle)
-        driveSys.steering_pub.publish(driveSys.steering)
-        rospy.loginfo("throttle = %f steering = %f",driveSys.throttle,driveSys.steering)
+
+        data = carControl_msg()
+        data.steer_angle = driveSys.steer_angle
+        data.throttle = driveSys.throttle
+        driveSys.carControl_pub.publish(data)
+        rospy.loginfo("throttle = %f steer_angle= %f",driveSys.throttle,driveSys.steer_angle)
         if (driveSys.testimg is not None):
             image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
             driveSys.test_pub.publish(image_message)
         return
     
+    # main drive function
     # handles frame pre-processing and post status update
     @staticmethod
     def drive(data, noBridge = False):
@@ -125,12 +151,14 @@ class driveSys:
         #DEBUG: save every frame
         #driveSys.saveImg()
 
-        frame = frame[240:,:]
+        frame = frame[crop_y_size:,:]
 
         frame = frame.astype(np.float32)
+        # for semi-transparent blue tape
         frame = frame[:,:,2]-frame[:,:,0]+frame[:,:,1]-frame[:,:,0]
 
         retval = driveSys.findCenterline(frame)
+
         if (retval is not None):
             fit = retval
             steer_angle = driveSys.purePursuit(fit)
@@ -153,7 +181,8 @@ class driveSys:
                 steer_angle = driveSys.calcSteer(steer_angle)
                 throttle = 0.5
 
-        else:
+        # retval is None
+        else: 
             throttle = 0
             steer_angle = 0
             rospy.loginfo("can't find centerline")
@@ -162,12 +191,13 @@ class driveSys:
 
 
         driveSys.throttle = throttle
-        driveSys.steering = steer_angle
+        driveSys.steer_angle = steer_angle
         driveSys.publish()
         return
 
 
     # calculate the actual steering angle, compensate for slip angle
+    # currently this is a static factor, not good enough 
     @staticmethod
     def calcSteer(angle):
         # values obtained from testing
@@ -176,6 +206,7 @@ class driveSys:
 
     # given a gray image, spit out:
     #   a centerline curve x=f(y), 2nd polynomial. with car's rear axle  as (0,0)
+    # unit in cm
     @staticmethod
     def findCenterline(gray, returnBinary = False):
 
@@ -293,7 +324,7 @@ class driveSys:
         t.s('fitPoly')
         with warnings.catch_warnings(record=True) as w:
             # XXX do we need the astype here?
-            centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8), yOffset = 240)
+            centerPoly = fitPoly((labels == finalGoodLabel).astype(np.uint8), yOffset = crop_y_size)
             if ( centerPoly is None):
                 rospy.loginfo("fail to fit poly - None")
                 driveSys.saveImg()
@@ -315,7 +346,7 @@ class driveSys:
 
         # debug the curve fitting in original image 
         #testimg = 100* np.dstack([binary, binary, binary])
-        #testimg = drawPoly(testimg.astype(np.uint8), centerPoly, 240,480, yOffset = -240)
+        #testimg = drawPoly(testimg.astype(np.uint8), centerPoly, crop_y_size,y_size, yOffset = -crop_y_size)
         #show(testimg)
 
         '''
@@ -350,13 +381,12 @@ class driveSys:
         
         # prepare sample points
         # TODO do this symbolically
-        # XXX don't use constant here
         # the centerPoly is in original, distorted space
-        ploty = np.linspace(240, 480-1, 240 )
+        ploty = np.linspace(crop_y_size, y_size-1, y_size-crop_y_size)
         plotx = np.polyval(centerPoly, ploty)
-        mask = np.logical_and(plotx>0,plotx<640)
-        mask = np.logical_and(mask, ploty<480)
-        mask = np.logical_and(mask, ploty>0)
+        mask = np.logical_and(plotx>0,plotx<x_size)
+        #mask = np.logical_and(mask, ploty<y_size)
+        #mask = np.logical_and(mask, ploty>0)
         plotx = plotx[mask]
         ploty = ploty[mask]
 
@@ -368,16 +398,21 @@ class driveSys:
         # undistortPts() maps points to locations way beyond reasonable range
         # thus it is necessary to discard datapoints beyond a certain range
         # from experiments this threshold size is 1.3*originalSize
-        # for a (480,640) image, the center is (240,320), and the new half side length 
+        # for a (640,480) image, the center is (320,240), and the new half side length 
         # is (240*1.3, 320*1.3) Note this space also extends to negative coordinates
-        # the four bounding coordinate is (TopLeft, TopRight, BottomL, BotR) (x,y)
+        # the four bounding coordinate for (640,480) is (TopLeft, TopRight, BottomL, BotR) (x,y)
         # (-96,-72), (736,-72), (-96,552), (736,552)
-        # XXX this is not conclusive
+        # note the actual accessing order is (y,x) in numpy
+        #topLeft = np.int_((-0.15*y_size, -0.15*x_size))
+        #topRight = np.int_((-0.15*y_size, 1.15*x_size))
+        #bottomLeft = np.int_((1.15*y_size, -0.15*x_size))
+        #bottomRight = np.int_((1.15*y_size, 1.15*x_size))
+        
         x = ptsCenter[0,:,0] 
         y = ptsCenter[0,:,1]
-        mask = np.logical_and(x>-96,x<736)
-        mask = np.logical_and(mask, y<552)
-        mask = np.logical_and(mask, y>-72)
+        mask = np.logical_and(x>int(-0.15*x_size),x<int(1.15*x_size))
+        mask = np.logical_and(mask, y<int(1.15*y_size))
+        mask = np.logical_and(mask, y>int(-0.15*y_size))
         ptsCenter = ptsCenter[:,mask,:]
         if (len(ptsCenter[0])<50):
             print('all datapoints out side of valid range')
@@ -394,7 +429,6 @@ class driveSys:
         #ptsCenter = ptsCenter[np.newaxis,...]
 
         # unwarp and change of units
-        # TODO use a map to spped it up
         ptsCenter = cv2.perspectiveTransform(ptsCenter, g_transformMatrix)
             
         # now ptsCenter should contain points in vehicle coordinate with x axis being rear axle,unit in cm
@@ -484,7 +518,6 @@ class driveSys:
                     
         
     # save current as an image for debug
-    # NOTE: Files will be overridden every run
     @staticmethod
     def saveImg(steering=0, throttle=0):
         if (DEBUG):
@@ -655,7 +688,7 @@ def testvid(filename):
 
         #crop
         # XXX is this messing up our perspective transformation?
-        #image = image[240:,:]
+        #image = image[crop_y_size:,:]
 
         driveSys.lanewidth=15
 
@@ -719,7 +752,7 @@ def testimg(filename):
     # handle undistortion later because this process loses important data
     # image = cam.undistort(image)
     #crop
-    image = image[240:,:]
+    image = image[crop_y_size:,:]
     image = image.astype(np.float32)
     image = image[:,:,0]-image[:,:,2]+image[:,:,1]-image[:,:,2]
 
@@ -859,7 +892,7 @@ def testPerspectiveTransform():
 
     for i in range(0,gray.shape[0]):
         for j in range(gray.shape[1]):
-            ret = cv2.perspectiveTransform(np.array([[[float(j),float(240+i)]]]),g_transformMatrix)
+            ret = cv2.perspectiveTransform(np.array([[[float(j),float(crop_y_size+i)]]]),g_transformMatrix)
             x = ret[0,0,0]
             y = ret[0,0,1]
             x = x*10 + 400
@@ -901,7 +934,7 @@ def genWarpedBinary(binary, undistortImg = True):
     pixelPerCM = 10
     unwarpped = np.zeros( canvasSize, dtype= np.uint8)
     nonzeroPts = binary.nonzero()
-    nonzeroPts = np.vstack([[nonzeroPts[1],nonzeroPts[0]+240]]).T.reshape(-1,1,2)
+    nonzeroPts = np.vstack([[nonzeroPts[1],nonzeroPts[0]+crop_y_size]]).T.reshape(-1,1,2)
     nonzeroPts = nonzeroPts.astype(np.float)
     if (undistortImg):
         nonzeroPts = cam.undistortPts(nonzeroPts)
@@ -970,3 +1003,6 @@ if __name__ == '__main__':
         g_saveDir += "/"
 
         driveSys.init()
+
+        rospy.spin()
+
