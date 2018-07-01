@@ -9,7 +9,7 @@ include_directories(
 
 
 generate_arduino_firmware(arduino
-    SRCS arduino_main.cpp ${ROS_LIB_DIR}/time.cpp
+    SRCS arduino_main.cpp ${ROS_LIB_DIR}/time.cpp I2Cdev/I2Cdev.cpp MPU6050/MPU6050.cpp
     BOARD nano328
     PORT /dev/ttyUSB0
 )
