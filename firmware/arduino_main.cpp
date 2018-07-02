@@ -144,23 +144,15 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
 }
 
 
-ros::Subscriber<rc_vip::CarControl> subCarControl("rc_vip/CarControl", &readCarControlTopic);
-rc_vip::CarSensors carSensors_msg;
-ros::Publisher pubCarSensors("rc_vip/CarSensors", &carSensors_msg, 1);
+ros::Subscriber<rc_vip::CarControl> *subCarControl;
+//rc_vip::CarSensors carSensors_msg;
+//ros::Publisher pubCarSensors("rc_vip/CarSensors", &carSensors_msg, 1);
 
 void setup() {
-    Serial.begin(115200);
-    nh.initNode();
-    nh.subscribe(subCarControl);
 
-    pinMode(pinDrive, OUTPUT);
-    pinMode(pinServo, OUTPUT);
-    throttle.attach(pinDrive);
-    steer.attach(pinServo);
-
-    //ESC requires a low signal durin poweron to prevent accidental input
-    throttle.writeMicroseconds(minThrottleVal);
-    delay(3000);
+    // configure LED for output
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN,LOW);
 
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -169,21 +161,33 @@ void setup() {
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
     #endif
+    //Serial.begin(115200);
+    //while(!Serial);
 
     // initialize device
-    nh.loginfo("Initializing I2C devices...");
+    //Serial.println(F("Initializing I2C devices..."));
+    //NOTE: this function would block if MPU6050 is not connected
     mpu.initialize();
 
     // verify connection
-    nh.loginfo("Testing device connections...");
+    //Serial.println("Testing device connections...");
     if (mpu.testConnection()) {
-        nh.loginfo("MPU6050 connection successful");
+        //Serial.println("MPU6050 connection successful");
+        ;
     } else {
-        nh.logfatal("MPU6050 connection failed");
+        //Serial.println("MPU6050 connection failed");
+        ;
     }
 
+
+    // wait for ready
+    //Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+    //while (Serial.available() && Serial.read()); // empty buffer
+    //while (!Serial.available());                 // wait for data
+    //while (Serial.available() && Serial.read()); // empty buffer again
+
     // load and configure the DMP
-    nh.loginfo("Initializing DMP...");
+    //Serial.println("Initializing DMP...");
     devStatus = mpu.dmpInitialize();
 
     // NOTE supply your own gyro offsets here, scaled for min sensitivity
@@ -194,17 +198,18 @@ void setup() {
 
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
+
         // turn on the DMP, now that it's ready
-        nh.loginfo("Enabling DMP...");
+        //Serial.println("Enabling DMP...");
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        nh.loginfo("Enabling interrupt detection (Arduino external interrupt 0...)");
+        //Serial.println("Enabling interrupt detection (Arduino external interrupt 0...)");
         attachInterrupt(0, dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        nh.loginfo("DMP ready! Waiting for first interrupt...");
+        //Serial.println("DMP ready! Waiting for first interrupt...");
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -214,24 +219,45 @@ void setup() {
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        nh.logfatal("DMP Initialization failed (code ");
+        //Serial.println("DMP Initialization failed (code ");
 
-        nh.logfatal(")");
+        //Serial.println(")");
+        ;
     }
 
-    // configure LED for output
-    pinMode(LED_PIN, OUTPUT);
+    //nh.initNode();
+    //nh.subscribe(subCarControl);
+
+
+    //pinMode(pinDrive, OUTPUT);
+    //pinMode(pinServo, OUTPUT);
+    //throttle.attach(pinDrive);
+    //steer.attach(pinServo);
+
+    ////ESC requires a low signal durin poweron to prevent accidental input
+    //throttle.writeMicroseconds(minThrottleVal);
+    //delay(2000);
+
    
     // if programming failed, don't try to do anything
     if (!dmpReady) {
-        nh.logerror("MPU6050 DMP unavailable");
+        //Serial.println("MPU6050 DMP unavailable");
+        ;
+    } else {
+        digitalWrite(LED_PIN,HIGH);
+        //subCarControl = new ros::Subscriber<rc_vip::CarControl>("rc_vip/CarControl", &readCarControlTopic);
+        
     }
+        
+    while(true);
 }
 
 void loop() {
-    nh.spinOnce();
+    while(true);
+    //nh.spinOnce();
 
-    if (mpuInterrupt || fifoCount>packetSize){
+    //if (mpuInterrupt || fifoCount>packetSize){
+    if (false){
 
         // reset interrupt flag and get INT_STATUS byte
         mpuInterrupt = false;
@@ -244,7 +270,7 @@ void loop() {
         if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
             // reset so we can continue cleanly
             mpu.resetFIFO();
-            Serial.println("FIFO overflow!");
+            //nh.logerror("FIFO overflow!");
 
         // otherwise, check for DMP data ready interrupt (this should happen frequently)
         } else if (mpuIntStatus & 0x02) {
@@ -260,10 +286,10 @@ void loop() {
 
             // display quaternion values in easy matrix form: w x y z
             mpu.dmpGetQuaternion(&q, fifoBuffer);
-            carSensors_msg.imu.orientation.x=q.x;
-            carSensors_msg.imu.orientation.y=q.y;
-            carSensors_msg.imu.orientation.z=q.z;
-            carSensors_msg.imu.orientation.w=q.w;
+            //carSensors_msg.imu.orientation.x=q.x;
+            //carSensors_msg.imu.orientation.y=q.y;
+            //carSensors_msg.imu.orientation.z=q.z;
+            //carSensors_msg.imu.orientation.w=q.w;
 
 
                 // display Euler angles in degrees
@@ -282,9 +308,9 @@ void loop() {
             mpu.dmpGetAccel(&aa, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            carSensors_msg.imu.linear_acceleration.x = aaReal.x;
-            carSensors_msg.imu.linear_acceleration.y = aaReal.y;
-            carSensors_msg.imu.linear_acceleration.z = aaReal.z;
+            //carSensors_msg.imu.linear_acceleration.x = aaReal.x;
+            //carSensors_msg.imu.linear_acceleration.y = aaReal.y;
+            //carSensors_msg.imu.linear_acceleration.z = aaReal.z;
 
 
             //XXX add support for angular acc and covariance
@@ -295,12 +321,12 @@ void loop() {
     } 
 
     //failsafe, if there's no new message for over 500ms, halt the motor
-    if ( millis() - carControlTimestamp > 500 ){
-        throttle.writeMicroseconds(minThrottleVal);
-    } else if (newCarControlmsg) {  
-        newCarControlmsg = false;
-        throttle.writeMicroseconds(throttleServoVal);
-        steer.writeMicroseconds(steeringServoVal);
-    }
+    //if ( millis() - carControlTimestamp > 500 ){
+    //    throttle.writeMicroseconds(minThrottleVal);
+    //} else if (newCarControlmsg) {  
+    //    newCarControlmsg = false;
+    //    throttle.writeMicroseconds(throttleServoVal);
+    //    steer.writeMicroseconds(steeringServoVal);
+    //}
 
 }
