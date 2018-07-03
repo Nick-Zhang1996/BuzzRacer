@@ -243,6 +243,7 @@ rosserial_configure_client(
 # 3. restore "ALL" argument
 # 4. build package normally
 rosserial_add_client_target(firmware arduino ALL)
+#rosserial_add_client_target(firmware arduino )
 
 
 # To upload to arduino, first verify the path to arduino serial port

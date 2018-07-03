@@ -4,8 +4,19 @@
 # This message includes other compound messages types provided by ROS, for details on how to use each field (units, meaning, etc) search for original .msg files in associated ros packages
 
 std_msgs/Header header
-sensor_msgs/BatteryState batt# voltage and current are published
-sensor_msgs/Imu imu
+#sensor_msgs/BatteryState batt# voltage and current are published
 
-float32 driveshaft_speed # rotation speed of the driveshaft connecting front and rear axle. unit: rev/sec, this should be a smoothed value that requires no additional handling on the subscriber's part
+#Not using ROS's imu type cuz it's full of float64 and depletes memory on Arduino
+#sensor_msgs/Imu imu
+#linear acceleration
+int16 imu_ax
+int16 imu_ay
+int16 imu_az
+
+# angular speed
+int16 imu_gx
+int16 imu_gy
+int16 imu_gz
+
+#float32 driveshaft_speed # rotation speed of the driveshaft connecting front and rear axle. unit: rev/sec, this should be a smoothed value that requires no additional handling on the subscriber's part
 
