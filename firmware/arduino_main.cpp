@@ -58,7 +58,7 @@ int16_t gx, gy, gz;
 
 
 //throttle variables
-const int pinServo = 3;
+const int pinServo = 4;
 const int pinDrive = 5;
 Servo throttle;
 Servo steer;
@@ -75,6 +75,7 @@ static unsigned long throttleTimestamp = 0;
 static unsigned long steeringTimestamp = 0;
 
 unsigned long carControlTimestamp = 0;
+bool newCarControlMsg = false;
 
 //ros variables
 //pub,sub, in_buf, out_buf
@@ -82,8 +83,9 @@ ros::NodeHandle_<ArduinoHardware, 2, 2, 128, 300 > nh;
 
 void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
     carControlTimestamp = millis();
+    newCarControlMsg = true;
 
-    if (msg_CarControl.throttle < 0.005) {
+    if (msg_CarControl.throttle < 0.001) {
         throttleServoVal = minThrottleVal;
     } else if (msg_CarControl.throttle > 1.0001) {
         throttleServoVal = minThrottleVal;
@@ -148,8 +150,11 @@ void loop() {
     if ( millis() - carControlTimestamp > 500 ){
         throttle.writeMicroseconds(minThrottleVal);
     } else {  
-        throttle.writeMicroseconds(throttleServoVal);
-        steer.writeMicroseconds(steeringServoVal);
+        if (newCarControlMsg){
+            newCarControlMsg = false;
+            throttle.writeMicroseconds(throttleServoVal);
+            steer.writeMicroseconds(steeringServoVal);
+        }
     }
 
 
@@ -164,10 +169,10 @@ void loop() {
     carSensors_msg.imu_gy = gy;
     carSensors_msg.imu_gz = gz;
 
-    // XXX this is causing LED to blink
+    // TODO maybe add some throttling stuff?
     pubCarSensors.publish(&carSensors_msg);
     nh.spinOnce();
 
     // a loop rate too high may mess with Servo class's operation
-    delay(100);
+    delay(10);
 }
