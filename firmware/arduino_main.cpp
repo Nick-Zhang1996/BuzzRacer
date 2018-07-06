@@ -1,6 +1,10 @@
 // Arduino firmware for RC-VIP. Initially written by Binit and Katie
 // // June 2018: merged throttle and steering topic
 // // June 2018: added IMU support
+// // June 2018: added battery voltage sensor(30k/7.5k resistor voltage divider)
+//
+//
+//
 // // MPU6050 code from Jeff Rowberg <jeff@rowberg.net>
 // // Updates should (hopefully) always be available at https://github.com/jrowberg/i2cdevlib
 // //
@@ -46,6 +50,7 @@
 #endif
 
 #define LED_PIN 13
+#define VOLTAGEDIVIDER_PIN A3
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
 // AD0 low = 0x68 (default for InvenSense evaluation board)
@@ -75,6 +80,7 @@ static unsigned long throttleTimestamp = 0;
 static unsigned long steeringTimestamp = 0;
 
 unsigned long carControlTimestamp = 0;
+unsigned long voltageUpdateTimestamp = 0;
 bool newCarControlMsg = false;
 
 //ros variables
@@ -115,6 +121,7 @@ ros::Publisher pubCarSensors("rc_vip/CarSensors", &carSensors_msg);
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
+    pinMode(VOLTAGEDIVIDER_PIN, INPUT);
     digitalWrite(LED_PIN, LOW);
     // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -155,6 +162,12 @@ void loop() {
             throttle.writeMicroseconds(throttleServoVal);
             steer.writeMicroseconds(steeringServoVal);
         }
+    }
+
+    if ( millis()-voltageUpdateTimestamp>100 ){
+        float voltage = (float)analogRead(VOLTAGEDIVIDER_PIN);
+        voltage /= 16.27;
+        carSensors_msg.voltage = voltage;
     }
 
 
