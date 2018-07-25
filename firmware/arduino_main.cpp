@@ -1,4 +1,6 @@
-// Arduino firmware for RC-VIP. Initially written by Binit and Katie
+// Arduino firmware for RC-VIP
+//
+//  Updates:
 // // June 2018: merged throttle and steering topic
 // // June 2018: added IMU support
 // // June 2018: added battery voltage sensor(30k/7.5k resistor voltage divider)
