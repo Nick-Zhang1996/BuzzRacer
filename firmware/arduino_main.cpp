@@ -1,4 +1,7 @@
 // Arduino firmware for RC-VIP
+// WARNING: NEVER push high to both MOSFETs on one side, this will create a short
+// and burn out the MOSFETs instantly.
+
 //
 //  Updates:
 // // June 2018: merged throttle and steering topic
@@ -53,6 +56,143 @@
 
 #define LED_PIN 13
 #define VOLTAGEDIVIDER_PIN A3
+
+
+// ---------- H-bridge Control ------------
+// Timer interrupt based PWM control for H bridge
+// Current off-time method: tie both end to GND
+// Also RN the car only goes in one direction
+
+
+// All pins are high enable
+#define PORT_POS_UP 9    
+#define PORT_POS_DOWN 6 
+#define PORT_NEG_UP 11
+#define PORT_NEG_DOWN 10
+
+// Timers usage
+//timer0 -> Arduino millis() and delay()
+//timer1 -> Servo lib
+//timer2 -> synchronized multi-channel PWM
+// if additional ISP are needed, 2B compare interrupt is still available, not sure about other timers
+
+
+volatile float onTime = 0.0; // range (0,1], disable pwm for 0
+
+void enablePWM(){
+    cli();//stop interrupts
+
+    digitalWrite(PORT_POS_UP, LOW);
+    digitalWrite(PORT_POS_DOWN,LOW);
+    digitalWrite(PORT_NEG_UP, LOW);
+    digitalWrite(PORT_NEG_DOWN,LOW);
+
+    //set timer2 interrupt 
+    TCCR2A = 0;// set entire TCCR2A register to 0
+    TCCR2B = 0;// same for TCCR2B
+    TCNT2  = 0;//initialize counter value to 0
+
+    // Set CS21 bit for 8 prescaler
+    // duty cycle: (16*10^6) / (8*256) Hz = 7.8kHz
+    TCCR2B |= (1 << CS21); 
+
+    // set compare target, should update 
+    // for n% signal OCR2A = (int) 256*n%
+    //OCR2A = (uint8_t) 256.0*onTime;    
+    OCR2A = 0;
+
+    // enable timer compare interrupt and overflow interrupt
+    TIMSK2 |= (1 << OCIE2A) | ( 1 << TOIE2);
+
+
+    sei();//allow interrupts
+  
+}
+
+void disablePWM(){
+  
+  
+  cli();//stop interrupts
+  //unset timer2 interrupt 
+  TCCR2A = 0;// set entire TCCR2A register to 0
+  TCCR2B = 0;// same for TCCR2B
+  TCNT2  = 0;//initialize counter value to 0
+  TIMSK2 = 0;
+
+  sei();//allow interrupts
+  
+  digitalWrite(PORT_POS_UP, LOW);
+  digitalWrite(PORT_POS_DOWN,LOW);
+  digitalWrite(PORT_NEG_UP, LOW);
+  digitalWrite(PORT_NEG_DOWN,LOW);
+  
+}
+
+
+// Called at the falling edge of on-time, enter off-time configuration here
+ISR(TIMER2_COMPA_vect){
+// digital write takes ~6us to execute
+// inline assembly takes <1us
+// use with caution, though
+
+/*
+    digitalWrite(PORT_POS_UP, LOW);
+    digitalWrite(PORT_NEG_UP, LOW);
+    digitalWrite(PORT_POS_DOWN,HIGH);
+    digitalWrite(PORT_NEG_DOWN,HIGH);
+    digitalWrite(13,LOW);
+*/
+// 0-> POS_UP    
+    asm (
+      "cbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTB)), "I" (PORTB1)
+    );
+
+// 1-> POS_DOWN
+    asm (
+      "sbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTD)), "I" (PORTD6)
+    );
+ 
+}
+
+// Beginning of each Duty Cycle, enter on-time configuration here
+ISR(TIMER2_OVF_vect){
+// Do this like a pro: write 1 to PINxN to toggle PORTxN
+/*
+    digitalWrite(PORT_NEG_UP, LOW);
+    digitalWrite(PORT_POS_DOWN,LOW);
+    digitalWrite(PORT_POS_UP, HIGH);
+    digitalWrite(PORT_NEG_DOWN,HIGH);
+    digitalWrite(13,HIGH);
+*/
+    
+// 0-> POS_DOWN
+    asm (
+      "cbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTD)), "I" (PORTD6)
+    );
+    
+// 1-> POS_UP
+    asm (
+      "sbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTB)), "I" (PORTB1)
+    );
+}
+
+// forward only, range 0-1
+#define MAX_H_BRIDGE_POWER 0.2
+void setHbridgePower(float power){
+    if (power<0.0 || power>1.0){
+        disablePWM();
+    } else{
+        OCR2A = (uint8_t) 256.0*onTime*MAX_H_BRIDGE_POWER;
+    }
+    return;
+}
+
+// -------------- IMU code -------------
+
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
 // AD0 low = 0x68 (default for InvenSense evaluation board)
@@ -73,10 +213,13 @@ Servo steer;
 // values are in us (microseconds)
 const float steeringRightLimit = 30.0;
 const float steeringLeftLimit = -30.0;
-const int minThrottleVal = 1500;
-
-static int throttleServoVal = 1500;
-static int steeringServoVal = 1550;
+const int leftBoundrySteeringServo = 1150;
+const int rightBoundrySteeringServo = 1900;
+const int midPointSteeringServo = 1550;
+//const int minThrottleVal = 1500;
+//
+//static int throttleServoVal = 1500;
+//static int steeringServoVal = 1550;
 
 static unsigned long throttleTimestamp = 0;
 static unsigned long steeringTimestamp = 0;
@@ -89,17 +232,23 @@ bool newCarControlMsg = false;
 //pub,sub, in_buf, out_buf
 ros::NodeHandle_<ArduinoHardware, 2, 2, 128, 300 > nh;
 
+bool failsafe = false;
+
 void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
     carControlTimestamp = millis();
     newCarControlMsg = true;
 
-    if (msg_CarControl.throttle < 0.001) {
-        throttleServoVal = minThrottleVal;
-    } else if (msg_CarControl.throttle > 1.0001) {
-        throttleServoVal = minThrottleVal;
+    if (msg_CarControl.throttle < 0.001 || msg_CarControl.throttle > 1.0001) {
+        //throttleServoVal = minThrottleVal;
+        disablePWM();
+        failsafe = true;
     } else {
         //needs a re-calibration
-        throttleServoVal = (int) map( msg_CarControl.throttle, 0.0, 1.0, 1460, 1450);
+        //throttleServoVal = (int) map( msg_CarControl.throttle, 0.0, 1.0, 1460, 1450);
+
+        // this works only when PWM is enabled
+        // so failsafe can override this function
+        setHbridgePower(msg_CarControl.throttle);
     }
     // COMMENT THIS OUT for moving motor
     //throttleServoVal = minThrottleVal;
@@ -112,6 +261,7 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
     } else {
         steeringServoVal = 1550;
     }
+    steer.writeMicroseconds(steeringServoVal);
 
     return;
 }
@@ -122,6 +272,19 @@ rc_vip::CarSensors carSensors_msg;
 ros::Publisher pubCarSensors("rc_vip/CarSensors", &carSensors_msg);
 
 void setup() {
+    digitalWrite(PORT_POS_UP, LOW);
+    digitalWrite(PORT_POS_DOWN,LOW);
+    digitalWrite(PORT_NEG_UP, LOW);
+    digitalWrite(PORT_NEG_DOWN,LOW);
+
+    pinMode(PORT_POS_UP,OUTPUT);
+    pinMode(PORT_POS_DOWN,OUTPUT);
+    pinMode(PORT_NEG_UP,OUTPUT);
+    pinMode(PORT_NEG_DOWN,OUTPUT);
+
+    // tie one end to GND
+    digitalWrite(PORT_NEG_DOWN,HIGH);
+
     pinMode(LED_PIN, OUTPUT);
     pinMode(VOLTAGEDIVIDER_PIN, INPUT);
     digitalWrite(LED_PIN, LOW);
@@ -143,31 +306,32 @@ void setup() {
     while (!nh.connected())
         nh.spinOnce();
 
-    pinMode(pinDrive, OUTPUT);
+    //pinMode(pinDrive, OUTPUT);
     pinMode(pinServo, OUTPUT);
-    throttle.attach(pinDrive);
+    //throttle.attach(pinDrive);
     steer.attach(pinServo);
    
     //ESC requires a low signal durin poweron to prevent accidental input
-    throttle.writeMicroseconds(minThrottleVal);
-    delay(300);
+    //throttle.writeMicroseconds(minThrottleVal);
+    //delay(300);
 }
 
 void loop() {
 
     //failsafe, if there's no new message for over 500ms, halt the motor
     if ( millis() - carControlTimestamp > 500 ){
-        throttle.writeMicroseconds(minThrottleVal);
-    } else {  
-        if (newCarControlMsg){
-            newCarControlMsg = false;
-            throttle.writeMicroseconds(throttleServoVal);
-            steer.writeMicroseconds(steeringServoVal);
-        }
+        //throttle.writeMicroseconds(minThrottleVal);
+        disablePWM();
+        failsafe = true;
+    } else if (failsafe){ // recover from failsafe
+        enablePWM();
+        failsafe = false;
     }
 
+    // get new voltage every 100ms
     if ( millis()-voltageUpdateTimestamp>100 ){
         float voltage = (float)analogRead(VOLTAGEDIVIDER_PIN);
+        // depends on experiment value
         voltage /= 16.27;
         carSensors_msg.voltage = voltage;
     }
