@@ -51,7 +51,10 @@ y_size = 480
 # row number for uppermost row to keep
 # e.g. a  number of 240 will keep [240:][:]
 crop_y_size = 240
-cam = imageutil(calibratedFilepath)
+if (getuser()=='ubuntu'):
+    pass
+else:
+    cam = imageutil(calibratedFilepath)
 
 # in centimeter
 g_wheelbase = 25.8
@@ -993,12 +996,12 @@ if __name__ == '__main__':
             t.summary()
 
     else:
-        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
             g_fileIndex += 1
-            g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+            g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
 
-        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         mkdir(g_saveDir)
         g_saveDir += "/"
 
