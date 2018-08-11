@@ -77,8 +77,6 @@
 // if additional ISP are needed, 2B compare interrupt is still available, not sure about other timers
 
 
-volatile float onTime = 0.0; // range (0,1], disable pwm for 0
-
 void enablePWM(){
     cli();//stop interrupts
 
@@ -96,10 +94,15 @@ void enablePWM(){
     // duty cycle: (16*10^6) / (8*256) Hz = 7.8kHz
     TCCR2B |= (1 << CS21); 
 
-    // set compare target, should update 
-    // for n% signal OCR2A = (int) 256*n%
-    //OCR2A = (uint8_t) 256.0*onTime;    
-    OCR2A = 0;
+    // set compare target, this controls the on-time of PWM
+    // for n% signal:
+    //OCR2A = (uint8_t) 256.0*onTime (fraction (0-1) );
+    // Note, OCR2A < 20 creates erratic behavior(on oscilloscope) worth investicating, it  does NOT set power to 0    
+    // You may comment the following line out if you wish a faster recovery from failsafe
+    // In that case, when this function is called, OCR2A should already have been set by setHbridgePower()
+    // Otherwise, you need to ensure OCR2A is at a safe value before calling enablePWM.
+    //OCR2A = 20;
+
 
     // enable timer compare interrupt and overflow interrupt
     TIMSK2 |= (1 << OCIE2A) | ( 1 << TOIE2);
@@ -181,12 +184,15 @@ ISR(TIMER2_OVF_vect){
 }
 
 // forward only, range 0-1
-#define MAX_H_BRIDGE_POWER 0.2
+#define MAX_H_BRIDGE_POWER 0.5
 void setHbridgePower(float power){
     if (power<0.0 || power>1.0){
         disablePWM();
+        digitalWrite(LED_PIN, LOW);
     } else{
-        OCR2A = (uint8_t) 256.0*onTime*MAX_H_BRIDGE_POWER;
+        cli();
+        OCR2A = (uint8_t) 256.0*power*MAX_H_BRIDGE_POWER;
+        sei();
     }
     return;
 }
@@ -211,15 +217,18 @@ Servo throttle;
 Servo steer;
 
 // values are in us (microseconds)
-const float steeringRightLimit = 30.0;
-const float steeringLeftLimit = -30.0;
-const int leftBoundrySteeringServo = 1150;
-const int rightBoundrySteeringServo = 1900;
-const int midPointSteeringServo = 1550;
+const int leftBoundrySteeringServo = 1700; //turning diameter =42.5cm, steering angle = actan(2*wheelbase/diameter), 25.64 degree
+const float steeringLeftLimit = -25.64;
+
+const int rightBoundrySteeringServo = 1150;//td = 65.3cm, 17.34deg
+const float steeringRightLimit = 17.34;
+
+const int midPointSteeringServo = 1380;
+
 //const int minThrottleVal = 1500;
 //
 //static int throttleServoVal = 1500;
-//static int steeringServoVal = 1550;
+static int steeringServoVal = 1550;
 
 static unsigned long throttleTimestamp = 0;
 static unsigned long steeringTimestamp = 0;
@@ -242,6 +251,7 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
         //throttleServoVal = minThrottleVal;
         disablePWM();
         failsafe = true;
+        digitalWrite(LED_PIN, LOW);
     } else {
         //needs a re-calibration
         //throttleServoVal = (int) map( msg_CarControl.throttle, 0.0, 1.0, 1460, 1450);
@@ -255,9 +265,9 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
 
     float tempSteering = constrain(msg_CarControl.steer_angle, steeringLeftLimit, steeringRightLimit);
     if ( tempSteering > 0.0 ){
-        steeringServoVal = (int) map(tempSteering, 0.0, steeringRightLimit, 1550, 1900);
+        steeringServoVal = (int) map(tempSteering, 0.0, steeringRightLimit, midPointSteeringServo, rightBoundrySteeringServo);
     } else if ( tempSteering < 0.0 ){
-        steeringServoVal = (int) map(tempSteering, 0.0, steeringLeftLimit, 1550, 1150);
+        steeringServoVal = (int) map(tempSteering, 0.0, steeringLeftLimit, midPointSteeringServo, leftBoundrySteeringServo);
     } else {
         steeringServoVal = 1550;
     }
@@ -313,7 +323,9 @@ void setup() {
    
     //ESC requires a low signal durin poweron to prevent accidental input
     //throttle.writeMicroseconds(minThrottleVal);
-    //delay(300);
+    delay(500);
+    OCR2A = 25;
+    enablePWM();
 }
 
 void loop() {
@@ -323,9 +335,11 @@ void loop() {
         //throttle.writeMicroseconds(minThrottleVal);
         disablePWM();
         failsafe = true;
+        digitalWrite(LED_PIN, LOW);
     } else if (failsafe){ // recover from failsafe
         enablePWM();
         failsafe = false;
+        digitalWrite(LED_PIN, HIGH);
     }
 
     // get new voltage every 100ms
@@ -353,5 +367,9 @@ void loop() {
     nh.spinOnce();
 
     // a loop rate too high may mess with Servo class's operation
-    delay(10);
+    unsigned long delayTimestamp = millis();
+    while(millis()<delayTimestamp+10){
+      ;
+    
+    }
 }
