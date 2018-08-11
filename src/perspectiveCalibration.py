@@ -5,21 +5,23 @@
 
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 
-filename = '../img/perspectiveCalibration23cm.png'
+filename = '../img/image.png'
+#filename = '../img/perspectiveCalibration23cm.png'
 
 # all real world coordinates are in cm
 
 # 'vertical' wise offset from center of rear axle(which is the origin of car frame)
 
 # offset from front axle 
-zeroOffset = 23.0
-wheelbase = 25.8
+zeroOffset = 12.0
+wheelbase = 9.9
 
 # size of interal corners, (row,column)
-patternSize = (9,7)
-# side length of a chessboard unit
+patternSize = (7,6)
+# side length of a chessboard unit:cm
 gridSize = 2.0
 
 # calculate  coordinate of the right, bottom corner
@@ -30,12 +32,29 @@ if (image is None):
     print('no such file')
     exit()
 
+#image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY);
+blur = cv2.GaussianBlur(image, (0, 0), 3);
+image = cv2.addWeighted(image, 3, blur, -2, 0);
+avg = np.average(image)
+
+
+# the corners given are from right to left, then bottom to top
+retval, cameraFrameCorners = cv2.findChessboardCorners(image, patternSize, flags = cv2.CALIB_CB_ADAPTIVE_THRESH+cv2.CALIB_CB_NORMALIZE_IMAGE)
+if (cameraFrameCorners.shape[0] != patternSize[0]*patternSize[1]):
+    print('error: expected ' + str(patternSize[0]*patternSize[1]) + 'corners, ' + str(cameraFrameCorners.shape[0]) + 'found')
+
+    # if you wannt debug comment the following line out
+    exit(1)
+
+
+# DEBUG: label all corners found
+#for i in range(cameraFrameCorners.shape[0]):
+#    cv2.circle(image,tuple(cameraFrameCorners[i,0]), 3, (0,0,255), -1)
+
 #cv2.imshow('image',image)
 #cv2.waitKey(0) 
 #cv2.destroyAllWindows()
 
-# the corners given are from right to left, then bottom to top
-retval, cameraFrameCorners = cv2.findChessboardCorners(image, patternSize)
 
 carFrameCorners = np.zeros_like(cameraFrameCorners)
 index = 0
