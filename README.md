@@ -36,10 +36,22 @@ or, alternatively:
     * Startup scripts
     
 
-## ROS Topics used
+## ROS Topics used (Summer 2018)
   * /rc_vip/CarControl - Throttle (range:0~1) and Steering angle (in degrees)
   * /rc_vip/CarSensors - Sensors from car, IMU, battery voltage, etc.
   * /image_raw or /raspicam_node/image/compressed - video feed from camera
+
+## ROS Topics used (Spring 2018)
+* **/throttle** - Accepts values between -1 (reverse), 0 (stopped) and 1 (forward)
+
+* **/steer_angle** - Accepts values between -1 (left), 0 (straight) and 1 (right)
+
+* **/image_raw** - Raw images from camera 
+
+## ROS nodes in use (Spring 2018) -- is this obsolete?
+
+* **drive_node** - runs on the Arduino. Subscribes to throttle and steer_angle and converts the signal to PWM
+* **image_processor** - takes images from image_raw and converts them to OpenCV images
 
 ## Connecting to the router in MK101
 SSID: TP_Link_8DDA
