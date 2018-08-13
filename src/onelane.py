@@ -129,7 +129,6 @@ class driveSys:
     # update current version of data, thread safe
     @staticmethod
     def callback(data):
-        print("callback")
         driveSys.lock.acquire()
         driveSys.data = data
         driveSys.lock.release()
@@ -410,7 +409,7 @@ class driveSys:
 
         ptsCenter = np.array(np.transpose(np.vstack([plotx, ploty])))
         if (getuser() =="ubuntu"):
-            pass
+            ptsCenter = np.reshape(ptsCenter,(1,-1,2))
         else:
             ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
