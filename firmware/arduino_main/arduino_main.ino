@@ -43,6 +43,10 @@
 #include <rc_vip/CarControl.h>
 #include <Servo.h>
 
+//V2 and V3 board have different layout for bridge control lines, select one here.
+//#define RC_VIP_PCBV2
+#define RC_VIP_PCBV3
+
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
@@ -66,7 +70,16 @@
 
 // All pins are high enable
 #define PORT_POS_UP 9    
-#define PORT_POS_DOWN 6 
+
+#ifdef RC_VIP_PCBV2
+  #define PORT_POS_DOWN 6 
+#endif
+
+#ifdef RC_VIP_PCBV3
+  #define PORT_POS_DOWN 8
+#endif
+
+  
 #define PORT_NEG_UP 11
 #define PORT_NEG_DOWN 10
 
@@ -90,9 +103,9 @@ void enablePWM(){
     TCCR2B = 0;// same for TCCR2B
     TCNT2  = 0;//initialize counter value to 0
 
-    // Set CS21 bit for 8 prescaler
-    // duty cycle: (16*10^6) / (8*256) Hz = 7.8kHz
-    TCCR2B |= (1 << CS21); 
+    // Set CS21 bit for 32 prescaler
+    // duty cycle: (16*10^6) / (32*256) Hz = 1.95kHz
+    TCCR2B |= (1 << CS21) | (1 << CS20) ; 
 
     // set compare target, this controls the on-time of PWM
     // for n% signal:
@@ -107,7 +120,7 @@ void enablePWM(){
     // enable timer compare interrupt and overflow interrupt
     TIMSK2 |= (1 << OCIE2A) | ( 1 << TOIE2);
 
-
+    digitalWrite(PORT_NEG_DOWN,HIGH);
     sei();//allow interrupts
   
 }
@@ -150,12 +163,22 @@ ISR(TIMER2_COMPA_vect){
       "cbi %0, %1 \n"
       : : "I" (_SFR_IO_ADDR(PORTB)), "I" (PORTB1)
     );
-
+    // allow for P mosfet transient state
+    delayMicroseconds(30);
 // 1-> POS_DOWN
+#ifdef RC_VIP_PCBV2
     asm (
       "sbi %0, %1 \n"
       : : "I" (_SFR_IO_ADDR(PORTD)), "I" (PORTD6)
     );
+#endif
+
+#ifdef RC_VIP_PCBV3
+    asm (
+      "sbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTB)), "I" (PORTB0)
+    );
+#endif
  
 }
 
@@ -171,11 +194,20 @@ ISR(TIMER2_OVF_vect){
 */
     
 // 0-> POS_DOWN
+#ifdef RC_VIP_PCBV2
     asm (
       "cbi %0, %1 \n"
       : : "I" (_SFR_IO_ADDR(PORTD)), "I" (PORTD6)
     );
-    
+#endif
+
+#ifdef RC_VIP_PCBV3
+    asm (
+      "cbi %0, %1 \n"
+      : : "I" (_SFR_IO_ADDR(PORTB)), "I" (PORTB0)
+    );
+#endif
+
 // 1-> POS_UP
     asm (
       "sbi %0, %1 \n"
@@ -321,7 +353,6 @@ void setup() {
     //throttle.attach(pinDrive);
     steer.attach(pinServo);
    
-    //ESC requires a low signal durin poweron to prevent accidental input
     //throttle.writeMicroseconds(minThrottleVal);
     delay(500);
     OCR2A = 25;
