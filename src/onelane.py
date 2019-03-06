@@ -16,7 +16,7 @@ from os import listdir, mkdir, remove
 from os.path import isfile, join, isdir
 from getpass import getuser
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage 
 from rc_vip.msg import CarSensors as carSensors_msg
 from rc_vip.msg import CarControl as carControl_msg
 
@@ -28,13 +28,16 @@ from time import time
 
 from math import sin, cos, radians, degrees, atan2
 
+
 if (getuser()=='odroid'):
     DEBUG = False
+    camTopicName = "image_raw"
     calibratedFilepath = "/home/odroid/catkin_ws/src/rc_vip/calibrated/odroid/"
 elif (getuser()=='ubuntu'):
     # Raspberry pi
+    print('platform recognized: Raspberry Pi')
     DEBUG = False
-    camTopicName = "image_raw"
+    camTopicName = "/raspicam_node/image/compressed"
     calibratedFilepath = "/home/ubuntu/catkin_ws/src/rc_vip/calibrated/rpi/"
 elif (getuser()=='nickzhang'):
     DEBUG = True
@@ -51,7 +54,10 @@ y_size = 480
 # row number for uppermost row to keep
 # e.g. a  number of 240 will keep [240:][:]
 crop_y_size = 240
-cam = imageutil(calibratedFilepath)
+if (getuser()=='ubuntu'):
+    pass
+else:
+    cam = imageutil(calibratedFilepath)
 
 # in centimeter
 g_wheelbase = 25.8
@@ -100,8 +106,13 @@ class driveSys:
         #rospy.on_shutdown(driveSys.cleanup)
         driveSys.throttle = 0
         driveSys.steer_angle = 0
-        driveSys.vidin = rospy.Subscriber(camTopicName, Image,driveSys.callback,queue_size=1,buff_size = 2**24)
-        driveSys.carControl_pub = rospy.Publisher("rc_vip/carControl",carControl_msg, queue_size=1)
+        if (getuser() == "ubuntu"):
+            driveSys.vidin = rospy.Subscriber(camTopicName, CompressedImage,driveSys.callback,queue_size=1,buff_size = 2**24)
+        else:
+            driveSys.vidin = rospy.Subscriber(camTopicName, Image,driveSys.callback,queue_size=1,buff_size = 2**24)
+
+
+        driveSys.carControl_pub = rospy.Publisher("rc_vip/CarControl",carControl_msg, queue_size=1)
         #driveSys.test_pub = rospy.Publisher('rc_vip/testimg',Image, queue_size=1)
         driveSys.testimg = None
         driveSys.sizex=x_size
@@ -159,7 +170,12 @@ class driveSys:
     @staticmethod
     def drive(data, noBridge = False):
         try:
-            frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
+            if(getuser()=="ubuntu"):
+                np_arr = np.fromstring(data.data, np.uint8)
+                frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            else:
+                frame = driveSys.bridge.imgmsg_to_cv2(data, "rgb8")
+
         except CvBridgeError as e:
             print(e)
 
@@ -413,6 +429,10 @@ class driveSys:
 
         # NOTE: rpi_cam_node internalizes undistortion, uncomment if the source is distorted
         #ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+        if (getuser() =="ubuntu"):
+            ptsCenter = np.reshape(ptsCenter,(1,-1,2))
+        else:
+            ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
 
         # undistortPts() maps points to locations way beyond reasonable range
@@ -548,7 +568,14 @@ class driveSys:
         else:
 
             driveSys.lastDebugImageTimestamp = time()
-            cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
+
+            if(getuser()=="ubuntu"):
+                np_arr = np.fromstring(driveSys.localcopy.data, np.uint8)
+                cv2_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            else:
+                cv2_image = driveSys.bridge.imgmsg_to_cv2(driveSys.localcopy, "bgr8")
+
+
             name = g_saveDir + str(driveSys.debugImageIndex) + ".png"
             driveSys.debugImageIndex += 1
             rospy.loginfo("debug img %s saved", str(driveSys.debugImageIndex) + ".png")
@@ -1013,12 +1040,12 @@ if __name__ == '__main__':
             t.summary()
 
     else:
-        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         while (isdir(g_saveDir)):
             g_fileIndex += 1
-            g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+            g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
 
-        g_saveDir = "/home/odroid/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
+        g_saveDir = "/home/"+getuser()+"/catkin_ws/src/rc_vip/debug/run%d" % (g_fileIndex)
         mkdir(g_saveDir)
         g_saveDir += "/"
 
