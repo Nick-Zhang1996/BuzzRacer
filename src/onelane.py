@@ -69,11 +69,21 @@ g_slip_compensator = 1.4
 
 # perspective transformation matrix
 # dependent on camera type and relative location, see wiki for more info
+
+# array for Odroid's camera on TB04  
+#g_transformMatrix = np.array(
+#       [[ -7.28065913e-02,   7.37353326e-04,   2.42476984e+01],
+#        [ -5.37538652e-03,  -1.42401754e-01,  -9.81881827e+00],
+#        [ -1.00912583e-04,  -5.56329041e-03,   1.00000000e+00],]
+#       )
+
+# array for RPi camv1 on Car V1
 g_transformMatrix = np.array(
-       [[ -7.28065913e-02,   7.37353326e-04,   2.42476984e+01],
-        [ -5.37538652e-03,  -1.42401754e-01,  -9.81881827e+00],
-        [ -1.00912583e-04,  -5.56329041e-03,   1.00000000e+00],]
-       )
+        [[ -6.39234667e-02  -2.06509673e-03   4.03105083e+01],
+         [ -7.47582081e-03   4.59416312e-01  -3.59939508e+01],
+         [ -1.34835374e-04   9.08941054e-03   1.00000000e+00],]
+        )
+
 
 class driveSys:
 
@@ -115,6 +125,9 @@ class driveSys:
 
         return
 
+    # Create a local copy of latest image so the subscriber callback can be called 
+    # immediately after each new message. This prevents delay in the transport by "consuming"
+    # each new message as soon as they are published.
     # update current version of data, thread safe
     @staticmethod
     def callback(data):
@@ -132,8 +145,13 @@ class driveSys:
         driveSys.carControl_pub.publish(data)
         rospy.loginfo("throttle = %f steer_angle= %f",driveSys.throttle,driveSys.steer_angle)
         if (driveSys.testimg is not None):
-            image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
-            driveSys.test_pub.publish(image_message)
+            # for raw image type
+            #image_message = driveSys.bridge.cv2_to_imgmsg(driveSys.testimg, encoding="passthrough")
+
+            # For compressed image type
+            np_arr = np.fromstring(driveSys.testimg, np.uint8)
+            image_message = cv2.imdecode(np_arr, cv2.CV_LOAD_IMAGE_COLOR)
+            #driveSys.test_pub.publish(image_message)
         return
     
     # main drive function
@@ -392,7 +410,9 @@ class driveSys:
 
 
         ptsCenter = np.array(np.transpose(np.vstack([plotx, ploty])))
-        ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
+
+        # NOTE: rpi_cam_node internalizes undistortion, uncomment if the source is distorted
+        #ptsCenter = cam.undistortPts(np.reshape(ptsCenter,(1,-1,2)))
 
 
         # undistortPts() maps points to locations way beyond reasonable range
