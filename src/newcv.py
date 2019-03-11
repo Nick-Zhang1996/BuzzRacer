@@ -54,7 +54,11 @@ filenames = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(
 for filename in filenames:
     img = cv2.imread(filename)
     img = cv2.resize(img, (640,480))
+    # can have an upper limit of 300, nothing interesting beyond that usually, but this messes up avg calculation in the presence of chessboard
     img = img[160:,:,:]
+    # original image
+    plt.imshow(img[:,:,::-1])
+    plt.show()
     #kernel = np.ones((9,9),np.float32)/81
     #img = cv2.filter2D(img,-1,kernel)
 
@@ -64,13 +68,61 @@ for filename in filenames:
     img_l = normalize(img_l)
     img_l = np.array(img_l>0.7,dtype="uint8")
 
-# red curve extraction
+# red curve extraction, this is pretty good
     img_c = img.astype("float")
+    # BGR
     img_c = img_c[:,:,2]-img_c[:,:,0]-img_c[:,:,1]
     img_c = np.array(img_c>20,dtype="uint8")
+    kernel = np.ones((13,13),np.uint8)
+    img_c = cv2.dilate(img_c,kernel, iterations=1)
 
-# reconstruction
 
-    img_l[img_c>0] = 5
+    # remove red corner from  image
+    img_l[img_c==1] = 0
+    kernel = np.ones((7,7),np.uint8)
+    img_l = cv2.morphologyEx(img_l,cv2.MORPH_OPEN,kernel)
+    # pic to process
+    #showpic(img_l)
+
+    #der_x = cv2.Sobel(img_l,cv2.CV_16S,1,0).astype(np.int8)
+    der_y = cv2.Sobel(img_l,cv2.CV_16S,0,1).astype(np.int8)
+    #der_mag = np.sqrt(der_x**2+der_y**2)
+    edges = np.array(der_y<0,dtype="uint8")
+    kernel = np.ones((5,5),np.uint8)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+
+    #showpic(img_l)
+    #showpic(edges)
+
     showpic(edges)
+    connectivity = 8
+    output = cv2.connectedComponentsWithStats(edges, connectivity, cv2.CV_16U)
+    # The first cell is the number of labels
+    num_labels = output[0]
+    # The second cell is the label matrix
+    labels = output[1]
+    # The third cell is the stat matrix
+    stats = output[2]
+    # The fourth cell is the centroid matrix
+    centroids = output[3]
+    showpic(labels)
+
+
+
+    #lines = cv2.HoughLines(edges,8,5*np.pi/180,200)
+    ##lines = cv2.HoughLinesP(edges,5,np.pi/180,200,maxLineGap)
+    #for rho,theta in lines.reshape(-1,2):
+    #    a = np.cos(theta)
+    #    b = np.sin(theta)
+    #    x0 = a*rho
+    #    y0 = b*rho
+    #    x1 = int(x0 + 1000*(-b))
+    #    y1 = int(y0 + 1000*(a))
+    #    x2 = int(x0 - 1000*(-b))
+    #    y2 = int(y0 - 1000*(a))
+
+    #    cv2.line(img,(x1,y1),(x2,y2),(255,0,0),2)
+
+    #plt.imshow(img)
+    #plt.show()
 
