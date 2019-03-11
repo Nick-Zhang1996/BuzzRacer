@@ -76,13 +76,20 @@ for filename in filenames:
     kernel = np.ones((13,13),np.uint8)
     img_c = cv2.dilate(img_c,kernel, iterations=1)
 
+    # remove chessboard pattern at finishing line
+    #mask = img_l.copy()
+    #kernel = np.ones((3,3),np.uint8)
+    #mask = cv2.morphologyEx(mask,cv2.MORPH_CLOSE,kernel)
+
+    #mask[img_c==1]=1
+    #kernel = np.ones((4,4),np.uint8)
+    #mask = cv2.erode(mask,kernel,iterations=1)
+
 
     # remove red corner from  image
     img_l[img_c==1] = 0
     kernel = np.ones((7,7),np.uint8)
     img_l = cv2.morphologyEx(img_l,cv2.MORPH_OPEN,kernel)
-    # pic to process
-    #showpic(img_l)
 
     #der_x = cv2.Sobel(img_l,cv2.CV_16S,1,0).astype(np.int8)
     der_y = cv2.Sobel(img_l,cv2.CV_16S,0,1).astype(np.int8)
@@ -91,10 +98,6 @@ for filename in filenames:
     kernel = np.ones((5,5),np.uint8)
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
 
-    #showpic(img_l)
-    #showpic(edges)
-
-    showpic(edges)
     connectivity = 8
     output = cv2.connectedComponentsWithStats(edges, connectivity, cv2.CV_16U)
     # The first cell is the number of labels
@@ -105,7 +108,48 @@ for filename in filenames:
     stats = output[2]
     # The fourth cell is the centroid matrix
     centroids = output[3]
-    showpic(labels)
+
+    # select edges closest to upper , left and right boundary (to exclude chessboard pattern noise)
+    # first remove small components
+    selected = []
+    min_left = 1000
+    min_right = 1000
+    min_top = 1000
+
+    label_left = -1
+    label_right = -1
+    label_top = -1
+
+    print(stats)
+    # loop is baaaad, do min with index or sth
+    for i in range(1,num_labels):
+        if stats[i,cv2.CC_STAT_AREA]<140 or stats[i,cv2.CC_STAT_TOP]>70:
+            continue
+        x = centroids[i,0]
+        y = centroids[i,1]
+        left = x
+        right = 640-x
+        if left < min_left:
+            min_left = left
+            label_left = i
+        if right < min_right:
+            min_right = right
+            label_right = i
+        if y < min_top:
+            min_top = left
+            label_top = i
+
+# baaad coding
+    labels[labels==label_left] = 255
+    labels[labels==label_right] = 254
+    labels[labels==label_top] = 253
+    labels[labels<253] = 0
+    labels[labels==255] = label_left
+    labels[labels==254] = label_right
+    labels[labels==253] = label_top
+
+    showpic(labels*5)
+    
 
 
 
