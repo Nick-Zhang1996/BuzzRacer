@@ -28,6 +28,7 @@ gridSize = 2.0
 baseOffset = np.array([(patternSize[0]-1.0)/2.0*gridSize,zeroOffset+wheelbase+gridSize])
 
 image = cv2.imread(filename)
+image = cv2.resize(image,(640,480))
 if (image is None):
     print('no such file')
     exit()

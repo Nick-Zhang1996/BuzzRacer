@@ -28,6 +28,12 @@ from math import sin, cos, radians, degrees, atan2
 from os import listdir
 from os.path import isfile, join
 
+g_transformMatrix = np.array(
+        [[ -2.83091069e-02,   5.06336559e-05,   8.95601891e+00],
+         [ -1.16359091e-03,  -4.99665389e-02,  -9.03024252e+00],
+         [ -3.69582054e-05,  -6.06021304e-03,   1.00000000e+00]]
+
+        )
 def showpic(img):
     #showimg = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     plt.imshow(img,cmap='gray')
@@ -52,8 +58,10 @@ filenames = [join(path_to_file,f) for f in listdir(path_to_file) if isfile(join(
 
 # clip unwanted portion
 for filename in filenames:
+    print(filename)
     img = cv2.imread(filename)
-    img = cv2.resize(img, (640,480))
+    ori_img = cv2.resize(img, (640,480))
+    img = ori_img.copy()
     # can have an upper limit of 300, nothing interesting beyond that usually, but this messes up avg calculation in the presence of chessboard
     img = img[160:,:,:]
     # original image
@@ -120,7 +128,6 @@ for filename in filenames:
     label_right = -1
     label_top = -1
 
-    print(stats)
     # loop is baaaad, do min with index or sth
     for i in range(1,num_labels):
         if stats[i,cv2.CC_STAT_AREA]<140 or stats[i,cv2.CC_STAT_TOP]>70:
@@ -147,26 +154,37 @@ for filename in filenames:
     labels[labels==255] = label_left
     labels[labels==254] = label_right
     labels[labels==253] = label_top
-
     showpic(labels*5)
-    
 
+    if not label_left in selected:
+        selected.append(label_left)
+    if not label_right in selected:
+        selected.append(label_right)
+    if not label_top in selected:
+        selected.append(label_top)
 
+    # extract points, convert to carframe, then show
+    lines = []
+    line_range = []
+    for i in selected:
+        pts = labels==i
+        pts = pts.nonzero()
+        pts = np.array(pts,dtype='float32')
+        # 0->row,y, 1->col,x
+        pts[0,:] += 160
+        pts = pts[::-1,:]
 
-    #lines = cv2.HoughLines(edges,8,5*np.pi/180,200)
-    ##lines = cv2.HoughLinesP(edges,5,np.pi/180,200,maxLineGap)
-    #for rho,theta in lines.reshape(-1,2):
-    #    a = np.cos(theta)
-    #    b = np.sin(theta)
-    #    x0 = a*rho
-    #    y0 = b*rho
-    #    x1 = int(x0 + 1000*(-b))
-    #    y1 = int(y0 + 1000*(a))
-    #    x2 = int(x0 - 1000*(-b))
-    #    y2 = int(y0 - 1000*(a))
+        pts = pts.T.reshape(1,-1,2)
+        pts = cv2.perspectiveTransform(pts, g_transformMatrix)
 
-    #    cv2.line(img,(x1,y1),(x2,y2),(255,0,0),2)
+        # 0->x 1->y
+        fit = np.polyfit(pts[0,:,0],pts[0,:,1],1)
+        lines.append(fit)
+        line_range.append([min(pts[0,:,0]),max(pts[0,:,0])])
+        print(line_range)
 
-    #plt.imshow(img)
-    #plt.show()
+    warp_img = cv2.warpPerspective(ori_img,g_transformMatrix, (1000,1000))
+    plt.imshow(warp_img)
+    plt.show()
+
 
