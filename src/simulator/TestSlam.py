@@ -25,6 +25,8 @@ class TestSlam:
 
     def init(self, init_type = "Simulation", X = None, P = None):
         if init_type == "Simulation":
+            self.position_covariance = []
+            self.position_actual_err = []
             # [x,y,theta, x1, y1, ...].T n*1 np matrix
             if X is None:
                 self.X = np.mat([0,0,0]).T
@@ -49,8 +51,8 @@ class TestSlam:
             self.seen_count = []
             self.total_count = []
 
-            self.dx_err = 0.1
-            self.dy_err = 0.1
+            self.dx_err = 0.1*2
+            self.dy_err = 0.1*2
             self.d_theta_err = radians(3.0)
 
             # limit on how much one update can affect state vector X (for x,y only)
@@ -231,13 +233,20 @@ class TestSlam:
                 #print("P = " + str(self.P))
                 post_err = np.sqrt((self.X[0,0]-self.simulator.robot_x)**2+(self.X[1,0]-self.simulator.robot_y)**2)
                 if self.verbose:
-                    print("err = " +str(post_err))
+                    self.position_actual_err.append(post_err)
+                    #print("err = " +str(post_err))
+                    pass
+
                 #print("reduced err: " + str(prior_err-post_err))
                 #print("heading diff: " + str(self.X[2,0]-self.simulator.robot_theta))
                 average = np.sqrt(np.average([self.P[i,i] for i in range(self.P.shape[0])]))
                 stddev_loc = np.sqrt((self.P[0,0]+self.P[1,1])/2)
                 if self.verbose:
-                    print("estimated err = " + str(average))
+                    self.position_covariance.append(average)
+                    if (average<0.95*post_err):
+                        print("err = " +str(post_err))
+                        print("estimated err = " + str(average))
+
                 self.n_updates += 1
                 self.estimated_stddev_landmark.append(average)
                 self.real_err.append(post_err)
@@ -349,5 +358,13 @@ class TestSlam:
 
         plt.show()
         pass
+    def showErr(self):
+        real = np.array(self.position_actual_err)
+        estimation = np.array(self.position_covariance)
+
+        plt.plot(real,label='real error')
+        plt.plot(estimation,label='estimated error')
+        plt.legend()
+        plt.show()
 
 

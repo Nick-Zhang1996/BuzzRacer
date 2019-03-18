@@ -61,12 +61,12 @@ class Simulator :
 # LIDAR range (meters, radius)
         self.lidar_range = 60.0
 #  stddev of error of kinematics in each step, gaussian
-        self.err_translation_update = 0.2
-        self.err_rotation_update = radians(3.0)
+        self.err_translation_update = 0.1
+        self.err_rotation_update = radians(1.0)
 
 # set the trajectory in self.slam_test_prep()
 # m/s
-        self.robot_mean_speed = 1.0
+        self.robot_mean_speed = 0.3
 
 # stddev of movement for the robot between each updates, before error is added
         self.rotation_mean = 0.0
@@ -93,6 +93,7 @@ class Simulator :
             print("SLAM diverge, aborting simulation")
         finally:
             cv2.destroyAllWindows()
+            self.slam.showErr()
 
         return
     def update_boundary_from_X(self):
@@ -626,7 +627,7 @@ class Simulator :
         else:
             canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
             cv2.imshow('Simulation',canvas)
-            cv2.waitKey(int(self.time_interval*1000))
+            cv2.waitKey(int(self.time_interval*500))
 
         return
 
