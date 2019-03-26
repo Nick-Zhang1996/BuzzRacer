@@ -186,5 +186,7 @@ for filename in filenames:
     warp_img = cv2.warpPerspective(ori_img,g_transformMatrix, (1000,1000))
     plt.imshow(warp_img)
     plt.show()
+    # next, TODO visualize everything, original image + fit line, 
+    # recycle visualization from onelane
 
 

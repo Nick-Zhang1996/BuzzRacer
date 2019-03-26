@@ -175,9 +175,14 @@ class RCPtrack:
         # start_direction: which direction to go. 
         #note use the direction for ENTERING that grid element 
         # e.g. 'l' or 'd' for a NE oriented turn
+        # NOTE you MUST start on a straight section
         self.ctrl_pts = []
+        self.ctrl_pts_w = []
         lookup_table = { 'WE':['rr','ll'],'NS':['uu','dd'],'SE':['ur','ld'],'SW':['ul','rd'],'NE':['dr','lu'],'NW':['ru','dl']}
         lookup_table_alt = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
+        turn_offset_toward_center = {'SE':(1,-1),'NE':(1,1),'SW':(-1,-1),'NW':(-1,1)}
+        turns = ['SE','SW','NE','NW']
+
         center = lambda x,y : [(x+0.5)*self.scale,(y+0.5)*self.scale]
 
         left = lambda x,y : [(x)*self.scale,(y+0.5)*self.scale]
@@ -188,28 +193,92 @@ class RCPtrack:
         # direction of entry
         entry = start_direction
         current_coord = np.array(start,dtype='uint8')
+        signature = self.track[current_coord[0]][current_coord[1]]
+        # find the previous signature
+        final_coord = current_coord - lookup_table_alt[start_direction]
+        last_signature = self.track[final_coord[0]][final_coord[1]]
 
         while (1):
-            self.ctrl_pts.append(center(current_coord[0],current_coord[1])) 
-            for record in lookup_table[self.track[current_coord[0]][current_coord[1]]]:
+            signature = self.track[current_coord[0]][current_coord[1]]
+
+            for record in lookup_table[signature]:
                 if record[0] == entry:
                     exit = record[1]
                     break
-            exit_ctrl_pt = np.array(lookup_table_alt[exit],dtype='float')/2
-            exit_ctrl_pt += current_coord
-            exit_ctrl_pt += np.array([0.5,0.5])
-            exit_ctrl_pt *= self.scale
 
-            self.ctrl_pts.append(list(exit_ctrl_pt))
+            # 0~0.5, 0 means no offset at all, 0.5 means hitting apex 
+            apex_offset = 0.2
+            if signature in turns:
+                if last_signature in turns:
+                    # double turn U turn or S turn (chicane)
+                    # do not remove previous control point (never added)
+
+                    new_ctrl_point = np.array(center(current_coord[0],current_coord[1])) + apex_offset*np.array(turn_offset_toward_center[signature])*self.scale
+
+                    # to reduce the abruptness of the turn and bring raceline closer to apex, add a control point at apex
+                    pre_apex_ctrl_pnt = np.array(self.ctrl_pts[-1])
+                    self.ctrl_pts_w[-1] = 1
+                    post_apex_ctrl_pnt = new_ctrl_point
+
+                    mid_apex_ctrl_pnt = 0.5*(pre_apex_ctrl_pnt+post_apex_ctrl_pnt)
+                    self.ctrl_pts.append(mid_apex_ctrl_pnt.tolist())
+                    self.ctrl_pts_w.append(1.8)
+
+                    self.ctrl_pts.append(new_ctrl_point.tolist())
+                    self.ctrl_pts_w.append(1)
+                else:
+                    # one turn, or first turn element in a S or U turn
+                    # remove previous control point
+                    #del self.ctrl_pts[-1]
+                    #del self.ctrl_pts_w[-1]
+                    new_ctrl_point = np.array(center(current_coord[0],current_coord[1])) + apex_offset*np.array(turn_offset_toward_center[signature])*self.scale
+                    self.ctrl_pts.append(new_ctrl_point.tolist())
+                    self.ctrl_pts_w.append(1)
+
+            else:
+                # straights
+
+                # exit point only
+                #exit_ctrl_pt = np.array(lookup_table_alt[exit],dtype='float')/2
+                #exit_ctrl_pt += current_coord
+                #exit_ctrl_pt += np.array([0.5,0.5])
+                #exit_ctrl_pt *= self.scale
+                #self.ctrl_pts.append(exit_ctrl_pt.tolist())
+                #self.ctrl_pts_w.append(1.2)
+
+                # center point
+                #exit_ctrl_pt = np.array(lookup_table_alt[exit],dtype='float')/2
+                exit_ctrl_pt = np.array([0.5,0.5])
+                exit_ctrl_pt += current_coord
+                exit_ctrl_pt *= self.scale
+                self.ctrl_pts.append(exit_ctrl_pt.tolist())
+                self.ctrl_pts_w.append(1)
+
             current_coord = current_coord + lookup_table_alt[exit]
             entry = exit
 
+            last_signature = signature
+
             if (all(start==current_coord)):
                 break
-        print(self.ctrl_pts)
 
+        # add end point to the beginning, otherwise splprep will replace pts[-1] with pts[0] for a closed loop
+        # This ensures that splev(u=0) gives us the beginning point
         pts=np.array(self.ctrl_pts)
-        tck, u = splprep(pts.T, u=np.linspace(0,self.track_length*2-1,self.track_length*2), s=0.0, per=1) 
+        end_point = np.array(self.ctrl_pts[-1])
+        pts = np.vstack([end_point,pts])
+
+        weights = np.array(self.ctrl_pts_w + [self.ctrl_pts_w[-1]])
+
+        # s= smoothing factor
+        #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
+        m = len(self.ctrl_pts)+1
+        smoothing_factor = 0.015*(m)
+        tck, u = splprep(pts.T,w=weights, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
+
+        # this gives smoother result, but difficult to relate u to actual grid
+        #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
+        #self.u = u
 
         self.raceline = tck
 
@@ -221,7 +290,11 @@ class RCPtrack:
         cols = self.gridsize[1]
         res = self.resolution
 
-        u_new = np.linspace(0,self.track_length*2-1,1000)
+        # this gives smoother result, but difficult to relate u to actual grid
+        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
+
+        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        u_new = np.linspace(0,len(self.ctrl_pts),1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
         x_new /= self.scale
@@ -237,6 +310,16 @@ class RCPtrack:
         pts = pts.reshape((-1,1,2))
         pts = pts.astype(np.int)
         img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        for point in self.ctrl_pts:
+            x = point[0]
+            y = point[1]
+            x /= self.scale
+            x *= self.resolution
+            y /= self.scale
+            y *= self.resolution
+            y = self.resolution*rows - y
+            
+            img = cv2.circle(img, (int(x),int(y)), 5, (255,0,0),-1)
 
         if show:
             plt.imshow(img)
@@ -270,8 +353,8 @@ if __name__ == "__main__":
 
     # MK111 track
     s.initTrack('uuurrullurrrdddddluulddl',(6,4), scale=1.0)
-    s.initRaceline((0,0),'l')
-    img_track = s.drawTrack()
+    s.initRaceline((3,3),'d')
+    img_track = s.drawTrack(show=False)
     img_raceline = s.drawRaceline(img=img_track)
 
     
