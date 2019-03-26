@@ -222,7 +222,7 @@ class RCPtrack:
 
                     mid_apex_ctrl_pnt = 0.5*(pre_apex_ctrl_pnt+post_apex_ctrl_pnt)
                     self.ctrl_pts.append(mid_apex_ctrl_pnt.tolist())
-                    self.ctrl_pts_w.append(1.8)
+                    self.ctrl_pts_w.append(18)
 
                     self.ctrl_pts.append(new_ctrl_point.tolist())
                     self.ctrl_pts_w.append(1)
@@ -351,9 +351,14 @@ if __name__ == "__main__":
     #s.initTrack('uurrddll',(3,3),scale=1.0)
     #s.initRaceline((0,0),'l')
 
+    # Gu's track, randomly generated
+    #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
+    #s.initRaceline((3,3),'u')
+
     # MK111 track
     s.initTrack('uuurrullurrrdddddluulddl',(6,4), scale=1.0)
     s.initRaceline((3,3),'d')
+
     img_track = s.drawTrack(show=False)
     img_raceline = s.drawRaceline(img=img_track)
 
