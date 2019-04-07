@@ -7,47 +7,47 @@ from particle_filter import CameraModel, Track, ParticleFilter
 
 
 def main():
-    features_list = [(-2, -2), (2, 2), (-1, 1), (0.5, -0.6), (0, 0)]
+    features_list = [np.random.random(2)*10-5 for _ in range(30)]
     track = Track(features_list)
 
     camera = CameraModel(angle_down=0.1, height=0.05, focal_length=200, 
                          img_width=640, img_height=480)
 
     pos_noise = 0.05
-    yaw_noise = 0.1
-    measurement_noise = 30.0
+    yaw_noise = 0.05
+    measurement_noise = 60.0
     false_positive_rate = 0.01
-    false_negative_rate = 0.001
+    false_negative_rate = 0.01
     noise_vec = [pos_noise, yaw_noise, measurement_noise, 
                  false_positive_rate, false_negative_rate]
 
     truth = ParticleFilter(1, [0, 0, 0, 0, 0], track, camera)
-    filt = ParticleFilter(100, noise_vec, track, camera)
+    filt = ParticleFilter(1000, noise_vec, track, camera)
 
-    truth.particles[:, 0] = [-0.2, -0.2, 0]
+    truth.particles[:, 0] = [0, -1.5, 0]
     for i in range(filt.particles.shape[1]):
         filt.particles[:, i] = truth.particles[:, 0] + np.random.normal(0, [0.1, 0.1, 0.2])
     # for i in range(filt.particles.shape[1]):
     #     filt.particles[2, i] = 0
 
-    for t in range(1000):
-        # print f.particles
-
+    for t in xrange(100000000):
         t0 = time.time()
 
-        if t < 50:
+        if t < 30:
             filt.predict(0, 0, 0.2)
             truth.predict(0, 0, 0.2)
         else:
-            filt.predict(0.3, 0.3, 0.2)
-            truth.predict(0.3, 0.3, 0.2)
+            filt.predict(0.6, 0.4, 0.1)
+            truth.predict(0.6, 0.4, 0.1)
 
-        obs, _ = truth.camera.project_onto_image(truth.mean(1), track.features)
-        if obs is None:
-            obs = np.array([])
-        obs += np.random.normal(0, 5, size=obs.shape).astype(np.int)
-        obs = [tuple(f) for f in obs.T]
-        # print(obs)
+        obs = truth.camera.project_closest_onto_image_multiple(truth.mean(1).reshape(3,1), track.features)
+        obs = obs[0]
+        if np.random.random() < 0.01:
+            obs = None
+        if obs is not None:
+            obs += np.random.normal(0, 10, size=(2,)).astype(np.int)
+        # obs = [tuple(f) for f in obs.T]
+        # print "obs", obs
         filt.update_weights(obs)
 
         t1 = time.time()

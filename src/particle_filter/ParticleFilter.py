@@ -75,41 +75,51 @@ class ParticleFilter(object):
 
         self.rectify_particles()
 
-    def update_weights(self, perception_features):
+    def update_weights(self, obs):
         # perception: each row is (x, y) of observed red blob
+        pred_locs = self.camera.project_closest_onto_image_multiple(self.particles, 
+                                                            self.track.features)
+        # print pred_locs
+
         for i in xrange(self.n_particles):
             # print "pose:", self.particles[:,i].round(2)[:2]
 
-            pred_loc, inds = self.camera.project_onto_image(self.particles[:,i], 
-                                                            self.track.features)
+            pred_loc = pred_locs[i]
+            # print pred_loc
             # print "looking for features", inds
 
-            if pred_loc is None:
-                pred_loc = np.array([])
+            if pred_loc is None and obs is None:
+                p = 1.0
+            elif pred_loc is None and obs is not None:
+                p = self.false_pos_rate
+            elif pred_loc is not None and obs is None:
+                p = self.false_neg_rate
+            else:
+                p = exponential_similarity(obs, pred_loc, self.perception_noise)
 
-            unused_features = set(perception_features)
-            p = 1.0
-            for pred_loc in pred_loc[:2].T:
-                x, y = pred_loc
-                def similarity_metric(f):
-                    return exponential_similarity(np.array(f), pred_loc, self.perception_noise)
+            # unused_features = set(perception_features)
+            
+            # for pred_loc in pred_loc[:2]:
+            # x, y = pred_loc
+            # def similarity_metric(f):
+            #     return exponential_similarity(np.array(f), pred_loc, self.perception_noise)
 
-                if len(unused_features) > 0:
-                    most_similar = max(unused_features, key=similarity_metric)
-                    partial_prob = similarity_metric(most_similar)
-                else:
-                    most_similar = None
+            # if len(unused_features) > 0:
+            #     most_similar = max(unused_features, key=similarity_metric)
+            #     partial_prob = similarity_metric(most_similar)
+            # else:
+            #     most_similar = None
 
-                if most_similar is not None and partial_prob >= self.false_neg_rate:
-                    # true match is more likely than false negative
-                    p *= partial_prob
-                    unused_features.remove(most_similar)
-                else:
-                    # more likely a false negative
-                    p *= self.false_neg_rate
+            # if most_similar is not None and partial_prob >= self.false_neg_rate:
+            #     # true match is more likely than false negative
+            #     p *= partial_prob
+            #     unused_features.remove(most_similar)
+            # else:
+            #     # more likely a false negative
+            #     p *= self.false_neg_rate
 
-            # account for likelihood of unmatched features
-            p *= (self.false_pos_rate ** len(unused_features))
+            # # account for likelihood of unmatched features
+            # p *= (self.false_pos_rate ** len(unused_features))
 
             self.weights[i] = p
             # print p

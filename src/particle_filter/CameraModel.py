@@ -16,53 +16,54 @@ class CameraModel(object):
 
         print "Horizontal FOV is", 2 * np.math.atan2(self.img_width, 2*self.focal_length)
 
-    def project_onto_image(self, robot_pose, world_features, debug=False):
+    def project_closest_onto_image_multiple(self, robot_poses, world_features):
         # assert world_features.shape[0] == 4 and all(world_features[3] == 1.0)
 
-        world_x, world_y, world_h = robot_pose[:3] * -1
-        # tf_world_base = np.dot(
-        #     tf.transformations.rotation_matrix(world_h, (0,0,1)), 
-        #     tf.transformations.translation_matrix([world_x, world_y, 0, 1])
-        # )
+        world_x, world_y, world_h = robot_poses[:3, :] * -1
 
         c = np.cos(world_h)
         s = np.sin(world_h)
-        tf_world_base = np.array([
-            [c, -s, 0, world_x * c - world_y * s],
-            [s, c, 0, world_x * s + world_y * c],
-            [0, 0, 0, 0],
-            [0, 0, 0, 1]
-        ])
+        zero = np.zeros_like(world_h)
 
-        # print "new\n", tf_world_base
-        # print "old\n", tf_world_base_old
+        tf_world_base = np.stack([
+            np.stack([c, -s, zero, world_x * c - world_y * s], axis=1),
+            np.stack([s, c,  zero, world_x * s + world_y * c], axis=1),
+            np.stack([zero, zero, zero, zero], axis=1),
+            np.stack([zero, zero, zero, zero+1], axis=1)
+        ], axis=1)
+
+        # print tf_world_base.shape
 
         full_tf = np.dot(self.tf_base_cam, tf_world_base)
+
+        # print full_tf.shape
+        # print full_tf[:,0].round(2)
+
         cam_feats = np.dot(full_tf, world_features)
 
-        # get image point in x, y order
+        # print cam_feats.shape
+        # print cam_feats[:, 0]
+
         img_feats = np.stack([
             cam_feats[1] / cam_feats[0] * -self.focal_length + self.img_width / 2,
             cam_feats[2] / cam_feats[0] * -self.focal_length + self.img_height / 2
-        ])
+        ], axis=1)
 
-        mask_in_img = cam_feats[0] > 0
-        mask_in_img = np.logical_and(mask_in_img, img_feats[0] > 0)
-        mask_in_img = np.logical_and(mask_in_img, img_feats[0] < self.img_width)
-        mask_in_img = np.logical_and(mask_in_img, img_feats[1] > 0)
-        mask_in_img = np.logical_and(mask_in_img, img_feats[1] < self.img_height)
+        # print img_feats.shape
 
-        n = np.count_nonzero(mask_in_img)
-        if n > 0:
-            img_feats = img_feats[:, mask_in_img].round(0).astype(np.int)
-            indices = np.arange(len(mask_in_img))[mask_in_img]
-        else:
-            img_feats = None
-            indices = []
+        out = []
+        for i in xrange(img_feats.shape[0]):
+            mask_in_img = cam_feats[0, i] > 0
+            mask_in_img = np.logical_and(mask_in_img, img_feats[i, 0] > 0)
+            mask_in_img = np.logical_and(mask_in_img, img_feats[i, 0] < self.img_width)
+            mask_in_img = np.logical_and(mask_in_img, img_feats[i, 1] > 0)
+            mask_in_img = np.logical_and(mask_in_img, img_feats[i, 1] < self.img_height)
 
-        if debug:
-            print "car frame:\n", base_feats.round(2)[:2]
-            print "camera frame:\n", cam_feats.round(2)[:3]
-            print "img frame:\n", img_feats
+            n = np.count_nonzero(mask_in_img)
+            if n > 0:
+                j = np.argmin(cam_feats[0, i])
+                out.append(img_feats[i, :, j])
+            else:
+                out.append(None)
 
-        return img_feats, indices
+        return out
