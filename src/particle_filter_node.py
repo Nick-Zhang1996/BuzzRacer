@@ -10,11 +10,28 @@ Inputs:
     has a predefined size and shape
 
 Output:
-- robot pose (x, y, heading) in track coordinate frame
+- robot pose in track coordinate frame
 """
 
+from operator import attrgetter
+
 import rospy
-# from rc_vip.msg import CarSensors
+from rc_vip.msg import CarSensors, CameraPerception
 from geometry_msgs.msg import PoseStamped
 
-# todo implementation
+import particle_filter
+
+
+def perception_callback(msg):
+    # each feature is {x:int, y:int}
+
+
+if __name__ == '__main__':
+    rospy.init_node("particle_filter_node")
+
+    perception_topic = rospy.get_param("~perception_topic")
+    sensors_topic = rospy.get_param("~car_sensors_topic")
+    filter_latency = rospy.get_param("~filter_latency")
+
+    perception_sub = rospy.Subscriber(perception_topic, CameraPerception, queue_size=1)
+    sensors_sub = rospy.Subscriber(sensors_topic, CarSensors, queue_size=1)

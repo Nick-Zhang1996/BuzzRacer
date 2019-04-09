@@ -58,6 +58,8 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    CarSensors.msg
    CarControl.msg
+   CameraFeature.msg
+   CameraPerception.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -83,7 +85,7 @@ find_package(catkin REQUIRED COMPONENTS
  )
 
 catkin_package(
-    
+
     CATKIN_DEPENDS message_runtime
 
     )
@@ -234,7 +236,7 @@ rosserial_configure_client(
 
 
 # -----------IMPORTANT   NOTE----------
-# if you modified/added new messages and used them in the arduino firmware, 
+# if you modified/added new messages and used them in the arduino firmware,
 # you need to re-build the message headers for rosserial, to do this:
 # 1. remove "ALL" from the arguments on the following line and build
 # 2.re-generate ros_lib in build space by
