@@ -98,7 +98,7 @@ class ParticleFilter(object):
         self.particles += np.stack([dx, dy, dh])
         self.weights = speed_probs * yaw_probs
 
-    def update_weights(self, obs):
+    def observe(self, obs):
         # perception: each row is (x, y) of observed red blob
         latency_start = time.time()
 
@@ -122,7 +122,7 @@ class ParticleFilter(object):
         self.measured_latency = time.time() - latency_start
 
         if self.target_latency is not None:
-            gamma = 0.8
+            gamma = 0.5
             grow_prop = gamma + (1-gamma) * self.target_latency / self.measured_latency
             self.n_particles = int(self.n_particles * grow_prop)
             if self.n_particles < 1:

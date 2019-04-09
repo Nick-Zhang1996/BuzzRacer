@@ -2,10 +2,9 @@ import numpy as np
 import tf
 
 class CameraModel(object):
-    def __init__(self, angle_down, height, focal_length, img_width, img_height):
+    def __init__(self, angle_down, height, fov_horizontal, img_width, img_height):
         self.angle_down = angle_down
         self.height = height
-        self.focal_length = focal_length
         self.img_width = img_width
         self.img_height = img_height
 
@@ -14,7 +13,7 @@ class CameraModel(object):
             tf.transformations.translation_matrix((0, 0, -self.height))
         )
 
-        print "Horizontal FOV is", 2 * np.math.atan2(self.img_width, 2*self.focal_length)
+        self.focal_length = img_width / (2. * np.tan(fov_horizontal / 2.))
 
     """
     project_onto_image

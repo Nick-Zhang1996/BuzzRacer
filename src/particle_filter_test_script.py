@@ -11,12 +11,12 @@ def main():
     # track = Track(features_list)
     track = Track.load('llll', 1.0)
 
-    camera = CameraModel(angle_down=0.1, height=0.05, focal_length=250,
+    camera = CameraModel(angle_down=0.1, height=0.05, fov_horizontal=np.radians(62.2),
                          img_width=640, img_height=480)
 
     pos_noise = 0.05
     yaw_noise = 0.1
-    measurement_noise = 100.0
+    measurement_noise = 1000.0
     false_positive_rate = 0.01
     false_negative_rate = 0.01
     noise_vec = [pos_noise, yaw_noise, measurement_noise,
@@ -47,7 +47,7 @@ def main():
             obs += np.random.normal(0, 10, size=(2,)).astype(np.int)
         # obs = [tuple(f) for f in obs.T]
         # print "obs", obs
-        filt.update_weights(obs)
+        filt.observe(obs)
 
         t1 = time.time()
 
