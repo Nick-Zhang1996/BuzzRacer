@@ -7,9 +7,9 @@ from particle_filter import CameraModel, Track, ParticleFilter
 
 
 def main():
-    # features_list = [np.random.random(2)*20-10 for _ in range(100)]
-    features_list = [(-2, 0), (-2,2), (2,-2)] + [(2,2)]*100
-    track = Track(features_list)
+    # features_list = [(-2, 0), (-2,2), (2,-2)] + [(2,2)]*100
+    # track = Track(features_list)
+    track = Track.load('llll', 1.0)
 
     camera = CameraModel(angle_down=0.1, height=0.05, focal_length=250,
                          img_width=640, img_height=480)
@@ -25,8 +25,8 @@ def main():
     truth = ParticleFilter(1, [0.01, 0.02, 0, 0, 0], track, camera)
     filt = ParticleFilter(1000, noise_vec, track, camera, target_latency=0.02)
 
-    truth.init_particles_position(0, -1.5, 0, 0, 0, 0)
-    # filt.init_particles_position(0, -1.5, 0, 0.1, 0.1, 0.05)
+    truth.init_particles_position(0, 0, 0, 0, 0, 0)
+    filt.init_particles_position(0, 0, 0, 0.1, 0.1, 0.1)
 
     for t in xrange(100000000):
         t0 = time.time()
@@ -35,8 +35,8 @@ def main():
             filt.predict(0, 0, 0.1)
             truth.predict(0, 0, 0.1)
         else:
-            filt.predict(0.6, 0.4, 0.1)
-            truth.predict(0.6, 0.4, 0.1)
+            filt.predict(0.3, 0.6, 0.1)
+            truth.predict(0.3, 0.6, 0.1)
 
         obs = camera.project_onto_image(truth.mean().reshape(3,1), track.features)
         obs = obs[0]
@@ -52,15 +52,15 @@ def main():
         t1 = time.time()
 
         plt.clf()
-        plt.scatter(filt.particles[0,:], filt.particles[1,:], color='b')
+        plt.plot(filt.particles[0], filt.particles[1], 'b.', markersize=1.5)
 
         x, y, h = truth.mean()
-        plt.arrow(x, y, 0.2*np.cos(h), 0.2*np.sin(h), width=0.03, color="orange")
+        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03, color="orange")
 
         x, y, h = filt.mean()
         std_x, std_y, _ = filt.stddev()
         is_converged = std_x < 0.05 and std_y < 0.05
-        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03,
+        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.025,
                   color="g" if is_converged else "r")
 
         t2 = time.time()
@@ -69,10 +69,11 @@ def main():
         print "time", np.round(time.time() - t2 + t1 - t0, 4), \
               "n_particles", filt.get_num_particles()
 
-        xs, ys = zip(*features_list)
-        plt.scatter(xs, ys, marker='x', color='r')
+        # xs, ys = zip(*features_list)
+        # plt.scatter(xs, ys, marker='x', color='r')
+        track.draw(show=False)
 
-        plt.axis("square")
+        plt.axis("equal")
         plt.pause(0.01)
 
 if __name__ == '__main__':
