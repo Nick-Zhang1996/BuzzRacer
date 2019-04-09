@@ -16,8 +16,17 @@ class CameraModel(object):
 
         print "Horizontal FOV is", 2 * np.math.atan2(self.img_width, 2*self.focal_length)
 
-    def project_closest_onto_image_multiple(self, robot_poses, world_features):
-        # assert world_features.shape[0] == 4 and all(world_features[3] == 1.0)
+    """
+    project_onto_image
+    For each pose hypothesis in robot_poses, return a list of features that
+    should be visible
+    robot_poses: each column is a 2D pose (x, y, theta) shape=(3,n)
+    world_features: track features as 3D homogenous coords shape=(4,m)
+    return: List<Features> where Features is a shape (v,2) matrix of (x, y)
+            visible features in image space, or Features is None if v=0
+    """
+    def project_onto_image(self, robot_poses, world_features):
+        assert robot_poses.shape[0] >= 3 and np.all(world_features[3] == 1)
 
         world_x, world_y, world_h = robot_poses[:3, :] * -1
 
@@ -32,24 +41,14 @@ class CameraModel(object):
             np.stack([zero, zero, zero, zero+1], axis=1)
         ], axis=1)
 
-        # print tf_world_base.shape
-
         full_tf = np.dot(self.tf_base_cam, tf_world_base)
 
-        # print full_tf.shape
-        # print full_tf[:,0].round(2)
-
         cam_feats = np.dot(full_tf, world_features)
-
-        # print cam_feats.shape
-        # print cam_feats[:, 0]
 
         img_feats = np.stack([
             cam_feats[1] / cam_feats[0] * -self.focal_length + self.img_width / 2,
             cam_feats[2] / cam_feats[0] * -self.focal_length + self.img_height / 2
         ], axis=1)
-
-        # print img_feats.shape
 
         out = []
         for i in xrange(img_feats.shape[0]):
@@ -61,8 +60,7 @@ class CameraModel(object):
 
             n = np.count_nonzero(mask_in_img)
             if n > 0:
-                j = np.argmin(cam_feats[0, i])
-                out.append(img_feats[i, :, j])
+                out.append(img_feats[i, :, mask_in_img])
             else:
                 out.append(None)
 

@@ -7,44 +7,43 @@ from particle_filter import CameraModel, Track, ParticleFilter
 
 
 def main():
-    features_list = [np.random.random(2)*10-5 for _ in range(30)]
+    # features_list = [np.random.random(2)*20-10 for _ in range(100)]
+    features_list = [(-2, 0), (-2,2), (2,-2)] + [(2,2)]*100
     track = Track(features_list)
 
-    camera = CameraModel(angle_down=0.1, height=0.05, focal_length=200, 
+    camera = CameraModel(angle_down=0.1, height=0.05, focal_length=250,
                          img_width=640, img_height=480)
 
     pos_noise = 0.05
-    yaw_noise = 0.05
-    measurement_noise = 60.0
+    yaw_noise = 0.1
+    measurement_noise = 100.0
     false_positive_rate = 0.01
     false_negative_rate = 0.01
-    noise_vec = [pos_noise, yaw_noise, measurement_noise, 
+    noise_vec = [pos_noise, yaw_noise, measurement_noise,
                  false_positive_rate, false_negative_rate]
 
-    truth = ParticleFilter(1, [0, 0, 0, 0, 0], track, camera)
-    filt = ParticleFilter(1000, noise_vec, track, camera)
+    truth = ParticleFilter(1, [0.01, 0.02, 0, 0, 0], track, camera)
+    filt = ParticleFilter(1000, noise_vec, track, camera, target_latency=0.02)
 
-    truth.particles[:, 0] = [0, -1.5, 0]
-    for i in range(filt.particles.shape[1]):
-        filt.particles[:, i] = truth.particles[:, 0] + np.random.normal(0, [0.1, 0.1, 0.2])
-    # for i in range(filt.particles.shape[1]):
-    #     filt.particles[2, i] = 0
+    truth.init_particles_position(0, -1.5, 0, 0, 0, 0)
+    # filt.init_particles_position(0, -1.5, 0, 0.1, 0.1, 0.05)
 
     for t in xrange(100000000):
         t0 = time.time()
 
         if t < 30:
-            filt.predict(0, 0, 0.2)
-            truth.predict(0, 0, 0.2)
+            filt.predict(0, 0, 0.1)
+            truth.predict(0, 0, 0.1)
         else:
             filt.predict(0.6, 0.4, 0.1)
             truth.predict(0.6, 0.4, 0.1)
 
-        obs = truth.camera.project_closest_onto_image_multiple(truth.mean(1).reshape(3,1), track.features)
+        obs = camera.project_onto_image(truth.mean().reshape(3,1), track.features)
         obs = obs[0]
-        if np.random.random() < 0.01:
+        if np.random.random() < 0.1:
             obs = None
         if obs is not None:
+            obs = max(obs, key=lambda f: f[1])
             obs += np.random.normal(0, 10, size=(2,)).astype(np.int)
         # obs = [tuple(f) for f in obs.T]
         # print "obs", obs
@@ -55,19 +54,20 @@ def main():
         plt.clf()
         plt.scatter(filt.particles[0,:], filt.particles[1,:], color='b')
 
-        x, y, h = truth.mean(1)
+        x, y, h = truth.mean()
         plt.arrow(x, y, 0.2*np.cos(h), 0.2*np.sin(h), width=0.03, color="orange")
 
-        x, y, h = filt.mean(0.5)
-        std_x, std_y, _ = filt.stddev(0.8)
+        x, y, h = filt.mean()
+        std_x, std_y, _ = filt.stddev()
         is_converged = std_x < 0.05 and std_y < 0.05
-        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03, 
+        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03,
                   color="g" if is_converged else "r")
 
         t2 = time.time()
         filt.resample()
 
-        print time.time() - t2 + t1 - t0
+        print "time", np.round(time.time() - t2 + t1 - t0, 4), \
+              "n_particles", filt.get_num_particles()
 
         xs, ys = zip(*features_list)
         plt.scatter(xs, ys, marker='x', color='r')
