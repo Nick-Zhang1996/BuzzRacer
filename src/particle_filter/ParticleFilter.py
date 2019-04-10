@@ -11,13 +11,15 @@ def exponential_similarity(x, mu, v):
 class ParticleFilter(object):
     # noise vector: speed, heading, perception location,
     #               perception false positive, perception false negative
-    def __init__(self, n_particles, noise_vec, track, camera, target_latency=None):
+    def __init__(self, n_particles, noise_vec, track, camera, collision_radius,
+                 target_latency=None):
         self.target_latency = target_latency
         self.measured_latency = target_latency
 
         self.n_particles = n_particles
         self.track = track
         self.camera = camera
+        self.collision_radius = collision_radius
 
         self.speed_noise = noise_vec[0]
         self.heading_noise = noise_vec[1]
@@ -66,10 +68,12 @@ class ParticleFilter(object):
         return np.array([mx, my, mh])
 
     def rectify_particles(self):
-        reset_mask = self.particles[0] < self.track.x_min
-        reset_mask = np.logical_or(reset_mask, self.particles[0] > self.track.x_max)
-        reset_mask = np.logical_or(reset_mask, self.particles[1] < self.track.y_min)
-        reset_mask = np.logical_or(reset_mask, self.particles[1] > self.track.y_max)
+        # reset_mask = self.particles[0] < self.track.x_min
+        # reset_mask = np.logical_or(reset_mask, self.particles[0] > self.track.x_max)
+        # reset_mask = np.logical_or(reset_mask, self.particles[1] < self.track.y_min)
+        # reset_mask = np.logical_or(reset_mask, self.particles[1] > self.track.y_max)
+        reset_mask = self.track.collision_check(self.particles[:2], self.collision_radius)
+        # reset_mask = np.logical_or(reset_mask, wall_check)
 
         n = np.count_nonzero(reset_mask)
         if n > 0:

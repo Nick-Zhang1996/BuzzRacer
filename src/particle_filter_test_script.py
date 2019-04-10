@@ -9,7 +9,7 @@ from particle_filter import CameraModel, Track, ParticleFilter
 def main():
     # features_list = [(-2, 0), (-2,2), (2,-2)] + [(2,2)]*100
     # track = Track(features_list)
-    track = Track.load('llll', 1.0)
+    track = Track.load('slslslsl', 0.5)
 
     camera = CameraModel(angle_down=0.1, height=0.05, fov_horizontal=np.radians(62.2),
                          img_width=640, img_height=480)
@@ -21,12 +21,14 @@ def main():
     false_negative_rate = 0.01
     noise_vec = [pos_noise, yaw_noise, measurement_noise,
                  false_positive_rate, false_negative_rate]
+    car_radius = 0.05
 
-    truth = ParticleFilter(1, [0.01, 0.02, 0, 0, 0], track, camera)
-    filt = ParticleFilter(1000, noise_vec, track, camera, target_latency=0.02)
+    truth = ParticleFilter(1, [0.01, 0.02, 0, 0, 0], track, camera, car_radius)
+    filt = ParticleFilter(1000, noise_vec, track, camera, car_radius,
+                          target_latency=0.01)
 
-    truth.init_particles_position(0, 0, 0, 0, 0, 0)
-    filt.init_particles_position(0, 0, 0, 0.1, 0.1, 0.1)
+    truth.init_particles_position(0.25, -0.1, 0, 0, 0, 0)
+    # filt.init_particles_position(0.5, 0, 0, 0.1, 0.1, 0.1)
 
     for t in xrange(100000000):
         t0 = time.time()
@@ -35,8 +37,8 @@ def main():
             filt.predict(0, 0, 0.1)
             truth.predict(0, 0, 0.1)
         else:
-            filt.predict(0.3, 0.6, 0.1)
-            truth.predict(0.3, 0.6, 0.1)
+            filt.predict(0.3, 0.5, 0.1)
+            truth.predict(0.3, 0.5, 0.1)
 
         obs = camera.project_onto_image(truth.mean().reshape(3,1), track.features)
         obs = obs[0]
