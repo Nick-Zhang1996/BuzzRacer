@@ -68,12 +68,7 @@ class ParticleFilter(object):
         return np.array([mx, my, mh])
 
     def rectify_particles(self):
-        # reset_mask = self.particles[0] < self.track.x_min
-        # reset_mask = np.logical_or(reset_mask, self.particles[0] > self.track.x_max)
-        # reset_mask = np.logical_or(reset_mask, self.particles[1] < self.track.y_min)
-        # reset_mask = np.logical_or(reset_mask, self.particles[1] > self.track.y_max)
         reset_mask = self.track.collision_check(self.particles[:2], self.collision_radius)
-        # reset_mask = np.logical_or(reset_mask, wall_check)
 
         n = np.count_nonzero(reset_mask)
         if n > 0:
