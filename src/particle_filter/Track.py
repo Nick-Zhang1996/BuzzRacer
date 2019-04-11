@@ -253,18 +253,11 @@ if __name__ == '__main__':
     DIR = os.path.dirname(__file__)
     save_path = os.path.join(DIR, 'track_mk111.pkl')
 
-    track = Track.load('ssrrsllsrrssrsllsrrssrss', 0.565)
     if os.path.exists(save_path):
-        preopt = Track.load_file(save_path)
-        track.racing_line = preopt.racing_line
-        track.racing_line_timestep = preopt.racing_line_timestep
-        track.spline_x = preopt.spline_x
-        track.spline_y = preopt.spline_y
+        track = Track.load_file(save_path)
+    else:
+        track = Track.load('ssrrsllsrrssrsllsrrssrss', 0.565)
 
-    # print track.wall_dists(np.array([[0., 0.]]).T)
-    # print track.wall_dists(np.array([[-1, -1.4]]).T)
-
-    # track.draw()
 
     for _ in xrange(5000):
         track.opt_racing_line(10, 3.0)
