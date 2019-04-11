@@ -86,12 +86,12 @@ def main():
         plt.plot(filt.particles[0], filt.particles[1], 'b.', markersize=1.5)
 
         x, y, h = truth.mean()
-        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03, color="orange")
+        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.03, color="orange", zorder=10)
 
         x, y, h = filt.mean(top_pct=0.5)
         std_x, std_y, _ = filt.stddev()
         is_converged = std_x < 0.05 and std_y < 0.05
-        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.025,
+        plt.arrow(x, y, 0.1*np.cos(h), 0.1*np.sin(h), width=0.025, zorder=11,
                   color="g" if is_converged else "r")
 
         t2 = time.time()
