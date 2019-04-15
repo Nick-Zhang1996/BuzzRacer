@@ -124,9 +124,9 @@ class Track(object):
             cost += t[-1]
 
             accel_sqr = ax*ax + ay*ay
-            max_accel_sqr = np.max(accel_sqr)
-            if max_accel_sqr > accel_limit**2:
-                cost += 1000 * (max_accel_sqr - accel_limit**2)
+            max_accel = np.max(accel_sqr) ** 0.5
+            if max_accel > accel_limit:
+                cost += 1000 * (max_accel - accel_limit)
 
             # apply a small bias towards smooth paths
             cost += 1e-5 * np.sum(accel_sqr)
@@ -239,7 +239,7 @@ class Track(object):
 
             dpos = np.dot(rot_mat, local_dpos_map[c])
 
-            ctrl_res = 1.0
+            ctrl_res = 2.0
             new_controls = np.stack([np.arange(ctrl_res)/ctrl_res]*2, axis=1) * dpos + pos
             control_points += [(x,y) for x,y in new_controls]
 
@@ -257,7 +257,7 @@ if __name__ == '__main__':
         track = Track.load_file(save_path)
     else:
         track = Track.load('ssrrsllsrrssrsllsrrssrss', 0.565)
-
+        track.racing_line_timestep = 15.0 / (track.racing_line.shape[1] - 1)
 
     for _ in xrange(5000):
         track.opt_racing_line(10, 3.0)
