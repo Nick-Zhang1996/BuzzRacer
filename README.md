@@ -1,12 +1,20 @@
-# Car Info
+# RC-VIP project
 
-The car runs on an Odroid XU4 and an Arduino Nano
+Some of this README may be outdated, refer to wiki for updated info.
+
+# Car Info (Odroid XU4 based)
 
   * 16.04 Ubuntu Mate w/ ROS Kinetic
-  * Username: odroid, Password: galanti5
+  * Odroid XU4 Username: odroid, Password: galanti5
   * Network: TP-Link_8DDA Static IP: 192.168.0.2
 
-## Starting the car (Recommended workflow)
+# Car Info (RPi 3B based)
+
+  * Custom OS from ROS: ubiquityrobots
+  * Username: ubuntu, Password: ubuntu
+  * hostname: ubiquityrobots
+
+## Starting the car for XU4 (Recommended workflow)
 
 1. Run startup.sh, wait for startup sequence to finish (~15sec, until it says listening on /throttle and /steer_angle)
 
@@ -17,29 +25,35 @@ or, alternatively:
     1. If video0 is not there, use `ls /dev/video*` and use the lowest one
 3. `rosrun rosserial_python serial_node.py /dev/ttyUSB0`
 
-## Important Files
-  * drive_relay.py -  Reads from /throttle and /streer_angle and sends to Arduino
-  * image_processor.py - reads from /image_raw and converts to OpenCV image 
-  * drive.ino - reads from Serial and sends PWM signal to ESC/servo (runs on Arduino)
+## Start a RPI 3B based car
 
-## ROS Topic APIs
-  * /throttle - Accepts values between -1 (reverse), 0 (stopped) and 1 (forward)
-  * /steer_angle - Accepts values between -1 (left), 0 (straight) and 1 (right)
-  * /image_raw - Raw images from camera
+1. `cd ~/carkin_ws/src/rc_vip`
+2. `./rpi-startup`
+3. In case `./rpi-startup` does not already include this. `python src/onelane.py`
 
-## Arduino Details
-  * Servo PWM goes from 60 (right) to 150 (left)
-  * Pin 3 connected to ESC, Pin 5 connected to Serivo
+## Core Files
+    * `onelane.py`
+    * Startup scripts
+    
 
-## Setting up a new car
-This is very incomplete for now.
-"""
-1) Setup Arduino software on the car.
-2) apt-get packages: ros-kinetic-rosserial-arduino ros-kinetic-rosserial and many more
-3) rosrun rosserial_arduino make_libraries.py ~/Arduino/libraries assuming Arduino's folder is in home
-"""
+## ROS Topics used (Summer 2018)
+  * /rc_vip/CarControl - Throttle (range:0~1) and Steering angle (in degrees)
+  * /rc_vip/CarSensors - Sensors from car, IMU, battery voltage, etc.
+  * /image_raw or /raspicam_node/image/compressed - video feed from camera
 
-## Connecting to the router
+## ROS Topics used (Spring 2018)
+* **/throttle** - Accepts values between -1 (reverse), 0 (stopped) and 1 (forward)
+
+* **/steer_angle** - Accepts values between -1 (left), 0 (straight) and 1 (right)
+
+* **/image_raw** - Raw images from camera 
+
+## ROS nodes in use (Spring 2018) -- is this obsolete?
+
+* **drive_node** - runs on the Arduino. Subscribes to throttle and steer_angle and converts the signal to PWM
+* **image_processor** - takes images from image_raw and converts them to OpenCV images
+
+## Connecting to the router in MK101
 SSID: TP_Link_8DDA
 password: 90040948
 This information can also be found on the stickers underneath the router. Do NOT change these.
