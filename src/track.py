@@ -53,14 +53,14 @@ class RCPtrack:
         current_index = np.array([0,0])
         grid[0][0] = Node()
         current_node = grid[0][0]
-        lookup_table_alt = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
+        lookup_table_dir = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
 
         for i in range(len(description)):
             current_node.setExit(description[i])
 
             previous_node = current_node
-            if description[i] in lookup_table_alt:
-                current_index += lookup_table_alt[description[i]]
+            if description[i] in lookup_table_dir:
+                current_index += lookup_table_dir[description[i]]
             else:
                 print("error, unexpected value in description")
                 exit(1)
@@ -169,7 +169,7 @@ class RCPtrack:
 
         return
 
-    def initRaceline(self,start, start_direction, filename=None):
+    def initRaceline(self,start, start_direction,offset=None, filename=None):
         #init a raceline from current track, save if specified 
         # start: which grid to start from, e.g. (3,3)
         # start_direction: which direction to go. 
@@ -178,8 +178,16 @@ class RCPtrack:
         # NOTE you MUST start on a straight section
         self.ctrl_pts = []
         self.ctrl_pts_w = []
+        if offset is None:
+            offset = np.zeros(self.track_length)
+
+        # provide exit direction given signature and entry direction
         lookup_table = { 'WE':['rr','ll'],'NS':['uu','dd'],'SE':['ur','ld'],'SW':['ul','rd'],'NE':['dr','lu'],'NW':['ru','dl']}
-        lookup_table_alt = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
+        # provide correlation between direction (character) and directional vector
+        lookup_table_dir = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
+        # provide right hand direction, this is for specifying offset direction 
+        lookup_table_right = {'u':(1,0),'d':(-1,0),'r':(0,-1),'l':(0,1) }
+        # provide apex direction
         turn_offset_toward_center = {'SE':(1,-1),'NE':(1,1),'SW':(-1,-1),'NW':(-1,1)}
         turns = ['SE','SW','NE','NW']
 
@@ -194,13 +202,17 @@ class RCPtrack:
         entry = start_direction
         current_coord = np.array(start,dtype='uint8')
         signature = self.track[current_coord[0]][current_coord[1]]
-        # find the previous signature
-        final_coord = current_coord - lookup_table_alt[start_direction]
+        # find the previous signature, reverse entry to find ancestor
+        # the precedent grid for start grid is also the final grid
+        final_coord = current_coord - lookup_table_dir[start_direction]
         last_signature = self.track[final_coord[0]][final_coord[1]]
 
+        # for referencing offset
+        index = 0
         while (1):
             signature = self.track[current_coord[0]][current_coord[1]]
 
+            # lookup exit direction
             for record in lookup_table[signature]:
                 if record[0] == entry:
                     exit = record[1]
@@ -208,6 +220,21 @@ class RCPtrack:
 
             # 0~0.5, 0 means no offset at all, 0.5 means hitting apex 
             apex_offset = 0.2
+
+            # find the coordinate of the exit point
+            # offset from grid center to centerpoint of exit boundary
+            # go half a step from center toward exit direction
+            exit_ctrl_pt = np.array(lookup_table_dir[exit],dtype='float')/2
+            exit_ctrl_pt += current_coord
+            exit_ctrl_pt += np.array([0.5,0.5])
+            # apply offset, offset range (-1,1)
+            exit_ctrl_pt += offset[index]*np.array(lookup_table_right[exit],dtype='float')/2
+            index += 1
+
+            exit_ctrl_pt *= self.scale
+            self.ctrl_pts.append(exit_ctrl_pt.tolist())
+
+            '''
             if signature in turns:
                 if last_signature in turns:
                     # double turn U turn or S turn (chicane)
@@ -239,7 +266,7 @@ class RCPtrack:
                 # straights
 
                 # exit point only
-                #exit_ctrl_pt = np.array(lookup_table_alt[exit],dtype='float')/2
+                #exit_ctrl_pt = np.array(lookup_table_dir[exit],dtype='float')/2
                 #exit_ctrl_pt += current_coord
                 #exit_ctrl_pt += np.array([0.5,0.5])
                 #exit_ctrl_pt *= self.scale
@@ -247,14 +274,15 @@ class RCPtrack:
                 #self.ctrl_pts_w.append(1.2)
 
                 # center point
-                #exit_ctrl_pt = np.array(lookup_table_alt[exit],dtype='float')/2
+                #exit_ctrl_pt = np.array(lookup_table_dir[exit],dtype='float')/2
                 exit_ctrl_pt = np.array([0.5,0.5])
                 exit_ctrl_pt += current_coord
                 exit_ctrl_pt *= self.scale
                 self.ctrl_pts.append(exit_ctrl_pt.tolist())
                 self.ctrl_pts_w.append(1)
+            '''
 
-            current_coord = current_coord + lookup_table_alt[exit]
+            current_coord = current_coord + lookup_table_dir[exit]
             entry = exit
 
             last_signature = signature
@@ -268,13 +296,13 @@ class RCPtrack:
         end_point = np.array(self.ctrl_pts[-1])
         pts = np.vstack([end_point,pts])
 
-        weights = np.array(self.ctrl_pts_w + [self.ctrl_pts_w[-1]])
+        #weights = np.array(self.ctrl_pts_w + [self.ctrl_pts_w[-1]])
 
         # s= smoothing factor
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
-        smoothing_factor = 0.015*(m)
-        tck, u = splprep(pts.T,w=weights, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
+        smoothing_factor = 0.015*(m)*0
+        tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
 
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
@@ -357,7 +385,28 @@ if __name__ == "__main__":
 
     # MK111 track
     s.initTrack('uuurrullurrrdddddluulddl',(6,4), scale=1.0)
-    s.initRaceline((3,3),'d')
+    adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    #bottom right turn
+    adjustment[2] = -0.3
+    adjustment[3] = 0.3
+    adjustment[4] = -0.3
+
+    #bottom middle turn
+    adjustment[5] = 0.3
+    adjustment[6] = -0.3
+    adjustment[7] = 0.3
+
+    #bottom left turn
+    adjustment[8] = -0.3
+    adjustment[9] = 0.3
+    adjustment[10] = -0.3
+
+    # left L turn
+    adjustment[12] = 0.3
+    adjustment[13] = 0.3
+
+
+    s.initRaceline((3,3),'d',offset=adjustment)
 
     img_track = s.drawTrack(show=False)
     img_raceline = s.drawRaceline(img=img_track)
