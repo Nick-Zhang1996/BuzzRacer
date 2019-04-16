@@ -301,7 +301,7 @@ class RCPtrack:
         # s= smoothing factor
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
-        smoothing_factor = 0.015*(m)*0
+        smoothing_factor = 0.015*(m)
         tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
 
         # this gives smoother result, but difficult to relate u to actual grid
@@ -386,25 +386,29 @@ if __name__ == "__main__":
     # MK111 track
     s.initTrack('uuurrullurrrdddddluulddl',(6,4), scale=1.0)
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+    adjustment[0] = -0.2
+    adjustment[1] = -0.2
     #bottom right turn
-    adjustment[2] = -0.3
-    adjustment[3] = 0.3
-    adjustment[4] = -0.3
+    adjustment[2] = -0.2
+    adjustment[3] = 0.5
+    adjustment[4] = -0.2
 
     #bottom middle turn
-    adjustment[5] = 0.3
-    adjustment[6] = -0.3
-    adjustment[7] = 0.3
+    adjustment[6] = -0.5
 
     #bottom left turn
-    adjustment[8] = -0.3
-    adjustment[9] = 0.3
-    adjustment[10] = -0.3
+    adjustment[9] = 0.5
 
     # left L turn
-    adjustment[12] = 0.3
-    adjustment[13] = 0.3
+    adjustment[12] = 0.5
+    adjustment[13] = 0.5
 
+    adjustment[15] = -0.5
+    adjustment[18] = 0.7
+
+    adjustment[21] = 0.35
+    adjustment[22] = 0.35
 
     s.initRaceline((3,3),'d',offset=adjustment)
 
