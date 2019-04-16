@@ -366,6 +366,12 @@ class RCPtrack:
     def setResolution(self,res):
         self.resolution = res
         return
+    # given the coordinate of robot
+    # find the closest point on track
+    # find the offset
+    # find the local derivative
+    def localTrajectory(self,coord):
+        return
 
 
 def show(img):
