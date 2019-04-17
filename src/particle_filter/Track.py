@@ -4,28 +4,35 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
-from scipy.stats import norm
+import torch
+
 
 def column_wise_norm(x):
     return np.sum(x**2, axis=0) ** 0.5
 
+
 def dist(x1, y1, x2, y2):
     return ((x1-x2)**2 + (y1-y2)**2) ** 0.5
+
 
 def dists(x, y, xys):
     diff = xys - np.array([[x, y]]).T
     return column_wise_norm(diff)
 
+
 def path_length(xys):
     dxy = xys[:, 1:] - xys[:, :-1]
     return np.sum(column_wise_norm(dxy))
 
-"""
-Track contains a list of features. Each feature is a point in
-homogeneous 3D coordinates (homongenous for tf compatibility)
-"""
+
 class Track(object):
-    def __init__(self, features_list, border1, border2, control_points):
+    """
+    Track:
+    - list of visual features in world space
+    - collision checking
+    - pre-computed racing line optimization
+    """
+    def __init__(self, features_list, border1, border2, control_points, desired_lap_time):
         # features list is x, y pairs in track space
         self.features = np.zeros((4, len(features_list)), dtype=np.float)
         for i, (x, y) in enumerate(features_list):
@@ -34,14 +41,14 @@ class Track(object):
         self.border1 = list(border1) + [border1[0]]
         self.border2 = list(border2) + [border2[0]]
 
-        control_points = [(0,0)] + list(control_points) + [(0,0)]
-        self.racing_line = np.zeros((2, len(control_points)), dtype=np.float)
+        control_points = [(0, 0)] + list(control_points) + [(0, 0)]
+        self.racing_line = np.zeros((3, len(control_points)), dtype=np.float)
+        time_per_point = float(desired_lap_time) / (len(control_points) - 1)
         for i, (x, y) in enumerate(control_points):
-            self.racing_line[:, i] = [x, y]
+            self.racing_line[:, i] = [x, y, time_per_point]
 
         self.spline_x = None
         self.spline_y = None
-        self.racing_line_timestep = 1.0
 
         self.x_min = np.min(self.features[0])
         self.x_max = np.max(self.features[0])
@@ -59,18 +66,19 @@ class Track(object):
 
     def draw(self, show=True):
         plt.plot(self.features[0], self.features[1], 'rx')
-        plt.plot([x for x,y in self.border1], [y for x,y in self.border1], 'k-')
-        plt.plot([x for x,y in self.border2], [y for x,y in self.border2], 'k-')
+        plt.plot([x for x, y in self.border1], [y for x, y in self.border1], 'k-')
+        plt.plot([x for x, y in self.border2], [y for x, y in self.border2], 'k-')
         cmap = plt.cm.get_cmap('plasma')
         if self.spline_x is not None:
-            lap_time = self.racing_line.shape[1] * self.racing_line_timestep
+            lap_time = sum(self.racing_line[2, :])
             ts = np.linspace(0, lap_time, 200)
             x = self.spline_x(ts)
             y = self.spline_y(ts)
-            v = column_wise_norm(np.stack([self.spline_x(ts,1), self.spline_y(ts,1)]))
+            v = column_wise_norm(np.stack([self.spline_x(ts, 1), self.spline_y(ts, 1)]))
             c = cmap(v / 2)
             for i in xrange(len(x)):
                 plt.plot(x[i:i+2], y[i:i+2], color=c[i], lw=5)
+            plt.plot(self.racing_line[0], self.racing_line[1], 'ko')
 
         plt.axis('equal')
         if show:
@@ -93,7 +101,7 @@ class Track(object):
                     rel_poses = poses - np.array([[x1, y1]]).T
                     line_proj = np.dot(v, rel_poses)
                     eps = 1e-5
-                    valid_mask = np.logical_and(line_proj>-eps, line_proj<border_dist+eps)
+                    valid_mask = np.logical_and(line_proj > -eps, line_proj < border_dist+eps)
                     new_dists = np.abs(np.dot(normal, rel_poses[:, valid_mask]))
                     distances[valid_mask] = np.minimum(distances[valid_mask], new_dists)
 
@@ -102,89 +110,94 @@ class Track(object):
     def collision_check(self, poses, radius):
         return self.wall_dists(poses) < radius
 
-    def opt_racing_line(self, iterations, accel_limit):
-        def cost(line, t_step):
-            x, y = line
-            cost = 0
+    def cost_fn(self, line, accel_limit):
+        x, y, dt = line
+        cost = 0
 
-            t = np.arange(len(x)) * float(t_step)
-            self.spline_x = CubicSpline(t, x, bc_type='periodic')
-            self.spline_y = CubicSpline(t, y, bc_type='periodic')
+        t = np.cumsum([0] + dt.tolist()[:-1])
+        self.spline_x = CubicSpline(t, x, bc_type='periodic')
+        self.spline_y = CubicSpline(t, y, bc_type='periodic')
 
-            t = np.linspace(0, t[-1], 1000)
-            x = self.spline_x(t, 0)
-            y = self.spline_y(t, 0)
-            vx = self.spline_x(t, 1)  # velocity over time
-            vy = self.spline_y(t, 1)
-            ax = self.spline_x(t, 2)  # acceleration
-            ay = self.spline_y(t, 2)
-            jx = self.spline_x(t, 3)  # jerk
-            jy = self.spline_y(t, 3)
+        t = np.linspace(0, t[-1], 500)
+        x = self.spline_x(t, 0)
+        y = self.spline_y(t, 0)
+        vx = self.spline_x(t, 1)  # velocity over time
+        vy = self.spline_y(t, 1)
+        ax = self.spline_x(t, 2)  # acceleration
+        ay = self.spline_y(t, 2)
+        # jx = self.spline_x(t, 3)  # jerk
+        # jy = self.spline_y(t, 3)
 
-            cost += t[-1]
+        cost += t[-1]
+        # print "time cost", cost
 
-            accel_sqr = ax*ax + ay*ay
-            max_accel = np.max(accel_sqr) ** 0.5
-            if max_accel > accel_limit:
-                cost += 1000 * (max_accel - accel_limit)
+        accel_sqr = ax*ax + ay*ay
+        max_accel = np.max(accel_sqr) ** 0.5
+        if max_accel > accel_limit:
+            cost += 100 * (max_accel - accel_limit)
+            # print "accel cost", 1000 * (max_accel - accel_limit)
 
-            # apply a small bias towards smooth paths
-            cost += 1e-5 * np.sum(accel_sqr)
-            cost += 1e-5 * np.sum(jx*jx + jy*jy)
+        # apply a small bias towards smooth paths
+        # cost += 1e-5 * np.sum(accel_sqr)
+        # cost += 1e-5 * np.sum(jx*jx + jy*jy)
+        # print "smoothness cost", 1e-5 * (np.sum(accel_sqr) + np.sum(jx*jx + jy*jy))
 
-            # avoid collisions
-            wall_dists = self.wall_dists(np.stack([x,y])).astype(np.float)
-            min_dist = np.min(wall_dists)
-            if min_dist < 0.1:
-                cost += (0.1 - min_dist) * 1000
+        # apply a bias toward good spacing
+        cost += 1 * np.sum(column_wise_norm(line[:2, 1:] - line[:2, :-1]) ** 2)
 
-            # curvature limits
-            allowed_curvature = 1.0 / 0.1  # 1 / min turn radius
-            v = np.stack([vx, vy])
-            unit_tangents = v / column_wise_norm(v)
-            ds = v * self.racing_line_timestep
-            curvature = column_wise_norm(unit_tangents / ds)
-            max_curvature = np.max(curvature)
-            if max_curvature > allowed_curvature:
-                cost += 1000 * (max_curvature - allowed_curvature)
+        # avoid collisions
+        wall_dists = self.wall_dists(np.stack([x,y])).astype(np.float)
+        min_dist = np.min(wall_dists)
+        if min_dist < 0.1:
+            cost += (0.1 - min_dist) * 100
+            # print "collision cost", (0.1 - min_dist) * 1000
 
-            return cost
+        # curvature limits
+        allowed_curvature = 1.0 / 0.1  # 1 / min turn radius
+        v = np.stack([vx, vy])
+        speed = column_wise_norm(v)
+        unit_tangents = v / speed
+        total_time = np.sum(self.racing_line[2, :-1])
+        ds = speed[:-1] * (total_time / v.shape[1])
+        dT = unit_tangents[:, 1:] - unit_tangents[:, :-1]
+        # print "dT/ds", dT[:, 100] / ds[100]
+        curvature = column_wise_norm(dT / ds)
+        # print curvature.round()
+        max_curvature = np.max(curvature)
+        if max_curvature > allowed_curvature:
+            cost += 100 * (max_curvature - allowed_curvature)
+            # print "curvature cost", 1000 * (max_curvature - allowed_curvature)
 
+        return cost
 
-        noise_scale = np.array([[1e-4]*2 + [1e-5]]).T
-        batch_size = 50
+    def opt_racing_line(self, iterations, accel_limit, grad_update_norm):
+        def cost(line):
+            return self.cost_fn(line, accel_limit)
+
+        perturbance = 0.0001
         for iteration in xrange(iterations):
-            noises = np.zeros((3, batch_size, self.racing_line.shape[1]))
-            costs = np.zeros(batch_size)
-            for i in xrange(batch_size):
-                noise = np.random.normal(0, noise_scale, (3, noises.shape[2]))
-                noise[2, :] = noise[2, 0]
-                noise[0, (0,-1)] = 0
-                noise[1, -1] = noise[1, 0]
-                noises[:, i, :] = noise
-                costs[i] = cost(self.racing_line + noise[:2],
-                                self.racing_line_timestep + noise[2, 0])
+            orig_cost = cost(self.racing_line)
+            grad = np.zeros_like(self.racing_line[:, :-1])
+            for j in xrange(grad.shape[1]):
+                for axis in range(3):
+                    new_line = self.racing_line.copy()
+                    sgn = 1 if np.random.random() < 0.5 else -1
+                    new_line[axis, j] += sgn * perturbance
+                    new_line[:, -1] = new_line[:, 0]
+                    grad[axis, j] = sgn * (cost(new_line) - orig_cost) / perturbance
 
-            costs = (costs - np.mean(costs)) / max(np.std(costs), 1e-5)
-            weights = np.exp(-costs)
-            grad = np.dot(weights, noises) / np.sum(weights)
-            time_grad = grad[2, 0]
-            grad = grad[:2]
+            grad = np.concatenate([grad, grad[:, 0].reshape(3, 1)], axis=1)
 
-            last_cost = cost(self.racing_line, self.racing_line_timestep)
-            init_t = t = 1.0
-            new_cost = cost(self.racing_line + t * grad,
-                            self.racing_line_timestep + t * time_grad)
-            while t == init_t or new_cost <= last_cost:
-                self.racing_line += t * grad
-                self.racing_line_timestep += t * time_grad
-                t += init_t
-                last_cost = new_cost
-                new_cost = cost(self.racing_line + t*grad,
-                                self.racing_line_timestep + t*time_grad)
+            norm = np.sum(grad ** 2) ** 0.5
+            if norm > grad_update_norm:
+                grad *= grad_update_norm / norm
+            # print np.sum(grad ** 2) ** 0.5
 
-            total_time = self.racing_line_timestep * (self.racing_line.shape[1] - 1)
-            print "cost", np.round(last_cost, 6), "lap time", np.round(total_time, 3)
+            self.racing_line -= grad
+            self.racing_line[2, self.racing_line[2] <= 0] = 0.01
+
+            total_time = np.sum(self.racing_line[2, :-1])
+            print "cost", np.round(cost(self.racing_line), 6), "lap time", np.round(total_time, 3)
 
     """
     load
@@ -192,7 +205,7 @@ class Track(object):
     straight, 'r' for right turn, and 'l' for left turn.
     """
     @classmethod
-    def load(cls, description_string, piece_size):
+    def load(cls, description_string, piece_size, control_resolution):
         assert all(c in 'srl' for c in description_string)
 
         dtheta_map = {'s': 0, 'r': -np.pi/2, 'l': np.pi/2}
@@ -239,14 +252,15 @@ class Track(object):
 
             dpos = np.dot(rot_mat, local_dpos_map[c])
 
-            ctrl_res = 2.0
-            new_controls = np.stack([np.arange(ctrl_res)/ctrl_res]*2, axis=1) * dpos + pos
-            control_points += [(x,y) for x,y in new_controls]
+            spacing = np.arange(control_resolution) / float(control_resolution)
+            new_controls = np.stack([spacing]*2, axis=1) * dpos + pos
+            control_points += [(x, y) for x, y in new_controls]
 
             pos += dpos
             theta += dtheta_map[c]
 
-        return cls(features_list, left_border, right_border, control_points[1:])
+        return cls(features_list, left_border, right_border, control_points[1:],
+                   0.4 * len(description_string))
 
 
 if __name__ == '__main__':
@@ -256,16 +270,24 @@ if __name__ == '__main__':
     if os.path.exists(save_path):
         track = Track.load_file(save_path)
     else:
-        track = Track.load('ssrrsllsrrssrsllsrrssrss', 0.565)
-        track.racing_line_timestep = 15.0 / (track.racing_line.shape[1] - 1)
+        track = Track.load('ssrrsllsrrssrsllsrrssrss', 0.565, 1)
 
-    for _ in xrange(5000):
-        track.opt_racing_line(10, 3.0)
+    max_accel = 3.0
+    best_cost = track.cost_fn(track.racing_line, max_accel)
+    costs = []
+    for i in xrange(5000):
+        track.opt_racing_line(10, max_accel, 0.01)
+
+        cost = track.cost_fn(track.racing_line, max_accel)
+        costs.append(cost)
+        if cost < best_cost:
+            track.save(save_path)
+            best_cost = cost
 
         plt.clf()
         track.draw(False)
+        # plt.plot(costs)
+        # plt.plot([best_cost]*len(costs))
         plt.pause(0.01)
-
-        track.save(save_path)
 
     print "done"
