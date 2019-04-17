@@ -417,6 +417,7 @@ class RCPtrack:
         res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
         print("u = "+str(res))
         print("closest point : "+str(splev(res.x,self.raceline)))
+        print("closest point dev: "+str(splev(res.x,self.raceline,der=1)))
 
         return
 
@@ -465,7 +466,7 @@ if __name__ == "__main__":
 
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
     s.initRaceline((3,3),'d',10,offset=adjustment)
-    s.localTrajectory((3.5,5.5))
+    s.localTrajectory((2.5,4.0))
 
     img_track = s.drawTrack(show=False)
     img_raceline = s.drawRaceline(img=img_track)
