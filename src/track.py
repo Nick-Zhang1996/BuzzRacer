@@ -6,6 +6,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev
+from scipy.optimize import minimize_scalar
 import cv2
 
 
@@ -47,10 +48,12 @@ class RCPtrack:
         self.scale = scale
         self.gridsize = gridsize
         self.track_length = len(description)
+        self.grid_sequence = []
         
         grid = [[None for i in range(gridsize[0])] for j in range(gridsize[1])]
 
         current_index = np.array([0,0])
+        self.grid_sequence.append(list(current_index))
         grid[0][0] = Node()
         current_node = grid[0][0]
         lookup_table_dir = {'u':(0,1),'d':(0,-1),'r':(1,0),'l':(-1,0) }
@@ -61,6 +64,7 @@ class RCPtrack:
             previous_node = current_node
             if description[i] in lookup_table_dir:
                 current_index += lookup_table_dir[description[i]]
+                self.grid_sequence.append(list(current_index))
             else:
                 print("error, unexpected value in description")
                 exit(1)
@@ -169,7 +173,7 @@ class RCPtrack:
 
         return
 
-    def initRaceline(self,start, start_direction,offset=None, filename=None):
+    def initRaceline(self,start, start_direction,seq_no,offset=None, filename=None):
         #init a raceline from current track, save if specified 
         # start: which grid to start from, e.g. (3,3)
         # start_direction: which direction to go. 
@@ -178,6 +182,7 @@ class RCPtrack:
         # NOTE you MUST start on a straight section
         self.ctrl_pts = []
         self.ctrl_pts_w = []
+        self.origin_seq_no = seq_no
         if offset is None:
             offset = np.zeros(self.track_length)
 
@@ -293,6 +298,8 @@ class RCPtrack:
         # add end point to the beginning, otherwise splprep will replace pts[-1] with pts[0] for a closed loop
         # This ensures that splev(u=0) gives us the beginning point
         pts=np.array(self.ctrl_pts)
+        #start_point = np.array(self.ctrl_pts[0])
+        #pts = np.vstack([pts,start_point])
         end_point = np.array(self.ctrl_pts[-1])
         pts = np.vstack([end_point,pts])
 
@@ -370,7 +377,47 @@ class RCPtrack:
     # find the closest point on track
     # find the offset
     # find the local derivative
+    # coord should be referenced from the origin (bottom right) of the track
     def localTrajectory(self,coord):
+        # figure out which grid the coord is in
+        coord = np.array(coord)
+        # grid coordinate
+        nondim= np.array((coord/self.scale)//1,dtype=np.int)
+
+        seq = -1
+        # figure out which u this grid corresponds to 
+        for i in range(len(self.grid_sequence)):
+            if nondim[0]==self.grid_sequence[i][0] and nondim[1]==self.grid_sequence[i][1]:
+                seq = i
+                break
+
+        if seq == -1:
+            print("error, coord not on track")
+            return None
+
+        # the grid that contains the coord
+        print("in grid : " + str(self.grid_sequence[seq]))
+
+        # find the closest point to the coord
+        # because we wrapped the end point to the beginning of sample point, we need to add thie offset
+        seq += self.origin_seq_no
+        seq %= self.track_length
+
+        # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
+        # due to smoothing factor
+        print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
+
+        dist = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
+        fun = lambda u: dist(splev(u,self.raceline),coord)
+        # determine which end is the coord closer to, since seq is the previous control point,
+        # not necessarily the closest one
+        if fun(seq+1) < fun(seq):
+            seq += 1
+
+        res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
+        print("u = "+str(res))
+        print("closest point : "+str(splev(res.x,self.raceline)))
+
         return
 
 
@@ -416,7 +463,9 @@ if __name__ == "__main__":
     adjustment[21] = 0.35
     adjustment[22] = 0.35
 
-    s.initRaceline((3,3),'d',offset=adjustment)
+    # start coord, direction, sequence number of origin(which u gives the exit point for origin)
+    s.initRaceline((3,3),'d',10,offset=adjustment)
+    s.localTrajectory((3.5,5.5))
 
     img_track = s.drawTrack(show=False)
     img_raceline = s.drawRaceline(img=img_track)
