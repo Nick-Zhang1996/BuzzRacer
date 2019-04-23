@@ -12,12 +12,10 @@ my_dir = os.path.dirname(__file__)
 
 
 def main():
-    # features_list = [(-2, 0), (-2,2), (2,-2)] + [(2,2)]*100
-    # track = Track(features_list)
     if load_track:
         track = Track.load_file(os.path.join(my_dir, "particle_filter/track_mk111.pkl"))
     else:
-        track = Track.load('slslslsl', 0.5)
+        track = Track.load('slslslsl', 0.5, 1)
 
     camera = CameraModel(angle_down=0.1, height=0.05, fov_horizontal=np.radians(62.2),
                          img_width=640, img_height=480)
@@ -43,14 +41,14 @@ def main():
         # filt.init_particles_position(0.5, 0, 0, 0.1, 0.1, 0.1)
 
     dt = 0.2
-    for t in np.arange(0, 60.0, dt):
+    for t in np.arange(0, 300.0, dt):
         if load_track:
-            track_len = track.racing_line_timestep * (track.racing_line.shape[1] - 1)
-            track_t = t % track_len
+            lap_time = sum(track.racing_line[2, :-1])
+            track_t = t % lap_time
             x, y, h = truth.mean()
             dx = track.spline_x(track_t) - x
             dy = track.spline_y(track_t) - y
-            dh = np.math.atan2(track.spline_y(track_t,1), track.spline_x(track_t,1)) - h
+            dh = np.math.atan2(track.spline_y(track_t, 1), track.spline_x(track_t, 1)) - h
             dh = min([dh, dh+2*np.pi, dh-2*np.pi], key=abs)
             yaw_rate = dh / dt
             v = ((dx*dx + dy*dy) ** 0.5) / dt
@@ -103,6 +101,7 @@ def main():
 
         plt.axis("equal")
         plt.pause(0.01)
+
 
 if __name__ == '__main__':
     # import cProfile

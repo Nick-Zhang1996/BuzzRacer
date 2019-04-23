@@ -4,7 +4,6 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
-import torch
 
 
 def column_wise_norm(x):
@@ -276,7 +275,7 @@ if __name__ == '__main__':
     best_cost = track.cost_fn(track.racing_line, max_accel)
     costs = []
     for i in xrange(5000):
-        track.opt_racing_line(10, max_accel, 0.01)
+        track.opt_racing_line(1, max_accel, 0.0005)
 
         cost = track.cost_fn(track.racing_line, max_accel)
         costs.append(cost)
@@ -284,10 +283,11 @@ if __name__ == '__main__':
             track.save(save_path)
             best_cost = cost
 
-        plt.clf()
-        track.draw(False)
-        # plt.plot(costs)
-        # plt.plot([best_cost]*len(costs))
-        plt.pause(0.01)
+        if i % 10 == 0:
+            plt.clf()
+            track.draw(False)
+            # plt.plot(costs)
+            # plt.plot([best_cost]*len(costs))
+            plt.pause(0.01)
 
     print "done"
