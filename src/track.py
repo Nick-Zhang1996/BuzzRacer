@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 #this file contains all data structure and algorithm to :
 # describe an RCP track
 # describe a raceline within the track
@@ -5,6 +7,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from math import atan2,radians,degrees,sin,cos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 import cv2
@@ -29,7 +32,7 @@ class Node:
 
 class RCPtrack:
     def __init__(self):
-        self.resolution = 100
+        self.resolution = 200
 
     def initTrack(self,description, gridsize, scale,savepath=None):
         # build a track and save it
@@ -107,7 +110,7 @@ class RCPtrack:
         return 
 
 
-    def drawTrack(self, img=None,show=True):
+    def drawTrack(self, img=None,show=False):
         # show a picture of the track
         # resolution : pixels per grid length
         color_side = (250,0,0)
@@ -173,6 +176,11 @@ class RCPtrack:
 
         return
 
+    # this function stores result in self.raceline
+    # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
+    # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of the starting grid,
+    # both 0 and len(self.ctrl_pts) pointing to the entry ctrl point for the starting grid
+    # and gives a pair of coordinates in METER
     def initRaceline(self,start, start_direction,seq_no,offset=None, filename=None):
         #init a raceline from current track, save if specified 
         # start: which grid to start from, e.g. (3,3)
@@ -319,7 +327,8 @@ class RCPtrack:
 
         return
 
-    def drawRaceline(self,lineColor=(0,0,255), img=None, show=True):
+    # draw the raceline from self.raceline
+    def drawRaceline(self,lineColor=(0,0,255), img=None, show=False):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -329,6 +338,7 @@ class RCPtrack:
         #u_new = np.linspace(self.u.min(),self.u.max(),1000)
 
         # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        # x_new and y_new are in non-dimensional grid unit
         u_new = np.linspace(0,len(self.ctrl_pts),1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
@@ -362,6 +372,68 @@ class RCPtrack:
 
         return img
 
+    # draw ONE arrow, unit: meter, coord sys: dimensioned
+    # source: source of arrow, in meter
+    # orientation, radians from x axis, ccw positive
+    # length: in pixels, though this is only qualitative
+    def drawArrow(self,test_pnt,source, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
+
+        if (length>1):
+            length = int(length)
+        else:
+            if show:
+                plt.imshow(img)
+                plt.show()
+            return img
+
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        # x_new and y_new are in non-dimensional grid unit
+        x_new, y_new = source[0], source[1]
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        x_new = int(x_new)
+        y_new /= self.scale
+        y_new *= self.resolution
+        # y-axis positive direction in real world and cv plotting is reversed
+        y_new = int(self.resolution*rows - y_new)
+        src = (x_new, y_new)
+
+        # I know I should write a function for this.....
+
+        # x_new and y_new are in non-dimensional grid unit
+        x_new, y_new = test_pnt[0], test_pnt[1]
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        x_new = int(x_new)
+        y_new /= self.scale
+        y_new *= self.resolution
+        # y-axis positive direction in real world and cv plotting is reversed
+        y_new = int(self.resolution*rows - y_new)
+        test_pnt = (x_new, y_new)
+        if img is None:
+            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
+
+    
+        # y-axis positive direction in real world and cv plotting is reversed
+        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
+
+        img = cv2.circle(img,test_pnt , 3, color,-1)
+
+        img = cv2.circle(img, src, 3, color,-1)
+        img = cv2.line(img, src, dest, color, thickness) 
+            
+
+        if show:
+            plt.imshow(img)
+            plt.show()
+
+        return img
+
     def loadRaceline(self,filename=None):
         pass
 
@@ -374,14 +446,15 @@ class RCPtrack:
         self.resolution = res
         return
     # given the coordinate of robot
-    # find the closest point on track
-    # find the offset
-    # find the local derivative
-    # coord should be referenced from the origin (bottom right) of the track
+    # find the closest point on raceline
+    # calculate the offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
+    # calculate the local derivative
+    # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     def localTrajectory(self,coord):
         # figure out which grid the coord is in
         coord = np.array(coord)
-        # grid coordinate
+        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
 
         seq = -1
@@ -396,30 +469,53 @@ class RCPtrack:
             return None
 
         # the grid that contains the coord
-        print("in grid : " + str(self.grid_sequence[seq]))
+        #print("in grid : " + str(self.grid_sequence[seq]))
 
         # find the closest point to the coord
         # because we wrapped the end point to the beginning of sample point, we need to add thie offset
+        # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
         seq += self.origin_seq_no
         seq %= self.track_length
 
         # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
         # due to smoothing factor
-        print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
+        #print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
 
-        dist = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
-        fun = lambda u: dist(splev(u,self.raceline),coord)
-        # determine which end is the coord closer to, since seq is the previous control point,
+        # distance squared, not need to find distance here
+        dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
+        fun = lambda u: dist_2(splev(u,self.raceline),coord)
+        # determine which end is the coord closer to, since seq points to the previous control point,
         # not necessarily the closest one
         if fun(seq+1) < fun(seq):
             seq += 1
 
+        #search around the control point closest to coord
         res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
-        print("u = "+str(res))
-        print("closest point : "+str(splev(res.x,self.raceline)))
-        print("closest point dev: "+str(splev(res.x,self.raceline,der=1)))
+        raceline_point = splev(res.x,self.raceline)
+        der = splev(res.x,self.raceline,der=1)
+        if (False):
+            print("Seek local trajectory")
+            print("u = "+str(res.x))
+            print("dist = "+str(res.fun**0.5))
+            print("closest point on track: "+str(raceline_point))
+            print("closest point orientation: "+str(degrees(atan2(der[1],der[0]))))
 
-        return
+        # calculate whether offset is ccw or cw
+        # achieved by finding cross product of vec(raceline_orientation) and vec(ctrl_pnt->test_pnt)
+        # then find sin(theta)
+        # negative = compensate ccw
+        vec_raceline = (der[0],der[1])
+        vec_offset = coord - raceline_point
+        cross_theta = np.cross(vec_raceline,vec_offset)
+
+        if (cross_theta>0):
+            # adjust cw
+            offset = - res.fun**0.5
+        else:
+            # adjust ccw
+            offset = res.fun**0.5
+
+        return (raceline_point,offset,atan2(der[1],der[0]))
 
 
 def show(img):
@@ -429,16 +525,19 @@ def show(img):
     
 if __name__ == "__main__":
     s = RCPtrack()
-    # simple track
+    # example: simple track
     #s.initTrack('uurrddll',(3,3),scale=1.0)
     #s.initRaceline((0,0),'l')
 
-    # Gu's track, randomly generated
+    # another sample track
     #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
     #s.initRaceline((3,3),'u')
 
     # MK111 track
-    s.initTrack('uuurrullurrrdddddluulddl',(6,4), scale=1.0)
+    # row, col
+    track_size = (6,4)
+    s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=1.0)
+    # I fotgot what this does
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
     adjustment[0] = -0.2
@@ -466,9 +565,38 @@ if __name__ == "__main__":
 
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
     s.initRaceline((3,3),'d',10,offset=adjustment)
-    s.localTrajectory((2.5,4.0))
 
-    img_track = s.drawTrack(show=False)
-    img_raceline = s.drawRaceline(img=img_track)
+    img_track = s.drawTrack()
+    img_track = s.drawRaceline(img=img_track)
+
+    # generate test point array, in meters (x,y)
+    # we'll visualize where the wheel should point if vehicle is positioned in these points
+    x = np.arange(0,track_size[1]*s.scale,0.05)
+    y = np.arange(0,track_size[0]*s.scale,0.05)
+    xx,yy = np.meshgrid(x,y)
+    pnt = np.hstack([xx.reshape(-1,1),yy.reshape(-1,1)])
+
+    correction_coeff = radians(1)*100*7
+    # should probably vectorize this...
+    for i in range(pnt.shape[0]):
+        # test function, testpoint in meters
+        testpoint = (pnt[i,0],pnt[i,1])
+        # agressiveness of adjustment
+        # radians per meter offset
+        # i.e. 3 degree per cm offset
+        (local_ctrl_pnt,offset,orientation) = s.localTrajectory(testpoint)
+        # visualize on-track reference point
+        #img_raceline = s.drawArrow(testpoint, local_ctrl_pnt, orientation, 50, img=img_raceline)
+
+        # if abs(offset*correction_coeff)>45deg, we cannot correct for the deviation
+        # this corresponds to 15cm offset
+        if (abs(offset*correction_coeff) > radians(45)):
+            img_track = s.drawArrow(local_ctrl_pnt, testpoint, orientation+offset*correction_coeff, (50/10*(10-abs(offset)*100)), img=img_track)
+
+    show(img_track)
 
     
+
+
+
+
