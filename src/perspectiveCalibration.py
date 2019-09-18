@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-filename = '../img/image.png'
+filename = '../perspective.png'
 #filename = '../img/perspectiveCalibration23cm.png'
 
 # all real world coordinates are in cm
@@ -16,11 +16,11 @@ filename = '../img/image.png'
 # 'vertical' wise offset from center of rear axle(which is the origin of car frame)
 
 # offset from front axle 
-zeroOffset = 12.0
-wheelbase = 9.9
+zeroOffset = 12.8
+wheelbase = 9.8
 
 # size of interal corners, (row,column)
-patternSize = (7,6)
+patternSize = (5,5)
 # side length of a chessboard unit:cm
 gridSize = 2.0
 
@@ -28,6 +28,7 @@ gridSize = 2.0
 baseOffset = np.array([(patternSize[0]-1.0)/2.0*gridSize,zeroOffset+wheelbase+gridSize])
 
 image = cv2.imread(filename)
+image = cv2.resize(image,(640,480))
 if (image is None):
     print('no such file')
     exit()
@@ -48,12 +49,12 @@ if (cameraFrameCorners.shape[0] != patternSize[0]*patternSize[1]):
 
 
 # DEBUG: label all corners found
-#for i in range(cameraFrameCorners.shape[0]):
-#    cv2.circle(image,tuple(cameraFrameCorners[i,0]), 3, (0,0,255), -1)
+for i in range(cameraFrameCorners.shape[0]):
+    cv2.circle(image,tuple(cameraFrameCorners[i,0]), 3, (0,0,255), -1)
 
-#cv2.imshow('image',image)
-#cv2.waitKey(0) 
-#cv2.destroyAllWindows()
+cv2.imshow('image',image)
+cv2.waitKey(0) 
+cv2.destroyAllWindows()
 
 
 carFrameCorners = np.zeros_like(cameraFrameCorners)
