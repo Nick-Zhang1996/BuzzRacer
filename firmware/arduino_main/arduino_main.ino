@@ -39,8 +39,8 @@
 #include <Arduino.h>
 #include <ros.h>
 #include <std_msgs/Float64.h>
-#include <rc_vip/CarSensors.h>
-#include <rc_vip/CarControl.h>
+#include <rcvip_msgs/CarSensors.h>
+#include <rcvip_msgs/CarControl.h>
 #include <Servo.h>
 
 //V2 and V3 board have different layout for bridge control lines, select one here.
