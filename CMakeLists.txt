@@ -191,12 +191,11 @@ include_directories(
 #   PATTERN ".svn" EXCLUDE
 # )
 
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-# )
+# Mark other files for installation (e.g. launch and bag files, etc.)
+ install(FILES
+   launch/demo.launch
+   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+ )
 
 #############
 ## Testing ##
@@ -242,7 +241,7 @@ rosserial_configure_client(
 #       b) rosrun rosserial_arduino make_libraries.py ./  (when you are in build/rc_vip)
 # 3. restore "ALL" argument
 # 4. build package normally
-rosserial_add_client_target(firmware arduino ALL)
+#rosserial_add_client_target(firmware arduino ALL)
 #rosserial_add_client_target(firmware arduino )
 
 
@@ -252,4 +251,4 @@ rosserial_add_client_target(firmware arduino ALL)
 # catkin build --no-deps  rc_vip --make-args rc_vip_firmware_arduino-upload
 # or simply run the uploadToArduino.sh in this folder
 # Remember if you modify the path to arduino device, you need to rebuild the project
-rosserial_add_client_target(firmware arduino-upload)
+#rosserial_add_client_target(firmware arduino-upload)
