@@ -58,6 +58,7 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    CarSensors.msg
    CarControl.msg
+   Vicon.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -242,8 +243,8 @@ rosserial_configure_client(
 #       b) rosrun rosserial_arduino make_libraries.py ./  (when you are in build/rc_vip)
 # 3. restore "ALL" argument
 # 4. build package normally
-rosserial_add_client_target(firmware arduino ALL)
-#rosserial_add_client_target(firmware arduino )
+#rosserial_add_client_target(firmware arduino ALL)
+rosserial_add_client_target(firmware arduino )
 
 
 # To upload to arduino, first verify the path to arduino serial port
