@@ -1,13 +1,13 @@
 #!/usr/bin/python
 
-#this file contains all data structure and algorithm to :
+# this file contains all data structure and algorithm to :
 # describe an RCP track
 # describe a raceline within the track
 # provide desired trajectory(raceline) given a car's location within thte track
 
 import numpy as np
 import matplotlib.pyplot as plt
-from math import atan2,radians,degrees,sin,cos
+from math import atan2,radians,degrees,sin,cos,pi
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 import cv2
@@ -32,6 +32,7 @@ class Node:
 
 class RCPtrack:
     def __init__(self):
+        # resolution : pixels per grid side length
         self.resolution = 200
 
     def initTrack(self,description, gridsize, scale,savepath=None):
@@ -376,6 +377,7 @@ class RCPtrack:
     # source: source of arrow, in meter
     # orientation, radians from x axis, ccw positive
     # length: in pixels, though this is only qualitative
+    # test_pnt: local control point (on track)
     def drawArrow(self,test_pnt,source, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
 
         if (length>1):
@@ -390,31 +392,9 @@ class RCPtrack:
         cols = self.gridsize[1]
         res = self.resolution
 
-        # x_new and y_new are in non-dimensional grid unit
-        x_new, y_new = source[0], source[1]
-        # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        x_new = int(x_new)
-        y_new /= self.scale
-        y_new *= self.resolution
-        # y-axis positive direction in real world and cv plotting is reversed
-        y_new = int(self.resolution*rows - y_new)
-        src = (x_new, y_new)
+        src = self.m2canvas(source)
+        test_pnt = self.m2canvas(test_pnt)
 
-        # I know I should write a function for this.....
-
-        # x_new and y_new are in non-dimensional grid unit
-        x_new, y_new = test_pnt[0], test_pnt[1]
-        # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        x_new = int(x_new)
-        y_new /= self.scale
-        y_new *= self.resolution
-        # y-axis positive direction in real world and cv plotting is reversed
-        y_new = int(self.resolution*rows - y_new)
-        test_pnt = (x_new, y_new)
         if img is None:
             img = np.zeros([res*rows,res*cols,3],dtype='uint8')
 
@@ -450,6 +430,7 @@ class RCPtrack:
     # calculate the offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
     # calculate the local derivative
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
+    # offset: negative = compensate ccw
     def localTrajectory(self,coord):
         # figure out which grid the coord is in
         coord = np.array(coord)
@@ -517,6 +498,57 @@ class RCPtrack:
 
         return (raceline_point,offset,atan2(der[1],der[0]))
 
+# conver a world coordinate in meters to canvas coordinate
+    def m2canvas(self,coord):
+
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        # x_new and y_new are in non-dimensional grid unit
+        x_new, y_new = coord[0], coord[1]
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        x_new = int(x_new)
+        y_new /= self.scale
+        y_new *= self.resolution
+        # y-axis positive direction in real world and cv plotting is reversed
+        y_new = int(self.resolution*rows - y_new)
+        return (x_new, y_new)
+
+# draw the vehicle (one dot with two lines) onto a canvas
+# coord: location of the dor, in meter (x,y)
+# heading: heading of the vehicle, radians from x axis, ccw positive
+#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
+    def drawCar(self, coord, heading,steering, img):
+        # draw vehicle, orientation as black arrow
+        src = self.m2canvas(coord)
+        img =  self.drawArrow(src,src,heading,length=10,color=(0,0,0),thickness=2,img=img)
+
+        # draw steering angle, orientation as green arrow
+        img = self.drawArrow(src,src,heading+steering,length=10,color=(0,255,0),thickness=2,img=img)
+        return img
+
+# given world coordinate of the vehicle, provide throttle and steering output
+# throttle -1.0,1.0
+# steering as an angle in radians, UNTRIMMED, left positive
+# valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
+    def ctrlCar(self,coord,heading):
+        (local_ctrl_pnt,offset,orientation) = s.localTrajectory(coord)
+        # negative offset means to steer ccw
+        # how much to compensate for per meter offset from track
+        # 5 deg per cm offset
+        if (abs(offset) > 0.1):
+            return (0,0,False)
+        else:
+            ctrl_ratio = 5/180*pi/0.01
+            steering = offset * ctrl_ratio
+            throttle = 0.3
+            return (throttle,steering,True)
+        
+
+
 
 def show(img):
     plt.imshow(img)
@@ -536,8 +568,8 @@ if __name__ == "__main__":
     # MK111 track
     # row, col
     track_size = (6,4)
-    s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=1.0)
-    # I fotgot what this does
+    s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
+    # add manual offset for each control points
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
     adjustment[0] = -0.2
@@ -548,17 +580,18 @@ if __name__ == "__main__":
     adjustment[4] = -0.2
 
     #bottom middle turn
-    adjustment[6] = -0.5
+    adjustment[6] = -0.2
 
     #bottom left turn
-    adjustment[9] = 0.5
+    adjustment[9] = -0.2
 
     # left L turn
     adjustment[12] = 0.5
     adjustment[13] = 0.5
 
     adjustment[15] = -0.5
-    adjustment[18] = 0.7
+    adjustment[16] = 0.5
+    adjustment[18] = 0.5
 
     adjustment[21] = 0.35
     adjustment[22] = 0.35
@@ -566,9 +599,12 @@ if __name__ == "__main__":
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
     s.initRaceline((3,3),'d',10,offset=adjustment)
 
+    # visualize raceline
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
+    show(img_track)
 
+'''
     # generate test point array, in meters (x,y)
     # we'll visualize where the wheel should point if vehicle is positioned in these points
     x = np.arange(0,track_size[1]*s.scale,0.05)
@@ -585,18 +621,12 @@ if __name__ == "__main__":
         # radians per meter offset
         # i.e. 3 degree per cm offset
         (local_ctrl_pnt,offset,orientation) = s.localTrajectory(testpoint)
-        # visualize on-track reference point
-        #img_raceline = s.drawArrow(testpoint, local_ctrl_pnt, orientation, 50, img=img_raceline)
 
         # if abs(offset*correction_coeff)>45deg, we cannot correct for the deviation
         # this corresponds to 15cm offset
         if (abs(offset*correction_coeff) > radians(45)):
+            # visualize on-track reference point
             img_track = s.drawArrow(local_ctrl_pnt, testpoint, orientation+offset*correction_coeff, (50/10*(10-abs(offset)*100)), img=img_track)
 
     show(img_track)
-
-    
-
-
-
-
+'''
