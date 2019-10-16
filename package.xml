@@ -31,6 +31,7 @@
   <!-- Dependencies can be catkin packages or system dependencies -->
   <buildtool_depend>catkin</buildtool_depend>
   <depend>rosserial_arduino</depend>
+  <depend>rcvip_msgs</depend>
   <build_depend>cv_bridge</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>image_transport</build_depend>
