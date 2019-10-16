@@ -39,8 +39,8 @@
 #include <Arduino.h>
 #include <ros.h>
 #include <std_msgs/Float64.h>
-#include <rc_vip/CarSensors.h>
-#include <rc_vip/CarControl.h>
+#include <rcvip_msgs/CarSensors.h>
+#include <rcvip_msgs/CarControl.h>
 #include <Servo.h>
 
 //V2 and V3 board have different layout for bridge control lines, select one here.
@@ -218,7 +218,7 @@ ISR(TIMER2_OVF_vect){
 // forward only, range 0-1
 #define MAX_H_BRIDGE_POWER 0.5
 void setHbridgePower(float power){
-    if (power<0.0 || power>1.0){
+    if (power<0.01 || power>1.0){
         disablePWM();
         digitalWrite(LED_PIN, LOW);
     } else{
@@ -249,13 +249,15 @@ Servo throttle;
 Servo steer;
 
 // values are in us (microseconds)
-const int leftBoundrySteeringServo = 1700; //turning diameter =42.5cm, steering angle = actan(2*wheelbase/diameter), 25.64 degree
-const float steeringLeftLimit = -25.64;
+//which car? turning diameter =42.5cm, steering angle = actan(2*wheelbase/diameter), 25.64 degree
+const int leftBoundrySteeringServo = 1750; 
+const float steeringLeftLimit = -20; 
 
-const int rightBoundrySteeringServo = 1150;//td = 65.3cm, 17.34deg
-const float steeringRightLimit = 17.34;
+const int rightBoundrySteeringServo = 1250;//td = 65.3cm, 17.34deg
+const float steeringRightLimit = 20;
 
-const int midPointSteeringServo = 1380;
+//previously 1380
+const int midPointSteeringServo = 1500;
 
 //const int minThrottleVal = 1500;
 //
@@ -275,7 +277,7 @@ ros::NodeHandle_<ArduinoHardware, 2, 2, 128, 300 > nh;
 
 bool failsafe = false;
 
-void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
+void readCarControlTopic(const rcvip_msgs::CarControl& msg_CarControl) {
     carControlTimestamp = millis();
     newCarControlMsg = true;
 
@@ -309,8 +311,8 @@ void readCarControlTopic(const rc_vip::CarControl& msg_CarControl) {
 }
 
 
-ros::Subscriber<rc_vip::CarControl> subCarControl("rc_vip/CarControl", &readCarControlTopic);
-rc_vip::CarSensors carSensors_msg;
+ros::Subscriber<rcvip_msgs::CarControl> subCarControl("rc_vip/CarControl", &readCarControlTopic);
+rcvip_msgs::CarSensors carSensors_msg;
 ros::Publisher pubCarSensors("rc_vip/CarSensors", &carSensors_msg);
 
 void setup() {
@@ -401,6 +403,5 @@ void loop() {
     unsigned long delayTimestamp = millis();
     while(millis()<delayTimestamp+10){
       ;
-    
     }
 }

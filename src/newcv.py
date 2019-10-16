@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 #from getpass import getuser
 #
 #from sensor_msgs.msg import Image, CompressedImage 
-#from rc_vip.msg import CarSensors as carSensors_msg
-#from rc_vip.msg import CarControl as carControl_msg
+#from rcvip_msgs.msg import CarSensors as carSensors_msg
+#from rcvip_msgs.msg import CarControl as carControl_msg
 #
 #from calibration import imageutil
 #from cv_bridge import CvBridge, CvBridgeError
