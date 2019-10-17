@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import socket
+import time
 from rc_vip.msg import Vicon
 
 
@@ -11,12 +12,13 @@ def vicon(pub_vicon):
 	sock.bind((IP, PORT))
 	data, addr = sock.recvfrom(1024)
 	data = data.strip('[]')
-	data = data.split(' ')
+	data = data.split(';')
 	pub_data = []
 	for d in data:
 		pub_data.append(float(d))
-	print("received message:", pub_data)
+	#print("received message:", pub_data)
 	pub_vicon.publish(pub_data)
+	time.sleep(0.1)
 
 if __name__ == '__main__':
 	rospy.init_node("udp_listener")
