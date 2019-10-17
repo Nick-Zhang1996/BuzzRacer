@@ -75,7 +75,7 @@ if __name__ == '__main__':
     else:
         # example: simple track
         s.initTrack('uurrddll',(3,3),scale=1.0)
-        s.initRaceline((0,0),'l')
+        s.initRaceline((0,0),'l',0)
         
 
 # ROS init

@@ -179,6 +179,7 @@ class RCPtrack:
         return
 
     # this function stores result in self.raceline
+    # seq_no: labeling the starting grid as 0, progressing through the raceline direction, the sequence number of (0,0) grid, i.e., bottom left. In other words, how many grids are between the starting grid and the origin? If starting gtid is origin grid, then seq_no is zero
     # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
     # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of the starting grid,
     # both 0 and len(self.ctrl_pts) pointing to the entry ctrl point for the starting grid
@@ -456,7 +457,7 @@ class RCPtrack:
         #print("in grid : " + str(self.grid_sequence[seq]))
 
         # find the closest point to the coord
-        # because we wrapped the end point to the beginning of sample point, we need to add thie offset
+        # because we wrapped the end point to the beginning of sample point, we need to add this offset
         # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
         seq += self.origin_seq_no
         seq %= self.track_length
@@ -644,12 +645,21 @@ if __name__ == "__main__":
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
     s.initRaceline((3,3),'d',10,offset=adjustment)
 
+    # use new track
+    #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
+    #s.initRaceline((3,3),'u')
+
+    s.initTrack('uurrddll',(3,3),scale=0.565)
+    s.initRaceline((0,0),'l',0)
+
     # visualize raceline
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
 
     # given a starting location, find car control and visualize it
     coord = (3.6*0.565,3.5*0.565)
+    # for simple track
+    coord = (2.5*0.565,1.5*0.565)
     heading = pi/2
     throttle,steering,valid = s.ctrlCar(coord,heading)
     s.state = np.array([coord[0],coord[1],heading])
@@ -657,7 +667,6 @@ if __name__ == "__main__":
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     showobj = plt.imshow(img_track)
-
 
     # 100 iteration steps
     for i in range(1000):
