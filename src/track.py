@@ -550,12 +550,19 @@ class RCPtrack:
             orientation += pi
         # how much to compensate for per meter offset from track
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
-        if (abs(offset) > 0.2):
+        if (abs(offset) > 0.3):
             return (0,0,False)
         else:
             ctrl_ratio = 5.0/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * ctrl_ratio
+            steering = (steering+pi)%(2*pi) -pi
+            # handle edge case, unwrap ( -355 deg turn -> +5 turn)
+            if (steering>radians(24.5)):
+                steering = radians(24.5)
+            elif (steering<-radians(24.5)):
+                steering = -radians(24.5)
+
             throttle = 0.3
             return (throttle,steering,True)
 
@@ -576,8 +583,12 @@ class RCPtrack:
         dr = v*dt
         dtheta = dr*tan(beta)/L
         # specific to vehicle frame (x to right of rear axle, y to forward)
-        dx = - L/tan(beta)*(1-cos(dtheta))
-        dy =  abs(L/tan(beta)*sin(dtheta))
+        if (beta==0):
+            dx = 0
+            dy = dr
+        else:
+            dx = - L/tan(beta)*(1-cos(dtheta))
+            dy =  abs(L/tan(beta)*sin(dtheta))
         #print(dx,dy)
         # specific to world frame
         dX = dx*cos(theta)-dy*sin(theta)
@@ -654,7 +665,7 @@ if __name__ == "__main__":
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
 
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2])
-        print(throttle,steering,valid)
+        print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
         showobj.set_data(img_track_car)
         plt.draw()
