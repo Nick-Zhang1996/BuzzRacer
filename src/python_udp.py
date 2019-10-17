@@ -2,7 +2,8 @@
 # retrieve vicon feed from matlab and republish as ROS topic
 import rospy
 import socket
-from rcvip_msgs.msg import Vicon
+import time
+from rc_vip.msg import Vicon
 
 def vicon(pub_vicon):
 	IP = ''
@@ -11,12 +12,13 @@ def vicon(pub_vicon):
 	sock.bind((IP, PORT))
 	data, addr = sock.recvfrom(1024)
 	data = data.strip('[]')
-	data = data.split(' ')
+	data = data.split(';')
 	pub_data = []
 	for d in data:
 		pub_data.append(float(d))
-	print("received message:", pub_data)
+	#print("received message:", pub_data)
 	pub_vicon.publish(pub_data)
+	time.sleep(0.1)
 
 if __name__ == '__main__':
 	rospy.init_node("vicon_translator")
