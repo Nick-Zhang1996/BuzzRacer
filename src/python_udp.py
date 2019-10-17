@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import socket
-from rc_vip.msg import Vicon
-
+from rcvip_msgs.msg import Vicon
 
 def vicon(pub_vicon):
 	IP = ''
