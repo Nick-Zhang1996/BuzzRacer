@@ -58,6 +58,7 @@ find_package(catkin REQUIRED COMPONENTS
 #   FILES
 #   CarSensors.msg
 #   CarControl.msg
+#   Vicon.msg
 # )
 
 ## Generate services in the 'srv' folder
