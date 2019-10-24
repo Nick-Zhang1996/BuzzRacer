@@ -7,7 +7,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,isclose
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,isclose,asin,acos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
@@ -40,6 +40,15 @@ class TF:
     def __init__(self):
         pass
 
+    def euler2q(self,roll,pitch,yaw):
+        q = np.array([ cos(roll/2)*cos(pitch/2)*cos(yaw/2)+sin(roll/2)*sin(pitch/2)*sin(yaw/2), -cos(roll/2)*sin(pitch/2)*sin(yaw/2)+cos(pitch/2)*cos(yaw/2)*sin(roll/2), cos(roll/2)*cos(yaw/2)*sin(pitch/2) + sin(roll/2)*cos(pitch/2)*sin(yaw/2), cos(roll/2)*cos(pitch/2)*sin(yaw/2) - sin(roll/2)*cos(yaw/2)*sin(pitch/2)])
+        return q
+
+    def q2euler(self,q):
+        R = self.q2R(q)
+        roll,pitch,yaw = self.R2euler(R)
+        return (roll,pitch,yaw)
+
     # given unit quaternion, find corresponding rotation matrix (passive)
     def q2R(self,q):
         assert(isclose(np.linalg.norm(q),1,abs_tol=0.001))
@@ -67,7 +76,7 @@ class TF:
     # euler angle from R, in rad, roll,pitch,yaw
     def R2euler(self,R):
         roll = atan2(R[1,2],R[2,2])
-        pitch = -asin(R[0,2]
+        pitch = -asin(R[0,2])
         yaw = atan2(R[0,1],R[0,0])
         return (roll,pitch,yaw)
         
@@ -77,7 +86,7 @@ class TF:
     # everything in W frame unless noted, vec_B means in B basis, e.g.
     # a_R_b denotes a passive rotation matrix that transforms from b to a
     # vec_a = a_R_b * vec_b
-    def tf(self,T, B):
+    def reframe(self,T, B):
         # TB = OB - OT
         OB = np.matrix(B[-3:]).T
         OT = np.matrix(T[-3:]).T
@@ -93,23 +102,6 @@ class TF:
 
         # x,y, heading
         return (TB_T[0],TB_T[1],yaw)
-        
-        
-        
-        
-        
-       
-        
-
-
-    # given translation and euler angle, find corresponding rotation matrix
-
-    # given state vec of frame dst, translate a state in src basis to dst basis
-    # state: (x,y,z,q)
-    # given state of base and target in world, find state of target in base
-        # transform vec origin
-
-    
 
 class RCPtrack:
     def __init__(self):
@@ -683,13 +675,18 @@ def show(img):
     return
     
 if __name__ == "__main__":
+    # test tf
     tf = TF()
-    R = tf.euler2R(0,0,radians(30))
-    print(R)
-    q = [0.9659,0,0,0.2588]
-    R2 = tf.q2R(q)
-    print(R2)
-    x = np.array([3**0.5,1,0])
+    c = lambda x:cos(radians(x))
+    s = lambda x:sin(radians(x))
+    w_ob = (2+4*s(30)+3*c(30), 6+4*c(30)-3*s(30), 0)
+    w_ot = (2,6,0)
+    q_b = tf.euler2q(radians(180),0,radians(-30))
+    q_t = tf.euler2q(radians(180),0,radians(-60))
+    T = np.hstack([q_t,np.array(w_ot)])
+    B = np.hstack([q_b,np.array(w_ob)])
+    print(tf.reframe(T,B)) # should give 4,3,radians(30)
+
     
     exit(0)
     s = RCPtrack()
