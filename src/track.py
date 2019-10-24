@@ -6,8 +6,9 @@
 # provide desired trajectory(raceline) given a car's location within thte track
 
 import numpy as np
+from numpy import isclose
 import matplotlib.pyplot as plt
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,isclose,asin,acos
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
@@ -51,7 +52,7 @@ class TF:
 
     # given unit quaternion, find corresponding rotation matrix (passive)
     def q2R(self,q):
-        assert(isclose(np.linalg.norm(q),1,abs_tol=0.001))
+        assert(isclose(np.linalg.norm(q),1,atol=0.001))
         Rq = [[q[0]**2+q[1]**2-q[2]**2-q[3]**2, 2*q[1]*q[2]+2*q[0]*q[3], 2*q[1]*q[3]-2*q[0]*q[2]],\
            [2*q[1]*q[2]-2*q[0]*q[3],  q[0]**2-q[1]**2+q[2]**2-q[3]**2,    2*q[2]*q[3]+2*q[0]*q[1]],\
            [2*q[1]*q[3]+2*q[0]*q[2],  2*q[2]*q[3]-2*q[0]*q[1], q[0]**2-q[1]**2-q[2]**2+q[3]**2]]
@@ -614,7 +615,7 @@ class RCPtrack:
 # steering as an angle in radians, UNTRIMMED, left positive
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
     def ctrlCar(self,coord,heading,reverse=True):
-        retval = s.localTrajectory(coord)
+        retval = self.localTrajectory(coord)
         if retval is None:
             return (0,0,False)
 
@@ -676,6 +677,7 @@ def show(img):
     
 if __name__ == "__main__":
     # test tf
+    '''
     tf = TF()
     c = lambda x:cos(radians(x))
     s = lambda x:sin(radians(x))
@@ -686,9 +688,8 @@ if __name__ == "__main__":
     T = np.hstack([q_t,np.array(w_ot)])
     B = np.hstack([q_b,np.array(w_ob)])
     print(tf.reframe(T,B)) # should give 4,3,radians(30)
+    '''
 
-    
-    exit(0)
     s = RCPtrack()
     # example: simple track
     #s.initTrack('uurrddll',(3,3),scale=1.0)
