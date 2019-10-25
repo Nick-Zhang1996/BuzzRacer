@@ -3,38 +3,79 @@
 # utilize track.py to operate a vehicle
 # this node directly publish to RCchannel
 
-from ../src/track import RCPtrack
-from math import radians,degrees
+import sys
+sys.path.insert(0,'../src')
+from threading import Lock
 import rospy
-import std_msgs.msg
+import numpy as np
+from time import sleep
+from math import radians,degrees
+import matplotlib.pyplot as plt
+from std_msgs.msg import Header
 from sensor_msgs.msg import Joy
 from rcvip_msgs.msg import RCchannel
-#from rcvip_msgs.msg import CarControl as carControl_msg
 from rcvip_msgs.msg import Vicon as Vicon_msg
+from track import RCPtrack,TF
+
+# static variables, for share in this file
+s = RCPtrack()
+img_track = None
+showobj = None
+visualization_ts = 0.0
+tf = TF()
+
+lock_visual = Lock()
+shared_visualization_img = None
+flag_new_visualization_img = False
+
+# track pose
+q_t = tf.euler2q(0,radians(180),radians(-90))
+T = np.hstack([q_t,np.array([1,10,0])])
+
 
 def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
     return y
 
 def vicon_callback(data):
-    x = data.data[0]
-    y = data.data[1]
-    heading = data.data[5]
-    throttle,steering,valid = s.ctrlCar((x,y),heading)
-    rospy.loginfo(throttle,steering,valid)
+    global visualization_ts
+    global shared_visualization_img
+    global lock_visual
+    global flag_new_visualization_img
+    # Body pose in vicon world frame
+    q = data.data[:4]
+    x = data.data[4]
+    y = data.data[5]
+    z = data.data[6]
+    # get body pose in track frame
+    (x,y,heading) = tf.reframe(T,data.data)
+
+    throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
+    rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
 
     # for using carControl
     #msg = carControl_msg()
-    #msg.header = data.header
     #msg.throttle = throttle
     #msg.steer_angle = degrees(steering)
 
     # for using channel directly
-    msg.header = data.header
+    msg = RCchannel()
+    msg.header = Header()
+    msg.header.stamp = rospy.Time.now()
     msg.ch[0] = mapdata(steering, radians(24),-radians(24),1150,1850)
     msg.ch[1] = mapdata(throttle,-1.0,1.0,1900,1100)
 
     pub.publish(msg)
+
+    # visualization
+    # add throttling
+    if (rospy.get_time()-visualization_ts>0.1):
+        # plt doesn't allow updating from a different thread
+        lock_visual.acquire()
+        shared_visualization_img = s.drawCar((x,y),heading,steering,img_track.copy())
+        lock_visual.release()
+        visualization_ts = rospy.get_time()
+        flag_new_visualization_img = True
 
 if __name__ == '__main__':
 
@@ -80,8 +121,31 @@ if __name__ == '__main__':
 
 # ROS init
     rospy.init_node('viconDrive', anonymous=False)
-    rospy.Subscriber("/vicon_tf", Vicon, vicon_callback)
     #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
     pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
+    rospy.Subscriber("/vicon_tf", Vicon_msg, vicon_callback)
 
+    #setup visualization of current car location, comment out if running the code on car computer
+    img_track = s.drawTrack()
+    img_track = s.drawRaceline(img=img_track)
+    showobj = plt.imshow(img_track)
+    showobj.set_data(img_track)
+    plt.draw()
+    plt.pause(0.01)
+
+    # visualization update loop
+    while not rospy.is_shutdown():
+
+        if flag_new_visualization_img:
+            lock_visual.acquire()
+            showobj.set_data(shared_visualization_img)
+            lock_visual.release()
+            plt.draw()
+            visualization_ts = rospy.get_time()
+            flag_new_visualization_img = False
+            plt.pause(0.01)
+        else:
+            sleep(0.05)
+
+    # may not be necesary
     rospy.spin()
