@@ -3,10 +3,12 @@
 import rospy
 import socket
 import time
-from rc_vip.msg import Vicon
+from rcvip_msgs.msg import Vicon
 
 def vicon(pub_vicon):
-	IP = ''
+	#IP = '192.168.7.11'
+	#IP = '0.0.0.0'
+        IP = "0.0.0.0"
 	PORT = 3883
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	sock.bind((IP, PORT))

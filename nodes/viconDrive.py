@@ -29,8 +29,8 @@ shared_visualization_img = None
 flag_new_visualization_img = False
 
 # track pose
-q_t = tf.euler2q(0,radians(180),radians(-90))
-T = np.hstack([q_t,np.array([1,10,0])])
+q_t = tf.euler2q(radians(180),0,radians(90))
+T = np.hstack([q_t,np.array([0,1,0])])
 
 
 def mapdata(x,a,b,c,d):
@@ -69,7 +69,7 @@ def vicon_callback(data):
 
     # visualization
     # add throttling
-    if (rospy.get_time()-visualization_ts>0.1):
+    if (False and rospy.get_time()-visualization_ts>0.1):
         # plt doesn't allow updating from a different thread
         lock_visual.acquire()
         shared_visualization_img = s.drawCar((x,y),heading,steering,img_track.copy())
@@ -123,20 +123,22 @@ if __name__ == '__main__':
     rospy.init_node('viconDrive', anonymous=False)
     #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
     pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
-    rospy.Subscriber("/vicon_tf", Vicon_msg, vicon_callback)
 
     #setup visualization of current car location, comment out if running the code on car computer
+    '''
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
     showobj = plt.imshow(img_track)
     showobj.set_data(img_track)
     plt.draw()
     plt.pause(0.01)
+    '''
+    rospy.Subscriber("/vicon_tf", Vicon_msg, vicon_callback)
 
     # visualization update loop
     while not rospy.is_shutdown():
 
-        if flag_new_visualization_img:
+        if False and flag_new_visualization_img:
             lock_visual.acquire()
             showobj.set_data(shared_visualization_img)
             lock_visual.release()

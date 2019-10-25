@@ -102,7 +102,7 @@ class TF:
         (roll,pitch,yaw) = self.R2euler(B_R_T)
 
         # x,y, heading
-        return (TB_T[0,0],TB_T[1,0],yaw)
+        return (TB_T[0,0],TB_T[1,0],yaw+pi/2)
 
 class RCPtrack:
     def __init__(self):
@@ -638,7 +638,7 @@ class RCPtrack:
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
 
-            throttle = 0.3
+            throttle = 0.24
             return (throttle,steering,True)
 
     # update car state with bicycle model, no slip
@@ -763,10 +763,10 @@ if __name__ == "__main__":
 
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
         print(i,throttle,steering,valid)
-        img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        showobj.set_data(img_track_car)
-        plt.draw()
-        plt.pause(0.01)
+        #img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
+        #showobj.set_data(img_track_car)
+        #plt.draw()
+        #plt.pause(0.01)
 
 
 '''
