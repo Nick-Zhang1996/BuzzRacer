@@ -102,7 +102,7 @@ class TF:
         (roll,pitch,yaw) = self.R2euler(B_R_T)
 
         # x,y, heading
-        return (TB_T[0],TB_T[1],yaw)
+        return (TB_T[0,0],TB_T[1,0],yaw)
 
 class RCPtrack:
     def __init__(self):
@@ -614,7 +614,7 @@ class RCPtrack:
 # reverse: true if running in opposite direction of raceline init direction
 # steering as an angle in radians, UNTRIMMED, left positive
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
-    def ctrlCar(self,coord,heading,reverse=True):
+    def ctrlCar(self,coord,heading,reverse=False):
         retval = self.localTrajectory(coord)
         if retval is None:
             return (0,0,False)
@@ -761,7 +761,7 @@ if __name__ == "__main__":
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
 
-        throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2])
+        throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
         print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
         showobj.set_data(img_track_car)
