@@ -30,7 +30,7 @@ def joystick_callback(data):
 if __name__ == '__main__':
 
     rospy.init_node('Joystick2CarControl', anonymous=False)
-    rospy.Subscriber("joy", Joy, joystick_callback)
     pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
+    rospy.Subscriber("joy", Joy, joystick_callback)
 
     rospy.spin()
