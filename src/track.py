@@ -12,7 +12,11 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
+from timeUtil import execution_timer
 import cv2
+
+t = execution_timer(False)
+lt = execution_timer(True)
 
 
 class Node:
@@ -509,12 +513,16 @@ class RCPtrack:
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
     def localTrajectory(self,coord):
+        lt.s()
         # figure out which grid the coord is in
+        lt.s('which grid')
         coord = np.array(coord)
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
+        lt.e('which grid')
 
+        lt.s('grid2u')
         seq = -1
         # figure out which u this grid corresponds to 
         for i in range(len(self.grid_sequence)):
@@ -522,8 +530,11 @@ class RCPtrack:
                 seq = i
                 break
 
+        lt.e('grid2u')
+
         if seq == -1:
             print("error, coord not on track")
+            lt.e()
             return None
 
         # the grid that contains the coord
@@ -540,21 +551,65 @@ class RCPtrack:
         #print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
 
         # distance squared, not need to find distance here
+        lt.s('dataprep') # 27% runtime
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
         fun = lambda u: dist_2(splev(u,self.raceline),coord)
         # determine which end is the coord closer to, since seq points to the previous control point,
         # not necessarily the closest one
         if fun(seq+1) < fun(seq):
             seq += 1
+        lt.e('dataprep')
 
         #search around the control point closest to coord
+
+        #brute force,  This takes 77% of runtime. 
+        '''
+        lt.s('minimize_scalar')
         res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
-        raceline_point = splev(res.x,self.raceline)
-        der = splev(res.x,self.raceline,der=1)
+        #xx = np.linspace(seq-0.6,seq+0.6)
+        #plt.plot(xx,fun(xx))
+        #plt.show()
+        lt.e('minimize_scalar')
+        '''
+
+        # improved: from observation fun(x) is quadratic in proximity of seq
+        # we assume it to be ax2 + bx + c and formulate this as a linalg problem
+        lt.s('quadrature sim')
+        #x0 = seq-0.6
+        #x1 = seq
+        #x2 = seq+0.6
+        #iv = np.array([x0,x1,x2])
+        iv = np.array([-0.6,0,0.6])+seq
+        #A = np.mat([[x0**2, x0, 1],[x1**2, x1, 1],[x2**2, x2, 1]])
+        A = np.vstack([iv**2,iv,[1,1,1]]).T
+        #B = np.mat([fun(x0), fun(x1), fun(x2)]).T
+        B = fun(iv).T
+        abc = np.linalg.solve(A,B)
+        a = abc[0]
+        b = abc[1]
+        c = abc[2]
+        min_fun_x = -b/2/a
+        min_fun_val = c/a-b**2/(4*a**2)
+        lt.e('quadrature sim')
+        #lt.track('x err', abs(min_fun_x-res.x))
+        #lt.track('fun err',abs(min_fun_val-res.fun))
+
+
+
+
+
+        lt.s('splev val')
+        raceline_point = splev(min_fun_x,self.raceline)
+        lt.e('splev val')
+
+        lt.s('splev der')
+        der = splev(min_fun_x,self.raceline,der=1)
+        lt.e('splev der')
+
         if (False):
             print("Seek local trajectory")
-            print("u = "+str(res.x))
-            print("dist = "+str(res.fun**0.5))
+            print("u = "+str(min_fun_x))
+            print("dist = "+str(min_fun_val**0.5))
             print("closest point on track: "+str(raceline_point))
             print("closest point orientation: "+str(degrees(atan2(der[1],der[0]))))
 
@@ -562,11 +617,14 @@ class RCPtrack:
         # achieved by finding cross product of vec(raceline_orientation) and vec(ctrl_pnt->test_pnt)
         # then find sin(theta)
         # negative offset means car is ot the right
+        lt.s('final')
         vec_raceline = (der[0],der[1])
         vec_offset = coord - raceline_point
         cross_theta = np.cross(vec_raceline,vec_offset)
+        lt.e('final')
 
-        return (raceline_point,copysign(res.fun**0.5,cross_theta),atan2(der[1],der[0]))
+        lt.e()
+        return (raceline_point,copysign(min_fun_val**0.5,cross_theta),atan2(der[1],der[0]))
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -615,7 +673,12 @@ class RCPtrack:
 # steering as an angle in radians, UNTRIMMED, left positive
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
     def ctrlCar(self,coord,heading,reverse=False):
+        global t
+        t.s()
+
+        t.s('localTrajectory()')
         retval = self.localTrajectory(coord)
+        t.e('localTrajectory()')
         if retval is None:
             return (0,0,False)
 
@@ -623,10 +686,13 @@ class RCPtrack:
         if reverse:
             offset = -offset
             orientation += pi
+
         # how much to compensate for per meter offset from track
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
+
+        t.s('ctrl math')
         if (abs(offset) > 0.3):
-            return (0,0,False)
+            ret = (0,0,False)
         else:
             ctrl_ratio = 5.0/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
@@ -639,7 +705,11 @@ class RCPtrack:
                 steering = -radians(24.5)
 
             throttle = 0.24
-            return (throttle,steering,True)
+            ret =  (throttle,steering,True)
+
+        t.e('ctrl math')
+        t.e()
+        return ret
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
@@ -757,7 +827,7 @@ if __name__ == "__main__":
     showobj = plt.imshow(img_track)
 
     # 100 iteration steps
-    for i in range(1000):
+    for i in range(100):
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
 
@@ -767,6 +837,9 @@ if __name__ == "__main__":
         #showobj.set_data(img_track_car)
         #plt.draw()
         #plt.pause(0.01)
+
+    t.summary()
+    lt.summary()
 
 
 '''
