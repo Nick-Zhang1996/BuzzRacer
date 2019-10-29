@@ -556,8 +556,8 @@ class RCPtrack:
         fun = lambda u: dist_2(splev(u,self.raceline),coord)
         # determine which end is the coord closer to, since seq points to the previous control point,
         # not necessarily the closest one
-        if fun(seq+1) < fun(seq):
-            seq += 1
+        #if fun(seq+1) < fun(seq):
+        #    seq += 1
         lt.e('dataprep')
 
         #search around the control point closest to coord
@@ -574,7 +574,7 @@ class RCPtrack:
         #x1 = seq
         #x2 = seq+0.6
         #iv = np.array([x0,x1,x2])
-        iv = np.array([-0.6,-0.3,0,0.3,0.6])+seq
+        iv = np.array([-0.6,-0.05,0.5,1.05,1.6])+seq
         #A = np.mat([[x0**2, x0, 1],[x1**2, x1, 1],[x2**2, x2, 1]])
         A = np.vstack([iv**3, iv**2,iv,[1,1,1,1,1]]).T
         #B = np.mat([fun(x0), fun(x1), fun(x2)]).T
@@ -597,7 +597,7 @@ class RCPtrack:
         lt.e('quadrature sim')
 
         '''
-        xx = np.linspace(seq-0.6,seq+0.6)
+        xx = np.linspace(seq-1.6,seq+1.6)
         plt.plot(xx,fun(xx),'b--')
         plt.plot(iv,fun(iv),'bo')
         plt.plot(xx,a*xx**3+b*xx**2+c*xx+d,'r-')
