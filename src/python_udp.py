@@ -20,7 +20,7 @@ def vicon(pub_vicon):
 		pub_data.append(float(d))
 	#print("received message:", pub_data)
 	pub_vicon.publish(pub_data)
-	time.sleep(0.1)
+	#time.sleep(0.1)
 
 if __name__ == '__main__':
 	rospy.init_node("vicon_translator")

@@ -13,6 +13,8 @@ from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
 import cv2
+from timeUtil import execution_timer
+t = execution_timer(True)
 
 
 class Node:
@@ -52,7 +54,7 @@ class TF:
 
     # given unit quaternion, find corresponding rotation matrix (passive)
     def q2R(self,q):
-        assert(isclose(np.linalg.norm(q),1,atol=0.001))
+        #assert(isclose(np.linalg.norm(q),1,atol=0.001))
         Rq = [[q[0]**2+q[1]**2-q[2]**2-q[3]**2, 2*q[1]*q[2]+2*q[0]*q[3], 2*q[1]*q[3]-2*q[0]*q[2]],\
            [2*q[1]*q[2]-2*q[0]*q[3],  q[0]**2-q[1]**2+q[2]**2-q[3]**2,    2*q[2]*q[3]+2*q[0]*q[1]],\
            [2*q[1]*q[3]+2*q[0]*q[2],  2*q[2]*q[3]-2*q[0]*q[1], q[0]**2-q[1]**2-q[2]**2+q[3]**2]]
@@ -615,9 +617,10 @@ class RCPtrack:
 # steering as an angle in radians, UNTRIMMED, left positive
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
     def ctrlCar(self,coord,heading,reverse=False):
+        t.s()
         retval = self.localTrajectory(coord)
         if retval is None:
-            return (0,0,False)
+            return (0,0,-1.0)
 
         (local_ctrl_pnt,offset,orientation) = retval
         if reverse:
@@ -626,7 +629,7 @@ class RCPtrack:
         # how much to compensate for per meter offset from track
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
         if (abs(offset) > 0.3):
-            return (0,0,False)
+            return (0,0,offset)
         else:
             ctrl_ratio = 5.0/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
@@ -638,8 +641,9 @@ class RCPtrack:
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
 
-            throttle = 0.24
-            return (throttle,steering,True)
+            throttle = 0.35
+            t.e()
+            return (throttle,steering,offset)
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
@@ -757,7 +761,7 @@ if __name__ == "__main__":
     showobj = plt.imshow(img_track)
 
     # 100 iteration steps
-    for i in range(1000):
+    for i in range(20):
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
 
@@ -767,6 +771,7 @@ if __name__ == "__main__":
         #showobj.set_data(img_track_car)
         #plt.draw()
         #plt.pause(0.01)
+    t.summary()
 
 
 '''
