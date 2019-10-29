@@ -37,11 +37,30 @@ def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
     return y
 
+lock_vicon = Lock()
+local_vicon_data = None
 def vicon_callback(data):
+    global lock_vicon
+    global local_vicon_data
+    lock_vicon.acquire()
+    local_vicon_data = data
+    lock_vicon.release()
+    return
+
+def vicon_processor():
     global visualization_ts
     global shared_visualization_img
     global lock_visual
     global flag_new_visualization_img
+    global lock_vicon
+    global local_vicon_data
+
+    lock_vicon.acquire()
+    data = local_vicon_data
+    lock_vicon.release()
+    if (data is None):
+        rospy.loginfo("None...")
+        return
     # Body pose in vicon world frame
     q = data.data[:4]
     x = data.data[4]
@@ -50,8 +69,8 @@ def vicon_callback(data):
     # get body pose in track frame
     (x,y,heading) = tf.reframe(T,data.data)
 
-    throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
-    rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
+    throttle,steering,offset = s.ctrlCar((x,y),heading,reverse=False)
+    rospy.loginfo(str((x,y,degrees(heading),throttle,degrees(steering),offset)))
 
     # for using carControl
     #msg = carControl_msg()
@@ -137,8 +156,11 @@ if __name__ == '__main__':
 
     # visualization update loop
     while not rospy.is_shutdown():
+        vicon_processor()
 
-        if False and flag_new_visualization_img:
+        # visualization
+        '''
+        if  flag_new_visualization_img:
             lock_visual.acquire()
             showobj.set_data(shared_visualization_img)
             lock_visual.release()
@@ -148,6 +170,7 @@ if __name__ == '__main__':
             plt.pause(0.01)
         else:
             sleep(0.05)
+        '''
 
     # may not be necesary
     rospy.spin()
