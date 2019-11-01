@@ -4,6 +4,8 @@
 # this node directly publish to RCchannel
 
 import sys
+import serial
+import platform
 sys.path.insert(0,'../src')
 from threading import Lock
 #import rospy
@@ -75,6 +77,7 @@ def update_state():
 
     pub.publish(msg)
     '''
+    arduino.write((str(1700)+","+str(1500)+'\n').encode('ascii'))
 
     # visualization
     # add throttling
@@ -87,6 +90,12 @@ def update_state():
         flag_new_visualization_img = True
 
 if __name__ == '__main__':
+    host_system = platform.system()
+    if host_system == "Linux":
+        CommPort = '/dev/ttyUSB0'
+    elif host_system == "Darwin":
+        CommPort = '/dev/tty.wchusbserial1420'
+
     if (False):
         # MK111 track
         # row, col
@@ -143,17 +152,20 @@ if __name__ == '__main__':
 
     # visualization update loop
     #while not rospy.is_shutdown():
-    while True:
-        update_state()
+    with serial.Serial(CommPort,115200, timeout=0.001) as arduino:
+        while True:
+            arduino.write((str(1700)+","+str(1500)+'\n').encode('ascii'))
+            sleep(0.1)
 
-        if flag_new_visualization_img:
-            print("new img")
-            lock_visual.acquire()
-            showobj.set_data(shared_visualization_img)
-            lock_visual.release()
-            plt.draw()
-            flag_new_visualization_img = False
-            plt.pause(0.005)
+        while True:
+            update_state()
 
-    # may not be necesary
-    #rospy.spin()
+            if flag_new_visualization_img:
+                print("new img")
+                lock_visual.acquire()
+                showobj.set_data(shared_visualization_img)
+                lock_visual.release()
+                plt.draw()
+                flag_new_visualization_img = False
+                plt.pause(0.005)
+
