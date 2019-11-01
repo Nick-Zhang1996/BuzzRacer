@@ -16,6 +16,7 @@ from sensor_msgs.msg import Joy
 from rcvip_msgs.msg import RCchannel
 from rcvip_msgs.msg import Vicon as Vicon_msg
 from track import RCPtrack,TF
+from vicon import Vicon
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -23,6 +24,10 @@ img_track = None
 showobj = None
 visualization_ts = 0.0
 tf = TF()
+vi = Vicon()
+
+lock_state = Lock()
+local_state = None
 
 lock_visual = Lock()
 shared_visualization_img = None
@@ -36,20 +41,19 @@ T = np.hstack([q_t,np.array([0,1,0])])
 def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
     return y
-
-def vicon_callback(data):
-    global visualization_ts
-    global shared_visualization_img
-    global lock_visual
-    global flag_new_visualization_img
-    # Body pose in vicon world frame
-    q = data.data[:4]
-    x = data.data[4]
-    y = data.data[5]
-    z = data.data[6]
+# read data from vicon feed
+# convert from vicon world frame to track frame
+# update local copy of state
+def update_state():
+    (x,y,z,rx,ry,rz) = vi.getViconUpdate()
+    q_t = tf.euler2qxyz(rx,ry,rz)
+    B = np.hstack([q_t,np.array([x,y,z])])
     # get body pose in track frame
-    (x,y,heading) = tf.reframe(T,data.data)
-
+    (x,y,heading) = tf.reframe(T,B)
+    lock_state.acquire()
+    local_state = (x,y,heading)
+    lock_state.release()
+    
     throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
     rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
 
@@ -137,8 +141,9 @@ if __name__ == '__main__':
 
     # visualization update loop
     while not rospy.is_shutdown():
+        update_state()
 
-        if False and flag_new_visualization_img:
+        if flag_new_visualization_img:
             lock_visual.acquire()
             showobj.set_data(shared_visualization_img)
             lock_visual.release()

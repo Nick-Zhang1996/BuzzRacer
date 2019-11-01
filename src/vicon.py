@@ -32,7 +32,8 @@ class Vicon:
         rx = unpack('d',data[56:64])[0]
         ry = unpack('d',data[64:72])[0]
         rz = unpack('d',data[72:80])[0]
-        print(x,y,z,degrees(rx),degrees(ry),degrees(rz))
+        #print(x,y,z,degrees(rx),degrees(ry),degrees(rz))
+        return (x,y,z,rx,ry,rz)
 
     # do not use
     def fromFile(self,filename):
