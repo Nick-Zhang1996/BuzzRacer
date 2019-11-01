@@ -18,7 +18,7 @@ class Vicon:
         self.sock.close()
 
     def getViconUpdate(self):
-        data, addr = self.sock.recvfrom(1024)
+        data, addr = self.sock.recvfrom(256)
         frameNumber = unpack('i',data[0:4])
         itemsInBlock = data[4]
         itemID = data[5]
@@ -41,10 +41,11 @@ class Vicon:
         newFile.write(data)
 
 
-#f = open('samplevicon.bin','br')
-#data = f.read()
-vi = Vicon()
-while True:
-    vi.getViconUpdate()
+if __name__ == '__main__':
+    #f = open('samplevicon.bin','br')
+    #data = f.read()
+    vi = Vicon()
+    while True:
+        vi.getViconUpdate()
     
 

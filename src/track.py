@@ -78,13 +78,27 @@ class TF:
           [cos(roll)*sin(pitch)*cos(yaw)+sin(roll)*sin(yaw), cos(roll)*sin(pitch)*sin(yaw)-sin(roll)*cos(yaw), cos(pitch)*cos(roll)]]
         R = np.matrix(R)
         return R
+        
+    # same as euler2R, rotation order is different, roll, pitch, yaw, in that order
+    # degree in radians
+    def euler2Rxyz(self, roll,pitch,yaw):
+        '''
+        Rx = [[1,0,0],[0,c1,s1],[0,-s1,c1]]
+        Ry = [[c1,0,-s1],[0,1,0],[s1,0,c1]]
+        Rz = [[c1,s1,0],[-s1,c1,0],[0,0,1]]
+        '''
+        Rx = np.matrix([[1,0,0],[0,cos(roll),sin(roll)],[0,-sin(roll),cos(roll)]])
+        Ry = np.matrix([[cos(pitch),0,-sin(pitch)],[0,1,0],[sin(pitch),0,cos(pitch)]])
+        Rz = np.matrix([[cos(yaw),sin(yaw),0],[-sin(yaw),cos(yaw),0],[0,0,1]])
+        R = Rz*Ry*Rx
+        return R
+
     # euler angle from R, in rad, roll,pitch,yaw
     def R2euler(self,R):
         roll = atan2(R[1,2],R[2,2])
         pitch = -asin(R[0,2])
         yaw = atan2(R[0,1],R[0,0])
         return (roll,pitch,yaw)
-        
     # given pose of T(track frame) in W(vicon world frame), and pose of B(car body frame) in W,
     # find pose of B in T
     # T = [q,x,y,z], (7,) np.array
@@ -98,6 +112,23 @@ class TF:
         TB = OB - OT
         T_R_W = self.q2R(T[:4])
         B_R_W = self.q2R(B[:4])
+
+        # coord of B origin in T, in T basis
+        TB_T = T_R_W * TB
+        # in case we want full pose, just get quaternion from the rotation matrix below
+        B_R_T = B_R_W * np.linalg.inv(T_R_W)
+        (roll,pitch,yaw) = self.R2euler(B_R_T)
+
+        # x,y, heading
+        return (TB_T[0,0],TB_T[1,0],yaw+pi/2)
+# reframe, using translation and R(passive)
+    def reframeR(self,T, x,y,z,R):
+        # TB = OB - OT
+        OB = np.matrix([x,y,z]).T
+        OT = np.matrix(T[-3:]).T
+        TB = OB - OT
+        T_R_W = self.q2R(T[:4])
+        B_R_W = R
 
         # coord of B origin in T, in T basis
         TB_T = T_R_W * TB
@@ -721,7 +752,7 @@ class RCPtrack:
                 steering = -radians(24.5)
 
             throttle = 0.24
-            ret =  (throttle,steering,True)
+            ret =  (throttle,steering,offset)
 
         t.e('ctrl math')
         t.e()
