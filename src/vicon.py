@@ -18,7 +18,7 @@ class Vicon:
         self.sock.close()
 
     def getViconUpdate(self):
-        data, addr = self.sock.recvfrom(256)
+        data, addr = self.sock.recvfrom(1024)
         frameNumber = unpack('i',data[0:4])
         itemsInBlock = data[4]
         itemID = data[5]

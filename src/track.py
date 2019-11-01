@@ -741,7 +741,7 @@ class RCPtrack:
             # sth is seriously wrong, abort
             ret = (0,0,False)
         else:
-            ctrl_ratio = 5.0/180*pi/0.01
+            ctrl_ratio = 0.8/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * ctrl_ratio
             steering = (steering+pi)%(2*pi) -pi
@@ -751,7 +751,7 @@ class RCPtrack:
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
 
-            throttle = 0.24
+            throttle = 0.4
             ret =  (throttle,steering,offset)
 
         t.e('ctrl math')

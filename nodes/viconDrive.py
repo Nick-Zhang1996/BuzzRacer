@@ -59,8 +59,8 @@ def update_state():
     
     throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
-    #print(str((x,y,degrees(heading),throttle,steering,valid)))
-    print(valid)
+    print(str((x,y,degrees(heading),throttle,steering,valid)))
+    #print(valid)
 
     # for using carControl
     #msg = carControl_msg()
@@ -77,7 +77,7 @@ def update_state():
 
     pub.publish(msg)
     '''
-    arduino.write((str(1700)+","+str(1500)+'\n').encode('ascii'))
+    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
 
     # visualization
     # add throttling
@@ -152,11 +152,7 @@ if __name__ == '__main__':
 
     # visualization update loop
     #while not rospy.is_shutdown():
-    with serial.Serial(CommPort,115200, timeout=0.001) as arduino:
-        while True:
-            arduino.write((str(1700)+","+str(1500)+'\n').encode('ascii'))
-            sleep(0.1)
-
+    with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
         while True:
             update_state()
 
