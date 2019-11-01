@@ -154,9 +154,9 @@ void loop(){
         channel[2] = 1500;
         flag_failsafe = true;
     }
-    Serial.print(channel[1]);
-    Serial.print(',');
-    Serial.print(channel[2]);
-    Serial.print(',');
-    Serial.println(flag_failsafe);
+    //Serial.print(channel[1]);
+    //Serial.print(',');
+    //Serial.print(channel[2]);
+    //Serial.print(',');
+    //Serial.println(flag_failsafe);
 }
