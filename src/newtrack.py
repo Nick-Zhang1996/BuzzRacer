@@ -7,19 +7,16 @@
 
 import numpy as np
 from numpy import isclose
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
 from timeUtil import execution_timer
 import cv2
-from timeUtil import execution_timer
-t = execution_timer(True)
 
 t = execution_timer(False)
-lt = execution_timer(False)
-vt = execution_timer(True)
+lt = execution_timer(True)
 
 
 class Node:
@@ -59,7 +56,7 @@ class TF:
 
     # given unit quaternion, find corresponding rotation matrix (passive)
     def q2R(self,q):
-        #assert(isclose(np.linalg.norm(q),1,atol=0.001))
+        assert(isclose(np.linalg.norm(q),1,atol=0.001))
         Rq = [[q[0]**2+q[1]**2-q[2]**2-q[3]**2, 2*q[1]*q[2]+2*q[0]*q[3], 2*q[1]*q[3]-2*q[0]*q[2]],\
            [2*q[1]*q[2]-2*q[0]*q[3],  q[0]**2-q[1]**2+q[2]**2-q[3]**2,    2*q[2]*q[3]+2*q[0]*q[1]],\
            [2*q[1]*q[3]+2*q[0]*q[2],  2*q[2]*q[3]-2*q[0]*q[1], q[0]**2-q[1]**2-q[2]**2+q[3]**2]]
@@ -81,27 +78,13 @@ class TF:
           [cos(roll)*sin(pitch)*cos(yaw)+sin(roll)*sin(yaw), cos(roll)*sin(pitch)*sin(yaw)-sin(roll)*cos(yaw), cos(pitch)*cos(roll)]]
         R = np.matrix(R)
         return R
-        
-    # same as euler2R, rotation order is different, roll, pitch, yaw, in that order
-    # degree in radians
-    def euler2Rxyz(self, roll,pitch,yaw):
-        '''
-        Rx = [[1,0,0],[0,c1,s1],[0,-s1,c1]]
-        Ry = [[c1,0,-s1],[0,1,0],[s1,0,c1]]
-        Rz = [[c1,s1,0],[-s1,c1,0],[0,0,1]]
-        '''
-        Rx = np.matrix([[1,0,0],[0,cos(roll),sin(roll)],[0,-sin(roll),cos(roll)]])
-        Ry = np.matrix([[cos(pitch),0,-sin(pitch)],[0,1,0],[sin(pitch),0,cos(pitch)]])
-        Rz = np.matrix([[cos(yaw),sin(yaw),0],[-sin(yaw),cos(yaw),0],[0,0,1]])
-        R = Rz*Ry*Rx
-        return R
-
     # euler angle from R, in rad, roll,pitch,yaw
     def R2euler(self,R):
         roll = atan2(R[1,2],R[2,2])
         pitch = -asin(R[0,2])
         yaw = atan2(R[0,1],R[0,0])
         return (roll,pitch,yaw)
+        
     # given pose of T(track frame) in W(vicon world frame), and pose of B(car body frame) in W,
     # find pose of B in T
     # T = [q,x,y,z], (7,) np.array
@@ -115,23 +98,6 @@ class TF:
         TB = OB - OT
         T_R_W = self.q2R(T[:4])
         B_R_W = self.q2R(B[:4])
-
-        # coord of B origin in T, in T basis
-        TB_T = T_R_W * TB
-        # in case we want full pose, just get quaternion from the rotation matrix below
-        B_R_T = B_R_W * np.linalg.inv(T_R_W)
-        (roll,pitch,yaw) = self.R2euler(B_R_T)
-
-        # x,y, heading
-        return (TB_T[0,0],TB_T[1,0],yaw+pi/2)
-# reframe, using translation and R(passive)
-    def reframeR(self,T, x,y,z,R):
-        # TB = OB - OT
-        OB = np.matrix([x,y,z]).T
-        OT = np.matrix(T[-3:]).T
-        TB = OB - OT
-        T_R_W = self.q2R(T[:4])
-        B_R_W = R
 
         # coord of B origin in T, in T basis
         TB_T = T_R_W * TB
@@ -226,7 +192,7 @@ class RCPtrack:
     def drawTrack(self, img=None,show=False):
         # show a picture of the track
         # resolution : pixels per grid length
-        color_side = (255,0,0)
+        color_side = (250,0,0)
         # boundary width / grid width
         deadzone = 0.09
         gs = self.resolution
@@ -276,11 +242,9 @@ class RCPtrack:
 
         # some rotation are not perfect and leave a black gap
         img = cv2.medianBlur(img,5)
-        '''
         if show:
             plt.imshow(img)
             plt.show()
-        '''
 
         return img
     
@@ -480,13 +444,11 @@ class RCPtrack:
             y *= self.resolution
             y = self.resolution*rows - y
             
-            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+            img = cv2.circle(img, (int(x),int(y)), 5, (255,0,0),-1)
 
-        '''
         if show:
             plt.imshow(img)
             plt.show()
-        '''
 
         return img
 
@@ -499,12 +461,9 @@ class RCPtrack:
         if (length>1):
             length = int(length)
         else:
-            pass
-            '''
             if show:
                 plt.imshow(img)
                 plt.show()
-            '''
             return img
 
         rows = self.gridsize[0]
@@ -530,11 +489,9 @@ class RCPtrack:
         img = cv2.line(img, src, dest, color, thickness) 
             
 
-        '''
         if show:
             plt.imshow(img)
             plt.show()
-        '''
 
         return img
 
@@ -721,7 +678,7 @@ class RCPtrack:
         img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
 
         # draw steering angle, orientation as red arrow
-        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+        img = self.drawArrow(coord,heading+steering,length=20,color=(255,0,0),thickness=4,img=img)
 
         return img
 
@@ -738,7 +695,7 @@ class RCPtrack:
         retval = self.localTrajectory(coord)
         t.e('localTrajectory()')
         if retval is None:
-            return (0,0,-1.0)
+            return (0,0,False)
 
         (local_ctrl_pnt,offset,orientation) = retval
         if reverse:
@@ -750,9 +707,10 @@ class RCPtrack:
 
         t.s('ctrl math')
         if (abs(offset) > 0.3):
-            return (0,0,offset)
+            # sth is seriously wrong, abort
+            ret = (0,0,False)
         else:
-            ctrl_ratio = 0.8/180*pi/0.01
+            ctrl_ratio = 5.0/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * ctrl_ratio
             steering = (steering+pi)%(2*pi) -pi
@@ -762,8 +720,8 @@ class RCPtrack:
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
 
-            throttle = 0.4
-            ret =  (throttle,steering,offset)
+            throttle = 0.24
+            ret =  (throttle,steering,True)
 
         t.e('ctrl math')
         t.e()
@@ -798,12 +756,10 @@ class RCPtrack:
         dY = dx*sin(theta)+dy*cos(theta)
         return state+np.array([dX,dY,dtheta])
 
-'''
 def show(img):
     plt.imshow(img)
     plt.show()
     return
-'''
     
 if __name__ == "__main__":
     # test tf
@@ -884,30 +840,25 @@ if __name__ == "__main__":
     #print(throttle,steering,valid)
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
-    cv2.imshow('car',img_track_car)
+    showobj = plt.imshow(img_track)
 
     # 100 iteration steps
     for i in range(200):
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
-        vt.s()
 
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
         print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        cv2.imshow('car',img_track_car)
-        k = cv2.waitKey(1) & 0xFF
-        if k == ord('q'):
-            vt.e()
-            break
-        vt.e()
+        showobj.set_data(img_track_car)
+        plt.draw()
+        plt.pause(0.01)
 
-    cv2.destroyAllWindows()
     t.summary()
     lt.summary()
-    vt.summary()
 
-    '''
+
+'''
     # generate test point array, in meters (x,y)
     # we'll visualize where the wheel should point if vehicle is positioned in these points
     x = np.arange(0,track_size[1]*s.scale,0.05)
@@ -932,4 +883,4 @@ if __name__ == "__main__":
             img_track = s.drawArrow(testpoint, orientation+offset*correction_coeff, (50/10*(10-abs(offset)*100)), img=img_track)
 
     show(img_track)
-    '''
+'''
