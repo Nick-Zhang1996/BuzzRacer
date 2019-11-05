@@ -7,7 +7,7 @@
 
 import numpy as np
 from numpy import isclose
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
@@ -274,9 +274,11 @@ class RCPtrack:
 
         # some rotation are not perfect and leave a black gap
         img = cv2.medianBlur(img,5)
+        '''
         if show:
             plt.imshow(img)
             plt.show()
+        '''
 
         return img
     
@@ -478,9 +480,11 @@ class RCPtrack:
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
+        '''
         if show:
             plt.imshow(img)
             plt.show()
+        '''
 
         return img
 
@@ -493,9 +497,12 @@ class RCPtrack:
         if (length>1):
             length = int(length)
         else:
+            pass
+            '''
             if show:
                 plt.imshow(img)
                 plt.show()
+            '''
             return img
 
         rows = self.gridsize[0]
@@ -521,9 +528,11 @@ class RCPtrack:
         img = cv2.line(img, src, dest, color, thickness) 
             
 
+        '''
         if show:
             plt.imshow(img)
             plt.show()
+        '''
 
         return img
 
@@ -788,10 +797,12 @@ class RCPtrack:
         dY = dx*sin(theta)+dy*cos(theta)
         return state+np.array([dX,dY,dtheta])
 
+'''
 def show(img):
     plt.imshow(img)
     plt.show()
     return
+'''
     
 if __name__ == "__main__":
     # test tf
