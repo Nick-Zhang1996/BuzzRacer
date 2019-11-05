@@ -121,9 +121,9 @@ t = toc(start_time_tg);
 while (t<experiment_duration) %(timestep<horizon)
     % Print to cmd window the time step
 
-    while(mod( floor(t*1000), 100)~=0) % millisecond precision on query timing
-        t = toc(start_time_tg);
-    end
+    %while(mod( floor(t*1000), 100)~=0) % millisecond precision on query timing
+    %    t = toc(start_time_tg);
+    %end
     timestep = timestep+1;
        % do nothing
     if mod(timestep,100) ==0
