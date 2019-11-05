@@ -224,7 +224,7 @@ class RCPtrack:
     def drawTrack(self, img=None,show=False):
         # show a picture of the track
         # resolution : pixels per grid length
-        color_side = (250,0,0)
+        color_side = (255,0,0)
         # boundary width / grid width
         deadzone = 0.09
         gs = self.resolution
@@ -476,7 +476,7 @@ class RCPtrack:
             y *= self.resolution
             y = self.resolution*rows - y
             
-            img = cv2.circle(img, (int(x),int(y)), 5, (255,0,0),-1)
+            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         if show:
             plt.imshow(img)
@@ -710,7 +710,7 @@ class RCPtrack:
         img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
 
         # draw steering angle, orientation as red arrow
-        img = self.drawArrow(coord,heading+steering,length=20,color=(255,0,0),thickness=4,img=img)
+        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
 
         return img
 
@@ -872,7 +872,7 @@ if __name__ == "__main__":
     #print(throttle,steering,valid)
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
-    showobj = plt.imshow(img_track)
+    cv2.imshow('car',img_track_car)
 
     # 100 iteration steps
     for i in range(200):
@@ -883,11 +883,14 @@ if __name__ == "__main__":
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
         print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        showobj.set_data(img_track_car)
-        plt.draw()
-        plt.pause(0.01)
+        cv2.imshow('car',img_track_car)
+        k = cv2.waitKey(1) & 0xFF
+        if k == ord('q'):
+            vt.e()
+            break
         vt.e()
 
+    cv2.destroyAllWindows()
     t.summary()
     lt.summary()
     vt.summary()
