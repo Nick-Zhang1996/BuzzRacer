@@ -11,7 +11,7 @@ from numpy import isclose
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
-from time import sleep
+from time import sleep,time
 from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
@@ -20,6 +20,11 @@ t = execution_timer(True)
 t = execution_timer(False)
 lt = execution_timer(False)
 vt = execution_timer(True)
+
+# controller tuning, steering->lateral offset
+P = 0.8/180*pi/0.01
+I = 0.8/180*pi/0.01
+D = 0.05/180*pi/0.01
 
 
 class Node:
@@ -146,6 +151,10 @@ class RCPtrack:
     def __init__(self):
         # resolution : pixels per grid side length
         self.resolution = 200
+        # for calculating derivative and integral of offset
+        # for PID to use
+        self.offset_history = []
+        self.offset_timestamp = []
 
     def initTrack(self,description, gridsize, scale,savepath=None):
         # build a track and save it
@@ -741,6 +750,11 @@ class RCPtrack:
             return (0,0,False)
 
         (local_ctrl_pnt,offset,orientation) = retval
+        self.offset_timestamp.append(time())
+        self.offset_history.append(offset)
+        if len(self.offset_history)<2:
+            return (0,0,False)
+        
         if isnan(orientation):
             return (0,0,False)
             
@@ -755,9 +769,9 @@ class RCPtrack:
         if (abs(offset) > 0.3):
             return (0,0,False)
         else:
-            ctrl_ratio = 0.8/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
-            steering = orientation-heading - offset * ctrl_ratio
+            doffsetdt = (self.offset_history[-1]-self.offset_history[-2])/(self.offset_timestamp[-1]-self.offset_timestamp[-2])
+            steering = orientation-heading - offset * P + doffsetdt * D
             steering = (steering+pi)%(2*pi) -pi
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             if (steering>radians(24.5)):
@@ -768,6 +782,8 @@ class RCPtrack:
             throttle = 0.33
             ret =  (throttle,steering,True)
 
+        self.offset_timestamp.pop(0)
+        self.offset_history.pop(0)
         t.e('ctrl math')
         t.e()
         return ret
