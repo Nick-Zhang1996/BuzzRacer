@@ -8,7 +8,7 @@
 import numpy as np
 from numpy import isclose
 #import matplotlib.pyplot as plt
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
 from time import sleep
@@ -738,9 +738,12 @@ class RCPtrack:
         retval = self.localTrajectory(coord)
         t.e('localTrajectory()')
         if retval is None:
-            return (0,0,-1.0)
+            return (0,0,False)
 
         (local_ctrl_pnt,offset,orientation) = retval
+        if isnan(orientation):
+            return (0,0,False)
+            
         if reverse:
             offset = -offset
             orientation += pi
@@ -750,7 +753,7 @@ class RCPtrack:
 
         t.s('ctrl math')
         if (abs(offset) > 0.3):
-            return (0,0,offset)
+            return (0,0,False)
         else:
             ctrl_ratio = 0.8/180*pi/0.01
             # sign convention for offset: - requires left steering(+)
@@ -761,9 +764,9 @@ class RCPtrack:
                 steering = radians(24.5)
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
-
-            throttle = 0.4
-            ret =  (throttle,steering,offset)
+            # idk what causes this
+            throttle = 0.33
+            ret =  (throttle,steering,True)
 
         t.e('ctrl math')
         t.e()

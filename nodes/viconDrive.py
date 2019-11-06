@@ -6,13 +6,14 @@
 import sys
 import serial
 import platform
+import cv2
 sys.path.insert(0,'../src')
 from threading import Lock
 #import rospy
 import numpy as np
 from time import sleep,time
-from math import radians,degrees
-import matplotlib.pyplot as plt
+from math import radians,degrees,isnan
+#import matplotlib.pyplot as plt
 #from std_msgs.msg import Header
 #from sensor_msgs.msg import Joy
 #from rcvip_msgs.msg import RCchannel
@@ -46,7 +47,7 @@ def mapdata(x,a,b,c,d):
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
-def update_state():
+def ctrlloop():
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
@@ -144,24 +145,29 @@ if __name__ == '__main__':
     #setup visualization of current car location, comment out if running the code on car computer
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
-    showobj = plt.imshow(img_track)
-    showobj.set_data(img_track)
-    plt.draw()
-    plt.pause(0.01)
+    #showobj = plt.imshow(img_track)
+    #showobj.set_data(img_track)
+    #plt.draw()
+    #plt.pause(0.01)
     #rospy.Subscriber("/vicon_tf", Vicon_msg, vicon_callback)
+    cv2.imshow('car',img_track)
+    cv2.waitKey(1)
 
     # visualization update loop
     #while not rospy.is_shutdown():
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
         while True:
-            update_state()
+            ctrlloop()
 
             if flag_new_visualization_img:
                 print("new img")
                 lock_visual.acquire()
-                showobj.set_data(shared_visualization_img)
+                #showobj.set_data(shared_visualization_img)
+                cv2.imshow('car',shared_visualization_img)
                 lock_visual.release()
-                plt.draw()
+                #plt.draw()
                 flag_new_visualization_img = False
-                plt.pause(0.005)
+                k = cv2.waitKey(1) & 0xFF
+                if k == ord('q'):
+                    break
 
