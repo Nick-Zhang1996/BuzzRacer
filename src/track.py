@@ -5,6 +5,14 @@
 # describe a raceline within the track
 # provide desired trajectory(raceline) given a car's location within thte track
 
+# TODO:
+# 2 Setup experiment to run the car at different speed in a circular path to find yaw setpoint
+# implement yaw damping
+# implement EKF to estimate velocity and yaw rate
+# 3 add velocity trajectory
+#  add velocity PI control
+# 1 enable real time tuning of parameters
+
 import numpy as np
 from numpy import isclose
 #import matplotlib.pyplot as plt
@@ -15,16 +23,8 @@ from time import sleep,time
 from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
-t = execution_timer(True)
-
-t = execution_timer(False)
-lt = execution_timer(False)
-vt = execution_timer(True)
-
 # controller tuning, steering->lateral offset
 P = 0.8/180*pi/0.01
-I = 0.8/180*pi/0.01
-D = 0.05/180*pi/0.01
 
 
 class Node:
@@ -565,24 +565,18 @@ class RCPtrack:
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
     def localTrajectory(self,coord):
-        lt.s()
         # figure out which grid the coord is in
-        lt.s('which grid')
         coord = np.array(coord)
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
-        lt.e('which grid')
 
-        lt.s('grid2u')
         seq = -1
         # figure out which u this grid corresponds to 
         for i in range(len(self.grid_sequence)):
             if nondim[0]==self.grid_sequence[i][0] and nondim[1]==self.grid_sequence[i][1]:
                 seq = i
                 break
-
-        lt.e('grid2u')
 
         if seq == -1:
             print("error, coord not on track")
@@ -603,14 +597,12 @@ class RCPtrack:
         #print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
 
         # distance squared, not need to find distance here
-        lt.s('dataprep') # 27% runtime
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
         fun = lambda u: dist_2(splev(u,self.raceline),coord)
         # determine which end is the coord closer to, since seq points to the previous control point,
         # not necessarily the closest one
         if fun(seq+1) < fun(seq):
             seq += 1
-        lt.e('dataprep')
 
         #search around the control point closest to coord
 
@@ -621,7 +613,6 @@ class RCPtrack:
 
         # improved: from observation fun(x) is quadratic in proximity of seq
         # we assume it to be ax2 + bx + c and formulate this as a linalg problem
-        lt.s('quadrature sim')
         #x0 = seq-0.6
         #x1 = seq
         #x2 = seq+0.6
@@ -646,8 +637,6 @@ class RCPtrack:
             x = (-b+(b*b-3*a*c)**0.5)/(3*a)
             min_fun_val = a*x*x*x + b*x*x + c*x + d
 
-        lt.e('quadrature sim')
-
         '''
         xx = np.linspace(seq-0.6,seq+0.6)
         plt.plot(xx,fun(xx),'b--')
@@ -662,16 +651,11 @@ class RCPtrack:
         #print('x err', abs(min_fun_x-res.x))
         #print('fun err',abs(min_fun_val-res.fun))
 
-        lt.s('splev val')
         raceline_point = splev(min_fun_x,self.raceline)
         #raceline_point = splev(res.x,self.raceline)
-        lt.e('splev val')
 
-        lt.s('splev der')
         der = splev(min_fun_x,self.raceline,der=1)
         #der = splev(res.x,self.raceline,der=1)
-
-        lt.e('splev der')
 
         if (False):
             print("Seek local trajectory")
@@ -684,13 +668,10 @@ class RCPtrack:
         # achieved by finding cross product of vec(raceline_orientation) and vec(ctrl_pnt->test_pnt)
         # then find sin(theta)
         # negative offset means car is ot the right
-        lt.s('final')
         vec_raceline = (der[0],der[1])
         vec_offset = coord - raceline_point
         cross_theta = np.cross(vec_raceline,vec_offset)
-        lt.e('final')
 
-        lt.e()
         return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]))
 
 # conver a world coordinate in meters to canvas coordinate
@@ -741,11 +722,8 @@ class RCPtrack:
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
     def ctrlCar(self,coord,heading,reverse=False):
         global t
-        t.s()
 
-        t.s('localTrajectory()')
         retval = self.localTrajectory(coord)
-        t.e('localTrajectory()')
         if retval is None:
             return (0,0,False)
 
@@ -765,7 +743,6 @@ class RCPtrack:
         # how much to compensate for per meter offset from track
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
 
-        t.s('ctrl math')
         if (abs(offset) > 0.3):
             return (0,0,False)
         else:
@@ -784,8 +761,6 @@ class RCPtrack:
 
         self.offset_timestamp.pop(0)
         self.offset_history.pop(0)
-        t.e('ctrl math')
-        t.e()
         return ret
 
     # update car state with bicycle model, no slip
@@ -909,7 +884,6 @@ if __name__ == "__main__":
     for i in range(200):
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
-        vt.s()
 
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
         print(i,throttle,steering,valid)
@@ -917,14 +891,9 @@ if __name__ == "__main__":
         cv2.imshow('car',img_track_car)
         k = cv2.waitKey(1) & 0xFF
         if k == ord('q'):
-            vt.e()
             break
-        vt.e()
 
     cv2.destroyAllWindows()
-    t.summary()
-    lt.summary()
-    vt.summary()
 
     '''
     # generate test point array, in meters (x,y)
