@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # retrieve vicon feed from matlab and republish as ROS topic
 import socket
-import time
+from time import time
 from struct import unpack
 from math import degrees,radians
 
@@ -46,7 +46,13 @@ if __name__ == '__main__':
     #f = open('samplevicon.bin','br')
     #data = f.read()
     vi = Vicon()
+    tik = 0
+    tok = 0
     while True:
         vi.getViconUpdate()
+        tok = time()
+        print(str(1/(tok-tik))+"Hz")
+        tik = tok
+        
     
 
