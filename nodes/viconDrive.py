@@ -30,7 +30,10 @@ tf = TF()
 vi = Vicon()
 
 lock_state = Lock()
+# (x,y,heading,v_longitudinal, v_lateral, angular rate)
 local_state = None
+previous_state = None
+vicon_dt = 0.02
 
 lock_visual = Lock()
 shared_visualization_img = None
@@ -51,11 +54,20 @@ def ctrlloop():
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
+
+    # state update
     (x,y,z,rx,ry,rz) = vi.getViconUpdate()
     # get body pose in track frame
     (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
+    vx = (x - previous_state[0])/vicon_dt
+    vy = (y - previous_state[1])/vicon_dt
+    omega = (omega - previous_state[2])/vicon_dt
+    vf = vx*cos(heading) + vy*sin(heading)
+    vs = vx*sin(heading) - vy*cos(heading)
+
     lock_state.acquire()
-    local_state = (x,y,heading)
+    local_state = (x,y,heading, vf, vs, omega)
+    previous_state = local_state
     lock_state.release()
     
     throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
