@@ -16,7 +16,7 @@
 
 import numpy as np
 from numpy import isclose
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize_scalar
@@ -448,11 +448,77 @@ class RCPtrack:
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
         #self.u = u
-
         self.raceline = tck
 
-        return
+        # friction factor
+        mu = 0.7
+        g = 9.81
+        n_steps = 100
+        # maximum longitudinial acceleration available from motor, given current longitudinal speed
+        acc_max_motor = lambda x:10
+        dec_max_motor = lambda x:10
+        # generate velocity profile
+        # u values for control points
+        xx = np.linspace(0,len(pts)-1,n_steps+1)
+        curvature = splev(xx,self.raceline,der=2)
+        curvature = np.linalg.norm(curvature,axis=0)
+        # first pass, based on lateral acceleration
+        v1 = (mu*g/curvature)**0.5
 
+        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        # second pass, based on engine capacity and available longitudinal traction
+        # start from the smallest index
+        min_xx = np.argmin(v1)
+        v2 = np.zeros_like(v1)
+        v2[min_xx] = v1[min_xx]
+        for i in range(min_xx,min_xx+n_steps):
+            a_lat = v1[i%n_steps]**2*curvature[(i+1)%n_steps]
+            a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
+            a_lon = min(acc_max_motor(v2[i%n_steps]),a_lon_available_traction)
+
+            (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            v2[(i+1)%n_steps] =  min((v2[i%n_steps]**2 + 2*a_lon*ds)**0.5,v1[(i+1)%n_steps])
+            #XXX remove
+            if isnan((v1[(i+1)%n_steps]-v1[i%n_steps])/2/ds):
+                print('nan')
+            #print(abs(v1[(i+1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
+        v2[-1]=v2[0]
+        # third pass, backwards for braking
+        min_xx = np.argmin(v2)
+        v3 = np.zeros_like(v1)
+        v3[min_xx] = v2[min_xx]
+        for i in np.linspace(min_xx,min_xx-n_steps,n_steps+2):
+            i = int(i)
+            a_lat = v2[i%n_steps]**2*curvature[(i-1+n_steps)%n_steps]
+            a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
+            a_lon = min(dec_max_motor(v3[i%n_steps]),a_lon_available_traction)
+            #print(a_lon)
+
+            (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i-1+n_steps)%n_steps], self.raceline, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            #print(ds)
+            v3[(i-1+n_steps)%n_steps] =  min((v3[i%n_steps]**2 + 2*a_lon*ds)**0.5,v2[(i-1+n_steps)%n_steps])
+            #print(v3[(i-1+n_steps)%n_steps],v2[(i-1+n_steps)%n_steps])
+            pass
+        v3[-1]=v3[0]
+            #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
+        #print(v3)
+        #p0, = plt.plot(curvature, label='curvature')
+        p1, = plt.plot(v1,label='v1')
+        p2, = plt.plot(v2,label='v2')
+        p3, = plt.plot(v3,label='v3')
+        #plt.legend(handles=[p0,p1,p2,p3])
+        plt.legend(handles=[p1,p2,p3])
+        plt.show()
+
+
+        return
+    
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None, show=False):
 
@@ -749,6 +815,7 @@ class RCPtrack:
         else:
             # sign convention for offset: - requires left steering(+)
             doffsetdt = (self.offset_history[-1]-self.offset_history[-2])/(self.offset_timestamp[-1]-self.offset_timestamp[-2])
+            D = 0
             steering = orientation-heading - offset * P + doffsetdt * D
             steering = (steering+pi)%(2*pi) -pi
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
@@ -856,7 +923,7 @@ if __name__ == "__main__":
     adjustment[22] = 0.35
 
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
-    s.initRaceline((3,3),'d',10,offset=adjustment)
+    #s.initRaceline((3,3),'d',10,offset=adjustment)
 
     # use new track
     #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
@@ -864,6 +931,7 @@ if __name__ == "__main__":
 
     s.initTrack('uurrddll',(3,3),scale=0.565)
     s.initRaceline((0,0),'l',0)
+    exit(0)
 
     # visualize raceline
     img_track = s.drawTrack()
