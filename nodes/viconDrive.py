@@ -11,6 +11,7 @@ sys.path.insert(0,'../src')
 from threading import Lock
 #import rospy
 import numpy as np
+from scipy import signal 
 from time import sleep,time
 from math import radians,degrees,isnan
 #import matplotlib.pyplot as plt
@@ -29,12 +30,25 @@ visualization_ts = 0.0
 tf = TF()
 vi = Vicon()
 
+# state vector
 lock_state = Lock()
 # (x,y,heading,v_longitudinal, v_lateral, angular rate)
 local_state = None
 previous_state = None
-vicon_dt = 0.02
+vicon_dt = 0.01
+# lowpass filter
+# argument: order, omega(-3db)
+b, a = signal.butter(1,6,'low',analog=False,fs=100)
+# filter state
+z_vf = [0]
+z_vs = [0]
+z_w = [0] # w for omega, angular rate in rad/s
+last_vf = 0
+last_vs = 0
+last_w = 0
 
+
+# visualization
 lock_visual = Lock()
 shared_visualization_img = None
 flag_new_visualization_img = False
@@ -65,8 +79,27 @@ def ctrlloop():
     vf = vx*cos(heading) + vy*sin(heading)
     vs = vx*sin(heading) - vy*cos(heading)
 
+    # low pass filter
+    if (abs(vf-last_vf)>0.5):
+        vf_lf, z_vf = signal.lfilter(b,a,[last_vf],zi=z_vf)
+    else:
+        vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
+    last_vf = vf
+
+    if (abs(vs-last_vs)>0.5):
+        vs_lf, z_vs = signal.lfilter(b,a,[last_vs],zi=z_vs)
+    else:
+        vs_lf, z_vs = signal.lfilter(b,a,[vs],zi=z_vs)
+    last_vs = vs
+
+    if (abs(omega-last_omega)>0.5):
+        omega_lf, z_omega = signal.lfilter(b,a,[last_omega],zi=z_omega)
+    else:
+        omega_lf, z_omega = signal.lfilter(b,a,[omega],zi=z_omega)
+    last_omega = omega
+
     lock_state.acquire()
-    local_state = (x,y,heading, vf, vs, omega)
+    local_state = (x,y,heading, vf_lf, vs_lf, omega_lf)
     previous_state = local_state
     lock_state.release()
     
