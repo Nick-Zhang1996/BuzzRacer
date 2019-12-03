@@ -25,9 +25,13 @@ from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
 # controller tuning, steering->lateral offset
+# P is applied on offset
 P = 0.8/180*pi/0.01
 # 5 deg of correction for every 3 rad/s overshoot
-D = radians(5)/3
+# D is applied on delta_omega
+D = radians(4)/3
+# I is applied on offset
+set_throttle = 0.3
 
 # debugging
 K_vec = [] # curvature
@@ -459,12 +463,12 @@ class RCPtrack:
         self.raceline = tck
 
         # friction factor
-        mu = 0.7
+        mu = 0.3
         g = 9.81
         n_steps = 100
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
-        acc_max_motor = lambda x:10
-        dec_max_motor = lambda x:10
+        acc_max_motor = lambda x:3.3
+        dec_max_motor = lambda x:3.3
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,len(pts)-1,n_steps+1)
@@ -516,13 +520,13 @@ class RCPtrack:
         v3[-1]=v3[0]
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
-        #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='v1')
-        #p2, = plt.plot(v2,label='v2')
-        #p3, = plt.plot(v3,label='v3')
-        ##plt.legend(handles=[p0,p1,p2,p3])
-        #plt.legend(handles=[p1,p2,p3])
-        #plt.show()
+        p0, = plt.plot(curvature, label='curvature')
+        p1, = plt.plot(v1,label='v1')
+        p2, = plt.plot(v2,label='v2')
+        p3, = plt.plot(v3,label='v3')
+        plt.legend(handles=[p0,p1,p2,p3])
+        plt.legend(handles=[p1,p2,p3])
+        plt.show()
 
 
         return
@@ -810,20 +814,21 @@ class RCPtrack:
         omega = state[5]
         vf = state[3]
         vs = state[4]
+        ret = (0,0,False,0,0)
 
         retval = self.localTrajectory(state)
         if retval is None:
-            return (0,0,False)
+            return ret
 
         (local_ctrl_pnt,offset,orientation,curvature) = retval
 
         self.offset_timestamp.append(time())
         self.offset_history.append(offset)
         if len(self.offset_history)<2:
-            return (0,0,False)
+            return ret
         
         if isnan(orientation):
-            return (0,0,False)
+            return ret
             
         if reverse:
             offset = -offset
@@ -833,7 +838,7 @@ class RCPtrack:
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
 
         if (abs(offset) > 0.3):
-            return (0,0,False)
+            return (0,0,False,offset,0)
         else:
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * P - (omega-curvature*vf)*D
@@ -845,8 +850,8 @@ class RCPtrack:
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
             # idk what causes this
-            throttle = 0.33
-            ret =  (throttle,steering,True)
+            throttle = set_throttle
+            ret =  (throttle,steering,True,offset,(omega-curvature*vf))
 
         self.offset_timestamp.pop(0)
         self.offset_history.pop(0)
@@ -942,6 +947,7 @@ if __name__ == "__main__":
     # XXX simple track for testing
     s.initTrack('uurrddll',(3,3),scale=0.565)
     s.initRaceline((0,0),'l',0)
+    exit(0)
 
     # visualize raceline
     img_track = s.drawTrack()
@@ -952,7 +958,7 @@ if __name__ == "__main__":
     # for simple track
     coord = (2.5*0.565,1.5*0.565)
     heading = pi/2
-    throttle,steering,valid = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
+    throttle,steering,valid,dummy,dummy1 = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
 # should be x,y,heading,vf,vs,omega, iddn't implement the last two
     s.state = np.array([coord[0],coord[1],heading,0,0,0])
     #print(throttle,steering,valid)
@@ -966,7 +972,7 @@ if __name__ == "__main__":
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
         sim_omega_vec.append(s.state[5])
 
-        throttle,steering,valid = s.ctrlCar(s.state,reverse=True)
+        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(s.state,reverse=True)
         #print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
         cv2.imshow('car',img_track_car)

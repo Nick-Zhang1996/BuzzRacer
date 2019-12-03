@@ -14,13 +14,14 @@ import numpy as np
 from scipy import signal 
 from time import sleep,time
 from math import radians,degrees,isnan,sin,cos,atan2
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #from std_msgs.msg import Header
 #from sensor_msgs.msg import Joy
 #from rcvip_msgs.msg import RCchannel
 #from rcvip_msgs.msg import Vicon as Vicon_msg
 from track import RCPtrack,TF
 from vicon import Vicon
+import pickle
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -29,6 +30,11 @@ showobj = None
 visualization_ts = 0.0
 tf = TF()
 vi = Vicon()
+
+#debug
+offset_vec = []
+omega_offset_vec = []
+state_vec = []
 
 # state vector
 lock_state = Lock()
@@ -60,11 +66,11 @@ flag_new_visualization_img = False
 
 # for upright origin
 q_t = tf.euler2q(0,0,0)
-T = np.hstack([q_t,np.array([1,1,0])])
+T = np.hstack([q_t,np.array([0.5,0.3,0])])
 
 def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
-    return y
+    return int(y)
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
@@ -75,6 +81,7 @@ def ctrlloop():
     global previous_state
     global last_vf,last_vs,last_omega
     global z_vf,z_vs,z_omega
+    global local_state
 
     # state update
     (x,y,z,rx,ry,rz) = vi.getViconUpdate()
@@ -110,7 +117,9 @@ def ctrlloop():
     previous_state = local_state
     lock_state.release()
     
-    throttle,steering,valid = s.ctrlCar(local_state,reverse=False)
+    throttle,steering,valid,offset,omega_offset = s.ctrlCar(local_state,reverse=False)
+    offset_vec.append(offset)
+    omega_offset_vec.append(omega_offset)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
@@ -131,7 +140,9 @@ def ctrlloop():
     pub.publish(msg)
     '''
 # need to supply 4 valurs for two cars even if only one interface is being used
-    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
+    #arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
+    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+    #print((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
 
     # visualization
     # add throttling
@@ -209,8 +220,9 @@ if __name__ == '__main__':
     # visualization update loop
     #while not rospy.is_shutdown():
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
-        while True:
+        for i in range(1000):
             ctrlloop()
+            state_vec.append(local_state)
 
             if flag_new_visualization_img:
                 lock_visual.acquire()
@@ -222,4 +234,23 @@ if __name__ == '__main__':
                 k = cv2.waitKey(1) & 0xFF
                 if k == ord('q'):
                     break
+    cv2.destroyAllWindows()
+    output = open('exp_state.p','wb')
+    pickle.dump(state_vec,output)
+    output.close()
+
+    output = open('exp_offset.p','wb')
+    pickle.dump(offset_vec,output)
+    output.close()
+
+    output = open('exp_dw.p','wb')
+    pickle.dump(omega_offset_vec,output)
+    output.close()
+
+    
+    plt.plot(omega_offset_vec)
+    plt.show()
+
+    plt.plot(offset_vec)
+    plt.show()
 
