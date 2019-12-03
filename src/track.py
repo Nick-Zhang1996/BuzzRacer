@@ -25,7 +25,15 @@ from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
 # controller tuning, steering->lateral offset
-P = 0.8/180*pi/0.01
+P = 5.8/180*pi/0.01
+# 5 deg of correction for every 3 rad/s overshoot
+D = radians(5)/3
+
+# debugging
+K_vec = [] # curvature
+steering_vec = []
+sim_omega_vec = []
+
 
 
 class Node:
@@ -509,12 +517,12 @@ class RCPtrack:
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
         #p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='v1')
-        p2, = plt.plot(v2,label='v2')
-        p3, = plt.plot(v3,label='v3')
-        #plt.legend(handles=[p0,p1,p2,p3])
-        plt.legend(handles=[p1,p2,p3])
-        plt.show()
+        #p1, = plt.plot(v1,label='v1')
+        #p2, = plt.plot(v2,label='v2')
+        #p3, = plt.plot(v3,label='v3')
+        ##plt.legend(handles=[p0,p1,p2,p3])
+        #plt.legend(handles=[p1,p2,p3])
+        #plt.show()
 
 
         return
@@ -631,9 +639,10 @@ class RCPtrack:
     # calculate the local derivative
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
-    def localTrajectory(self,coord):
+    def localTrajectory(self,state):
         # figure out which grid the coord is in
-        coord = np.array(coord)
+        coord = np.array([state[0],state[1]])
+        heading = state[2]
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
@@ -739,7 +748,14 @@ class RCPtrack:
         vec_offset = coord - raceline_point
         cross_theta = np.cross(vec_raceline,vec_offset)
 
-        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]))
+
+        vec_curvature = splev(min_fun_x,self.raceline,der=2)
+        norm_curvature = np.linalg.norm(vec_curvature)
+        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
+
+        # reference point on raceline,lateral offset, tangent line orientation, curvature,angle_curvature
+        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature))
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -787,14 +803,21 @@ class RCPtrack:
 # reverse: true if running in opposite direction of raceline init direction
 # steering as an angle in radians, UNTRIMMED, left positive
 # valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
-    def ctrlCar(self,coord,heading,reverse=False):
+    def ctrlCar(self,state,reverse=False):
         global t
+        global K_vec,steering_vec
+        coord = (state[0],state[1])
+        heading = state[2]
+        omega = state[5]
+        vf = state[3]
+        vs = state[4]
 
-        retval = self.localTrajectory(coord)
+        retval = self.localTrajectory(state)
         if retval is None:
             return (0,0,False)
 
-        (local_ctrl_pnt,offset,orientation) = retval
+        (local_ctrl_pnt,offset,orientation,curvature) = retval
+
         self.offset_timestamp.append(time())
         self.offset_history.append(offset)
         if len(self.offset_history)<2:
@@ -814,9 +837,8 @@ class RCPtrack:
             return (0,0,False)
         else:
             # sign convention for offset: - requires left steering(+)
-            doffsetdt = (self.offset_history[-1]-self.offset_history[-2])/(self.offset_timestamp[-1]-self.offset_timestamp[-2])
-            D = 0
-            steering = orientation-heading - offset * P + doffsetdt * D
+            steering = orientation-heading - offset * P - (omega-curvature*vf)*D
+            print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             steering = (steering+pi)%(2*pi) -pi
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             if (steering>radians(24.5)):
@@ -829,6 +851,8 @@ class RCPtrack:
 
         self.offset_timestamp.pop(0)
         self.offset_history.pop(0)
+        K_vec.append(curvature)
+        steering_vec.append(steering)
         return ret
 
     # update car state with bicycle model, no slip
@@ -858,7 +882,8 @@ class RCPtrack:
         # specific to world frame
         dX = dx*cos(theta)-dy*sin(theta)
         dY = dx*sin(theta)+dy*cos(theta)
-        return state+np.array([dX,dY,dtheta])
+# should be x,y,heading,vf,vs,omega
+        return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
 
 '''
 def show(img):
@@ -868,20 +893,6 @@ def show(img):
 '''
     
 if __name__ == "__main__":
-    # test tf
-    '''
-    tf = TF()
-    c = lambda x:cos(radians(x))
-    s = lambda x:sin(radians(x))
-    w_ob = (2+4*s(30)+3*c(30), 6+4*c(30)-3*s(30), 0)
-    w_ot = (2,6,0)
-    q_b = tf.euler2q(radians(180),0,radians(30))
-    q_t = tf.euler2q(radians(180),0,radians(60))
-    T = np.hstack([q_t,np.array(w_ot)])
-    B = np.hstack([q_b,np.array(w_ob)])
-    print(tf.reframe(T,B)) # should give 4,3,radians(30)
-    '''
-
     s = RCPtrack()
     # example: simple track
     #s.initTrack('uurrddll',(3,3),scale=1.0)
@@ -929,9 +940,9 @@ if __name__ == "__main__":
     #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
     #s.initRaceline((3,3),'u')
 
+    # XXX simple track for testing
     s.initTrack('uurrddll',(3,3),scale=0.565)
     s.initRaceline((0,0),'l',0)
-    exit(0)
 
     # visualize raceline
     img_track = s.drawTrack()
@@ -942,8 +953,9 @@ if __name__ == "__main__":
     # for simple track
     coord = (2.5*0.565,1.5*0.565)
     heading = pi/2
-    throttle,steering,valid = s.ctrlCar(coord,heading)
-    s.state = np.array([coord[0],coord[1],heading])
+    throttle,steering,valid = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
+# should be x,y,heading,vf,vs,omega, iddn't implement the last two
+    s.state = np.array([coord[0],coord[1],heading,0,0,0])
     #print(throttle,steering,valid)
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
@@ -953,16 +965,21 @@ if __name__ == "__main__":
     for i in range(200):
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
+        sim_omega_vec.append(s.state[5])
 
-        throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
-        print(i,throttle,steering,valid)
+        throttle,steering,valid = s.ctrlCar(s.state,reverse=True)
+        #print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
         cv2.imshow('car',img_track_car)
-        k = cv2.waitKey(1) & 0xFF
+        k = cv2.waitKey(50) & 0xFF
         if k == ord('q'):
             break
 
     cv2.destroyAllWindows()
+
+    plt.plot(sim_omega_vec)
+    plt.plot(np.array(K_vec))
+    plt.show()
 
     '''
     # generate test point array, in meters (x,y)
@@ -980,6 +997,7 @@ if __name__ == "__main__":
         # agressiveness of adjustment
         # radians per meter offset
         # i.e. 3 degree per cm offset
+# this needs to be updated
         (local_ctrl_pnt,offset,orientation) = s.localTrajectory(testpoint)
 
         # if abs(offset*correction_coeff)>45deg, we cannot correct for the deviation
