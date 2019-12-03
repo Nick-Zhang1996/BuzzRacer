@@ -68,16 +68,8 @@ if __name__ == '__main__':
     tik = time()
     last_frame = None
     loss_count = 0
-    for i in range(100):
-        no = vi.dummyUpdate()
-        if ( (last_frame is not None) and (no-last_frame>1)):
-            loss_count += no-last_frame
-            print(no,last_frame)
-        last_frame = no
-
-
-    print(str(100/(time()-tik))+"Hz")
-    print(str(loss_count)+"% loss")
+    while True:
+        print(vi.getViconUpdate())
 
         
     

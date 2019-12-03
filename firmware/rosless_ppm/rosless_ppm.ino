@@ -5,10 +5,7 @@
 // This means a 1000-2000 PWM translates to ???? High state
 
 #include <Arduino.h>
-#include <ros.h>
-#include <rcvip_msgs/RCchannel.h>
 
-// Channel, if more channels are needed make sure you update msg/RCchannel.msg as well
 #define CHANNEL_NO 2
 #define RC_MAX 2000
 #define RC_MIN 1000
@@ -190,7 +187,7 @@ int rc_constrain(int val){
     } else if (val<RC_MIN){
         return RC_MIN;
     } else {
-        return ch1;
+        return val;
     }
 }
 

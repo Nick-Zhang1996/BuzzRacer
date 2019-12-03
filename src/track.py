@@ -25,7 +25,7 @@ from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
 # controller tuning, steering->lateral offset
-P = 5.8/180*pi/0.01
+P = 0.8/180*pi/0.01
 # 5 deg of correction for every 3 rad/s overshoot
 D = radians(5)/3
 

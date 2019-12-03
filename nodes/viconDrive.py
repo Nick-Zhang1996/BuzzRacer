@@ -54,9 +54,13 @@ shared_visualization_img = None
 flag_new_visualization_img = False
 
 # track pose
-q_t = tf.euler2q(radians(180),0,radians(90))
-T = np.hstack([q_t,np.array([0,1,0])])
+# for normal space origin
+#q_t = tf.euler2q(radians(180),0,radians(90))
+#T = np.hstack([q_t,np.array([0,1,0])])
 
+# for upright origin
+q_t = tf.euler2q(0,0,0)
+T = np.hstack([q_t,np.array([1,1,0])])
 
 def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
@@ -108,7 +112,7 @@ def ctrlloop():
     
     throttle,steering,valid = s.ctrlCar(local_state,reverse=False)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
-    print(str((x,y,degrees(heading),throttle,steering,valid)))
+    #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
 
     # for using carControl
@@ -209,7 +213,6 @@ if __name__ == '__main__':
             ctrlloop()
 
             if flag_new_visualization_img:
-                print("new img")
                 lock_visual.acquire()
                 #showobj.set_data(shared_visualization_img)
                 cv2.imshow('car',shared_visualization_img)
