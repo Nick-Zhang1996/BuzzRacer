@@ -656,7 +656,6 @@ class RCPtrack:
 
         if seq == -1:
             print("error, coord not on track")
-            lt.e()
             return None
 
         # the grid that contains the coord

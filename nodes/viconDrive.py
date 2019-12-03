@@ -13,7 +13,7 @@ from threading import Lock
 import numpy as np
 from scipy import signal 
 from time import sleep,time
-from math import radians,degrees,isnan
+from math import radians,degrees,isnan,sin,cos,atan2
 #import matplotlib.pyplot as plt
 #from std_msgs.msg import Header
 #from sensor_msgs.msg import Joy
@@ -34,7 +34,7 @@ vi = Vicon()
 lock_state = Lock()
 # (x,y,heading,v_longitudinal, v_lateral, angular rate)
 local_state = None
-previous_state = None
+previous_state = (0,0,0,0,0,0)
 vicon_dt = 0.01
 # lowpass filter
 # argument: order, omega(-3db)
@@ -42,10 +42,10 @@ b, a = signal.butter(1,6,'low',analog=False,fs=100)
 # filter state
 z_vf = [0]
 z_vs = [0]
-z_w = [0] # w for omega, angular rate in rad/s
+z_omega = [0] # omega, angular rate in rad/s
 last_vf = 0
 last_vs = 0
-last_w = 0
+last_omega = 0
 
 
 # visualization
@@ -68,6 +68,9 @@ def ctrlloop():
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
+    global previous_state
+    global last_vf,last_vs,last_omega
+    global z_vf,z_vs,z_omega
 
     # state update
     (x,y,z,rx,ry,rz) = vi.getViconUpdate()
@@ -75,7 +78,7 @@ def ctrlloop():
     (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
     vx = (x - previous_state[0])/vicon_dt
     vy = (y - previous_state[1])/vicon_dt
-    omega = (omega - previous_state[2])/vicon_dt
+    omega = (heading - previous_state[2])/vicon_dt
     vf = vx*cos(heading) + vy*sin(heading)
     vs = vx*sin(heading) - vy*cos(heading)
 
@@ -103,7 +106,7 @@ def ctrlloop():
     previous_state = local_state
     lock_state.release()
     
-    throttle,steering,valid = s.ctrlCar((x,y),heading,reverse=False)
+    throttle,steering,valid = s.ctrlCar(local_state,reverse=False)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
@@ -123,7 +126,8 @@ def ctrlloop():
 
     pub.publish(msg)
     '''
-    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+# need to supply 4 valurs for two cars even if only one interface is being used
+    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
 
     # visualization
     # add throttling
