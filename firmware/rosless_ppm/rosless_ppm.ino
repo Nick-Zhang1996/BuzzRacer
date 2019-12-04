@@ -29,12 +29,10 @@ void timer1_init(){
     TIFR1 |= (1<<TOV1) | (1<<OCF1B) | (1<<OCF1A); // writing 1 to TOV1 clears the flag, preventing the ISR to be activated as soon as sei();
     TCNT1 = 0;
 
-    // prescaler: 64
-    // duty cycle: (16*10^6) / (64*65536) Hz = 38Hz (3300us between overflow)
-    // overflow interval (64*65536)/(16e6) = 26ms 
-    // per count(resolution) : 0.4us
+    // prescaler: 256
+    // resolution: 1/16e6*256 = 16us (4096us between overflow for 8 bit counter)
     // this starts counting
-    TCCR1B |= (1 << CS11) | (1 << CS10) ; 
+    TCCR1B |= (1 << CS12) ; 
 
     // enable timer compare interrupt and overflow interrupt
     TIMSK1 = (1 << OCIE1A) | ( 1 << OCIE1B); 
@@ -51,12 +49,10 @@ void timer2_init(){
     TIFR2 |= (1<<TOV2) | (1<<OCF2B) | (1<<OCF2A); // writing 1 to TOV1 clears the flag, preventing the ISR to be activated as soon as sei();
     TCNT2 = 0;
 
-    // prescaler: 64
-    // duty cycle: (16*10^6) / (64*65536) Hz = 38Hz (3300us between overflow)
-    // overflow interval (64*65536)/(16e6) = 26ms 
-    // per count(resolution) : 0.4us
+    // prescaler: 256
+    // resolution: 1/16e6*256 = 16us (4096us between overflow for 8 bit counter)
     // this starts counting
-    TCCR2B |= (1 << CS22) ; 
+    TCCR2B |= (1 << CS22) | (1 << CS21); 
 
     // enable timer compare interrupt and overflow interrupt
     TIMSK2 = (1 << OCIE2A) | ( 1 << OCIE2B); 
@@ -67,7 +63,7 @@ void timer2_init(){
 // the ISR will determine the proper action to take depending on the value in pending_action
 void next_action_t1a(float us){
 
-    uint16_t ticks = TCNT1 + (us/4);
+    uint16_t ticks = TCNT1 + (us/16);
 
     cli();// is this really necessary?
     OCR1A  = ticks;
@@ -77,7 +73,7 @@ void next_action_t1a(float us){
 
 void next_action_t1b(float us){
 
-    uint16_t ticks = TCNT1 + (us/4);
+    uint16_t ticks = TCNT1 + (us/16);
 
     cli();// is this really necessary?
     OCR1B  = ticks;
@@ -89,7 +85,7 @@ void next_action_t1b(float us){
 // the ISR will determine the proper action to take depending on the value in pending_action
 void next_action_t2a(float us){
 
-    uint16_t ticks = TCNT2 + (us/4);
+    uint16_t ticks = TCNT2 + (us/16);
 
     cli();// is this really necessary?
     OCR2A  = ticks;
@@ -99,7 +95,7 @@ void next_action_t2a(float us){
 
 void next_action_t2b(float us){
 
-    uint16_t ticks = TCNT2 + (us/4);
+    uint16_t ticks = TCNT2 + (us/16);
 
     cli();// is this really necessary?
     OCR2B  = ticks;
@@ -111,7 +107,7 @@ void next_action_t2b(float us){
 volatile uint8_t next_channel[2] = {0};
 ISR(TIMER1_COMPA_vect) {
     // TODO assembly this
-    digitalWrite(output_pin,HIGH);
+    digitalWrite(output_pin[0],HIGH);
     next_channel[0]++;
     next_channel[0] %= CHANNEL_NO + 1;
 
@@ -120,7 +116,7 @@ ISR(TIMER1_COMPA_vect) {
       channel[0][next_channel[0]]=310;
     }
     if (next_channel[0]==0){
-        next_action_t1a(6000);
+        next_action_t1a(4000);
         next_action_t1b(300);
     }else{
         next_action_t1a(channel[0][next_channel[0]]);
@@ -145,11 +141,11 @@ ISR(TIMER2_COMPA_vect) {
       channel[1][next_channel[1]]=310;
     }
     if (next_channel[1]==0){
-        next_action_t1a(6000);
-        next_action_t1b(300);
+        next_action_t2a(4000);
+        next_action_t2b(300);
     }else{
-        next_action_t1a(channel[1][next_channel[1]]);
-        next_action_t1b(300);
+        next_action_t2a(channel[1][next_channel[1]]);
+        next_action_t2b(300);
     }
 }
 
