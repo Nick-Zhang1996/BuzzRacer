@@ -637,7 +637,7 @@ class RCPtrack:
     def setResolution(self,res):
         self.resolution = res
         return
-    # given the coordinate of robot
+    # given state of robot
     # find the closest point on raceline
     # calculate the offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
     # calculate the local derivative
@@ -746,7 +746,7 @@ class RCPtrack:
         # calculate whether offset is ccw or cw
         # achieved by finding cross product of vec(raceline_orientation) and vec(ctrl_pnt->test_pnt)
         # then find sin(theta)
-        # negative offset means car is ot the right
+        # negative offset means car is to the right of the trajectory
         vec_raceline = (der[0],der[1])
         vec_offset = coord - raceline_point
         cross_theta = np.cross(vec_raceline,vec_offset)
@@ -757,7 +757,7 @@ class RCPtrack:
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
-        # reference point on raceline,lateral offset, tangent line orientation, curvature,angle_curvature
+        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
         return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature))
 
 # conver a world coordinate in meters to canvas coordinate

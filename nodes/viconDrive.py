@@ -98,18 +98,19 @@ def ctrlloop():
         vf_lf, z_vf = signal.lfilter(b,a,[last_vf],zi=z_vf)
     else:
         vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
-    last_vf = vf
 
     if (abs(vs-last_vs)>0.5):
         vs_lf, z_vs = signal.lfilter(b,a,[last_vs],zi=z_vs)
     else:
         vs_lf, z_vs = signal.lfilter(b,a,[vs],zi=z_vs)
-    last_vs = vs
 
     if (abs(omega-last_omega)>0.5):
         omega_lf, z_omega = signal.lfilter(b,a,[last_omega],zi=z_omega)
     else:
         omega_lf, z_omega = signal.lfilter(b,a,[omega],zi=z_omega)
+
+    last_vf = vf
+    last_vs = vs
     last_omega = omega
 
     lock_state.acquire()
