@@ -237,6 +237,7 @@ if __name__ == '__main__':
                 k = cv2.waitKey(1) & 0xFF
                 if k == ord('q'):
                     break
+
     cv2.destroyAllWindows()
     output = open('exp_state.p','wb')
     pickle.dump(state_vec,output)
