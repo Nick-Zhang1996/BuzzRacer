@@ -1,5 +1,8 @@
 import numpy as np
-from numpy import isclose from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
+from scipy import signal
+from numpy import isclose 
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
+import matplotlib.pyplot as plt
 
 class Car:
     def __init__(self):
@@ -13,6 +16,14 @@ class Car:
         self.D = radians(4)/3
         self.max_throttle = 0.3
         self.max_steering = radians(24.5)
+        self.throttle_P = 1
+        self.throttle_I = 0.1
+        self.throttle_z = [0.0]
+        # denominator of throttle integral
+        self.a = np.array([1.0])
+        # numerator of throttle integral, second term is time constant
+        tc = 3
+        self.b = np.array([2,1.0])
         pass
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -62,11 +73,18 @@ class Car:
                 steering = self.max_steering
             elif (steering<-self.max_steering):
                 steering = -self.max_steering
-            # TODO PI control for throttle
-            throttle = self.max_throttle
+            throttle = self.calcThrottle(vf,v_target)
+
             ret =  (throttle,steering,True,offset,(omega-curvature*vf))
 
         return ret
+
+    def calcThrottle(self,v,v_target):
+        # PI control for throttle
+        v_err = v_target - v
+        throttle_integral, self.throttle_z = signal.lfilter(self.b,self.a,[v_err],zi=self.throttle_z)
+        throttle = self.throttle_P * v_err + throttle_integral * self.throttle_I
+        return throttle
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
@@ -96,3 +114,36 @@ class Car:
         dY = dx*sin(theta)+dy*cos(theta)
 # should be x,y,heading,vf,vs,omega
         return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
+
+
+if __name__ == '__main__':
+    # tune PI controller 
+    v_log = []
+    control_log = []
+    v_targets = np.ones(1000)
+    integral = 0
+    throttle = 0
+    I = 1
+    v = 0
+    for v_target in v_targets:
+        v += max(throttle*0.01,0)
+        integral = integral*0.5 + (v_target-v)
+        throttle = I*integral
+        control_log.append(throttle)
+        v_log.append(v)
+    p0, = plt.plot(v_log,label='velocity')
+    p1, = plt.plot(control_log,label='output')
+    plt.legend(handles=[p0,p1])
+    plt.show()
+    exit(0)
+
+
+    car = Car()
+    sample_verr = np.ones(10)
+    sample_throttle = []
+    for i in range(10):
+        sample_throttle.append(car.calcThrottle(0,1))
+    print(np.array(sample_throttle))
+    plt.plot(sample_throttle)
+    plt.show()
+
