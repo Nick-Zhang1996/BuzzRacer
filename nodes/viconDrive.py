@@ -76,7 +76,7 @@ def mapdata(x,a,b,c,d):
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
-def ctrlloop(track):
+def ctrlloop(track,cooldown=False):
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
@@ -120,7 +120,11 @@ def ctrlloop(track):
     previous_state = local_state
     lock_state.release()
     
-    throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,reverse=False)
+    if (not cooldown):
+        throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,reverse=False)
+    else:
+        throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,v_override=0,reverse=False)
+
     offset_vec.append(offset)
     omega_offset_vec.append(omega_offset)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
@@ -225,6 +229,22 @@ if __name__ == '__main__':
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
         for i in range(1000):
             ctrlloop(sp)
+            state_vec.append(local_state)
+
+            if flag_new_visualization_img:
+                lock_visual.acquire()
+                #showobj.set_data(shared_visualization_img)
+                cv2.imshow('car',shared_visualization_img)
+                lock_visual.release()
+                #plt.draw()
+                flag_new_visualization_img = False
+                k = cv2.waitKey(1) & 0xFF
+                if k == ord('q'):
+                    break
+
+        # cooldown
+        for i in range(200):
+            ctrlloop(sp,cooldown=True)
             state_vec.append(local_state)
 
             if flag_new_visualization_img:

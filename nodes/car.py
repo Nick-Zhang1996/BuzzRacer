@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal
 from numpy import isclose 
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import matplotlib.pyplot as plt
 
 class Car:
@@ -16,20 +16,18 @@ class Car:
         self.D = radians(4)/3
         self.max_throttle = 0.3
         self.max_steering = radians(24.5)
-        self.throttle_P = 1
         self.throttle_I = 0.1
-        self.throttle_z = [0.0]
-        # denominator of throttle integral
-        self.a = np.array([1.0])
-        # numerator of throttle integral, second term is time constant
-        tc = 3
-        self.b = np.array([2,1.0])
-        pass
+        self.throttle_P = 1
+        self.verr_integral = 0
+        # for Integral controller on throttle
+        tc = 2
+        self.decay_factor = exp(-1.0/100/tc)
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 #   track: track object, can be RCPtrack or skidpad
+#   v_override: use this as target velocity
 #   reverse: true if running in opposite direction of raceline init direction
 
 # output:
@@ -39,19 +37,19 @@ class Car:
 #   steering as an angle in radians, TRIMMED to MAX_STEERING, left positive
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 # debug: a list of objects to be debugged
-    def ctrlCar(self,state,track,reverse=False):
+    def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
         heading = state[2]
         omega = state[5]
         vf = state[3]
         vs = state[4]
-        ret = (0,0,False,0,0)
+        ret = (0,0,False,[])
 
         retval = track.localTrajectory(state)
         if retval is None:
             return ret
 
-        (local_ctrl_pnt,offset,orientation,curvature) = retval
+        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         if isnan(orientation):
             return ret
@@ -62,7 +60,7 @@ class Car:
 
         # how much to compensate for per meter offset from track
         if (abs(offset) > self.max_offset):
-            return (0,0,False,offset,0)
+            return (0,0,False,[offset])
         else:
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * self.P - (omega-curvature*vf)*self.D
@@ -73,18 +71,21 @@ class Car:
                 steering = self.max_steering
             elif (steering<-self.max_steering):
                 steering = -self.max_steering
-            throttle = self.calcThrottle(vf,v_target)
+            if (v_override is None):
+                throttle = self.calcThrottle(vf,v_target)
+            else:
+                throttle = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,offset,(omega-curvature*vf))
+            ret =  (throttle,steering,True,[offset,omega-curvature*vf])
 
         return ret
 
     def calcThrottle(self,v,v_target):
         # PI control for throttle
         v_err = v_target - v
-        throttle_integral, self.throttle_z = signal.lfilter(self.b,self.a,[v_err],zi=self.throttle_z)
-        throttle = self.throttle_P * v_err + throttle_integral * self.throttle_I
-        return throttle
+        self.verr_integral = self.verr_integral*self.decay_factor + v_err
+        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
+        return max(min(throttle,1),-1)
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
@@ -96,7 +97,8 @@ class Car:
         # wheelbase, in meter
         # heading of pi/2, i.e. vehile central axis aligned with y axis,
         # means theta = 0 (the x axis of car and world frame is aligned)
-        v = throttle
+        # experimental acceleration model
+        v = max(state[3]+(throttle-0.2)*4*dt,0)
         theta = state[2] - pi/2
         L = 98e-3
         dr = v*dt
@@ -120,30 +122,27 @@ if __name__ == '__main__':
     # tune PI controller 
     v_log = []
     control_log = []
-    v_targets = np.ones(1000)
+    integral_log = []
+    t = np.linspace(0,1000,1001)
+    v_targets = np.array([1+0.5*sin(2*pi/5/100*tt) for tt in t])
     integral = 0
     throttle = 0
-    I = 1
+    I = 0.1
+    P = 1
     v = 0
+    tc = 2
+    decay_factor = exp(-1.0/100/tc)
+    last_v_err = 0
     for v_target in v_targets:
-        v += max(throttle*0.01,0)
-        integral = integral*0.5 + (v_target-v)
-        throttle = I*integral
+        v = max(v+(throttle-0.2)*0.04,0)
+        v_err = v_target - v
+        integral = integral*decay_factor + v_err
+        throttle = min(I*integral + P*v_err,1)
+        last_v_err = v_err
         control_log.append(throttle)
         v_log.append(v)
     p0, = plt.plot(v_log,label='velocity')
     p1, = plt.plot(control_log,label='output')
-    plt.legend(handles=[p0,p1])
+    p2, = plt.plot(v_targets,label='target')
+    plt.legend(handles=[p0,p1,p2])
     plt.show()
-    exit(0)
-
-
-    car = Car()
-    sample_verr = np.ones(10)
-    sample_throttle = []
-    for i in range(10):
-        sample_throttle.append(car.calcThrottle(0,1))
-    print(np.array(sample_throttle))
-    plt.plot(sample_throttle)
-    plt.show()
-

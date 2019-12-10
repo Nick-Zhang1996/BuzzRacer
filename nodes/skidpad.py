@@ -9,7 +9,7 @@ from car import Car
 class Skidpad(Track):
     def __init__(self):
         #super(Skidpad,self).__init__()
-        self.resolution = 300
+        self.resolution = 100
         return
 
     # initialize a skidpad, centered at origin
@@ -49,7 +49,7 @@ class Skidpad(Track):
             signed_curvature = -1.0/self.radius
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
-        return (raceline_point,offset,raceline_orientation,signed_curvature)
+        return (raceline_point,offset,raceline_orientation,signed_curvature,self.velocity)
 
     # prepare a picture of the track
     def drawTrack(self):
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     x = 0.0
     y = 1.0
     theta = pi
-    vf = 1
+    vf = 0
     vs = 0
     omega = 0
     sim_dt = 0.1
@@ -145,9 +145,10 @@ if __name__ == "__main__":
     cv2.imshow('car',img_track_car)
 
     for i in range(200):
-        throttle, steering, valid,offset,debug = car.ctrlCar(state,sp)
+        throttle, steering, valid,debug = car.ctrlCar(state,sp)
         state = car.updateCar(state,throttle,steering,sim_dt)
         img_track_car = sp.drawCar(img_track.copy(),state,steering)
+        print(state[3])
         cv2.imshow('car',img_track_car)
         k = cv2.waitKey(50) & 0xFF
         if k == ord('q'):
