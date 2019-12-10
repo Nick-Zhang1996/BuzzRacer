@@ -1,6 +1,5 @@
 import numpy as np
-from numpy import isclose
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
+from numpy import isclose from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 
 class Car:
     def __init__(self):
@@ -69,3 +68,31 @@ class Car:
 
         return ret
 
+    # update car state with bicycle model, no slip
+    # dt: time, in sec
+    # v: velocity of rear wheel, in m/s
+    # state: (x,y,theta), np array
+    # return new state (x,y,theta)
+# XXX directly copied from track.py
+    def updateCar(self,state,throttle,steering,dt):
+        # wheelbase, in meter
+        # heading of pi/2, i.e. vehile central axis aligned with y axis,
+        # means theta = 0 (the x axis of car and world frame is aligned)
+        v = throttle
+        theta = state[2] - pi/2
+        L = 98e-3
+        dr = v*dt
+        dtheta = dr*tan(steering)/L
+        # specific to vehicle frame (x to right of rear axle, y to forward)
+        if (steering==0):
+            dx = 0
+            dy = dr
+        else:
+            dx = - L/tan(steering)*(1-cos(dtheta))
+            dy =  abs(L/tan(steering)*sin(dtheta))
+        #print(dx,dy)
+        # specific to world frame
+        dX = dx*cos(theta)-dy*sin(theta)
+        dY = dx*sin(theta)+dy*cos(theta)
+# should be x,y,heading,vf,vs,omega
+        return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])

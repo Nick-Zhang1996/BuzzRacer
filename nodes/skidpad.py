@@ -1,9 +1,15 @@
+import cv2
+import numpy as np
+from math import cos,sin,pi,atan2,radians,degrees,tan
+import matplotlib.pyplot as plt
+
 from Track import Track
-from math import cos,sin,pi,atan2
+from car import Car
 
 class Skidpad(Track):
     def __init__(self):
-        super(Track,self).__init__()
+        #super(Skidpad,self).__init__()
+        self.resolution = 300
         return
 
     # initialize a skidpad, centered at origin
@@ -11,9 +17,6 @@ class Skidpad(Track):
         self.radius = radius
         self.velocity = velocity
         self.ccw = ccw
-        return
-
-    def ctrlCar(self,state,reverse=False):
         return
 
     #state: x,y,theta,vf,vs,omega
@@ -47,42 +50,109 @@ class Skidpad(Track):
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
         return (raceline_point,offset,raceline_orientation,signed_curvature)
-    # update car state with bicycle model, no slip
-    # dt: time, in sec
-    # v: velocity of rear wheel, in m/s
-    # state: (x,y,theta), np array
-    # return new state (x,y,theta)
-# XXX directly copied from track.py
-    def updateCar(self,state,throttle,steering,dt):
-        # wheelbase, in meter
-        # heading of pi/2, i.e. vehile central axis aligned with y axis,
-        # means theta = 0 (the x axis of car and world frame is aligned)
-        theta = state[2] - pi/2
-        L = 98e-3
-        dr = v*dt
-        dtheta = dr*tan(beta)/L
-        # specific to vehicle frame (x to right of rear axle, y to forward)
-        if (beta==0):
-            dx = 0
-            dy = dr
+
+    # prepare a picture of the track
+    def drawTrack(self):
+        # resolution : pixels per meter
+        res = self.resolution
+        canvas = 255*np.ones([int(res*self.radius*4),int(res*self.radius*4),3],dtype='uint8')
+        self.canvas_size = canvas.shape
+        canvas = cv2.circle(canvas,self.m2canvas((0,0)),self.radius*res,(255,0,0),5)
+        return canvas
+
+# draw car on a track image prepared by drawTrack()
+# draw the vehicle (one dot with two lines) onto a canvas
+# coord: location of the dor, in meter (x,y)
+# heading: heading of the vehicle, radians from x axis, ccw positive
+#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
+# NOTE: this function modifies img, if you want to recycle base img, sent img.copy()
+    def drawCar(self,img, state, steering):
+        x = state[0]
+        y = state[1]
+        heading = state[2]
+        # check if vehicle is outside canvas
+        coord = (x,y)
+        src = self.m2canvas(coord)
+        if src is None:
+            print("Can't draw car -- outside track")
+            return img
+        # draw vehicle, orientation as black arrow
+        img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+
+        # draw steering angle, orientation as red arrow
+        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+
+        return img
+
+    # draw ONE arrow, unit: meter, coord sys: dimensioned
+    # coord: coordinate for source of arrow, in meter
+    # orientation, radians from x axis, ccw positive
+    # length: in pixels, though this is only qualitative
+    def drawArrow(self,coord, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
+
+        if (length>1):
+            length = int(length)
         else:
-            dx = - L/tan(beta)*(1-cos(dtheta))
-            dy =  abs(L/tan(beta)*sin(dtheta))
-        #print(dx,dy)
-        # specific to world frame
-        dX = dx*cos(theta)-dy*sin(theta)
-        dY = dx*sin(theta)+dy*cos(theta)
-# should be x,y,heading,vf,vs,omega
-        return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
+            return img
+
+        res = self.resolution
+
+        src = self.m2canvas(coord)
+        if (src is None):
+            print("drawArrow err -- point outside canvas")
+            return img
+
+        # y-axis positive direction in real world and cv plotting is reversed
+        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
+
+        img = cv2.circle(img, src, 3, (0,0,0),-1)
+        img = cv2.line(img, src, dest, color, thickness) 
+            
+        return img
+
+# conver a world coordinate in meters to canvas coordinate
+    def m2canvas(self,coord):
+        x_new = int(coord[0]*self.resolution + self.canvas_size[0]/2)
+        y_new = self.canvas_size[1] - int(coord[1]*self.resolution + self.canvas_size[1]/2)
+        if (y_new<0 or y_new>=self.canvas_size[1]) or (x_new<0 or x_new>=self.canvas_size[0]):
+            return None
+        else:
+            return (x_new,y_new)
+
 
 if __name__ == "__main__":
     sp = Skidpad()
     sp.initSkidpad(radius=1,velocity=1)
+    car = Car()
     x = 0.0
     y = 1.0
-    theta = pi/2
+    theta = pi
     vf = 1
     vs = 0
     omega = 0
+    sim_dt = 0.1
     state = (x,y,theta,vf,vs,omega)
-    print(sp.localTrajectory(state))
+
+    # visualize raceline
+    img_track = sp.drawTrack()
+    img_track_car = sp.drawCar(img_track.copy(),state,radians(20))
+    '''
+    img_track_car = cv2.cvtColor(img_track_car, cv2.COLOR_BGR2RGB)
+    plt.imshow(img_track_car)
+    plt.show()
+    '''
+
+    cv2.imshow('car',img_track_car)
+
+    for i in range(200):
+        throttle, steering, valid,offset,debug = car.ctrlCar(state,sp)
+        state = car.updateCar(state,throttle,steering,sim_dt)
+        img_track_car = sp.drawCar(img_track.copy(),state,steering)
+        cv2.imshow('car',img_track_car)
+        k = cv2.waitKey(50) & 0xFF
+        if k == ord('q'):
+            break
+
+    cv2.destroyAllWindows()
+    pass
+
