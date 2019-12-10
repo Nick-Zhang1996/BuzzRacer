@@ -22,9 +22,11 @@ import matplotlib.pyplot as plt
 from track import RCPtrack,TF
 from vicon import Vicon
 import pickle
+from skidpad import Skidpad
 
 # static variables, for share in this file
 s = RCPtrack()
+sp = Skidpad()
 img_track = None
 showobj = None
 visualization_ts = 0.0
@@ -74,7 +76,7 @@ def mapdata(x,a,b,c,d):
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
-def ctrlloop():
+def ctrlloop(track):
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
@@ -118,7 +120,7 @@ def ctrlloop():
     previous_state = local_state
     lock_state.release()
     
-    throttle,steering,valid,offset,omega_offset = s.ctrlCar(local_state,reverse=False)
+    throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,reverse=False)
     offset_vec.append(offset)
     omega_offset_vec.append(omega_offset)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
@@ -150,7 +152,7 @@ def ctrlloop():
     if (time()-visualization_ts>0.1):
         # plt doesn't allow updating from a different thread
         lock_visual.acquire()
-        shared_visualization_img = s.drawCar((x,y),heading,steering,img_track.copy())
+        shared_visualization_img = track.drawCar((x,y),heading,steering,img_track.copy())
         lock_visual.release()
         visualization_ts = time()
         flag_new_visualization_img = True
@@ -161,6 +163,11 @@ if __name__ == '__main__':
         CommPort = '/dev/ttyUSB0'
     elif host_system == "Darwin":
         CommPort = '/dev/tty.wchusbserial1420'
+
+# ROS init
+    #rospy.init_node('viconDrive', anonymous=False)
+    #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
+    #pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
 
     if (False):
         # MK111 track
@@ -202,27 +209,22 @@ if __name__ == '__main__':
         s.initRaceline((0,0),'l',0)
         
 
-# ROS init
-    #rospy.init_node('viconDrive', anonymous=False)
-    #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
-    #pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
-
+    # sample track
     #setup visualization of current car location, comment out if running the code on car computer
-    img_track = s.drawTrack()
-    img_track = s.drawRaceline(img=img_track)
-    #showobj = plt.imshow(img_track)
-    #showobj.set_data(img_track)
-    #plt.draw()
-    #plt.pause(0.01)
-    #rospy.Subscriber("/vicon_tf", Vicon_msg, vicon_callback)
+    #img_track = s.drawTrack()
+    #img_track = s.drawRaceline(img=img_track)
+
+    # skid pad
+    sp.initSkidpad(radius=1,velocity=1)
+    car = Car()
+    img_track = sp.drawTrack()
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
 
     # visualization update loop
-    #while not rospy.is_shutdown():
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
         for i in range(1000):
-            ctrlloop()
+            ctrlloop(sp)
             state_vec.append(local_state)
 
             if flag_new_visualization_img:
