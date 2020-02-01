@@ -848,11 +848,11 @@ if __name__ == "__main__":
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
 
         throttle,steering,valid = s.ctrlCar((s.state[0],s.state[1]),s.state[2],reverse=True)
-        #print(i,throttle,steering,valid)
-        #img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        #showobj.set_data(img_track_car)
-        #plt.draw()
-        #plt.pause(0.01)
+        print(i,throttle,steering,valid)
+        img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
+        showobj.set_data(img_track_car)
+        plt.draw()
+        plt.pause(0.01)
 
     t.summary()
     lt.summary()

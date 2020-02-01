@@ -280,8 +280,13 @@ bool failsafe = false;
 void readCarControlTopic(const rcvip_msgs::CarControl& msg_CarControl) {
     carControlTimestamp = millis();
     newCarControlMsg = true;
+    if (failsafe){ // recover from failsafe
+        enablePWM();
+        failsafe = false;
+        digitalWrite(LED_PIN, HIGH);
+    }
 
-    if (msg_CarControl.throttle < 0.001 || msg_CarControl.throttle > 1.0001) {
+    if (msg_CarControl.throttle < 0.01 || msg_CarControl.throttle > 1.0001) {
         //throttleServoVal = minThrottleVal;
         disablePWM();
         failsafe = true;
@@ -364,15 +369,10 @@ void setup() {
 void loop() {
 
     //failsafe, if there's no new message for over 500ms, halt the motor
-    if ( millis() - carControlTimestamp > 500 ){
-        //throttle.writeMicroseconds(minThrottleVal);
+    if ( millis() - carControlTimestamp > 500 and !failsafe ){
         disablePWM();
         failsafe = true;
         digitalWrite(LED_PIN, LOW);
-    } else if (failsafe){ // recover from failsafe
-        enablePWM();
-        failsafe = false;
-        digitalWrite(LED_PIN, HIGH);
     }
 
     // get new voltage every 100ms
