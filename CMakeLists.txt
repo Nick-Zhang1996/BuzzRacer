@@ -173,10 +173,11 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
- install(PROGRAMS
+install(PROGRAMS
 #   scripts/my_python_script
-    src/python_udp.py
-   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  nodes/Joystick.py
+  src/python_udp.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 
 ## Mark executables and/or libraries for installation
@@ -195,7 +196,8 @@ include_directories(
 
 # Mark other files for installation (e.g. launch and bag files, etc.)
  install(FILES
-   launch/demo.launch
+   launch/car.launch
+   launch/joystick.launch
    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
  )
 
