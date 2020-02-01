@@ -1,6 +1,4 @@
 <launch>
-    <node name="joy_node" pkg="joy" type="joy_node" />
-    <node name="joystick_remap" pkg="rc_vip" type="Joystick.py" />
     <node name="serial_node" pkg="rosserial_python" type="serial_node.py" >
         <param name="port" value="/dev/ttyAMA0"/>
         <param name="baud" value="57600"/>
