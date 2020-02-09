@@ -4,5 +4,4 @@ __pycache__/
 *.sublime-workspace
 *.png
 *.avi
-*.p
 *.pyc
