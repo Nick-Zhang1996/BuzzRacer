@@ -2,7 +2,7 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-from math import cos,sin,pi
+from math import cos,sin,pi,degrees,radians
 
 # prepare lowpass filter
 # argument: order, omega(-3db)
@@ -12,7 +12,7 @@ b, a = signal.butter(1,6,'low',analog=False,fs=100)
 #z = [0]
 
 # plot acceleration
-filename = "test1/exp_state.p"
+filename = "../datadump/test1/exp_state.p"
 infile = open(filename,'rb')
 data = pickle.load(infile)
 # how many datapoints to skip from the beginning
@@ -63,9 +63,51 @@ for i in range(1,len(vf)):
     acc[i] = dv/dt
 
 
+mask = np.array(range(380,690))
+vs = vs[:-1]
+plt.plot(vs[mask],'b',label='Lateral Vel (m/s)')
+plt.plot(np.diff(vs[mask])*100,'r',label='Lateral Accel (m/s2)')
+plt.title("Lateral Vel and Acc")
+plt.xlabel('Time (0.01s)')
+plt.legend()
+plt.show()
+
+# Plot: angle between velocity and heading
+
+# path tangent
+dx = np.diff(x).astype(np.float64)
+dy = np.diff(y).astype(np.float64)
+path_heading = np.arctan2(dy,dx)
+path_heading = path_heading[skip:]
+diff_heading = theta[:-1] - path_heading
+lateral_acc = np.diff(vs)*100
+plt.plot(theta[:-1])
+plt.plot(path_heading)
+
+# good data at 380-690
+lateral_acc = lateral_acc[mask-13]
+diff_heading = diff_heading[mask]
+plt.plot(lateral_acc,label='Lateral Accel 130ms delayed (m/s2)')
+plt.plot(diff_heading,label='Vehicle Slide Angle (rad)')
+plt.hlines(y=0,xmin=0,xmax=len(mask))
+plt.xlabel('Time (0.01s)')
+plt.legend()
+plt.show()
+
+plt.plot(lateral_acc/diff_heading)
+plt.title("Accel/Slide")
+plt.show()
+print(np.mean(lateral_acc/diff_heading))
+print(np.std(lateral_acc/diff_heading))
+
+# vehicle position
+#plt.plot(x[mask],y[mask])
+#plt.title("Vehicle Position")
+#plt.show()
+
 #plt.subplot(211)
 #plt.plot(data[skip:,3])
 #plt.subplot(212)
-plt.plot(lflf(acc,1))
-plt.show()
+#plt.plot(lflf(acc,1))
+#plt.show()
 
