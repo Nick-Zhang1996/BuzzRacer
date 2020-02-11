@@ -19,7 +19,7 @@ from numpy import isclose
 import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize_scalar,minimize
 from time import sleep,time
 from timeUtil import execution_timer
 import cv2
@@ -163,7 +163,7 @@ class TF:
 class RCPtrack:
     def __init__(self):
         # resolution : pixels per grid side length
-        self.resolution = 200
+        self.resolution = 100
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -520,14 +520,14 @@ class RCPtrack:
         v3[-1]=v3[0]
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
-        p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='v1')
-        p2, = plt.plot(v2,label='v2')
-        p3, = plt.plot(v3,label='v3')
-        plt.legend(handles=[p0,p1,p2,p3])
-        plt.legend(handles=[p1,p2,p3])
-        plt.show()
 
+        #p0, = plt.plot(curvature, label='curvature')
+        #p1, = plt.plot(v1,label='v1')
+        #p2, = plt.plot(v2,label='v2')
+        #p3, = plt.plot(v3,label='v3')
+        #plt.legend(handles=[p0,p1,p2,p3])
+        #plt.legend(handles=[p1,p2,p3])
+        #plt.show()
 
         return
     
@@ -638,14 +638,19 @@ class RCPtrack:
         self.resolution = res
         return
     # given state of robot
-    # find the closest point on raceline
-    # calculate the offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
+    # find the closest point on raceline to center of FRONT axle
+    # calculate the lateral offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
     # calculate the local derivative
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
     def localTrajectory(self,state):
         # figure out which grid the coord is in
         coord = np.array([state[0],state[1]])
+        heading = state[2]
+        # find the coordinate of center of front axle
+        wheelbase = 98e-3
+        coord[0] += wheelbase*cos(heading)
+        coord[1] += wheelbase*sin(heading)
         heading = state[2]
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
@@ -683,21 +688,21 @@ class RCPtrack:
         if fun(seq+1) < fun(seq):
             seq += 1
 
-        #search around the control point closest to coord
+        # Goal: find the point on raceline closest to coord
+        # i.e. find x that minimizes fun(x)
+        # we know x will be close to seq
 
-        #brute force,  This takes 77% of runtime. 
+        # easy method
+        #brute force, This takes 77% of runtime. 
         #lt.s('minimize_scalar')
         #res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
         #lt.e('minimize_scalar')
 
-        # improved: from observation fun(x) is quadratic in proximity of seq
-        # we assume it to be ax2 + bx + c and formulate this as a linalg problem
-        #x0 = seq-0.6
-        #x1 = seq
-        #x2 = seq+0.6
-        #iv = np.array([x0,x1,x2])
+        # improved method: from observation, fun(x) is quadratic in proximity of seq
+        # we assume it to be ax^3 + bx^2 + cx + d and formulate this minimization as a linalg problem
+        # sample some points to build the trinomial simulation
         iv = np.array([-0.6,-0.3,0,0.3,0.6])+seq
-        #A = np.mat([[x0**2, x0, 1],[x1**2, x1, 1],[x2**2, x2, 1]])
+        # formulate linear problem
         A = np.vstack([iv**3, iv**2,iv,[1,1,1,1,1]]).T
         #B = np.mat([fun(x0), fun(x1), fun(x2)]).T
         B = fun(iv).T
@@ -707,14 +712,18 @@ class RCPtrack:
         b = abc[1]
         c = abc[2]
         d = abc[3]
+        fun = lambda x : a*x*x*x + b*x*x + c*x + d
+        fit = minimize(fun, x0=seq, method='L-BFGS-B', bounds=((seq-0.6,seq+0.6),))
+        min_fun_x = fit.x[0]
+        min_fun_val = fit.fun[0]
         # find min val
-        x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
-        if (seq-0.6<x<seq+0.6):
-            min_fun_val = a*x*x*x + b*x*x + c*x + d
-        else:
-            # XXX this is a bit sketchy, maybe none of them is right
-            x = (-b+(b*b-3*a*c)**0.5)/(3*a)
-            min_fun_val = a*x*x*x + b*x*x + c*x + d
+        #x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
+        #if (seq-0.6<x<seq+0.6):
+        #    min_fun_val = a*x*x*x + b*x*x + c*x + d
+        #else:
+        #    # XXX this is a bit sketchy, maybe none of them is right
+        #    x = (-b+(b*b-3*a*c)**0.5)/(3*a)
+        #    min_fun_val = a*x*x*x + b*x*x + c*x + d
 
         '''
         xx = np.linspace(seq-0.6,seq+0.6)
@@ -811,6 +820,7 @@ class RCPtrack:
         global K_vec,steering_vec
         coord = (state[0],state[1])
         heading = state[2]
+        # angular speed
         omega = state[5]
         vf = state[3]
         vs = state[4]
@@ -837,12 +847,13 @@ class RCPtrack:
         # how much to compensate for per meter offset from track
         # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
 
+        # if offset is too large, abort
         if (abs(offset) > 0.3):
             return (0,0,False,offset,0)
         else:
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * P - (omega-curvature*vf)*D
-            print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
+            #print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             steering = (steering+pi)%(2*pi) -pi
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             if (steering>radians(24.5)):
@@ -889,24 +900,12 @@ class RCPtrack:
 # should be x,y,heading,vf,vs,omega
         return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
 
-'''
-def show(img):
-    plt.imshow(img)
-    plt.show()
-    return
-'''
     
 if __name__ == "__main__":
     s = RCPtrack()
-    # example: simple track
-    #s.initTrack('uurrddll',(3,3),scale=1.0)
-    #s.initRaceline((0,0),'l')
 
-    # another sample track
-    #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
-    #s.initRaceline((3,3),'u')
-
-    # MK111 track
+    # initialize track and raceline
+    # actual RCP track we have
     # row, col
     track_size = (6,4)
     s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
@@ -939,35 +938,36 @@ if __name__ == "__main__":
 
     # start coord, direction, sequence number of origin(which u gives the exit point for origin)
     #s.initRaceline((3,3),'d',10,offset=adjustment)
+    s.initRaceline((3,3),'d',10)
 
-    # use new track
+    # another complex track
     #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
     #s.initRaceline((3,3),'u')
 
-    # XXX simple track for testing
-    s.initTrack('uurrddll',(3,3),scale=0.565)
-    s.initRaceline((0,0),'l',0)
-    exit(0)
+    # simple track, one loop
+    #s.initTrack('uurrddll',(3,3),scale=0.565)
+    #s.initRaceline((0,0),'l',0)
 
     # visualize raceline
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
 
     # given a starting location, find car control and visualize it
+    # for RCP track
     coord = (3.6*0.565,3.5*0.565)
     # for simple track
-    coord = (2.5*0.565,1.5*0.565)
+    # coord = (2.5*0.565,1.5*0.565)
     heading = pi/2
     throttle,steering,valid,dummy,dummy1 = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
-# should be x,y,heading,vf,vs,omega, iddn't implement the last two
+    # should be x,y,heading,vf,vs,omega, i didn't implement the last two
     s.state = np.array([coord[0],coord[1],heading,0,0,0])
     #print(throttle,steering,valid)
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     cv2.imshow('car',img_track_car)
 
-    # 100 iteration steps
-    for i in range(200):
+    for i in range(500):
+        print("step = "+str(i))
         # update car
         s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
         sim_omega_vec.append(s.state[5])
@@ -976,40 +976,13 @@ if __name__ == "__main__":
         #print(i,throttle,steering,valid)
         img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
         cv2.imshow('car',img_track_car)
-        k = cv2.waitKey(50) & 0xFF
+        k = cv2.waitKey(20) & 0xFF
         if k == ord('q'):
             break
 
     cv2.destroyAllWindows()
 
-    plt.plot(sim_omega_vec)
-    plt.plot(np.array(K_vec))
-    plt.show()
+    #plt.plot(sim_omega_vec)
+    #plt.plot(np.array(K_vec))
+    #plt.show()
 
-    '''
-    # generate test point array, in meters (x,y)
-    # we'll visualize where the wheel should point if vehicle is positioned in these points
-    x = np.arange(0,track_size[1]*s.scale,0.05)
-    y = np.arange(0,track_size[0]*s.scale,0.05)
-    xx,yy = np.meshgrid(x,y)
-    pnt = np.hstack([xx.reshape(-1,1),yy.reshape(-1,1)])
-
-    correction_coeff = radians(1)*100*7
-    # should probably vectorize this...
-    for i in range(pnt.shape[0]):
-        # test function, testpoint in meters
-        testpoint = (pnt[i,0],pnt[i,1])
-        # agressiveness of adjustment
-        # radians per meter offset
-        # i.e. 3 degree per cm offset
-# this needs to be updated
-        (local_ctrl_pnt,offset,orientation) = s.localTrajectory(testpoint)
-
-        # if abs(offset*correction_coeff)>45deg, we cannot correct for the deviation
-        # this corresponds to 15cm offset
-        if (abs(offset*correction_coeff) > radians(45)):
-            # visualize on-track reference point
-            img_track = s.drawArrow(testpoint, orientation+offset*correction_coeff, (50/10*(10-abs(offset)*100)), img=img_track)
-
-    show(img_track)
-    '''
