@@ -31,7 +31,7 @@ P = 0.8/180*pi/0.01
 # D is applied on delta_omega
 D = radians(4)/3
 # I is applied on offset
-set_throttle = 0.3
+set_throttle = 1
 
 # debugging
 K_vec = [] # curvature
@@ -810,6 +810,11 @@ class RCPtrack:
 
         return img
 
+# draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
+    def drawAcc(acc,img):
+        pass
+
+
 # given world coordinate of the vehicle, provide throttle and steering output
 # throttle -1.0,1.0
 # reverse: true if running in opposite direction of raceline init direction
@@ -834,8 +839,8 @@ class RCPtrack:
 
         self.offset_timestamp.append(time())
         self.offset_history.append(offset)
-        if len(self.offset_history)<2:
-            return ret
+        #if len(self.offset_history)<2:
+        #    return ret
         
         if isnan(orientation):
             return ret
@@ -860,7 +865,6 @@ class RCPtrack:
                 steering = radians(24.5)
             elif (steering<-radians(24.5)):
                 steering = -radians(24.5)
-            # idk what causes this
             throttle = set_throttle
             ret =  (throttle,steering,True,offset,(omega-curvature*vf))
 
@@ -872,24 +876,32 @@ class RCPtrack:
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
-    # v: velocity of rear wheel, in m/s
     # state: (x,y,theta), np array
     # x,y: coordinate of car origin(center of rear axle)
     # theta, car heading, in rad, ref from x axis
     # beta: steering angle, left positive, in rad
     # return new state (x,y,theta)
-    def updateCar(self,dt,v,state,beta):
+    def updateCar(self,dt,state,throttle,beta):
         # wheelbase, in meter
         # heading of pi/2, i.e. vehile central axis aligned with y axis,
         # means theta = 0 (the x axis of car and world frame is aligned)
-        theta = state[2] - pi/2
+        coord = state['coord']
+        heading = state['heading']
+        vf = state['vf']
+        vs = state['vs']
+        omega = state['omega']
+
+        theta = state['heading'] - pi/2
         L = 98e-3
-        dr = v*dt
-        dtheta = dr*tan(beta)/L
+        # NOTE if side slip is ever modeled, update ds
+        ds = vf*dt
+        dtheta = ds*tan(beta)/L
+        dvf = 0
+        dvs = 0
         # specific to vehicle frame (x to right of rear axle, y to forward)
         if (beta==0):
             dx = 0
-            dy = dr
+            dy = ds
         else:
             dx = - L/tan(beta)*(1-cos(dtheta))
             dy =  abs(L/tan(beta)*sin(dtheta))
@@ -897,8 +909,19 @@ class RCPtrack:
         # specific to world frame
         dX = dx*cos(theta)-dy*sin(theta)
         dY = dx*sin(theta)+dy*cos(theta)
-# should be x,y,heading,vf,vs,omega
-        return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
+
+
+        acc_x = vf+dvf - vf*cos(dtheta) - vs*sin(dtheta)
+        acc_y = vs+dvs - vs*cos(dtheta) - vf*sin(dtheta)
+
+        state['coord'] = (state['coord'][0]+dX,state['coord'][1]+dY)
+        state['heading'] += dtheta
+        state['vf'] = vf + dvf
+        state['vs'] = vs + dvs
+        state['omega'] = dtheta/dt
+        # in new vehicle frame
+        state['acc'] = (acc_x,acc_y)
+        return state
 
     
 if __name__ == "__main__":
@@ -960,23 +983,32 @@ if __name__ == "__main__":
     heading = pi/2
     throttle,steering,valid,dummy,dummy1 = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
     # should be x,y,heading,vf,vs,omega, i didn't implement the last two
-    s.state = np.array([coord[0],coord[1],heading,0,0,0])
+    #s.state = np.array([coord[0],coord[1],heading,0,0,0])
+    sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
     #print(throttle,steering,valid)
 
     img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     cv2.imshow('car',img_track_car)
 
-    for i in range(500):
-        print("step = "+str(i))
+    max_acc = 0
+    for i in range(100):
+        #print("step = "+str(i))
         # update car
-        s.state = s.updateCar(dt=0.1,v=throttle,state=s.state,beta=steering)
-        sim_omega_vec.append(s.state[5])
+        sim_states = s.updateCar(0.05,sim_states,throttle,steering)
+        sim_omega_vec.append(sim_states['omega'])
 
-        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(s.state,reverse=True)
+        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
+        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(state,reverse=True)
         #print(i,throttle,steering,valid)
-        img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
+        #img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
+        img_track_car = s.drawCar((state[0],state[1]),state[2],steering,img_track.copy())
+        #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
+        #print(sim_states['acc'])
+        acc = sim_states['acc']
+        acc_mag = (acc[0]**2+acc[1]**2)**0.5
+
         cv2.imshow('car',img_track_car)
-        k = cv2.waitKey(20) & 0xFF
+        k = cv2.waitKey(30) & 0xFF
         if k == ord('q'):
             break
 
