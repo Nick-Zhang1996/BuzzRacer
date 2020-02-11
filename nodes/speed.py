@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import sys
 from threading import Lock
 from math import radians,degrees,isnan,cos,sin
