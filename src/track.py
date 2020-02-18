@@ -796,8 +796,11 @@ class RCPtrack:
 # heading: heading of the vehicle, radians from x axis, ccw positive
 #  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
 # NOTE: this function modifies img, if you want to recycle base img, sent img.copy()
-    def drawCar(self, coord, heading,steering, img):
+    #def drawCar(self, coord, heading,steering, img):
+    def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
+        x,y,heading, vf_lf, vs_lf, omega_lf = local_state
+        coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
             print("Can't draw car -- outside track")

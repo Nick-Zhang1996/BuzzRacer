@@ -60,7 +60,7 @@ class Car:
 
         # how much to compensate for per meter offset from track
         if (abs(offset) > self.max_offset):
-            return (0,0,False,[offset])
+            return (0,0,False,[offset,None])
         else:
             # sign convention for offset: - requires left steering(+)
             steering = orientation-heading - offset * self.P - (omega-curvature*vf)*self.D
@@ -85,7 +85,8 @@ class Car:
         v_err = v_target - v
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
-        return max(min(throttle,1),-1)
+        #return max(min(throttle,1),-1)
+        return 0.32
 
     # update car state with bicycle model, no slip
     # dt: time, in sec

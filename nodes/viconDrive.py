@@ -23,6 +23,7 @@ from track import RCPtrack,TF
 from vicon import Vicon
 import pickle
 from skidpad import Skidpad
+from car import Car
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -116,15 +117,19 @@ def ctrlloop(track,cooldown=False):
     last_omega = omega
 
     lock_state.acquire()
-    local_state = (x,y,heading, vf_lf, vs_lf, omega_lf)
+    local_state = (x,y,heading, vf_lf[0], vs_lf[0], omega_lf[0])
     previous_state = local_state
     lock_state.release()
     
     if (not cooldown):
-        throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,reverse=False)
+        throttle,steering,valid,other = car.ctrlCar(local_state,sp,reverse=False)
     else:
-        throttle,steering,valid,offset,omega_offset = track.ctrlCar(local_state,v_override=0,reverse=False)
+        throttle,steering,valid,other= car.ctrlCar(local_state,sp,v_override=0,reverse=False)
+    
+    print(steering, throttle)
 
+    offset = other[0]
+    omega_offset = other[1]
     offset_vec.append(offset)
     omega_offset_vec.append(omega_offset)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
@@ -156,7 +161,8 @@ def ctrlloop(track,cooldown=False):
     if (time()-visualization_ts>0.1):
         # plt doesn't allow updating from a different thread
         lock_visual.acquire()
-        shared_visualization_img = track.drawCar((x,y),heading,steering,img_track.copy())
+        #shared_visualization_img = track.drawCar((x,y),heading,steering,img_track.copy())
+        shared_visualization_img = track.drawCar(img_track.copy(), local_state, steering)
         lock_visual.release()
         visualization_ts = time()
         flag_new_visualization_img = True
@@ -227,7 +233,8 @@ if __name__ == '__main__':
 
     # visualization update loop
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
-        for i in range(1000):
+        #for i in range(1000):
+        while True:
             ctrlloop(sp)
             state_vec.append(local_state)
 

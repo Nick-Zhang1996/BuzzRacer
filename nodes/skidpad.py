@@ -9,7 +9,7 @@ from car import Car
 class Skidpad(Track):
     def __init__(self):
         #super(Skidpad,self).__init__()
-        self.resolution = 100
+        self.resolution = 200
         return
 
     # initialize a skidpad, centered at origin
@@ -28,6 +28,11 @@ class Skidpad(Track):
         vf = state[3]
         vs = state[4]
         omega = state[5]
+
+        # find the coordinate of center of front axle
+        wheelbase = 98e-3
+        x += wheelbase*cos(heading)
+        y += wheelbase*sin(heading)
 
         # find offset
         # positive offset means car is to the left of the trajectory(need to turn right)
