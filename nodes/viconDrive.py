@@ -7,8 +7,11 @@ import sys
 import serial
 import platform
 import cv2
+import os.path
 sys.path.insert(0,'../src')
 from threading import Lock
+from signal import SIGINT
+from signal import signal as syssignal
 #import rospy
 import numpy as np
 from scipy import signal 
@@ -71,6 +74,25 @@ flag_new_visualization_img = False
 q_t = tf.euler2q(0,0,0)
 T = np.hstack([q_t,np.array([0.5,0.3,0])])
 
+def exitHandler(signal_received, frame):
+    cv2.destroyAllWindows()
+    output = open(logFolder+'exp_state'+str(no)+'.p','wb')
+    pickle.dump(state_vec,output)
+    output.close()
+
+    output = open(logFolder+'exp_offset'+str(no)+'.p','wb')
+    pickle.dump(offset_vec,output)
+    output.close()
+
+    output = open(logFolder+'exp_dw'+str(no)+'.p','wb')
+    pickle.dump(omega_offset_vec,output)
+    output.close()
+
+    plt.plot(offset_vec)
+    plt.show()
+    return
+syssignal(SIGINT,exitHandler)
+
 def mapdata(x,a,b,c,d):
     y=(x-a)/(b-a)*(d-c)+c
     return int(y)
@@ -125,13 +147,15 @@ def ctrlloop(track,cooldown=False):
         throttle,steering,valid,other = car.ctrlCar(local_state,sp,reverse=False)
     else:
         throttle,steering,valid,other= car.ctrlCar(local_state,sp,v_override=0,reverse=False)
+        throttle = 0
     
-    print(steering, throttle)
 
     offset = other[0]
     omega_offset = other[1]
     offset_vec.append(offset)
     omega_offset_vec.append(omega_offset)
+
+    print(offset, degrees(steering), throttle)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
@@ -167,7 +191,10 @@ def ctrlloop(track,cooldown=False):
         visualization_ts = time()
         flag_new_visualization_img = True
 
+no = 1
+
 if __name__ == '__main__':
+
     host_system = platform.system()
     if host_system == "Linux":
         CommPort = '/dev/ttyUSB0'
@@ -224,6 +251,17 @@ if __name__ == '__main__':
     #img_track = s.drawTrack()
     #img_track = s.drawRaceline(img=img_track)
 
+
+    # logging
+    logFolder = "./log/"
+    logPrefix = "exp_state"
+    logSuffix = ".p"
+    # global
+    #no = 1
+    while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
+        no += 1
+    logFilename = logFolder+logPrefix+str(no)+logSuffix
+
     # skid pad
     sp.initSkidpad(radius=1,velocity=1)
     car = Car()
@@ -233,8 +271,8 @@ if __name__ == '__main__':
 
     # visualization update loop
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
-        #for i in range(1000):
-        while True:
+        for i in range(1000):
+        #while True:
             ctrlloop(sp)
             state_vec.append(local_state)
 
@@ -264,24 +302,5 @@ if __name__ == '__main__':
                 k = cv2.waitKey(1) & 0xFF
                 if k == ord('q'):
                     break
-
-    cv2.destroyAllWindows()
-    output = open('exp_state.p','wb')
-    pickle.dump(state_vec,output)
-    output.close()
-
-    output = open('exp_offset.p','wb')
-    pickle.dump(offset_vec,output)
-    output.close()
-
-    output = open('exp_dw.p','wb')
-    pickle.dump(omega_offset_vec,output)
-    output.close()
-
-    
-    plt.plot(omega_offset_vec)
-    plt.show()
-
-    plt.plot(offset_vec)
-    plt.show()
+    exitHandler(None,None)
 

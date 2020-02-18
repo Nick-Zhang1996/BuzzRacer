@@ -30,7 +30,8 @@ class Skidpad(Track):
         omega = state[5]
 
         # find the coordinate of center of front axle
-        wheelbase = 98e-3
+        #wheelbase = 98e-3
+        wheelbase = 108e-3
         x += wheelbase*cos(heading)
         y += wheelbase*sin(heading)
 

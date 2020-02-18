@@ -10,7 +10,7 @@ class Car:
         self.max_offset = 0.3
         # controller tuning, steering->lateral offset
         # P is applied on offset
-        self.P = 0.8/180*pi/0.01
+        self.P = 0.5/180*pi/0.01
         # 5 deg of correction for every 3 rad/s overshoot
         # D is applied on delta_omega
         self.D = radians(4)/3
@@ -86,7 +86,7 @@ class Car:
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
         #return max(min(throttle,1),-1)
-        return 0.32
+        return 0.2
 
     # update car state with bicycle model, no slip
     # dt: time, in sec
