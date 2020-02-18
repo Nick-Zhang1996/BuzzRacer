@@ -86,7 +86,7 @@ class Car:
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
         #return max(min(throttle,1),-1)
-        return 0.2
+        return 0.3
 
     # update car state with bicycle model, no slip
     # dt: time, in sec

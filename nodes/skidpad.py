@@ -55,6 +55,7 @@ class Skidpad(Track):
             signed_curvature = -1.0/self.radius
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
+        print(phase,offset)
         return (raceline_point,offset,raceline_orientation,signed_curvature,self.velocity)
 
     # prepare a picture of the track
@@ -63,7 +64,7 @@ class Skidpad(Track):
         res = self.resolution
         canvas = 255*np.ones([int(res*self.radius*4),int(res*self.radius*4),3],dtype='uint8')
         self.canvas_size = canvas.shape
-        canvas = cv2.circle(canvas,self.m2canvas((0,0)),self.radius*res,(255,0,0),5)
+        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int(self.radius*res),(255,0,0),5)
         return canvas
 
 # draw car on a track image prepared by drawTrack()

@@ -2,6 +2,7 @@
 
 # utilize track.py to operate a vehicle
 # this node directly publish to RCchannel
+# TODO add goto in beginning
 
 import sys
 import serial
@@ -55,9 +56,11 @@ b, a = signal.butter(1,6,'low',analog=False,fs=100)
 z_vf = [0]
 z_vs = [0]
 z_omega = [0] # omega, angular rate in rad/s
+z_steering = [0]
 last_vf = 0
 last_vs = 0
 last_omega = 0
+last_steering = 0
 
 
 # visualization
@@ -72,7 +75,7 @@ flag_new_visualization_img = False
 
 # for upright origin
 q_t = tf.euler2q(0,0,0)
-T = np.hstack([q_t,np.array([0.5,0.3,0])])
+T = np.hstack([q_t,np.array([0.0,0,0])])
 
 def exitHandler(signal_received, frame):
     cv2.destroyAllWindows()
@@ -88,6 +91,7 @@ def exitHandler(signal_received, frame):
     pickle.dump(omega_offset_vec,output)
     output.close()
 
+    print("saved to No." + str(no))
     plt.plot(offset_vec)
     plt.show()
     return
@@ -104,8 +108,8 @@ def ctrlloop(track,cooldown=False):
     global flag_new_visualization_img
     global shared_visualization_img
     global previous_state
-    global last_vf,last_vs,last_omega
-    global z_vf,z_vs,z_omega
+    global last_vf,last_vs,last_omega,last_steering
+    global z_vf,z_vs,z_omega,z_steering
     global local_state
 
     # state update
@@ -149,13 +153,17 @@ def ctrlloop(track,cooldown=False):
         throttle,steering,valid,other= car.ctrlCar(local_state,sp,v_override=0,reverse=False)
         throttle = 0
     
+    # lowpass filter on steering
+    steering_lf, z_steering = signal.lfilter(b,a,[steering],zi=z_steering)
+    last_steering = steering
+    #steering = steering_lf[0]
 
     offset = other[0]
     omega_offset = other[1]
     offset_vec.append(offset)
     omega_offset_vec.append(omega_offset)
 
-    print(offset, degrees(steering), throttle)
+    #print(offset, degrees(steering), throttle)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
@@ -263,7 +271,7 @@ if __name__ == '__main__':
     logFilename = logFolder+logPrefix+str(no)+logSuffix
 
     # skid pad
-    sp.initSkidpad(radius=1,velocity=1)
+    sp.initSkidpad(radius=0.5,velocity=1)
     car = Car()
     img_track = sp.drawTrack()
     cv2.imshow('car',img_track)
@@ -271,8 +279,8 @@ if __name__ == '__main__':
 
     # visualization update loop
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
-        for i in range(1000):
-        #while True:
+        #for i in range(3000):
+        while True:
             ctrlloop(sp)
             state_vec.append(local_state)
 
