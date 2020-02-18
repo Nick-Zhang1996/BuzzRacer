@@ -799,7 +799,7 @@ class RCPtrack:
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
-        x,y,heading, vf_lf, vs_lf, omega_lf = local_state
+        x,y,heading, vf_lf, vs_lf, omega_lf = state
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:

@@ -47,12 +47,14 @@ class Car:
 
         retval = track.localTrajectory(state)
         if retval is None:
-            return ret
+            return (0,0,False,[None,None])
+            #return ret
 
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         if isnan(orientation):
-            return ret
+            return (0,0,False,[None,None])
+            #return ret
             
         if reverse:
             offset = -offset

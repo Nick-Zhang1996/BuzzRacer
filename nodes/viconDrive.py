@@ -148,9 +148,9 @@ def ctrlloop(track,cooldown=False):
     lock_state.release()
     
     if (not cooldown):
-        throttle,steering,valid,other = car.ctrlCar(local_state,sp,reverse=False)
+        throttle,steering,valid,other = car.ctrlCar(local_state,s,reverse=False)
     else:
-        throttle,steering,valid,other= car.ctrlCar(local_state,sp,v_override=0,reverse=False)
+        throttle,steering,valid,other= car.ctrlCar(local_state,s,v_override=0,reverse=False)
         throttle = 0
     
     # lowpass filter on steering
@@ -158,10 +158,11 @@ def ctrlloop(track,cooldown=False):
     last_steering = steering
     #steering = steering_lf[0]
 
-    offset = other[0]
-    omega_offset = other[1]
-    offset_vec.append(offset)
-    omega_offset_vec.append(omega_offset)
+    if len(other)==2:
+        offset = other[0]
+        omega_offset = other[1]
+        offset_vec.append(offset)
+        omega_offset_vec.append(omega_offset)
 
     #print(offset, degrees(steering), throttle)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
@@ -271,9 +272,10 @@ if __name__ == '__main__':
     logFilename = logFolder+logPrefix+str(no)+logSuffix
 
     # skid pad
-    sp.initSkidpad(radius=0.5,velocity=1)
+    #sp.initSkidpad(radius=0.5,velocity=1)
     car = Car()
-    img_track = sp.drawTrack()
+    #img_track = sp.drawTrack()
+    img_track = s.drawTrack()
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
 
@@ -281,7 +283,7 @@ if __name__ == '__main__':
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
         #for i in range(3000):
         while True:
-            ctrlloop(sp)
+            ctrlloop(s)
             state_vec.append(local_state)
 
             if flag_new_visualization_img:
@@ -297,7 +299,7 @@ if __name__ == '__main__':
 
         # cooldown
         for i in range(200):
-            ctrlloop(sp,cooldown=True)
+            ctrlloop(p,cooldown=True)
             state_vec.append(local_state)
 
             if flag_new_visualization_img:
