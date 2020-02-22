@@ -24,6 +24,7 @@ from time import sleep,time
 from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
+from PIL import Image
 # controller tuning, steering->lateral offset
 # P is applied on offset
 P = 0.8/180*pi/0.01
@@ -1011,12 +1012,18 @@ if __name__ == "__main__":
     #print(throttle,steering,valid)
 
     #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
+    gifimages = []
+
     state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
     img_track_car = s.drawCar(img_track.copy(),state,steering)
     cv2.imshow('car',img_track_car)
+    # prepare save gif
+    saveGif = False
+    if saveGif:
+        gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
 
     max_acc = 0
-    for i in range(100):
+    for i in range(120):
         #print("step = "+str(i))
         # update car
         sim_states = s.updateCar(0.05,sim_states,throttle,steering)
@@ -1034,11 +1041,15 @@ if __name__ == "__main__":
         acc_mag = (acc[0]**2+acc[1]**2)**0.5
 
         cv2.imshow('car',img_track_car)
+        if saveGif:
+            gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
         k = cv2.waitKey(30) & 0xFF
         if k == ord('q'):
             break
 
     cv2.destroyAllWindows()
+    if saveGif:
+        gifimages[0].save(fp="./mk103new.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
     #plt.plot(sim_omega_vec)
     #plt.plot(np.array(K_vec))
