@@ -454,7 +454,7 @@ class RCPtrack:
         # s= smoothing factor
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
-        smoothing_factor = 0.015*(m)
+        smoothing_factor = 0.01*(m)
         tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
 
         # this gives smoother result, but difficult to relate u to actual grid
@@ -656,6 +656,7 @@ class RCPtrack:
         # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
 
+        # the seq here starts from origin
         seq = -1
         # figure out which u this grid corresponds to 
         for i in range(len(self.grid_sequence)):
@@ -928,13 +929,14 @@ class RCPtrack:
 
     
 if __name__ == "__main__":
-    s = RCPtrack()
 
-    # initialize track and raceline
-    # actual RCP track we have
+    # initialize track and raceline, multiple tracks are defined here, you may choose any one
+
+    # full RCP track
     # row, col
+    fulltrack = RCPtrack()
     track_size = (6,4)
-    s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
+    fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
     # add manual offset for each control points
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
@@ -962,35 +964,55 @@ if __name__ == "__main__":
     adjustment[21] = 0.35
     adjustment[22] = 0.35
 
-    # start coord, direction, sequence number of origin(which u gives the exit point for origin)
+    # start coord, direction, sequence number of origin
+    # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
+    # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
     #s.initRaceline((3,3),'d',10,offset=adjustment)
-    s.initRaceline((3,3),'d',10)
+    fulltrack.initRaceline((3,3),'d',10)
 
     # another complex track
-    #s.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
-    #s.initRaceline((3,3),'u')
+    #alter = RCPtrack()
+    #alter.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
+    #alter.initRaceline((3,3),'u')
 
     # simple track, one loop
-    #s.initTrack('uurrddll',(3,3),scale=0.565)
-    #s.initRaceline((0,0),'l',0)
+    simple = RCPtrack()
+    simple.initTrack('uurrddll',(3,3),scale=0.565)
+    simple.initRaceline((0,0),'l',0)
 
+    # current track setup in mk103
+    mk103 = RCPtrack()
+    mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
+    mk103.initRaceline((2,2),'d',4)
+
+
+
+    # select a track
+    s = mk103
     # visualize raceline
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
 
-    # given a starting location, find car control and visualize it
+    # given a starting simulation location, find car control and visualize it
     # for RCP track
     coord = (3.6*0.565,3.5*0.565)
     # for simple track
     # coord = (2.5*0.565,1.5*0.565)
+
+    # for mk103 track
+    coord = (0.5*0.565,1.7*0.565)
     heading = pi/2
+    # be careful here
+    reverse = False
     throttle,steering,valid,dummy,dummy1 = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
     # should be x,y,heading,vf,vs,omega, i didn't implement the last two
     #s.state = np.array([coord[0],coord[1],heading,0,0,0])
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
     #print(throttle,steering,valid)
 
-    img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
+    #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
+    state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
+    img_track_car = s.drawCar(img_track.copy(),state,steering)
     cv2.imshow('car',img_track_car)
 
     max_acc = 0
@@ -1001,10 +1023,11 @@ if __name__ == "__main__":
         sim_omega_vec.append(sim_states['omega'])
 
         state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
-        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(state,reverse=True)
+        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(state,reverse)
         #print(i,throttle,steering,valid)
         #img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        img_track_car = s.drawCar((state[0],state[1]),state[2],steering,img_track.copy())
+        #img_track_car = s.drawCar((state[0],state[1]),state[2],steering,img_track.copy())
+        img_track_car = s.drawCar(img_track.copy(),state,steering)
         #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
         #print(sim_states['acc'])
         acc = sim_states['acc']
