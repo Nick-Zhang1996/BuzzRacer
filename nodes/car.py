@@ -1,3 +1,5 @@
+# This document defines methods related to the Car class,
+# which contains the physical dimension, performance, simulation model, and control algorithm for a car
 import numpy as np
 from scipy import signal
 from numpy import isclose 
@@ -5,17 +7,23 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import matplotlib.pyplot as plt
 
 class Car:
-    def __init__(self):
-        # max allowable crosstrack error, if vehicle cross track error is larger than this value, vehicle will be braked
+    def __init__(self,wheelbase,max_steering=radians(24.5),max_throttle=0.3):
+        # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
+        # controller would cease attempt to correct for it, and will brake vehicle to a stop
+        # unit: m
         self.max_offset = 0.3
         # controller tuning, steering->lateral offset
         # P is applied on offset
+        # unit: radiant of steering per meter offset
         self.P = 0.5/180*pi/0.01
-        # 5 deg of correction for every 3 rad/s overshoot
+        # define maximum allowable throttle and steering
+        # ste
+        self.max_throttle = max_throttle
+        self.max_steering = max_steering
+
+        # NOTE, parameters below may not be actively used in current version of code
         # D is applied on delta_omega
         self.D = radians(4)/3
-        self.max_throttle = 0.3
-        self.max_steering = radians(24.5)
         self.throttle_I = 0.1
         self.throttle_P = 1
         self.verr_integral = 0
