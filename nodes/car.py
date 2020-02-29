@@ -58,7 +58,9 @@ class Car:
             return (0,0,False,[None,None])
             #return ret
 
+        # v target not implemented
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        #(local_ctrl_pnt,offset,orientation,curvature) = retval
 
         if isnan(orientation):
             return (0,0,False,[None,None])
@@ -111,7 +113,7 @@ class Car:
         # experimental acceleration model
         v = max(state[3]+(throttle-0.2)*4*dt,0)
         theta = state[2] - pi/2
-        L = 98e-3
+        L = 90e-3
         dr = v*dt
         dtheta = dr*tan(steering)/L
         # specific to vehicle frame (x to right of rear axle, y to forward)

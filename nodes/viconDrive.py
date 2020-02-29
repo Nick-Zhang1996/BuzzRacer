@@ -28,6 +28,7 @@ from vicon import Vicon
 import pickle
 from skidpad import Skidpad
 from car import Car
+from PIL import Image
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -75,10 +76,12 @@ flag_new_visualization_img = False
 
 # for upright origin
 q_t = tf.euler2q(0,0,0)
-T = np.hstack([q_t,np.array([0.0,0,0])])
+T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
 
 def exitHandler(signal_received, frame):
     cv2.destroyAllWindows()
+    if saveGif:
+        gifimages[0].save(fp="./mk103exp.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
     output = open(logFolder+'exp_state'+str(no)+'.p','wb')
     pickle.dump(state_vec,output)
     output.close()
@@ -94,6 +97,7 @@ def exitHandler(signal_received, frame):
     print("saved to No." + str(no))
     plt.plot(offset_vec)
     plt.show()
+    exit(0)
     return
 syssignal(SIGINT,exitHandler)
 
@@ -116,6 +120,7 @@ def ctrlloop(track,cooldown=False):
     (x,y,z,rx,ry,rz) = vi.getViconUpdate()
     # get body pose in track frame
     (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
+    #print(x,y,heading)
     vx = (x - previous_state[0])/vicon_dt
     vy = (y - previous_state[1])/vicon_dt
     omega = (heading - previous_state[2])/vicon_dt
@@ -152,6 +157,10 @@ def ctrlloop(track,cooldown=False):
     else:
         throttle,steering,valid,other= car.ctrlCar(local_state,s,v_override=0,reverse=False)
         throttle = 0
+    # override throttle
+    if throttle>0.05:
+        throttle = 0.25
+    #print(degrees(steering),throttle)
     
     # lowpass filter on steering
     steering_lf, z_steering = signal.lfilter(b,a,[steering],zi=z_steering)
@@ -164,7 +173,7 @@ def ctrlloop(track,cooldown=False):
         offset_vec.append(offset)
         omega_offset_vec.append(omega_offset)
 
-    #print(offset, degrees(steering), throttle)
+    print(offset, degrees(steering), throttle)
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
@@ -179,15 +188,15 @@ def ctrlloop(track,cooldown=False):
     msg = RCchannel()
     msg.header = Header()
     msg.header.stamp = rospy.Time.now()
-    msg.ch[0] = mapdata(steering, radians(24),-radians(24),1150,1850)
+    msg.ch[0] = mapdata(steering, radians(27),-radians(27),1150,1850)
     msg.ch[1] = mapdata(throttle,-1.0,1.0,1900,1100)
 
     pub.publish(msg)
     '''
 # need to supply 4 valurs for two cars even if only one interface is being used
-    #arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
-    arduino.write((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
-    #print((str(mapdata(steering, radians(24),-radians(24),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+    #arduino.write((str(mapdata(steering, radians(27),-radians(27),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
+    arduino.write((str(mapdata(steering, radians(27.1),-radians(27.1),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+    #print((str(mapdata(steering, radians(27),-radians(27),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
 
     # visualization
     # add throttling
@@ -215,51 +224,6 @@ if __name__ == '__main__':
     #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
     #pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
 
-    if (False):
-        # MK111 track
-        # row, col
-        track_size = (6,4)
-        s.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
-        # add manual offset for each control points
-        adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-
-        adjustment[0] = -0.2
-        adjustment[1] = -0.2
-        #bottom right turn
-        adjustment[2] = -0.2
-        adjustment[3] = 0.5
-        adjustment[4] = -0.2
-
-        #bottom middle turn
-        adjustment[6] = -0.2
-
-        #bottom left turn
-        adjustment[9] = -0.2
-
-        # left L turn
-        adjustment[12] = 0.5
-        adjustment[13] = 0.5
-
-        adjustment[15] = -0.5
-        adjustment[16] = 0.5
-        adjustment[18] = 0.5
-
-        adjustment[21] = 0.35
-        adjustment[22] = 0.35
-
-        # start coord, direction, sequence number of origin(which u gives the exit point for origin)
-        s.initRaceline((3,3),'d',10,offset=adjustment)
-    else:
-        # example: simple track
-        s.initTrack('uurrddll',(3,3),scale=1.0)
-        s.initRaceline((0,0),'l',0)
-        
-
-    # sample track
-    #setup visualization of current car location, comment out if running the code on car computer
-    #img_track = s.drawTrack()
-    #img_track = s.drawRaceline(img=img_track)
-
 
     # logging
     logFolder = "./log/"
@@ -273,11 +237,28 @@ if __name__ == '__main__':
 
     # skid pad
     #sp.initSkidpad(radius=0.5,velocity=1)
+
+    # current track setup in mk103
+    # width 0.563, length 0.6
+    mk103 = RCPtrack()
+    mk103.initTrack('uuruurddddll',(5,3),scale=0.60)
+    mk103.initRaceline((2,2),'d',4)
+
+    # select track
+    s = mk103
+
     car = Car()
-    #img_track = sp.drawTrack()
     img_track = s.drawTrack()
+    img_track = s.drawRaceline(img=img_track)
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
+
+    gifimages = []
+    # prepare save gif
+    saveGif = True
+    if saveGif:
+        gifimages.append(Image.fromarray(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB)))
+
 
     # visualization update loop
     with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
@@ -290,6 +271,8 @@ if __name__ == '__main__':
                 lock_visual.acquire()
                 #showobj.set_data(shared_visualization_img)
                 cv2.imshow('car',shared_visualization_img)
+                if saveGif:
+                    gifimages.append(Image.fromarray(cv2.cvtColor(shared_visualization_img,cv2.COLOR_BGR2RGB)))
                 lock_visual.release()
                 #plt.draw()
                 flag_new_visualization_img = False

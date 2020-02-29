@@ -164,7 +164,7 @@ class TF:
 class RCPtrack:
     def __init__(self):
         # resolution : pixels per grid side length
-        self.resolution = 100
+        self.resolution = 150
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -251,7 +251,7 @@ class RCPtrack:
         # resolution : pixels per grid length
         color_side = (255,0,0)
         # boundary width / grid width
-        deadzone = 0.09
+        deadzone = 0.087
         gs = self.resolution
 
         # prepare straight section (WE)
@@ -260,7 +260,7 @@ class RCPtrack:
         straight = cv2.rectangle(straight, (0,int((1-deadzone)*gs)),(gs-1,gs-1),color_side,-1)
         WE = straight
 
-        # prepare straight section (SE)
+        # prepare turn section (SE)
         turn = 255*np.ones([gs,gs,3],dtype='uint8')
         turn = cv2.rectangle(turn, (0,0),(int(deadzone*gs),gs-1),color_side,-1)
         turn = cv2.rectangle(turn, (0,0),(gs-1,int(deadzone*gs)),color_side,-1)
@@ -649,7 +649,7 @@ class RCPtrack:
         coord = np.array([state[0],state[1]])
         heading = state[2]
         # find the coordinate of center of front axle
-        wheelbase = 98e-3
+        wheelbase = 90e-3
         coord[0] += wheelbase*cos(heading)
         coord[1] += wheelbase*sin(heading)
         heading = state[2]
@@ -768,8 +768,8 @@ class RCPtrack:
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
-        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
-        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature))
+        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
+        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),1.0)
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -840,7 +840,7 @@ class RCPtrack:
         if retval is None:
             return ret
 
-        (local_ctrl_pnt,offset,orientation,curvature) = retval
+        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         self.offset_timestamp.append(time())
         self.offset_history.append(offset)
@@ -897,7 +897,7 @@ class RCPtrack:
         omega = state['omega']
 
         theta = state['heading'] - pi/2
-        L = 98e-3
+        L = 90e-3
         # NOTE if side slip is ever modeled, update ds
         ds = vf*dt
         dtheta = ds*tan(beta)/L

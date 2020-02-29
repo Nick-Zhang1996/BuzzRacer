@@ -19,7 +19,11 @@ class Vicon:
 
     def getViconUpdate(self):
         data, addr = self.sock.recvfrom(256)
-        frameNumber = unpack('i',data[0:4])
+        # flush
+        #while (len(data)==512):
+        #    data, addr = self.sock.recvfrom(512)
+        #frameNumber = unpack('i',data[0:4])
+
         #print(frameNumber)
         itemsInBlock = data[4]
         itemID = data[5]
@@ -36,6 +40,14 @@ class Vicon:
         #print(x,y,z,degrees(rx),degrees(ry),degrees(rz))
         return (x,y,z,rx,ry,rz)
 
+    def testFreq(self,packets=100):
+        # test actual frequency of vicon update, with PACKETS number of state updates
+        tic = time()
+        for i in range(packets):
+            self.getViconUpdate()
+        tac = time()
+        return packets/(tac-tic)
+
     # for debug
     def fromFile(self,filename):
         newFile = open(filename, "wb")
@@ -51,6 +63,10 @@ if __name__ == '__main__':
     loss_count = 0
     while True:
         print(vi.getViconUpdate())
+    # test freq
+    if True:
+        for i in range(3):
+            print("Freq = "+str(vi.testFreq())+"Hz")
 
         
     
