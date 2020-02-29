@@ -2,7 +2,6 @@
 
 # utilize track.py to operate a vehicle
 # this node directly publish to RCchannel
-# TODO add goto in beginning
 
 import sys
 import serial
@@ -95,10 +94,14 @@ def exitHandler(signal_received, frame):
     output.close()
 
     print("saved to No." + str(no))
+    print(" showing offset_vec")
     plt.plot(offset_vec)
     plt.show()
+    print("Program finished")
     exit(0)
     return
+
+# register signal handler to save everything when ctrl-C is pressed
 syssignal(SIGINT,exitHandler)
 
 def mapdata(x,a,b,c,d):
@@ -107,7 +110,7 @@ def mapdata(x,a,b,c,d):
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
-def ctrlloop(track,cooldown=False):
+def ctrlloop(car,track,cooldown=False):
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
@@ -127,7 +130,7 @@ def ctrlloop(track,cooldown=False):
     vf = vx*cos(heading) + vy*sin(heading)
     vs = vx*sin(heading) - vy*cos(heading)
 
-    # low pass filter
+    # low pass filter 
     if (abs(vf-last_vf)>0.5):
         vf_lf, z_vf = signal.lfilter(b,a,[last_vf],zi=z_vf)
     else:
@@ -162,7 +165,7 @@ def ctrlloop(track,cooldown=False):
         throttle = 0.25
     #print(degrees(steering),throttle)
     
-    # lowpass filter on steering
+    # lowpass filter to smooth steering command
     steering_lf, z_steering = signal.lfilter(b,a,[steering],zi=z_steering)
     last_steering = steering
     #steering = steering_lf[0]
@@ -174,16 +177,18 @@ def ctrlloop(track,cooldown=False):
         omega_offset_vec.append(omega_offset)
 
     print(offset, degrees(steering), throttle)
+
+    # ROS specific debugging info
     #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
     #print(str((x,y,degrees(heading),throttle,steering,valid)))
     #print(valid)
 
-    # for using carControl
+    # for using ROS topic carControl
     #msg = carControl_msg()
     #msg.throttle = throttle
     #msg.steer_angle = degrees(steering)
 
-    # for using channel directly
+    # for using ROS topic RCchannel
     '''
     msg = RCchannel()
     msg.header = Header()
@@ -193,10 +198,7 @@ def ctrlloop(track,cooldown=False):
 
     pub.publish(msg)
     '''
-# need to supply 4 valurs for two cars even if only one interface is being used
-    #arduino.write((str(mapdata(steering, radians(27),-radians(27),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+",1500,1500"+'\n').encode('ascii'))
-    arduino.write((str(mapdata(steering, radians(27.1),-radians(27.1),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
-    #print((str(mapdata(steering, radians(27),-radians(27),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+    car_interface.write((str(mapdata(steering, radians(27.1),-radians(27.1),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
 
     # visualization
     # add throttling
@@ -212,10 +214,12 @@ def ctrlloop(track,cooldown=False):
 no = 1
 
 if __name__ == '__main__':
+    twoCars = False
 
     host_system = platform.system()
     if host_system == "Linux":
         CommPort = '/dev/ttyUSB0'
+        CommPort2 = '/dev/ttyUSB1'
     elif host_system == "Darwin":
         CommPort = '/dev/tty.wchusbserial1420'
 
@@ -225,7 +229,9 @@ if __name__ == '__main__':
     #pub = rospy.Publisher("vip_rc/channel", RCchannel, queue_size=1)
 
 
-    # logging
+    # setup log file
+    # log file will record state of the vehicle for later analysis
+    #   state: (x,y,heading,v_forward,v_sideway,omega)
     logFolder = "./log/"
     logPrefix = "exp_state"
     logSuffix = ".p"
@@ -235,65 +241,74 @@ if __name__ == '__main__':
         no += 1
     logFilename = logFolder+logPrefix+str(no)+logSuffix
 
+    # define tracks
     # skid pad
     #sp.initSkidpad(radius=0.5,velocity=1)
 
-    # current track setup in mk103
+    # current track setup in mk103, L shaped
     # width 0.563, length 0.6
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.60)
     mk103.initRaceline((2,2),'d',4)
 
     # select track
-    s = mk103
+    track = mk103
 
+    # porsche 911
     car = Car()
-    img_track = s.drawTrack()
-    img_track = s.drawRaceline(img=img_track)
+    # lambo TODO: calibrate lambo chassis
+    #car2 = Car()
+
+    img_track = track.drawTrack()
+    img_track = track.drawRaceline(img=img_track)
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
 
-    gifimages = []
-    # prepare save gif
+    # prepare save gif, this provides an easy to use visualization for presentation
     saveGif = True
+    gifimages = []
     if saveGif:
-        gifimages.append(Image.fromarray(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB)))
+        gifimages.append(Image.fromarray(cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)))
 
 
-    # visualization update loop
-    with serial.Serial(CommPort,115200, timeout=0.001,writeTimeout=0) as arduino:
-        #for i in range(3000):
-        while True:
-            ctrlloop(s)
-            state_vec.append(local_state)
+    # main loop
+    while True:
+        # control
+        ctrlloop(car,track)
 
-            if flag_new_visualization_img:
-                lock_visual.acquire()
-                #showobj.set_data(shared_visualization_img)
-                cv2.imshow('car',shared_visualization_img)
-                if saveGif:
-                    gifimages.append(Image.fromarray(cv2.cvtColor(shared_visualization_img,cv2.COLOR_BGR2RGB)))
-                lock_visual.release()
-                #plt.draw()
-                flag_new_visualization_img = False
-                k = cv2.waitKey(1) & 0xFF
-                if k == ord('q'):
-                    break
+        # logging
+        state_vec.append(local_state)
 
-        # cooldown
-        for i in range(200):
-            ctrlloop(p,cooldown=True)
-            state_vec.append(local_state)
+        # update visualization
+        if flag_new_visualization_img:
+            lock_visual.acquire()
+            #showobj.set_data(shared_visualization_img)
+            cv2.imshow('car',shared_visualization_img)
+            if saveGif:
+                gifimages.append(Image.fromarray(cv2.cvtColor(shared_visualization_img.copy(),cv2.COLOR_BGR2RGB)))
+            lock_visual.release()
+            #plt.draw()
+            flag_new_visualization_img = False
+            k = cv2.waitKey(1) & 0xFF
+            if k == ord('q'):
+                break
 
-            if flag_new_visualization_img:
-                lock_visual.acquire()
-                #showobj.set_data(shared_visualization_img)
-                cv2.imshow('car',shared_visualization_img)
-                lock_visual.release()
-                #plt.draw()
-                flag_new_visualization_img = False
-                k = cv2.waitKey(1) & 0xFF
-                if k == ord('q'):
-                    break
+    # NOTE currently not used :cooldown
+    # this is forl slowing down the vehicle while maintining steering control
+    # so when the experiment is over the vehicle is not left going high speed on the track
+    for i in range(200):
+        ctrlloop(p,cooldown=True)
+        state_vec.append(local_state)
+
+        if flag_new_visualization_img:
+            lock_visual.acquire()
+            #showobj.set_data(shared_visualization_img)
+            cv2.imshow('car',shared_visualization_img)
+            lock_visual.release()
+            #plt.draw()
+            flag_new_visualization_img = False
+            k = cv2.waitKey(1) & 0xFF
+            if k == ord('q'):
+                break
     exitHandler(None,None)
 

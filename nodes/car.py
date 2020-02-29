@@ -7,7 +7,7 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import matplotlib.pyplot as plt
 
 class Car:
-    def __init__(self,wheelbase,max_steering=radians(24.5),max_throttle=0.3):
+    def __init__(self,wheelbase=90e-3,max_steering=radians(27.1),serial_port='/dev/ttyUSB0',max_throttle=0.3):
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
@@ -17,34 +17,45 @@ class Car:
         # unit: radiant of steering per meter offset
         self.P = 0.5/180*pi/0.01
         # define maximum allowable throttle and steering
-        # ste
+        # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
+        # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
+        # default values are for the MR03 chassis with Porsche 911 GT3 RS body
+        self.wheelbase = wheelbase
         self.max_throttle = max_throttle
         self.max_steering = max_steering
 
         # NOTE, parameters below may not be actively used in current version of code
-        # D is applied on delta_omega
+        # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
+        # PI controller for speed
         self.throttle_I = 0.1
         self.throttle_P = 1
         self.verr_integral = 0
-        # for Integral controller on throttle
+        # time constant in sec 
         tc = 2
         self.decay_factor = exp(-1.0/100/tc)
+        self.serial_port = serial_port
+        self.car_interface = serial.Serial(serial_port,115200, timeout=0.001,writeTimeout=0)
+
+    def __del__(self):
+        if not (self.car_interface is None):
+            self.car_interface.close()
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 #   track: track object, can be RCPtrack or skidpad
-#   v_override: use this as target velocity
+#   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
 #   reverse: true if running in opposite direction of raceline init direction
 
 # output:
 #   (throttle,steering,valid,debug) 
 # ranges for output:
-#   throttle -1.0,1.0
-#   steering as an angle in radians, TRIMMED to MAX_STEERING, left positive
+#   throttle -1.0,self.max_throttle
+#   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
-# debug: a list of objects to be debugged
+#           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
+# debug: a list of objects to be debugged, e.g. [offset, error in v]
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
         heading = state[2]
@@ -53,30 +64,32 @@ class Car:
         vs = state[4]
         ret = (0,0,False,[])
 
+        # inquire information about desired trajectory close to the vehicle
         retval = track.localTrajectory(state)
         if retval is None:
             return (0,0,False,[None,None])
             #return ret
 
-        # v target not implemented
+        # NOTE v target is currently ignored
+        # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        #(local_ctrl_pnt,offset,orientation,curvature) = retval
 
         if isnan(orientation):
             return (0,0,False,[None,None])
-            #return ret
             
         if reverse:
             offset = -offset
             orientation += pi
 
-        # how much to compensate for per meter offset from track
+        # if vehicle cross error exceeds maximum allowable error, stop the car
         if (abs(offset) > self.max_offset):
             return (0,0,False,[offset,None])
         else:
-            # sign convention for offset: - requires left steering(+)
-            steering = orientation-heading - offset * self.P - (omega-curvature*vf)*self.D
-            #print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
+            # sign convention for offset: negative offset(-) requires left steering(+)
+            # this is the convention used in track class, determined arbituarily
+            # control logic
+            steering = (orientation-heading) - (offset * self.P) - (omega-curvature*vf)*self.D
+            # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi)%(2*pi) -pi
             if (steering>self.max_steering):
@@ -92,20 +105,19 @@ class Car:
 
         return ret
 
+    # PI controller for forward velocity
     def calcThrottle(self,v,v_target):
         # PI control for throttle
         v_err = v_target - v
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
-        #return max(min(throttle,1),-1)
-        return 0.3
+        return max(min(throttle,self.max_throttle),-1)
 
+    # for simulation only
     # update car state with bicycle model, no slip
     # dt: time, in sec
     # v: velocity of rear wheel, in m/s
-    # state: (x,y,theta), np array
-    # return new state (x,y,theta)
-# XXX directly copied from track.py
+    # state: x,y,heading,vf(forward speed),vs(sideway speed),omega
     def updateCar(self,state,throttle,steering,dt):
         # wheelbase, in meter
         # heading of pi/2, i.e. vehile central axis aligned with y axis,
@@ -127,10 +139,11 @@ class Car:
         # specific to world frame
         dX = dx*cos(theta)-dy*sin(theta)
         dY = dx*sin(theta)+dy*cos(theta)
-# should be x,y,heading,vf,vs,omega
+        # x,y,heading,vf(forward speed),vs(sideway speed),omega
         return np.array([state[0]+dX,state[1]+dY,state[2]+dtheta,v,0,dtheta/dt])
 
 
+# debugging/tuning code
 if __name__ == '__main__':
     # tune PI controller 
     v_log = []
