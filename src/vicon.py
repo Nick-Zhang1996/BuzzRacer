@@ -69,9 +69,10 @@ class Vicon:
         local_names = self.obj_names
         self.state_lock.release()
         try:
-            obj_id = local_names.index(obj_names)
+            obj_id = local_names.index(obj_name)
         except ValueError:
             obj_id = None
+            print("Error, item :"+str(obj_name)+" not found")
         finally:
             return obj_id
 
@@ -143,6 +144,8 @@ if __name__ == '__main__':
     vi = Vicon()
     testdata = vi.loadFile("./twoobj.vicon")
     vi.getViconUpdate(testdata)
+    print(vi.getItemID('nick_mr03_lambo'))
+    print(vi.getItemName(0))
 
     while False:
         #print(vi.getViconUpdate())
