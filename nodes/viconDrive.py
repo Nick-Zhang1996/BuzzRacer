@@ -102,8 +102,8 @@ def exitHandler(signal_received, frame):
 
         print("saved to No." + str(no))
         print(" showing offset_vec")
-    plt.plot(offset_vec)
-    plt.show()
+        plt.plot(offset_vec)
+        plt.show()
     print("Program finished")
     exit(0)
     return

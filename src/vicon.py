@@ -168,8 +168,6 @@ if __name__ == '__main__':
     for i in range(vi.obj_count):
         print("ID: "+str(i)+", Name: "+vi.getItemName(i))
 
-    print("ID: " +str(vi.getItemID('nick_mr03_lambo')))
-
     vi.stopUpdateDaemon()
 
     while False:
