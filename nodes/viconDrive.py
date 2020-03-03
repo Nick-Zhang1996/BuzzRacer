@@ -85,7 +85,7 @@ def exitHandler(signal_received, frame):
     cv2.destroyAllWindows()
     vi.stopUpdateDaemon()
     if saveGif:
-        gifimages[0].save(fp="./mk103exp.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
+        gifimages[0].save(fp="./mk103exp"+str(no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
     if saveLog:
         output = open(logFolder+'exp_state'+str(no)+'.p','wb')
