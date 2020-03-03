@@ -22,12 +22,17 @@ import matplotlib.pyplot as plt
 #from sensor_msgs.msg import Joy
 #from rcvip_msgs.msg import RCchannel
 #from rcvip_msgs.msg import Vicon as Vicon_msg
-from track import RCPtrack,TF
+from track import RCPtrack
+from tf import TF
 from vicon import Vicon
 import pickle
 from skidpad import Skidpad
 from car import Car
 from PIL import Image
+
+# settings
+twoCars = True
+saveLog = False
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -46,8 +51,7 @@ state_vec = []
 # state vector
 lock_state = Lock()
 # (x,y,heading,v_longitudinal, v_lateral, angular rate)
-local_state = None
-previous_state = (0,0,0,0,0,0)
+state_car = None
 vicon_dt = 0.01
 # lowpass filter
 # argument: order, omega(-3db)
@@ -79,22 +83,25 @@ T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
 
 def exitHandler(signal_received, frame):
     cv2.destroyAllWindows()
+    vi.stopUpdateDaemon()
     if saveGif:
         gifimages[0].save(fp="./mk103exp.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
-    output = open(logFolder+'exp_state'+str(no)+'.p','wb')
-    pickle.dump(state_vec,output)
-    output.close()
 
-    output = open(logFolder+'exp_offset'+str(no)+'.p','wb')
-    pickle.dump(offset_vec,output)
-    output.close()
+    if saveLog:
+        output = open(logFolder+'exp_state'+str(no)+'.p','wb')
+        pickle.dump(state_vec,output)
+        output.close()
 
-    output = open(logFolder+'exp_dw'+str(no)+'.p','wb')
-    pickle.dump(omega_offset_vec,output)
-    output.close()
+        output = open(logFolder+'exp_offset'+str(no)+'.p','wb')
+        pickle.dump(offset_vec,output)
+        output.close()
 
-    print("saved to No." + str(no))
-    print(" showing offset_vec")
+        output = open(logFolder+'exp_dw'+str(no)+'.p','wb')
+        pickle.dump(omega_offset_vec,output)
+        output.close()
+
+        print("saved to No." + str(no))
+        print(" showing offset_vec")
     plt.plot(offset_vec)
     plt.show()
     print("Program finished")
@@ -110,103 +117,77 @@ def mapdata(x,a,b,c,d):
 # read data from vicon feed
 # convert from vicon world frame to track frame
 # update local copy of state
-def ctrlloop(car,track,cooldown=False):
+def ctrlloop(car,car2,track,cooldown=False):
     global visualization_ts
     global flag_new_visualization_img
     global shared_visualization_img
-    global previous_state
     global last_vf,last_vs,last_omega,last_steering
     global z_vf,z_vs,z_omega,z_steering
-    global local_state
+    global state_car
 
+
+    # control for car 1
     # state update
-    (x,y,z,rx,ry,rz) = vi.getViconUpdate()
+    (x,y,z,rx,ry,rz) = vi.getState(car.vicon_id)
     # get body pose in track frame
     (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
-    #print(x,y,heading)
-    vx = (x - previous_state[0])/vicon_dt
-    vy = (y - previous_state[1])/vicon_dt
-    omega = (heading - previous_state[2])/vicon_dt
-    vf = vx*cos(heading) + vy*sin(heading)
-    vs = vx*sin(heading) - vy*cos(heading)
 
-    # low pass filter 
-    if (abs(vf-last_vf)>0.5):
-        vf_lf, z_vf = signal.lfilter(b,a,[last_vf],zi=z_vf)
-    else:
-        vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
-
-    if (abs(vs-last_vs)>0.5):
-        vs_lf, z_vs = signal.lfilter(b,a,[last_vs],zi=z_vs)
-    else:
-        vs_lf, z_vs = signal.lfilter(b,a,[vs],zi=z_vs)
-
-    if (abs(omega-last_omega)>0.5):
-        omega_lf, z_omega = signal.lfilter(b,a,[last_omega],zi=z_omega)
-    else:
-        omega_lf, z_omega = signal.lfilter(b,a,[omega],zi=z_omega)
-
-    last_vf = vf
-    last_vs = vs
-    last_omega = omega
-
-    lock_state.acquire()
-    local_state = (x,y,heading, vf_lf[0], vs_lf[0], omega_lf[0])
-    previous_state = local_state
-    lock_state.release()
+    #state_car = (x,y,heading, vf_lf[0], vs_lf[0], omega_lf[0])
+    state_car = (x,y,heading,0,0,0)
     
     if (not cooldown):
-        throttle,steering,valid,other = car.ctrlCar(local_state,s,reverse=False)
+        throttle,steering,valid,other = car.ctrlCar(state_car,track,reverse=False)
     else:
-        throttle,steering,valid,other= car.ctrlCar(local_state,s,v_override=0,reverse=False)
+        throttle,steering,valid,other= car.ctrlCar(state_car,track,v_override=0,reverse=False)
         throttle = 0
-    # override throttle
-    if throttle>0.05:
-        throttle = 0.25
     #print(degrees(steering),throttle)
     
-    # lowpass filter to smooth steering command
-    steering_lf, z_steering = signal.lfilter(b,a,[steering],zi=z_steering)
-    last_steering = steering
-    #steering = steering_lf[0]
-
+    # only log debugging information for car No.1
     if len(other)==2:
         offset = other[0]
         omega_offset = other[1]
         offset_vec.append(offset)
         omega_offset_vec.append(omega_offset)
 
-    print(offset, degrees(steering), throttle)
+    car.steering = steering
+    car.throttle = throttle
+    car.actuate(steering,throttle)
+    #print(offset, degrees(steering), throttle)
 
-    # ROS specific debugging info
-    #rospy.loginfo(str((x,y,heading,throttle,steering,valid)))
-    #print(str((x,y,degrees(heading),throttle,steering,valid)))
-    #print(valid)
+    # control for car 2
+    if not (car2 is None):
+        # state update
+        (x,y,z,rx,ry,rz) = vi.getState(car2.vicon_id)
+        # get body pose in track frame
+        (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
+        state_car2 = (x,y,heading,0,0,0)
 
-    # for using ROS topic carControl
-    #msg = carControl_msg()
-    #msg.throttle = throttle
-    #msg.steer_angle = degrees(steering)
+        
+        if (not cooldown):
+            throttle,steering,valid,other = car2.ctrlCar(state_car2,track,reverse=False)
+        else:
+            throttle,steering,valid,other= car2.ctrlCar(state_car2,track,v_override=0,reverse=False)
+            throttle = 0
 
-    # for using ROS topic RCchannel
-    '''
-    msg = RCchannel()
-    msg.header = Header()
-    msg.header.stamp = rospy.Time.now()
-    msg.ch[0] = mapdata(steering, radians(27),-radians(27),1150,1850)
-    msg.ch[1] = mapdata(throttle,-1.0,1.0,1900,1100)
-
-    pub.publish(msg)
-    '''
-    car_interface.write((str(mapdata(steering, radians(27.1),-radians(27.1),1150,1850))+","+str(mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+        car2.steering = steering
+        car2.throttle = throttle
+        car2.actuate(steering,throttle)
+    
+    if (car2 is None):
+        print(car.throttle,car.steering)
+    else:
+        print(car.steering,car.throttle,car2.steering,car2.throttle)
 
     # visualization
-    # add throttling
+    # restrict update rate to 0.1s/frame
     if (time()-visualization_ts>0.1):
         # plt doesn't allow updating from a different thread
         lock_visual.acquire()
         #shared_visualization_img = track.drawCar((x,y),heading,steering,img_track.copy())
-        shared_visualization_img = track.drawCar(img_track.copy(), local_state, steering)
+        shared_visualization_img = track.drawCar(img_track.copy(), state_car, steering)
+        if not (car2 is None):
+            shared_visualization_img = track.drawCar(shared_visualization_img, state_car2, steering)
+
         lock_visual.release()
         visualization_ts = time()
         flag_new_visualization_img = True
@@ -214,15 +195,6 @@ def ctrlloop(car,track,cooldown=False):
 no = 1
 
 if __name__ == '__main__':
-    twoCars = False
-
-    host_system = platform.system()
-    if host_system == "Linux":
-        CommPort = '/dev/ttyUSB0'
-        CommPort2 = '/dev/ttyUSB1'
-    elif host_system == "Darwin":
-        CommPort = '/dev/tty.wchusbserial1420'
-
 # ROS init
     #rospy.init_node('viconDrive', anonymous=False)
     #pub = rospy.Publisher("rc_vip/CarControl", carControl_msg, queue_size=1)
@@ -254,10 +226,24 @@ if __name__ == '__main__':
     # select track
     track = mk103
 
+
+    
+
     # porsche 911
-    car = Car()
+    car = Car(serial_port='/dev/ttyUSB0')
+    # ensure vicon state has been updated
+    sleep(0.05)
+    car.vicon_id = vi.getItemID('nick_mr03_porsche')
+    if car.vicon_id is None:
+        print("error, can't find car in vicon")
+        exit(1)
+
     # lambo TODO: calibrate lambo chassis
-    #car2 = Car()
+    if (twoCars):
+        car2 = Car(wheelbase=90e-3,max_steering=radians(27.1),serial_port='/dev/ttyUSB1',max_throttle=0.3)
+        car2.vicon_id = vi.getItemID('nick_mr03_lambo')
+    else:
+        car2 = None
 
     img_track = track.drawTrack()
     img_track = track.drawRaceline(img=img_track)
@@ -274,10 +260,10 @@ if __name__ == '__main__':
     # main loop
     while True:
         # control
-        ctrlloop(car,track)
+        ctrlloop(car,car2,track)
 
-        # logging
-        state_vec.append(local_state)
+        # logging (only for car 1)
+        state_vec.append(state_car)
 
         # update visualization
         if flag_new_visualization_img:
@@ -298,7 +284,7 @@ if __name__ == '__main__':
     # so when the experiment is over the vehicle is not left going high speed on the track
     for i in range(200):
         ctrlloop(p,cooldown=True)
-        state_vec.append(local_state)
+        state_vec.append(state_car)
 
         if flag_new_visualization_img:
             lock_visual.acquire()

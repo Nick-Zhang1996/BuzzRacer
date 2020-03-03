@@ -1,13 +1,14 @@
 # This document defines methods related to the Car class,
 # which contains the physical dimension, performance, simulation model, and control algorithm for a car
 import numpy as np
+import serial
 from scipy import signal
 from numpy import isclose 
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import matplotlib.pyplot as plt
 
 class Car:
-    def __init__(self,wheelbase=90e-3,max_steering=radians(27.1),serial_port='/dev/ttyUSB0',max_throttle=0.3):
+    def __init__(self,wheelbase=90e-3,max_steering=radians(27.1),serial_port=None,max_throttle=0.3):
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
@@ -35,11 +36,15 @@ class Car:
         tc = 2
         self.decay_factor = exp(-1.0/100/tc)
         self.serial_port = serial_port
-        self.car_interface = serial.Serial(serial_port,115200, timeout=0.001,writeTimeout=0)
+        if not (serial_port is None):
+            self.car_interface = serial.Serial(serial_port,115200, timeout=0.001,writeTimeout=0)
 
     def __del__(self):
-        if not (self.car_interface is None):
+        if (not (self.serial_port is None) and self.car_interface.is_open):
             self.car_interface.close()
+    def mapdata(self,x,a,b,c,d):
+        y=(x-a)/(b-a)*(d-c)+c
+        return int(y)
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
@@ -88,7 +93,8 @@ class Car:
             # sign convention for offset: negative offset(-) requires left steering(+)
             # this is the convention used in track class, determined arbituarily
             # control logic
-            steering = (orientation-heading) - (offset * self.P) - (omega-curvature*vf)*self.D
+            #steering = (orientation-heading) - (offset * self.P) - (omega-curvature*vf)*self.D
+            steering = (orientation-heading) - (offset * self.P)
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi)%(2*pi) -pi
@@ -104,6 +110,12 @@ class Car:
             ret =  (throttle,steering,True,[offset,omega-curvature*vf])
 
         return ret
+    def actuate(self,steering,throttle):
+        if not (self.car_interface is None):
+            self.car_interface.write((str(self.mapdata(steering, self.max_steering,-self.max_steering,1150,1850))+","+str(self.mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+            return True
+        else:
+            return False
 
     # PI controller for forward velocity
     def calcThrottle(self,v,v_target):
@@ -111,7 +123,9 @@ class Car:
         v_err = v_target - v
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
-        return max(min(throttle,self.max_throttle),-1)
+        #return max(min(throttle,self.max_throttle),-1)
+        # XXX
+        return 0.25
 
     # for simulation only
     # update car state with bicycle model, no slip

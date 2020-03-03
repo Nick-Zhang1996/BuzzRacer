@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Parse Vicon UDP Object Stream, supports multiple objects on SINGLE port
 import socket
-from time import time
+from time import time,sleep
 from struct import unpack
 from math import degrees,radians
 from threading import Lock
@@ -49,9 +49,12 @@ class Vicon:
         self.quit_thread = False
         if daemon:
             self.thread =  threading.Thread(name="vicon",target=self.viconUpateDaemon)
+            self.thread.start()
+        else:
+            self.thread = None
         
     def __del__(self):
-        if not (self.threading is None):
+        if not (self.thread is None):
             self.quit_thread = True
             self.thread.join()
         self.sock.close()
@@ -76,9 +79,26 @@ class Vicon:
         finally:
             return obj_id
 
+    # get state by id
+    def getState(self,inquiry_id):
+        if inquiry_id>=self.obj_count:
+            print("error: invalid id : "+str(inquiry_id))
+            return None
+        self.state_lock.acquire()
+        retval = self.state_list[inquiry_id]
+        self.state_lock.release()
+        return retval
+
     def viconUpateDaemon(self):
         while not self.quit_thread:
             self.getViconUpdate()
+
+    # stop the update thread
+    def stopUpdateDaemon(self):
+            if not (self.thread is None):
+                self.quit_thread = True
+                self.thread.join()
+                self.thread = None
 
     def getViconUpdate(self,debugData=None):
         # the no of bytes here must agree with length of a vicon packet
@@ -86,6 +106,8 @@ class Vicon:
         try:
             if debugData is None:
                 data, addr = self.sock.recvfrom(256)
+                # in python 2 data is of type str
+                #data = data.encode('ascii')
             else:
                 data = debugData
             local_obj_names = []
@@ -96,7 +118,7 @@ class Vicon:
             itemDataSize = unpack('h',data[6:8])
             for i in range(itemsInBlock):
                 offset = i*75
-                itemName = str(data[8:32]).rstrip('\0')
+                itemName = data[offset+8:offset+32].rstrip(b'\0').decode()
                 # raw data in mm, convert to m
                 x = unpack('d',data[offset+32:offset+40])[0]/1000
                 y = unpack('d',data[offset+40:offset+48])[0]/1000
@@ -107,8 +129,8 @@ class Vicon:
                 rz = unpack('d',data[offset+72:offset+80])[0]
                 local_obj_names.append(itemName)
                 local_state_list.append((x,y,z,rx,ry,rz))
-                print(itemsInBlock,itemID,itemName)
-                print(x,y,z,degrees(rx),degrees(ry),degrees(rz))
+                #print(i,itemName)
+                #print(x,y,z,degrees(rx),degrees(ry),degrees(rz))
             self.state_lock.acquire()
             self.obj_names = local_obj_names
             self.state_list = local_state_list
@@ -126,7 +148,7 @@ class Vicon:
         return packets/(tac-tic)
 
     # for debug
-    def __save2File(self,data,filename):
+    def saveFile(self,data,filename):
         newFile = open(filename, "wb")
         newFile.write(data)
         newFile.close()
@@ -139,17 +161,19 @@ class Vicon:
         return data
 
 if __name__ == '__main__':
-    #f = open('samplevicon.bin','br')
-    #data = f.read()
-    vi = Vicon()
-    testdata = vi.loadFile("./twoobj.vicon")
-    vi.getViconUpdate(testdata)
-    print(vi.getItemID('nick_mr03_lambo'))
-    print(vi.getItemName(0))
+    vi = Vicon(daemon=False)
+    vi.getViconUpdate()
+    sleep(0.1)
+
+    for i in range(vi.obj_count):
+        print("ID: "+str(i)+", Name: "+vi.getItemName(i))
+
+    print("ID: " +str(vi.getItemID('nick_mr03_lambo')))
+
+    vi.stopUpdateDaemon()
 
     while False:
-        #print(vi.getViconUpdate())
-        vi.getViconUpdate()
+        print(vi.getViconUpdate())
     # test freq
     if False:
         for i in range(3):
