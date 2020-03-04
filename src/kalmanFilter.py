@@ -10,6 +10,7 @@ class KalmanFilter():
     def __init__(self,):
         # timestamp associated with current state
         self.state_ts = None
+        self.state_count = 8
         # note: dx means x_dot, time derivative of x
         # (x,dx,ddx,y,dy,ddy,theta,dtheta)
         self.X = None
@@ -23,7 +24,7 @@ class KalmanFilter():
         self.var_xy = 0.005**2
         self.var_theta = radians(2)**2
 
-        self.H = np.zeros([3,8])
+        self.H = np.zeros([3,self.state_count])
         self.H[0,0] = 1
         self.H[1,3] = 1
         self.H[2,6] = 1
@@ -39,7 +40,7 @@ class KalmanFilter():
             self.state_ts = timestamp
         if x is None:
             # default know nothing initialization
-            self.X = np.zeros([8,1])
+            self.X = np.zeros([self.state_count,1])
             self.X = np.matrix(self.X)
             self.P = np.diag([100,0,0,100,0,0,100,0])
             self.P = np.matrix(self.P)
@@ -47,7 +48,7 @@ class KalmanFilter():
         else:
             # perfect initialization
             self.X = x
-            self.P = np.zeros([8,8])
+            self.P = np.zeros([self.state_count,self.state_count])
             self.P = np.matrix(self.P)
 
         return
@@ -59,7 +60,7 @@ class KalmanFilter():
 
         # update state matrix
         # x' = Fx (+ Ga)
-        self.F = np.zeros([8,8])
+        self.F = np.zeros([self.state_count,self.state_count])
 
         # x' means x at next step
         # x' = x + dt*dx + 0.5dt**2*ddx
@@ -94,8 +95,16 @@ class KalmanFilter():
         #print(self.X)
 
         # update covariance matrix
-        G = np.array([[0.5*dt*dt,dt,1,0.5*dt*dt,dt,1,dt,1]]).T
-        self.Q = G @ G.T * self.var_acc
+        subG = np.array([[0.5*dt*dt,dt,1]]).T
+        subQ = subG @ subG.T * self.var_acc
+        self.Q = np.zeros([self.state_count,self.state_count])
+        self.Q[0:3,0:3] = subQ
+        self.Q[3:6,3:6] = subQ
+        self.Q[6,6] = 0.25*dt**4*self.var_theta
+        self.Q[6,7] = 0.5*dt**3*self.var_theta
+        self.Q[7,6] = 0.5*dt**3*self.var_theta
+        self.Q[7,7] = dt*dt*self.var_theta
+
         self.P = self.F @ self.P @ self.F.T + self.Q
 
         self.state_ts = timestamp
@@ -112,7 +121,7 @@ class KalmanFilter():
         #print(self.X)
         #print(self.P[0,0])
         self.X = self.X + K @ y
-        self.P = (np.identity(8) - K @ self.H) @ self.P
+        self.P = (np.identity(self.state_count) - K @ self.H) @ self.P
         if timestamp is None:
             timestamp = time()
 
@@ -152,8 +161,8 @@ if __name__ == "__main__":
         vy += step_size*a_y
 
         z = np.matrix([[x,y,theta]]).T
-        z[0,0] += 2*(random.random()-0.5)* 0.005
-        z[1,0] += 2*(random.random()-0.5)* 0.005
+        z[0,0] += 2*(random.random()-0.5)* 0.05
+        z[1,0] += 2*(random.random()-0.5)* 0.05
         z[2,0] += 2*(random.random()-0.5)* radians(2)
 
         kf.predict(timestamp=i*step_size)
