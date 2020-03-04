@@ -5,6 +5,7 @@ from time import time,sleep
 from struct import unpack
 from math import degrees,radians
 from threading import Lock
+from kalmanFilter import KalmanFilter
 import threading
 
 
@@ -27,7 +28,7 @@ class Vicon:
     # thoughout the use of the this class
     # One object per port would solve this issue since each object would have a unique ID, whether or not it is active/detected
     # However it is not currently supported. If you have a strong need for this feature please contact author
-    def __init__(self,IP=None,PORT=None,daemon=True):
+    def __init__(self,IP=None,PORT=None,daemon=True,enableKF=True):
         if IP is None:
             IP = "0.0.0.0"
         if PORT is None:
@@ -39,19 +40,44 @@ class Vicon:
         self.obj_count = None
         # lock for accessing member variables since they are updated in a separate thread
         self.state_lock = Lock()
+        self.state2d_lock = Lock()
         # contains a list of names of tracked objects
         self.obj_names = []
         # a list of state tuples, state tuples take the form: (x,y,z,rx,ry,rz), in meters and radians, respectively
         # note that rx,ry,rz are euler angles in XYZ convention, this is different from the ZYX convention commonly used in aviation
         self.state_list = []
+        # this is converted 2D state (x,y,heading) in track space
+        self.state2d_list = []
 
         # flag used to stop update daemon thread
         self.quit_thread = False
+
+        # create a TF() object so we can internalize frame transformation
+        # go from 3D vicon space -> 2D track space
+        self.tf = TF()
+        # items related to tf
+        # for upright origin
+        q_t = tf.euler2q(0,0,0)
+        self.T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
+
+        if enableKF:
+            retval = self.getViconUpdate()
+            if retval is None:
+                print("Vicon not ready, can't determine obj count for Kalman Filter")
+                exit(1)
+
+            self.kf = [KalmanFilter() for i in range(self.obj_count)]
+            #self.kf_state = []
+            for i in range(self.obj_count):
+                self.kf[i].init()
+                #self.kf_state.append(self.kf.getState())
+
         if daemon:
             self.thread =  threading.Thread(name="vicon",target=self.viconUpateDaemon)
             self.thread.start()
         else:
             self.thread = None
+
         
     def __del__(self):
         if not (self.thread is None):
@@ -137,7 +163,28 @@ class Vicon:
             self.state_lock.release()
         except socket.timeout:
             return None
+
+        for i in range(self.obj_count):
+            # get body pose in track frame
+            # (x,y,heading)
+            x,y,z,rx,ry,rz = local_state_list[i]
+            self.state2d_lock.acquire()
+            self.state2d_list[i] = (z_x,z_y,z_theta) = self.tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
+            self.state2d_lock.release()
+
+            if enableKF:
+                self.kf[i].predict()
+                z = np.matrix([[z_x,z_y,z_theta]]).T
+                self.kf[i].update(z)
+                #self.kf_state[i] = self.kf[i].getState()
+
         return local_state_list
+    # get KF state by id
+    def getKFstate(self,inquiry_id):
+        self.kf[inquiry_id].predict()
+        # (x,dx,-,y,dy,-,theta,dtheta)
+        return self.kf[inquiry_id].getState()
+
 
     def testFreq(self,packets=100):
         # test actual frequency of vicon update, with PACKETS number of state updates

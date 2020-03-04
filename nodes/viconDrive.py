@@ -31,7 +31,7 @@ from car import Car
 from PIL import Image
 
 # settings
-twoCars = True
+twoCars = False
 saveLog = False
 
 # static variables, for share in this file
@@ -81,7 +81,14 @@ flag_new_visualization_img = False
 q_t = tf.euler2q(0,0,0)
 T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
 
+exitSeverity = 0
 def exitHandler(signal_received, frame):
+    global exitSeverity
+    exitSeverity += 1
+    if exitSeverity > 1:
+        print("second sigterm, force quit")
+        exit(1)
+
     cv2.destroyAllWindows()
     vi.stopUpdateDaemon()
     if saveGif:
@@ -129,11 +136,11 @@ def ctrlloop(car,car2,track,cooldown=False):
     # control for car 1
     # state update
     (x,y,z,rx,ry,rz) = vi.getState(car.vicon_id)
-    # get body pose in track frame
-    (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
+    x,vx,ax,y,vy,ay,heading,omega = vi.getKFstate(car.vicon_id)
 
-    #state_car = (x,y,heading, vf_lf[0], vs_lf[0], omega_lf[0])
-    state_car = (x,y,heading,0,0,0)
+    #state_car = (x,y,heading, vf, vs, omega)
+    # assume no lateral velocity
+    state_car = (x,y,heading,(vx**2+vy**2)**0.5,0,omega)
     
     if (not cooldown):
         throttle,steering,valid,other = car.ctrlCar(state_car,track,reverse=False)
