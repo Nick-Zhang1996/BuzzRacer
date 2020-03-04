@@ -4,6 +4,7 @@ import numpy as np
 from time import time
 import random
 from math import sin,cos,radians,degrees
+import matplotlib.pyplot as plt
 
 
 class KalmanFilter():
@@ -71,7 +72,8 @@ class KalmanFilter():
         self.F[0,2] = 0.5*dt*dt
         self.F[1,1] = 1
         self.F[1,2] = dt
-        self.F[2,2] = 1
+        # acc, here acc is disabled from the model
+        self.F[2,2] = 0
 
         # y' = y + dt*dy + 0.5dt**2*ddy
         # dy' = dy + dt*ddy
@@ -81,7 +83,8 @@ class KalmanFilter():
         self.F[3,5] = 0.5*dt*dt
         self.F[4,4] = 1
         self.F[4,5] = dt
-        self.F[5,5] = 1
+        # acc disabled
+        self.F[5,5] = 0
 
         # theta' = theta + dt*dtheta
         # dtheta' = dtheta
@@ -142,6 +145,12 @@ if __name__ == "__main__":
     theta = 0
     vtheta = 0
 
+    x_real = []
+    x_estimate = []
+    vx_real = []
+    vx_estimate = []
+    err_percent = []
+
     step_size = 0.01
     random.seed()
     kf.init(timestamp=0)
@@ -161,15 +170,32 @@ if __name__ == "__main__":
         vy += step_size*a_y
 
         z = np.matrix([[x,y,theta]]).T
-        z[0,0] += 2*(random.random()-0.5)* 0.05
-        z[1,0] += 2*(random.random()-0.5)* 0.05
+        z[0,0] += 2*(random.random()-0.5)* 0.005
+        z[1,0] += 2*(random.random()-0.5)* 0.005
         z[2,0] += 2*(random.random()-0.5)* radians(2)
 
         kf.predict(timestamp=i*step_size)
         kf.update(z,timestamp=i*step_size)
         x_kf,vx_kf,ax_kf,y_kf,vy_kf,ay_kf,theta_kf,vtheta_kf = kf.getState()
+
+        x_real.append(x)
+        vx_real.append(vx)
+        x_estimate.append(x_kf)
+        vx_estimate.append(vx_kf)
+        err_percent.append(((vx-vx_kf)**2+(vy-vy_kf)**2)**0.5/(vx**2+vy**2)**0.5*100)
+
         if i%10 == 0:
-            print(((x-x_kf)**2+(y-y_kf)**2)**0.5,(theta-theta_kf),kf.P[0,0])
+            #print(((x-x_kf)**2+(y-y_kf)**2)**0.5,(theta-theta_kf),kf.P[0,0])
+            print(((vx-vx_kf)**2+(vy-vy_kf)**2)**0.5/(vx**2+vy**2)**0.5*100,(vtheta-vtheta_kf)/vtheta*100,kf.P[1,1])
+
+    print("error in speed "+str(np.mean(np.array(err_percent))) +"%")
+    exit(0)
+    plt.plot(x_real)
+    plt.plot(x_estimate)
+    plt.show()
+    plt.plot(vx_real)
+    plt.plot(vx_estimate)
+    plt.show()
 
 
     
