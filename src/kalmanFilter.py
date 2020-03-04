@@ -149,7 +149,11 @@ if __name__ == "__main__":
     x_estimate = []
     vx_real = []
     vx_estimate = []
+    vx_simple_hist = []
     err_percent = []
+    err_base_percent = []
+    zx_hist = [0]
+    zy_hist = [0]
 
     step_size = 0.01
     random.seed()
@@ -171,7 +175,14 @@ if __name__ == "__main__":
 
         z = np.matrix([[x,y,theta]]).T
         z[0,0] += 2*(random.random()-0.5)* 0.005
+        zx_hist.append(z[0,0])
+        vx_simple = z[0,0]-zx_hist[-2]
+        vx_simple_hist.append(vx_simple)
+
         z[1,0] += 2*(random.random()-0.5)* 0.005
+        zy_hist.append(z[1,0])
+        vy_simple = z[1,0]-zy_hist[-2]
+
         z[2,0] += 2*(random.random()-0.5)* radians(2)
 
         kf.predict(timestamp=i*step_size)
@@ -183,18 +194,28 @@ if __name__ == "__main__":
         x_estimate.append(x_kf)
         vx_estimate.append(vx_kf)
         err_percent.append(((vx-vx_kf)**2+(vy-vy_kf)**2)**0.5/(vx**2+vy**2)**0.5*100)
+        err_base_percent.append(((vx-vx_simple)**2+(vy-vy_simple)**2)**0.5/(vx**2+vy**2)**0.5*100)
 
         if i%10 == 0:
             #print(((x-x_kf)**2+(y-y_kf)**2)**0.5,(theta-theta_kf),kf.P[0,0])
             print(((vx-vx_kf)**2+(vy-vy_kf)**2)**0.5/(vx**2+vy**2)**0.5*100,(vtheta-vtheta_kf)/vtheta*100,kf.P[1,1])
 
-    print("error in speed "+str(np.mean(np.array(err_percent))) +"%")
-    exit(0)
+    avg_err_percent_speed = np.mean(np.array(err_percent))
+    avg_err_base_percent_speed = np.mean(np.array(err_base_percent))
+    print("error in speed "+str(avg_err_percent_speed) +"%")
+    print("error in speed (base)"+str(avg_err_base_percent_speed) +"%")
+    print("kf is "+str(avg_err_base_percent_speed/avg_err_percent_speed) +" times better")
     plt.plot(x_real)
     plt.plot(x_estimate)
+    plt.plot(zx_hist[1:])
+    plt.legend(['X Real','X KF','X Direct'])
     plt.show()
+
+
     plt.plot(vx_real)
     plt.plot(vx_estimate)
+    plt.plot(vx_simple_hist)
+    plt.legend(['Vx Real','Vx KF','Vx Simple'])
     plt.show()
 
 
