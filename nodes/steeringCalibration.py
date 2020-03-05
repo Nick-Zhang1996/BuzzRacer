@@ -21,7 +21,7 @@ lambo_setting = {'wheelbase':98e-3,
 car2 = Car(lambo_setting)
 # 1100-1850
 steering = 1800
-throttle = 1100
+throttle = 1500
 while True:
     car2.actuatePWM(steering,throttle)
     sleep(0.05)

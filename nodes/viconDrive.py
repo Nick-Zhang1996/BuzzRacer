@@ -31,9 +31,9 @@ from car import Car
 from PIL import Image
 
 # settings
-twoCars = True
-saveLog = True
-saveGif = True
+twoCars = False
+saveLog = False
+saveGif = False
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -48,6 +48,7 @@ vi = Vicon()
 state_vec = []
 offset_vec = []
 vf_vec = []
+steering_vec = []
 
 # state vector
 lock_state = Lock()
@@ -107,11 +108,14 @@ def exitHandler(signal_received, frame):
         #print("saved to No." + str(no))
         #print("showing offset_vec")
 
-        plt.plot(offset_vec)
-        plt.show()
+    plt.plot(offset_vec)
+    plt.show()
 
-        plt.plot(vf_vec)
-        plt.show()
+    plt.plot(steering_vec)
+    plt.show()
+
+    plt.plot(vf_vec)
+    plt.show()
     print("Program finished")
     exit(0)
     return
@@ -155,6 +159,7 @@ def ctrlloop(car,car2,track,cooldown=False):
     # only log debugging information for car No.1
     offset_vec.append(debug_dic['offset'])
     vf_vec.append(vf)
+    steering_vec.append(degrees(steering))
 
     
 
@@ -290,6 +295,7 @@ if __name__ == '__main__':
     while True:
         # control
         ctrlloop(car,car2,track)
+        sleep(0.02)
 
         # logging (only for car 1)
         state_vec.append(state_car)

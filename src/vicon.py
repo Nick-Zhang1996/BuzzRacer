@@ -240,7 +240,7 @@ if __name__ == '__main__':
     sleep(1)
 
     # debug speed estimation
-    while True:
+    while False:
     #for i in range(10):
         (kf_x,dx,_,kf_y,dy,_,theta,dtheta) = vi.getKFstate(wand_id)
         (x,y,z,rx,ry,rz) = vi.getState(wand_id)
