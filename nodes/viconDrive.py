@@ -34,6 +34,7 @@ from PIL import Image
 twoCars = False
 saveLog = False
 saveGif = False
+ctrlFreq = 50
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -49,6 +50,8 @@ state_vec = []
 offset_vec = []
 vf_vec = []
 steering_vec = []
+throttle_vec = []
+dv_vec = []
 
 # state vector
 lock_state = Lock()
@@ -57,7 +60,7 @@ state_car = None
 vicon_dt = 0.01
 # lowpass filter
 # argument: order, omega(-3db)
-b, a = signal.butter(1,6,'low',analog=False,fs=100)
+b, a = signal.butter(1,6,'low',analog=False,fs=ctrlFreq)
 # filter state
 z_vf = [0]
 z_vs = [0]
@@ -108,13 +111,16 @@ def exitHandler(signal_received, frame):
         #print("saved to No." + str(no))
         #print("showing offset_vec")
 
-    plt.plot(offset_vec)
-    plt.show()
+        plt.plot(offset_vec)
+        plt.show()
 
-    plt.plot(steering_vec)
-    plt.show()
+        plt.plot(steering_vec)
+        plt.show()
 
-    plt.plot(vf_vec)
+    p0, = plt.plot(vf_vec,label='vf')
+    p1, = plt.plot(dv_vec,label='error')
+    p2, = plt.plot(throttle_vec,label='output')
+    plt.legend(handles=[p0,p1,p2])
     plt.show()
     print("Program finished")
     exit(0)
@@ -141,12 +147,20 @@ def ctrlloop(car,car2,track,cooldown=False):
     # control for car 1
     # state update
     #(x,y,z,rx,ry,rz) = vi.getState(car.vicon_id)
-    (x,y,heading) = vi.getState2d(car.vicon_id)
+    retval = vi.getState2d(car.vicon_id)
+    if retval is None:
+        return
+    (x,y,heading) = retval
     kf_x,vx,ax,kf_y,vy,ay,kf_heading,omega = vi.getKFstate(car.vicon_id)
 
     #state_car = (x,y,heading, vf, vs, omega)
     # assume no lateral velocity
     vf = (vx**2+vy**2)**0.5
+
+    # low pass filter on vf
+    vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
+    vf = vf_lf[0]
+
     state_car = (x,y,heading,vf,0,omega)
     
     if (not cooldown):
@@ -159,9 +173,12 @@ def ctrlloop(car,car2,track,cooldown=False):
     # only log debugging information for car No.1
     offset_vec.append(debug_dic['offset'])
     vf_vec.append(vf)
+
+    throttle_vec.append(throttle)
+    dv_vec.append(vf-1.0)
+
     steering_vec.append(degrees(steering))
 
-    
 
     car.steering = steering
     car.throttle = throttle
@@ -188,7 +205,8 @@ def ctrlloop(car,car2,track,cooldown=False):
         car2.actuate(steering,throttle)
     
     if (car2 is None):
-        print("%.2f, %.2f"% (car.throttle,degrees(car.steering)))
+        #print("%.2f, %.2f"% (car.throttle,degrees(car.steering)))
+        pass
     else:
         print("%.2f, %.2f,%.2f, %.2f"% (car.throttle,degrees(car.steering),car2.throttle,degrees(car2.steering)))
 
@@ -295,7 +313,7 @@ if __name__ == '__main__':
     while True:
         # control
         ctrlloop(car,car2,track)
-        sleep(0.02)
+        sleep(1/ctrlFreq)
 
         # logging (only for car 1)
         state_vec.append(state_car)

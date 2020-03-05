@@ -17,7 +17,7 @@ class Car:
         # P is applied on offset
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
-        self.P = 2/180*pi/0.01
+        self.P = 1/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -33,11 +33,18 @@ class Car:
         # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
         # PI controller for speed
-        self.throttle_I = 0.1
-        self.throttle_P = 1
+        self.throttle_I = 0.05
+        self.throttle_P = 0.7
+        self.throttle_D = 0
+        self.last_v_err = 0
+        # low pass filter for throttle controller
+
+        self.b, self.a = signal.butter(1,0.2,'low',analog=False,fs=50)
+        self.z_throttle = [0]
+
         self.verr_integral = 0
         # time constant in sec 
-        tc = 2
+        tc = 0.5
         #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/100/tc)
         self.serial_port = car_setting['serial_port']
@@ -135,10 +142,15 @@ class Car:
         # PI control for throttle
         v_err = v_target - v
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
-        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I
-        #return max(min(throttle,self.max_throttle),-1)
-        # XXX
-        return 0.25
+        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I + (v_err-self.last_v_err)*self.throttle_D
+        #print("D/P = "+str((v_err-self.last_v_err)*self.throttle_D/self.throttle_P*v_err))
+        print("I/P = "+ str(self.verr_integral*self.throttle_I/(self.throttle_P*v_err)))
+        #print(throttle)
+        self.last_v_err = v_err
+        #print(self.z_throttle,throttle,self.b,self.a)
+        #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
+        return max(min(throttle,self.max_throttle),-1)
+        #return 0.25
 
     # for simulation only
     # update car state with bicycle model, no slip

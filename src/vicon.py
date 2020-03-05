@@ -194,9 +194,20 @@ class Vicon:
         return local_state_list
 
     def getState2d(self,inquiry_id):
-        self.state2d_lock.acquire()
-        retval = self.state2d_list[inquiry_id]
-        self.state2d_lock.release()
+        if inquiry_id>=self.obj_count:
+            return None
+        try:
+            self.state2d_lock.acquire()
+            retval = self.state2d_list[inquiry_id]
+        except IndexError as e:
+            print(str(e))
+            print("obj count "+str(self.obj_count))
+            print("state2d list len "+str(len(self.state2d_list)))
+            print("state list len "+str(len(self.state_list)))
+            exit(0)
+        finally:
+            self.state2d_lock.release()
+            
         return retval
 
     # get KF state by id
