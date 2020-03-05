@@ -16,16 +16,17 @@ class Car:
         # controller tuning, steering->lateral offset
         # P is applied on offset
         # unit: radiant of steering per meter offset
-        self.P = 0.5/180*pi/0.01
+        # the way it is set up now the first number is degree of steering per cm offset
+        self.P = 2/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
         # default values are for the MR03 chassis with Porsche 911 GT3 RS body
         self.wheelbase = car_setting['wheelbase']
         self.max_throttle = car_setting['max_throttle']
-        self.max_steering_left = car_setting['max_steering_left']
+        self.max_steering_left = car_setting['max_steer_angle_left']
         self.min_pwm_left = car_setting['max_steer_pwm_left']
-        self.max_steering_right = car_setting['max_steering_right']
+        self.max_steering_right = car_setting['max_steer_angle_right']
         self.max_pwm_right = car_setting['max_steer_pwm_right']
 
         # NOTE, parameters below may not be actively used in current version of code
@@ -40,8 +41,8 @@ class Car:
         #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/100/tc)
         self.serial_port = car_setting['serial_port']
-        if not (serial_port is None):
-            self.car_interface = serial.Serial(serial_port,115200, timeout=0.001,writeTimeout=0)
+        if not (self.serial_port is None):
+            self.car_interface = serial.Serial(self.serial_port,115200, timeout=0.001,writeTimeout=0)
 
     def __del__(self):
         if (not (self.serial_port is None) and self.car_interface.is_open):
@@ -71,12 +72,12 @@ class Car:
         omega = state[5]
         vf = state[3]
         vs = state[4]
-        ret = (0,0,False,{})
+        ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
         retval = track.localTrajectory(state)
         if retval is None:
-            return (0,0,False,{})
+            return (0,0,False,{'offset':0})
             #return ret
 
         # NOTE v target is currently ignored
@@ -84,7 +85,7 @@ class Car:
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         if isnan(orientation):
-            return (0,0,False,{})
+            return (0,0,False,{'offset':0})
             
         if reverse:
             offset = -offset
@@ -92,7 +93,7 @@ class Car:
 
         # if vehicle cross error exceeds maximum allowable error, stop the car
         if (abs(offset) > self.max_offset):
-            return (0,0,False,{'offset':offset])
+            return (0,0,False,{'offset':offset})
         else:
             # sign convention for offset: negative offset(-) requires left steering(+)
             # this is the convention used in track class, determined arbituarily
@@ -102,16 +103,16 @@ class Car:
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi)%(2*pi) -pi
-            if (steering>self.max_steering):
-                steering = self.max_steering
-            elif (steering<-self.max_steering):
-                steering = -self.max_steering
+            if (steering>self.max_steering_left):
+                steering = self.max_steering_left
+            elif (steering<-self.max_steering_right):
+                steering = -self.max_steering_right
             if (v_override is None):
                 throttle = self.calcThrottle(vf,v_target)
             else:
                 throttle = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf])
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf})
 
         return ret
     def actuate(self,steering,throttle):

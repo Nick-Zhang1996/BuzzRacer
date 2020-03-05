@@ -31,7 +31,7 @@ from car import Car
 from PIL import Image
 
 # settings
-twoCars = False
+twoCars = True
 saveLog = True
 saveGif = True
 
@@ -166,10 +166,10 @@ def ctrlloop(car,car2,track,cooldown=False):
     # control for car 2
     if not (car2 is None):
         # state update
-        (x,y,z,rx,ry,rz) = vi.getState(car2.vicon_id)
-        # get body pose in track frame
-        (x,y,heading) = tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
-        state_car2 = (x,y,heading,0,0,0)
+        (x,y,heading) = vi.getState2d(car2.vicon_id)
+        kf_x,vx,ax,kf_y,vy,ay,kf_heading,omega = vi.getKFstate(car2.vicon_id)
+
+        state_car2 = (x,y,heading,vf,0,omega)
 
         
         if (not cooldown):
