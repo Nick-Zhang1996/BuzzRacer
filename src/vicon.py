@@ -6,6 +6,8 @@ from struct import unpack
 from math import degrees,radians
 from threading import Lock
 from kalmanFilter import KalmanFilter
+import numpy as np
+from tf import TF
 import threading
 
 
@@ -33,6 +35,7 @@ class Vicon:
             IP = "0.0.0.0"
         if PORT is None:
             PORT = 51001
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(0.05)
         self.sock.bind((IP, PORT))
@@ -57,11 +60,14 @@ class Vicon:
         self.tf = TF()
         # items related to tf
         # for upright origin
-        q_t = tf.euler2q(0,0,0)
+        q_t = self.tf.euler2q(0,0,0)
         self.T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
 
         if enableKF:
+            # temporarily unset enableKF to trick getViconUpdate() to ignore kf before it's inited
+            self.enableKF = False
             retval = self.getViconUpdate()
+            self.enableKF = True
             if retval is None:
                 print("Vicon not ready, can't determine obj count for Kalman Filter")
                 exit(1)
@@ -164,19 +170,25 @@ class Vicon:
         except socket.timeout:
             return None
 
+        local_state2d_list = []
         for i in range(self.obj_count):
             # get body pose in track frame
             # (x,y,heading)
             x,y,z,rx,ry,rz = local_state_list[i]
-            self.state2d_lock.acquire()
-            self.state2d_list[i] = (z_x,z_y,z_theta) = self.tf.reframeR(T,x,y,z,tf.euler2Rxyz(rx,ry,rz))
-            self.state2d_lock.release()
+            # (z_x,z_y,z_theta)
+            (z_x,z_y,z_theta) = self.tf.reframeR(self.T,x,y,z,self.tf.euler2Rxyz(rx,ry,rz))
+            local_state2d_list.append((z_x,z_y,z_theta))
 
-            if enableKF:
+            if self.enableKF:
                 self.kf[i].predict()
                 z = np.matrix([[z_x,z_y,z_theta]]).T
                 self.kf[i].update(z)
                 #self.kf_state[i] = self.kf[i].getState()
+
+        self.state2d_lock.acquire()
+        self.state2d_list = local_state2d_list
+        self.state2d_lock.release()
+
 
         return local_state_list
     # get KF state by id
