@@ -22,6 +22,10 @@ class KalmanFilter():
         self.var_acc = 5.0**2
 
         # var of noise in observation
+        # from observation of a steady object:
+        # bound of error, ~100 samples
+        # x,y: 0.0002 m
+        # theta: 0.5 deg
         self.var_xy = 0.005**2
         self.var_theta = radians(2)**2
 
@@ -34,7 +38,7 @@ class KalmanFilter():
         self.R = np.matrix(self.R)
         return
 
-    def init(self,x=None,timestamp=None):
+    def init(self,x=None,y=None,theta=None, timestamp=None):
         if timestamp is None:
             self.state_ts = time()
         else:
@@ -48,9 +52,16 @@ class KalmanFilter():
 
         else:
             # perfect initialization
-            self.X = x
+            self.X = np.zeros([self.state_count,1])
+            self.X = np.matrix(self.X)
+            self.X[0,0] = x
+            self.X[3,0] = y
+            self.X[6,0] = theta
             self.P = np.zeros([self.state_count,self.state_count])
             self.P = np.matrix(self.P)
+            self.P[0,0] = 0.1
+            self.P[3,3] = 0.1
+            self.P[6,6] = 0.1
 
         return
         

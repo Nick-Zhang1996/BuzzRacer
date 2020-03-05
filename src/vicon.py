@@ -61,10 +61,12 @@ class Vicon:
         # items related to tf
         # for upright origin
         q_t = self.tf.euler2q(0,0,0)
-        self.T = np.hstack([q_t,np.array([-0.03,-0.03,0])])
+        self.T = np.hstack([q_t,np.array([-0.0,-0.0,0])])
 
         if enableKF:
             # temporarily unset enableKF to trick getViconUpdate() to ignore kf before it's inited
+            if not daemon:
+                print("Warning: Kalman Filter is enabled but Vicon Update Daemon is not")
             self.enableKF = False
             retval = self.getViconUpdate()
             self.enableKF = True
@@ -75,7 +77,8 @@ class Vicon:
             self.kf = [KalmanFilter() for i in range(self.obj_count)]
             #self.kf_state = []
             for i in range(self.obj_count):
-                self.kf[i].init()
+                (x,y,theta) = self.getState2d(i)
+                self.kf[i].init(x,y,theta)
                 #self.kf_state.append(self.kf.getState())
 
         if daemon:
@@ -188,9 +191,14 @@ class Vicon:
         self.state2d_lock.acquire()
         self.state2d_list = local_state2d_list
         self.state2d_lock.release()
-
-
         return local_state_list
+
+    def getState2d(self,inquiry_id):
+        self.state2d_lock.acquire()
+        retval = self.state2d_list[inquiry_id]
+        self.state2d_lock.release()
+        return retval
+
     # get KF state by id
     def getKFstate(self,inquiry_id):
         self.kf[inquiry_id].predict()
@@ -220,17 +228,32 @@ class Vicon:
         return data
 
 if __name__ == '__main__':
-    vi = Vicon(daemon=False)
+    vi = Vicon(daemon=True)
     vi.getViconUpdate()
     sleep(0.1)
 
     for i in range(vi.obj_count):
         print("ID: "+str(i)+", Name: "+vi.getItemName(i))
 
+    wand_id = vi.getItemID('Wand')
+    print("Wand id "+str(wand_id))
+    sleep(1)
+
+    # debug speed estimation
+    while True:
+    #for i in range(10):
+        (kf_x,dx,_,kf_y,dy,_,theta,dtheta) = vi.getKFstate(wand_id)
+        (x,y,z,rx,ry,rz) = vi.getState(wand_id)
+        #print(x,dx,degrees(dtheta))
+        #print(x,y,degrees(rz))
+        print(kf_x-x)
+        sleep(0.02)
+
+
+
     vi.stopUpdateDaemon()
 
-    while False:
-        print(vi.getViconUpdate())
+
     # test freq
     if False:
         for i in range(3):
