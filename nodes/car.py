@@ -8,7 +8,7 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import matplotlib.pyplot as plt
 
 class Car:
-    def __init__(self,wheelbase=90e-3,max_steering=radians(27.1),serial_port=None,max_throttle=0.3):
+    def __init__(self,car_setting):
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
@@ -21,9 +21,12 @@ class Car:
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
         # default values are for the MR03 chassis with Porsche 911 GT3 RS body
-        self.wheelbase = wheelbase
-        self.max_throttle = max_throttle
-        self.max_steering = max_steering
+        self.wheelbase = car_setting['wheelbase']
+        self.max_throttle = car_setting['max_throttle']
+        self.max_steering_left = car_setting['max_steering_left']
+        self.min_pwm_left = car_setting['max_steer_pwm_left']
+        self.max_steering_right = car_setting['max_steering_right']
+        self.max_pwm_right = car_setting['max_steer_pwm_right']
 
         # NOTE, parameters below may not be actively used in current version of code
         # D is applied on delta_omega, a damping on angular speed error
@@ -34,8 +37,9 @@ class Car:
         self.verr_integral = 0
         # time constant in sec 
         tc = 2
+        #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/100/tc)
-        self.serial_port = serial_port
+        self.serial_port = car_setting['serial_port']
         if not (serial_port is None):
             self.car_interface = serial.Serial(serial_port,115200, timeout=0.001,writeTimeout=0)
 
@@ -60,19 +64,19 @@ class Car:
 #   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
-# debug: a list of objects to be debugged, e.g. [offset, error in v]
+# debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
         heading = state[2]
         omega = state[5]
         vf = state[3]
         vs = state[4]
-        ret = (0,0,False,[])
+        ret = (0,0,False,{})
 
         # inquire information about desired trajectory close to the vehicle
         retval = track.localTrajectory(state)
         if retval is None:
-            return (0,0,False,[None,None])
+            return (0,0,False,{})
             #return ret
 
         # NOTE v target is currently ignored
@@ -80,7 +84,7 @@ class Car:
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         if isnan(orientation):
-            return (0,0,False,[None,None])
+            return (0,0,False,{})
             
         if reverse:
             offset = -offset
@@ -88,7 +92,7 @@ class Car:
 
         # if vehicle cross error exceeds maximum allowable error, stop the car
         if (abs(offset) > self.max_offset):
-            return (0,0,False,[offset,None])
+            return (0,0,False,{'offset':offset])
         else:
             # sign convention for offset: negative offset(-) requires left steering(+)
             # this is the convention used in track class, determined arbituarily
@@ -107,12 +111,20 @@ class Car:
             else:
                 throttle = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,[offset,omega-curvature*vf])
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf])
 
         return ret
     def actuate(self,steering,throttle):
         if not (self.car_interface is None):
-            self.car_interface.write((str(self.mapdata(steering, self.max_steering,-self.max_steering,1150,1850))+","+str(self.mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+            self.car_interface.write((str(self.mapdata(steering, self.max_steering_left,-self.max_steering_right,self.min_pwm_left,self.max_pwm_right))+","+str(self.mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
+            return True
+        else:
+            return False
+
+    # provide direct pwm
+    def actuatePWM(self,steeringPWM,throttlePWM):
+        if not (self.car_interface is None):
+            self.car_interface.write((str(int(steeringPWM))+","+str(int(throttlePWM))+'\n').encode('ascii'))
             return True
         else:
             return False
@@ -159,7 +171,7 @@ class Car:
 
 # debugging/tuning code
 if __name__ == '__main__':
-    # tune PI controller 
+    # tune PI controller for speed control
     v_log = []
     control_log = []
     integral_log = []
@@ -171,6 +183,7 @@ if __name__ == '__main__':
     P = 1
     v = 0
     tc = 2
+    # applied on I
     decay_factor = exp(-1.0/100/tc)
     last_v_err = 0
     for v_target in v_targets:
@@ -181,6 +194,7 @@ if __name__ == '__main__':
         last_v_err = v_err
         control_log.append(throttle)
         v_log.append(v)
+
     p0, = plt.plot(v_log,label='velocity')
     p1, = plt.plot(control_log,label='output')
     p2, = plt.plot(v_targets,label='target')

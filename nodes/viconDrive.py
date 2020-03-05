@@ -44,9 +44,9 @@ tf = TF()
 vi = Vicon()
 
 #debug
-offset_vec = []
-omega_offset_vec = []
 state_vec = []
+offset_vec = []
+vf_vec = []
 
 # state vector
 lock_state = Lock()
@@ -92,19 +92,11 @@ def exitHandler(signal_received, frame):
     cv2.destroyAllWindows()
     vi.stopUpdateDaemon()
     if saveGif:
-        gifimages[0].save(fp="./mk103exp"+str(no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
+        gifimages[0].save(fp="./gifs/mk103exp"+str(no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
     if saveLog:
         output = open(logFolder+'exp_state'+str(no)+'.p','wb')
         pickle.dump(state_vec,output)
-        output.close()
-
-        output = open(logFolder+'exp_offset'+str(no)+'.p','wb')
-        pickle.dump(offset_vec,output)
-        output.close()
-
-        output = open(logFolder+'exp_dw'+str(no)+'.p','wb')
-        pickle.dump(omega_offset_vec,output)
         output.close()
 
         print("saved to No." + str(no))
@@ -140,21 +132,21 @@ def ctrlloop(car,car2,track,cooldown=False):
 
     #state_car = (x,y,heading, vf, vs, omega)
     # assume no lateral velocity
-    state_car = (x,y,heading,(vx**2+vy**2)**0.5,0,omega)
+    vf = (vx**2+vy**2)**0.5
+    state_car = (x,y,heading,vf,0,omega)
     
     if (not cooldown):
-        throttle,steering,valid,other = car.ctrlCar(state_car,track,reverse=False)
+        throttle,steering,valid,debug_dic = car.ctrlCar(state_car,track,reverse=False)
     else:
-        throttle,steering,valid,other= car.ctrlCar(state_car,track,v_override=0,reverse=False)
+        throttle,steering,valid,debug_dic= car.ctrlCar(state_car,track,v_override=0,reverse=False)
         throttle = 0
     #print(degrees(steering),throttle)
     
     # only log debugging information for car No.1
-    if len(other)==2:
-        offset = other[0]
-        omega_offset = other[1]
-        offset_vec.append(offset)
-        omega_offset_vec.append(omega_offset)
+    offset_vec.append(debug_dic['offset'])
+    vf_vec.append(vf)
+
+    
 
     car.steering = steering
     car.throttle = throttle
@@ -171,9 +163,9 @@ def ctrlloop(car,car2,track,cooldown=False):
 
         
         if (not cooldown):
-            throttle,steering,valid,other = car2.ctrlCar(state_car2,track,reverse=False)
+            throttle,steering,valid,debug_dic = car2.ctrlCar(state_car2,track,reverse=False)
         else:
-            throttle,steering,valid,other= car2.ctrlCar(state_car2,track,v_override=0,reverse=False)
+            throttle,steering,valid,debug_dic= car2.ctrlCar(state_car2,track,v_override=0,reverse=False)
             throttle = 0
 
         car2.steering = steering
@@ -233,11 +225,24 @@ if __name__ == '__main__':
     # select track
     track = mk103
 
+    porsche_setting = {'wheelbase':90e-3,
+                     'max_steer_angle_left':radians(27.1),
+                     'max_steer_pwm_left':1150,
+                     'max_steer_angle_right':radians(27.1),
+                     'max_steer_pwm_right':1850,
+                     'serial_port' : '/dev/ttyUSB0',
+                     'max_throttle' : 0.5}
 
-    
+    lambo_setting = {'wheelbase':98e-3,
+                     'max_steer_angle_left':arcsin(2*98e-3/0.52),
+                     'max_steer_pwm_left':1100,
+                     'max_steer_angle_right':arcsin(2*98e-3/0.47),
+                     'max_steer_pwm_right':1850,
+                     'serial_port' : '/dev/ttyUSB1',
+                     'max_throttle' : 0.5}
 
     # porsche 911
-    car = Car(serial_port='/dev/ttyUSB0')
+    car = Car(porsche_setting)
     # ensure vicon state has been updated
     sleep(0.05)
     car.vicon_id = vi.getItemID('nick_mr03_porsche')
@@ -247,7 +252,7 @@ if __name__ == '__main__':
 
     # lambo TODO: calibrate lambo chassis
     if (twoCars):
-        car2 = Car(wheelbase=90e-3,max_steering=radians(27.1),serial_port='/dev/ttyUSB1',max_throttle=0.3)
+        car2 = Car(lambo_setting)
         car2.vicon_id = vi.getItemID('nick_mr03_lambo')
     else:
         car2 = None
