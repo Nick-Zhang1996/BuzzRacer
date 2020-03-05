@@ -16,7 +16,7 @@ from signal import signal as syssignal
 import numpy as np
 from scipy import signal 
 from time import sleep,time
-from math import radians,degrees,isnan,sin,cos,atan2
+from math import radians,degrees,isnan,sin,cos,atan2,asin
 import matplotlib.pyplot as plt
 #from std_msgs.msg import Header
 #from sensor_msgs.msg import Joy
@@ -32,7 +32,8 @@ from PIL import Image
 
 # settings
 twoCars = False
-saveLog = False
+saveLog = True
+saveGif = True
 
 # static variables, for share in this file
 s = RCPtrack()
@@ -99,9 +100,17 @@ def exitHandler(signal_received, frame):
         pickle.dump(state_vec,output)
         output.close()
 
-        print("saved to No." + str(no))
-        print(" showing offset_vec")
+        output = open(logFolder+'exp_offset'+str(no)+'.p','wb')
+        pickle.dump(offset_vec,output)
+        output.close()
+
+        #print("saved to No." + str(no))
+        #print("showing offset_vec")
+
         plt.plot(offset_vec)
+        plt.show()
+
+        plt.plot(vf_vec)
         plt.show()
     print("Program finished")
     exit(0)
@@ -127,8 +136,9 @@ def ctrlloop(car,car2,track,cooldown=False):
 
     # control for car 1
     # state update
-    (x,y,z,rx,ry,rz) = vi.getState(car.vicon_id)
-    x,vx,ax,y,vy,ay,heading,omega = vi.getKFstate(car.vicon_id)
+    #(x,y,z,rx,ry,rz) = vi.getState(car.vicon_id)
+    (x,y,heading) = vi.getState2d(car.vicon_id)
+    kf_x,vx,ax,kf_y,vy,ay,kf_heading,omega = vi.getKFstate(car.vicon_id)
 
     #state_car = (x,y,heading, vf, vs, omega)
     # assume no lateral velocity
@@ -173,7 +183,7 @@ def ctrlloop(car,car2,track,cooldown=False):
         car2.actuate(steering,throttle)
     
     if (car2 is None):
-        print(car.throttle,car.steering)
+        print("%.2f, %.2f"% (car.throttle,degrees(car.steering)))
     else:
         print(car.steering,car.throttle,car2.steering,car2.throttle)
 
@@ -219,8 +229,15 @@ if __name__ == '__main__':
     # current track setup in mk103, L shaped
     # width 0.563, length 0.6
     mk103 = RCPtrack()
-    mk103.initTrack('uuruurddddll',(5,3),scale=0.60)
-    mk103.initRaceline((2,2),'d',4)
+    mk103.initTrack('uuruurddddll',(5,3),scale=0.57)
+    # add manual offset for each control points
+    adjustment = [0,0,0,0,0,0,0,0,0,0,0,0]
+    adjustment[4] = -0.5
+    adjustment[8] = -0.5
+    adjustment[9] = 0
+    adjustment[10] = -0.5
+    mk103.initRaceline((2,2),'d',4,offset=adjustment)
+
 
     # select track
     track = mk103
@@ -234,9 +251,9 @@ if __name__ == '__main__':
                      'max_throttle' : 0.5}
 
     lambo_setting = {'wheelbase':98e-3,
-                     'max_steer_angle_left':arcsin(2*98e-3/0.52),
+                     'max_steer_angle_left':asin(2*98e-3/0.52),
                      'max_steer_pwm_left':1100,
-                     'max_steer_angle_right':arcsin(2*98e-3/0.47),
+                     'max_steer_angle_right':asin(2*98e-3/0.47),
                      'max_steer_pwm_right':1850,
                      'serial_port' : '/dev/ttyUSB1',
                      'max_throttle' : 0.5}
