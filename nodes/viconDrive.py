@@ -185,7 +185,7 @@ def ctrlloop(car,car2,track,cooldown=False):
     if (car2 is None):
         print("%.2f, %.2f"% (car.throttle,degrees(car.steering)))
     else:
-        print(car.steering,car.throttle,car2.steering,car2.throttle)
+        print("%.2f, %.2f,%.2f, %.2f"% (car.throttle,degrees(car.steering),car2.throttle,degrees(car2.steering)))
 
     # visualization
     # restrict update rate to 0.1s/frame
@@ -193,9 +193,9 @@ def ctrlloop(car,car2,track,cooldown=False):
         # plt doesn't allow updating from a different thread
         lock_visual.acquire()
         #shared_visualization_img = track.drawCar((x,y),heading,steering,img_track.copy())
-        shared_visualization_img = track.drawCar(img_track.copy(), state_car, steering)
+        shared_visualization_img = track.drawCar(img_track.copy(), state_car, car.steering)
         if not (car2 is None):
-            shared_visualization_img = track.drawCar(shared_visualization_img, state_car2, steering)
+            shared_visualization_img = track.drawCar(shared_visualization_img, state_car2, car2.steering)
 
         lock_visual.release()
         visualization_ts = time()
