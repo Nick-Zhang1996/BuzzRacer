@@ -33,7 +33,7 @@ class Car:
         # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
         # PI controller for speed
-        self.throttle_I = 0.05
+        self.throttle_I = 0.0
         self.throttle_P = 0.7
         self.throttle_D = 0
         self.last_v_err = 0
@@ -44,7 +44,7 @@ class Car:
 
         self.verr_integral = 0
         # time constant in sec 
-        tc = 0.5
+        tc = 2
         #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/100/tc)
         self.serial_port = car_setting['serial_port']
@@ -115,11 +115,11 @@ class Car:
             elif (steering<-self.max_steering_right):
                 steering = -self.max_steering_right
             if (v_override is None):
-                throttle = self.calcThrottle(vf,v_target)
+                throttle,err_der = self.calcThrottle(vf,v_target)
             else:
-                throttle = self.calcThrottle(vf,v_override)
+                throttle,err_der = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf})
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der})
 
         return ret
     def actuate(self,steering,throttle):
@@ -140,17 +140,16 @@ class Car:
     # PI controller for forward velocity
     def calcThrottle(self,v,v_target):
         # PI control for throttle
-        v_err = v_target - v
+        v_err = v - v_target
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
-        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I + (v_err-self.last_v_err)*self.throttle_D
-        #print("D/P = "+str((v_err-self.last_v_err)*self.throttle_D/self.throttle_P*v_err))
-        print("I/P = "+ str(self.verr_integral*self.throttle_I/(self.throttle_P*v_err)))
-        #print(throttle)
+        v_err_der = v_err-self.last_v_err
+        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I - v_err_der*self.throttle_D
+        print("D/P = "+str(v_err_der*self.throttle_D/(self.throttle_P*v_err)))
+        #print("I/P = "+str(self.verr_integral*self.throttle_I))
         self.last_v_err = v_err
         #print(self.z_throttle,throttle,self.b,self.a)
         #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
-        return max(min(throttle,self.max_throttle),-1)
-        #return 0.25
+        return max(min(throttle,self.max_throttle),-1),v_err_der
 
     # for simulation only
     # update car state with bicycle model, no slip

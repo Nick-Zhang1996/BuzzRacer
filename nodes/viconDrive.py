@@ -52,6 +52,7 @@ vf_vec = []
 steering_vec = []
 throttle_vec = []
 dv_vec = []
+err_der_vec = []
 
 # state vector
 lock_state = Lock()
@@ -117,7 +118,9 @@ def exitHandler(signal_received, frame):
         plt.plot(steering_vec)
         plt.show()
 
-    p0, = plt.plot(vf_vec,label='vf')
+    #p0, = plt.plot(vf_vec,label='vf')
+    print("max der %f"%max(err_der_vec))
+    p0, = plt.plot(err_der_vec,label='error der')
     p1, = plt.plot(dv_vec,label='error')
     p2, = plt.plot(throttle_vec,label='output')
     plt.legend(handles=[p0,p1,p2])
@@ -178,6 +181,10 @@ def ctrlloop(car,car2,track,cooldown=False):
     dv_vec.append(vf-1.0)
 
     steering_vec.append(degrees(steering))
+    try:
+        err_der_vec.append(debug_dic['der'])
+    except:
+        err_der.vec.append(0)
 
 
     car.steering = steering
@@ -208,7 +215,8 @@ def ctrlloop(car,car2,track,cooldown=False):
         #print("%.2f, %.2f"% (car.throttle,degrees(car.steering)))
         pass
     else:
-        print("%.2f, %.2f,%.2f, %.2f"% (car.throttle,degrees(car.steering),car2.throttle,degrees(car2.steering)))
+        #print("%.2f, %.2f,%.2f, %.2f"% (car.throttle,degrees(car.steering),car2.throttle,degrees(car2.steering)))
+        pass
 
     # visualization
     # restrict update rate to 0.1s/frame
@@ -247,7 +255,7 @@ if __name__ == '__main__':
 
     # define tracks
     # skid pad
-    #sp.initSkidpad(radius=0.5,velocity=1)
+    sp.initSkidpad(radius=1,velocity=1)
 
     # current track setup in mk103, L shaped
     # width 0.563, length 0.6
@@ -263,7 +271,7 @@ if __name__ == '__main__':
 
 
     # select track
-    track = mk103
+    track = sp
 
     porsche_setting = {'wheelbase':90e-3,
                      'max_steer_angle_left':radians(27.1),
@@ -298,7 +306,7 @@ if __name__ == '__main__':
         car2 = None
 
     img_track = track.drawTrack()
-    img_track = track.drawRaceline(img=img_track)
+    #img_track = track.drawRaceline(img=img_track)
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
 

@@ -55,7 +55,7 @@ class Skidpad(Track):
             signed_curvature = -1.0/self.radius
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
-        print(phase,offset)
+        #print(phase,offset)
         return (raceline_point,offset,raceline_orientation,signed_curvature,self.velocity)
 
     # prepare a picture of the track
