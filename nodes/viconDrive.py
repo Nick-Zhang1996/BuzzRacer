@@ -31,6 +31,7 @@ from car import Car
 from PIL import Image
 
 # settings
+target_velocity = 0.7
 twoCars = False
 saveLog = False
 saveGif = False
@@ -178,13 +179,14 @@ def ctrlloop(car,car2,track,cooldown=False):
     vf_vec.append(vf)
 
     throttle_vec.append(throttle)
-    dv_vec.append(vf-1.0)
+    dv_vec.append(vf-target_velocity)
+    print(vf-target_velocity)
 
     steering_vec.append(degrees(steering))
     try:
         err_der_vec.append(debug_dic['der'])
     except:
-        err_der.vec.append(0)
+        err_der_vec.append(0)
 
 
     car.steering = steering
@@ -255,7 +257,7 @@ if __name__ == '__main__':
 
     # define tracks
     # skid pad
-    sp.initSkidpad(radius=1,velocity=1)
+    sp.initSkidpad(radius=2,velocity=target_velocity)
 
     # current track setup in mk103, L shaped
     # width 0.563, length 0.6

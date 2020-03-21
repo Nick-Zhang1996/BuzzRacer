@@ -9,7 +9,7 @@ from car import Car
 class Skidpad(Track):
     def __init__(self):
         #super(Skidpad,self).__init__()
-        self.resolution = 200
+        self.resolution = 100
         return
 
     # initialize a skidpad, centered at origin

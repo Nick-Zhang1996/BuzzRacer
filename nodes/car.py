@@ -33,9 +33,9 @@ class Car:
         # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
         # PI controller for speed
-        self.throttle_I = 0.015
-        self.throttle_P = 1
-        self.throttle_D = 2
+        self.throttle_I = 0.015*0
+        self.throttle_P = 0.5
+        self.throttle_D = 0.25
         self.last_v_err = 0
         # low pass filter for throttle controller
 
@@ -146,7 +146,7 @@ class Car:
         throttle = 0.05022026*v_target + 0.16779736
         throttle += -self.throttle_P * v_err - self.verr_integral * self.throttle_I - v_err_der*self.throttle_D
         #print("D/P = "+str(v_err_der*self.throttle_D/(self.throttle_P*v_err)))
-        print("I/P = "+str(self.verr_integral*self.throttle_I))
+        #print("I/P = "+str(self.verr_integral*self.throttle_I))
         self.last_v_err = v_err
         #print(self.z_throttle,throttle,self.b,self.a)
         #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
