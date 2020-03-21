@@ -273,7 +273,7 @@ if __name__ == '__main__':
 
 
     # select track
-    track = sp
+    track = mk103
 
     porsche_setting = {'wheelbase':90e-3,
                      'max_steer_angle_left':radians(27.1),
@@ -308,7 +308,7 @@ if __name__ == '__main__':
         car2 = None
 
     img_track = track.drawTrack()
-    #img_track = track.drawRaceline(img=img_track)
+    img_track = track.drawRaceline(img=img_track)
     cv2.imshow('car',img_track)
     cv2.waitKey(1)
 

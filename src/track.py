@@ -361,9 +361,10 @@ class RCPtrack:
         self.raceline = tck
 
         # friction factor
-        mu = 0.3
+        mu = 0.1
         g = 9.81
         n_steps = 100
+        self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         acc_max_motor = lambda x:3.3
         dec_max_motor = lambda x:3.3
@@ -416,16 +417,17 @@ class RCPtrack:
             #print(v3[(i-1+n_steps)%n_steps],v2[(i-1+n_steps)%n_steps])
             pass
         v3[-1]=v3[0]
+        self.target_v = v3
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
 
-        #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='v1')
-        #p2, = plt.plot(v2,label='v2')
-        #p3, = plt.plot(v3,label='v3')
-        #plt.legend(handles=[p0,p1,p2,p3])
+        p0, = plt.plot(curvature, label='curvature')
+        p1, = plt.plot(v1,label='v1')
+        p2, = plt.plot(v2,label='v2')
+        p3, = plt.plot(v3,label='v3')
+        plt.legend(handles=[p0,p1,p2,p3])
         #plt.legend(handles=[p1,p2,p3])
-        #plt.show()
+        plt.show()
 
         return
     
@@ -666,8 +668,12 @@ class RCPtrack:
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
+        # return target velocity
+        n_steps = self.n_steps
+        request_velocity = self.target_v[int((min_fun_x%len(self.ctrl_pts))/(len(self.ctrl_pts))*n_steps)]
+
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
-        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),1.0)
+        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -883,6 +889,7 @@ if __name__ == "__main__":
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
     mk103.initRaceline((2,2),'d',4)
+    exit(0)
 
 
 
