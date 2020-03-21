@@ -12,7 +12,7 @@ class Car:
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
-        self.max_offset = 0.3
+        self.max_offset = 1.0
         # controller tuning, steering->lateral offset
         # P is applied on offset
         # unit: radiant of steering per meter offset
@@ -33,9 +33,9 @@ class Car:
         # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
         # PI controller for speed
-        self.throttle_I = 0.0
-        self.throttle_P = 0.7
-        self.throttle_D = 0
+        self.throttle_I = 0.015
+        self.throttle_P = 1
+        self.throttle_D = 2
         self.last_v_err = 0
         # low pass filter for throttle controller
 
@@ -44,9 +44,9 @@ class Car:
 
         self.verr_integral = 0
         # time constant in sec 
-        tc = 2
+        tc = 5
         #NOTE if using a different vicon frequency, it needs to be reflected here
-        self.decay_factor = exp(-1.0/100/tc)
+        self.decay_factor = exp(-1.0/50/tc)
         self.serial_port = car_setting['serial_port']
         if not (self.serial_port is None):
             self.car_interface = serial.Serial(self.serial_port,115200, timeout=0.001,writeTimeout=0)
@@ -143,9 +143,10 @@ class Car:
         v_err = v - v_target
         self.verr_integral = self.verr_integral*self.decay_factor + v_err
         v_err_der = v_err-self.last_v_err
-        throttle = self.throttle_P * v_err + self.verr_integral * self.throttle_I - v_err_der*self.throttle_D
-        print("D/P = "+str(v_err_der*self.throttle_D/(self.throttle_P*v_err)))
-        #print("I/P = "+str(self.verr_integral*self.throttle_I))
+        throttle = 0.05022026*v_target + 0.16779736
+        throttle += -self.throttle_P * v_err - self.verr_integral * self.throttle_I - v_err_der*self.throttle_D
+        #print("D/P = "+str(v_err_der*self.throttle_D/(self.throttle_P*v_err)))
+        print("I/P = "+str(self.verr_integral*self.throttle_I))
         self.last_v_err = v_err
         #print(self.z_throttle,throttle,self.b,self.a)
         #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
