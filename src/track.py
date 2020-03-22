@@ -355,7 +355,7 @@ class RCPtrack:
         self.raceline = tck
 
         # friction factor
-        mu = 0.5
+        mu = 0.1
         g = 9.81
         n_steps = 100
         self.n_steps = n_steps
@@ -422,6 +422,17 @@ class RCPtrack:
         #plt.legend(handles=[p0,p1,p2,p3])
         ##plt.legend(handles=[p1,p2,p3])
         #plt.show()
+
+        # calculate theoretical lap time
+        t_total = 0
+        for i in range(n_steps):
+            (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            t_total += ds/v3[i%n_steps]
+        print("top speed = %.2fm/s"%max(v3))
+        print("total time = %.2fs"%t_total)
 
         return
     
@@ -828,6 +839,7 @@ if __name__ == "__main__":
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
     mk103.initRaceline((2,2),'d',4)
+    exit(0)
 
     # select a track
     s = mk103
