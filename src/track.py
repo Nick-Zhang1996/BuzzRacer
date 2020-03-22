@@ -25,19 +25,13 @@ from timeUtil import execution_timer
 import cv2
 from timeUtil import execution_timer
 from PIL import Image
-# controller tuning, steering->lateral offset
-# P is applied on offset
-P = 0.8/180*pi/0.01
-# 5 deg of correction for every 3 rad/s overshoot
-# D is applied on delta_omega
-D = radians(4)/3
-# I is applied on offset
-set_throttle = 1
+from car import Car
 
 # debugging
 K_vec = [] # curvature
 steering_vec = []
 sim_omega_vec = []
+sim_log_vec = {}
 
 
 
@@ -361,7 +355,7 @@ class RCPtrack:
         self.raceline = tck
 
         # friction factor
-        mu = 0.1
+        mu = 0.5
         g = 9.81
         n_steps = 100
         self.n_steps = n_steps
@@ -421,13 +415,13 @@ class RCPtrack:
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
 
-        p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='v1')
-        p2, = plt.plot(v2,label='v2')
-        p3, = plt.plot(v3,label='v3')
-        plt.legend(handles=[p0,p1,p2,p3])
-        #plt.legend(handles=[p1,p2,p3])
-        plt.show()
+        #p0, = plt.plot(curvature, label='curvature')
+        #p1, = plt.plot(v1,label='v1')
+        #p2, = plt.plot(v2,label='v2')
+        #p3, = plt.plot(v3,label='v3')
+        #plt.legend(handles=[p0,p1,p2,p3])
+        ##plt.legend(handles=[p1,p2,p3])
+        #plt.show()
 
         return
     
@@ -723,66 +717,6 @@ class RCPtrack:
     def drawAcc(acc,img):
         pass
 
-
-# given world coordinate of the vehicle, provide throttle and steering output
-# throttle -1.0,1.0
-# reverse: true if running in opposite direction of raceline init direction
-# steering as an angle in radians, UNTRIMMED, left positive
-# valid: T/F, if the car can be controlled here, if this is false, then throttle will be set to 0
-    def ctrlCar(self,state,reverse=False):
-        global t
-        global K_vec,steering_vec
-        coord = (state[0],state[1])
-        heading = state[2]
-        # angular speed
-        omega = state[5]
-        vf = state[3]
-        vs = state[4]
-        ret = (0,0,False,0,0)
-
-        retval = self.localTrajectory(state)
-        if retval is None:
-            return ret
-
-        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-
-        self.offset_timestamp.append(time())
-        self.offset_history.append(offset)
-        #if len(self.offset_history)<2:
-        #    return ret
-        
-        if isnan(orientation):
-            return ret
-            
-        if reverse:
-            offset = -offset
-            orientation += pi
-
-        # how much to compensate for per meter offset from track
-        # 5 deg per cm offset XXX the maximum allowable offset here is a bit too large
-
-        # if offset is too large, abort
-        if (abs(offset) > 0.3):
-            return (0,0,False,offset,0)
-        else:
-            # sign convention for offset: - requires left steering(+)
-            steering = orientation-heading - offset * P - (omega-curvature*vf)*D
-            #print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
-            steering = (steering+pi)%(2*pi) -pi
-            # handle edge case, unwrap ( -355 deg turn -> +5 turn)
-            if (steering>radians(24.5)):
-                steering = radians(24.5)
-            elif (steering<-radians(24.5)):
-                steering = -radians(24.5)
-            throttle = set_throttle
-            ret =  (throttle,steering,True,offset,(omega-curvature*vf))
-
-        self.offset_timestamp.pop(0)
-        self.offset_history.pop(0)
-        K_vec.append(curvature)
-        steering_vec.append(steering)
-        return ret
-
     # update car state with bicycle model, no slip
     # dt: time, in sec
     # state: (x,y,theta), np array
@@ -790,7 +724,7 @@ class RCPtrack:
     # theta, car heading, in rad, ref from x axis
     # beta: steering angle, left positive, in rad
     # return new state (x,y,theta)
-    def updateCar(self,dt,state,throttle,beta):
+    def updateCar(self,dt,state,throttle,beta,v_override=None):
         # wheelbase, in meter
         # heading of pi/2, i.e. vehile central axis aligned with y axis,
         # means theta = 0 (the x axis of car and world frame is aligned)
@@ -805,7 +739,12 @@ class RCPtrack:
         # NOTE if side slip is ever modeled, update ds
         ds = vf*dt
         dtheta = ds*tan(beta)/L
-        dvf = 0
+
+        #new_v = max(vf+(throttle-0.2)*4*dt,0)
+        # NOTE add a time constant
+        #new_v = max((throttle-0.16779736)/0.05022026,0)
+        new_v = v_override
+        dvf = new_v - vf
         dvs = 0
         # specific to vehicle frame (x to right of rear axle, y to forward)
         if (beta==0):
@@ -814,11 +753,11 @@ class RCPtrack:
         else:
             dx = - L/tan(beta)*(1-cos(dtheta))
             dy =  abs(L/tan(beta)*sin(dtheta))
+
         #print(dx,dy)
         # specific to world frame
         dX = dx*cos(theta)-dy*sin(theta)
         dY = dx*sin(theta)+dy*cos(theta)
-
 
         acc_x = vf+dvf - vf*cos(dtheta) - vs*sin(dtheta)
         acc_y = vs+dvs - vs*cos(dtheta) - vf*sin(dtheta)
@@ -873,7 +812,7 @@ if __name__ == "__main__":
     # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
     # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
     #s.initRaceline((3,3),'d',10,offset=adjustment)
-    fulltrack.initRaceline((3,3),'d',10)
+    #fulltrack.initRaceline((3,3),'d',10)
 
     # another complex track
     #alter = RCPtrack()
@@ -883,21 +822,28 @@ if __name__ == "__main__":
     # simple track, one loop
     simple = RCPtrack()
     simple.initTrack('uurrddll',(3,3),scale=0.565)
-    simple.initRaceline((0,0),'l',0)
+    #simple.initRaceline((0,0),'l',0)
 
     # current track setup in mk103
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
     mk103.initRaceline((2,2),'d',4)
-    exit(0)
-
-
 
     # select a track
     s = mk103
     # visualize raceline
     img_track = s.drawTrack()
     img_track = s.drawRaceline(img=img_track)
+
+    porsche_setting = {'wheelbase':90e-3,
+                     'max_steer_angle_left':radians(27.1),
+                     'max_steer_pwm_left':1150,
+                     'max_steer_angle_right':radians(27.1),
+                     'max_steer_pwm_right':1850,
+                     'serial_port' : None,
+                     'max_throttle' : 0.5}
+    # porsche 911
+    car = Car(porsche_setting)
 
     # given a starting simulation location, find car control and visualize it
     # for RCP track
@@ -910,7 +856,7 @@ if __name__ == "__main__":
     heading = pi/2
     # be careful here
     reverse = False
-    throttle,steering,valid,dummy,dummy1 = s.ctrlCar([coord[0],coord[1],heading,0,0,0])
+    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],heading,0,0,0],s)
     # should be x,y,heading,vf,vs,omega, i didn't implement the last two
     #s.state = np.array([coord[0],coord[1],heading,0,0,0])
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
@@ -928,17 +874,24 @@ if __name__ == "__main__":
         gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
 
     max_acc = 0
+    sim_dt = 0.01
+    sim_log_vec['omega'] = []
+    sim_log_vec['vf'] = []
+    sim_log_vec['v_target'] = []
+    v_override = 0
     for i in range(620):
-        #print("step = "+str(i))
         # update car
-        sim_states = s.updateCar(0.01,sim_states,throttle,steering)
-        sim_omega_vec.append(sim_states['omega'])
+        sim_states = s.updateCar(sim_dt,sim_states,throttle,steering,v_override=v_override)
+        sim_log_vec['omega'].append(sim_states['omega'])
 
-        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
-        throttle,steering,valid,dummy,dummy1 = s.ctrlCar(state,reverse)
-        #print(i,throttle,steering,valid)
-        #img_track_car = s.drawCar((s.state[0],s.state[1]),s.state[2],steering,img_track.copy())
-        #img_track_car = s.drawCar((state[0],state[1]),state[2],steering,img_track.copy())
+        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+        throttle,steering,valid,debug_dict = car.ctrlCar(state,s,reverse=reverse)
+
+        if (len(sim_log_vec['v_target'])>0):
+            v_override = sim_log_vec['v_target'][-1]
+
+        sim_log_vec['vf'].append(debug_dict['vf'])
+        sim_log_vec['v_target'].append(debug_dict['v_target'])
         img_track_car = s.drawCar(img_track.copy(),state,steering)
         #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
         #print(sim_states['acc'])
@@ -948,7 +901,7 @@ if __name__ == "__main__":
         cv2.imshow('car',img_track_car)
         if saveGif:
             gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
-        k = cv2.waitKey(30) & 0xFF
+        k = cv2.waitKey(int(sim_dt/0.001)) & 0xFF
         if k == ord('q'):
             break
 
@@ -956,7 +909,7 @@ if __name__ == "__main__":
     if saveGif:
         gifimages[0].save(fp="./mk103new.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
-    #plt.plot(sim_omega_vec)
-    #plt.plot(np.array(K_vec))
+    #p0, = plt.plot(sim_log_vec['vf'],label='vf')
+    #p1, = plt.plot(sim_log_vec['v_target'],label='v_target')
     #plt.show()
 

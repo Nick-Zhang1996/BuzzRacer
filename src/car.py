@@ -17,7 +17,7 @@ class Car:
         # P is applied on offset
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
-        self.P = 1/180*pi/0.01
+        self.P = 2/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -119,7 +119,7 @@ class Car:
             else:
                 throttle,err_der = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der})
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target})
 
         return ret
     def actuate(self,steering,throttle):
@@ -150,6 +150,7 @@ class Car:
         self.last_v_err = v_err
         #print(self.z_throttle,throttle,self.b,self.a)
         #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
+        print("target = %.2f, v= %.2f"%(v_target,v))
         return max(min(throttle,self.max_throttle),-1),v_err_der
 
     # for simulation only
@@ -164,7 +165,7 @@ class Car:
         # experimental acceleration model
         v = max(state[3]+(throttle-0.2)*4*dt,0)
         theta = state[2] - pi/2
-        L = 90e-3
+        L = self.wheelbase
         dr = v*dt
         dtheta = dr*tan(steering)/L
         # specific to vehicle frame (x to right of rear axle, y to forward)
