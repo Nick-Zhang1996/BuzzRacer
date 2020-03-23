@@ -706,7 +706,7 @@ class RCPtrack:
 # coord: location of the dor, in meter (x,y)
 # heading: heading of the vehicle, radians from x axis, ccw positive
 #  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
-# NOTE: this function modifies img, if you want to recycle base img, sent img.copy()
+# NOTE: this function modifies img, if you want to recycle base img, send img.copy()
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas

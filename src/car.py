@@ -17,7 +17,8 @@ class Car:
         # P is applied on offset
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
-        self.P = 2/180*pi/0.01
+        # for actual car 1 seems to work
+        self.P = 2.0/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -150,7 +151,7 @@ class Car:
         self.last_v_err = v_err
         #print(self.z_throttle,throttle,self.b,self.a)
         #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
-        print("target = %.2f, v= %.2f"%(v_target,v))
+        #print("target = %.2f, v= %.2f"%(v_target,v))
         return max(min(throttle,self.max_throttle),-1),v_err_der
 
     # for simulation only
