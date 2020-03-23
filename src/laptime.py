@@ -8,7 +8,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 #make a gif of the optimization process
-saveGif = True
+saveGif = False
 gifimages = []
 laptime_vec = []
 
