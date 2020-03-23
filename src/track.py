@@ -431,10 +431,10 @@ class RCPtrack:
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             t_total += ds/v3[i%n_steps]
-        print("top speed = %.2fm/s"%max(v3))
-        print("total time = %.2fs"%t_total)
+        #print("top speed = %.2fm/s"%max(v3))
+        #print("total time = %.2fs"%t_total)
 
-        return
+        return t_total
     
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None, show=False):
@@ -781,6 +781,8 @@ class RCPtrack:
         # in new vehicle frame
         state['acc'] = (acc_x,acc_y)
         return state
+    
+
 
     
 if __name__ == "__main__":
@@ -838,8 +840,19 @@ if __name__ == "__main__":
     # current track setup in mk103
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
-    mk103.initRaceline((2,2),'d',4)
-    exit(0)
+    # heuristic manually generated adjustment
+    manual_adj = [0,0,0,0,0,0,0,0,0,0,0,0]
+    manual_adj[4] = -0.5
+    manual_adj[8] = -0.5
+    manual_adj[9] = 0
+    manual_adj[10] = -0.5
+    manual_adj = np.array(manual_adj)
+    # optimized with SLSQP, 2.62s
+    slsqp_adj = np.array([ 3.76377694e-01,  5.00000000e-01,  4.98625816e-01,  5.00000000e-01,
+                5.00000000e-01,  4.56985291e-01,  3.91826908e-03, -6.50918621e-18,
+                        5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
+
+    mk103.initRaceline((2,2),'d',4,offset=manual_adj)
 
     # select a track
     s = mk103
