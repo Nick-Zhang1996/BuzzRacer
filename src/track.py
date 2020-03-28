@@ -18,12 +18,11 @@ import numpy as np
 from numpy import isclose
 import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
-from scipy.interpolate import splprep, splev
-from scipy.optimize import minimize_scalar,minimize
+from scipy.interpolate import splprep, splev,CubicSpline
+from scipy.optimize import minimize_scalar,minimize,brentq
 from time import sleep,time
 from timeUtil import execution_timer
 import cv2
-from timeUtil import execution_timer
 from PIL import Image
 from car import Car
 
@@ -348,6 +347,8 @@ class RCPtrack:
         m = len(self.ctrl_pts)+1
         smoothing_factor = 0.01*(m)
         tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
+        #NOTE 
+        #tck, u = CubicSpline(np.linspace(0,len(pts)-1,len(pts)),pts) 
 
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
@@ -412,13 +413,15 @@ class RCPtrack:
             pass
         v3[-1]=v3[0]
         self.target_v = v3
+        self.max_v = max(v3)
+        self.min_v = min(v3)
             #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
         #print(v3)
 
         #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='v1')
-        #p2, = plt.plot(v2,label='v2')
-        #p3, = plt.plot(v3,label='v3')
+        #p1, = plt.plot(v1,label='1st pass')
+        #p2, = plt.plot(v2,label='2nd pass')
+        #p3, = plt.plot(v3,label='3rd pass')
         #plt.legend(handles=[p0,p1,p2,p3])
         ##plt.legend(handles=[p1,p2,p3])
         #plt.show()
@@ -434,10 +437,47 @@ class RCPtrack:
         #print("top speed = %.2fm/s"%max(v3))
         #print("total time = %.2fs"%t_total)
 
+        # calculate acceleration vector
+        tt = np.linspace(0,t_total,n_steps)
+        dt = t_total/n_steps
+        # reference u as we go around the track
+        # this is for splev, float
+        u_now = 0.0
+        # reference index
+        # this is for indexing xx,v3 array, int
+        i_now = 0
+        # map from u space to i space
+        u2i = lambda x:int(float(x)/(len(pts)-1)*(n_steps))%n_steps
+        # get direct distance from two u
+        distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
+
+        xx = np.linspace(0,len(pts)-1,n_steps+1)
+        vel_now = v3[0] * np.array(splev(xx[0], self.raceline, der=1))
+
+        vel_vec = []
+        # traverse through one lap in equal distance time step, this is different from the traverse in equial distance
+        for j in range(n_steps):
+            vel_now = v3[int(i_now)%n_steps] * np.array(splev(xx[int(i_now)%n_steps], self.raceline, der=1))
+            vel_vec.append(vel_now)
+
+            # get u and i corresponding to next time step
+            func = lambda x:distuu(u_now,x)-v3[int(i_now)%n_steps]*dt
+            bound_low = u_now
+            #bound_high = u_now+len(pts)/1000.0*self.max_v/self.min_v
+            bound_high = u_now+len(pts)/9
+            assert(func(bound_low)*func(bound_high)<0)
+            u_now = brentq(func,bound_low,bound_high)
+            i_now = u2i(u_now)
+
+        vel_vec = np.array(vel_vec)
+        acc_vec = np.diff(vel_vec,axis=0)
+        plt.plot(acc_vec[:,0],acc_vec[:,1],'*')
+        plt.show()
+
         return t_total
     
     # draw the raceline from self.raceline
-    def drawRaceline(self,lineColor=(0,0,255), img=None, show=False):
+    def drawRaceline(self,lineColor=(0,0,255), img=None):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -461,9 +501,18 @@ class RCPtrack:
             img = np.zeros([res*rows,res*cols,3],dtype='uint8')
 
         pts = np.vstack([x_new,y_new]).T
-        pts = pts.reshape((-1,1,2))
+        # for polylines, pts = pts.reshape((-1,1,2))
+        pts = pts.reshape((-1,2))
         pts = pts.astype(np.int)
-        img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        for i in range(len(u_new)-1):
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.getVelocityFromU(u_new[i])), thickness=3) 
+
+        # solid color
+        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
         for point in self.ctrl_pts:
             x = point[0]
             y = point[1]
@@ -474,12 +523,6 @@ class RCPtrack:
             y = self.resolution*rows - y
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
-
-        '''
-        if show:
-            plt.imshow(img)
-            plt.show()
-        '''
 
         return img
 
@@ -674,11 +717,15 @@ class RCPtrack:
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
         # return target velocity
-        n_steps = self.n_steps
-        request_velocity = self.target_v[int((min_fun_x%len(self.ctrl_pts))/(len(self.ctrl_pts))*n_steps)]
+        request_velocity = self.getVelocityFromU(min_fun_x)
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
         return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
+
+    # given u, get optimal velocity at this point on the raceline
+    def getVelocityFromU(self,u):
+        n_steps = self.n_steps
+        return self.target_v[int((u%len(self.ctrl_pts))/(len(self.ctrl_pts))*n_steps)]
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -824,8 +871,9 @@ if __name__ == "__main__":
     # start coord, direction, sequence number of origin
     # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
     # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-    #s.initRaceline((3,3),'d',10,offset=adjustment)
+    #fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
     #fulltrack.initRaceline((3,3),'d',10)
+
 
     # another complex track
     #alter = RCPtrack()
@@ -840,6 +888,7 @@ if __name__ == "__main__":
     # current track setup in mk103
     mk103 = RCPtrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
+
     # heuristic manually generated adjustment
     manual_adj = [0,0,0,0,0,0,0,0,0,0,0,0]
     manual_adj[4] = -0.5
@@ -853,6 +902,11 @@ if __name__ == "__main__":
                         5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
 
     mk103.initRaceline((2,2),'d',4,offset=manual_adj)
+    img_track = mk103.drawTrack()
+    img_track = mk103.drawRaceline(img=img_track)
+    plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
+    plt.show()
+    exit(0)
 
     # select a track
     s = mk103
