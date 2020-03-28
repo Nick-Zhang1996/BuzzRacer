@@ -356,18 +356,29 @@ class RCPtrack:
         self.raceline = tck
 
         # friction factor
-        mu = 0.1
+        mu = 10.0/9.81
         g = 9.81
         n_steps = 100
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
-        acc_max_motor = lambda x:3.3
-        dec_max_motor = lambda x:3.3
+        # actually around 3.3
+        acc_max_motor = lambda x:10
+        dec_max_motor = lambda x:10
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,len(pts)-1,n_steps+1)
-        curvature = splev(xx,self.raceline,der=2)
-        curvature = np.linalg.norm(curvature,axis=0)
+        #curvature = splev(xx,self.raceline,der=2)
+        #curvature = np.linalg.norm(curvature,axis=0)
+
+        # let raceline curve be r(u)
+        # dr = r'(u), parameterized with xx/u
+        dr = np.array(splev(xx,self.raceline,der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(xx,self.raceline,der=2))
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
         # first pass, based on lateral acceleration
         v1 = (mu*g/curvature)**0.5
 
@@ -386,11 +397,9 @@ class RCPtrack:
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            # assume vehicle accelerate uniformly between the two steps
             v2[(i+1)%n_steps] =  min((v2[i%n_steps]**2 + 2*a_lon*ds)**0.5,v1[(i+1)%n_steps])
-            #XXX remove
-            if isnan((v1[(i+1)%n_steps]-v1[i%n_steps])/2/ds):
-                print('nan')
-            #print(abs(v1[(i+1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
+
         v2[-1]=v2[0]
         # third pass, backwards for braking
         min_xx = np.argmin(v2)
@@ -415,16 +424,13 @@ class RCPtrack:
         self.target_v = v3
         self.max_v = max(v3)
         self.min_v = min(v3)
-            #print(abs(v1[(i-1)%n_steps]**2-v1[i%n_steps]**2)/2/ds)
-        #print(v3)
 
-        #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='1st pass')
-        #p2, = plt.plot(v2,label='2nd pass')
-        #p3, = plt.plot(v3,label='3rd pass')
-        #plt.legend(handles=[p0,p1,p2,p3])
-        ##plt.legend(handles=[p1,p2,p3])
-        #plt.show()
+        p0, = plt.plot(curvature, label='curvature')
+        p1, = plt.plot(v1,label='1st pass')
+        p2, = plt.plot(v2,label='2nd pass')
+        p3, = plt.plot(v3,label='3rd pass')
+        plt.legend(handles=[p0,p1,p2,p3])
+        plt.show()
 
         # calculate theoretical lap time
         t_total = 0
@@ -434,8 +440,8 @@ class RCPtrack:
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             t_total += ds/v3[i%n_steps]
-        #print("top speed = %.2fm/s"%max(v3))
-        #print("total time = %.2fs"%t_total)
+        print("top speed = %.2fm/s"%max(v3))
+        print("total time = %.2fs"%t_total)
 
         # calculate acceleration vector
         tt = np.linspace(0,t_total,n_steps)
@@ -457,13 +463,16 @@ class RCPtrack:
         vel_vec = []
         # traverse through one lap in equal distance time step, this is different from the traverse in equial distance
         for j in range(n_steps):
-            vel_now = v3[int(i_now)%n_steps] * np.array(splev(xx[int(i_now)%n_steps], self.raceline, der=1))
+            # tangential direction
+            tan_dir = splev(xx[int(i_now)%n_steps], self.raceline, der=1)
+            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
+            vel_now = v3[int(i_now)%n_steps] * tan_dir
             vel_vec.append(vel_now)
 
             # get u and i corresponding to next time step
             func = lambda x:distuu(u_now,x)-v3[int(i_now)%n_steps]*dt
             bound_low = u_now
-            #bound_high = u_now+len(pts)/1000.0*self.max_v/self.min_v
+            #bound_high = u_now+len(pts)/100.0*self.max_v/self.min_v
             bound_high = u_now+len(pts)/9
             assert(func(bound_low)*func(bound_high)<0)
             u_now = brentq(func,bound_low,bound_high)
