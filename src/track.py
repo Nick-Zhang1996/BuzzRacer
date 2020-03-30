@@ -18,7 +18,7 @@ import numpy as np
 from numpy import isclose
 import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
-from scipy.interpolate import splprep, splev,CubicSpline
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from scipy.optimize import minimize_scalar,minimize,brentq
 from time import sleep,time
 from timeUtil import execution_timer
@@ -276,54 +276,6 @@ class RCPtrack:
             exit_ctrl_pt *= self.scale
             self.ctrl_pts.append(exit_ctrl_pt.tolist())
 
-            '''
-            if signature in turns:
-                if last_signature in turns:
-                    # double turn U turn or S turn (chicane)
-                    # do not remove previous control point (never added)
-
-                    new_ctrl_point = np.array(center(current_coord[0],current_coord[1])) + apex_offset*np.array(turn_offset_toward_center[signature])*self.scale
-
-                    # to reduce the abruptness of the turn and bring raceline closer to apex, add a control point at apex
-                    pre_apex_ctrl_pnt = np.array(self.ctrl_pts[-1])
-                    self.ctrl_pts_w[-1] = 1
-                    post_apex_ctrl_pnt = new_ctrl_point
-
-                    mid_apex_ctrl_pnt = 0.5*(pre_apex_ctrl_pnt+post_apex_ctrl_pnt)
-                    self.ctrl_pts.append(mid_apex_ctrl_pnt.tolist())
-                    self.ctrl_pts_w.append(18)
-
-                    self.ctrl_pts.append(new_ctrl_point.tolist())
-                    self.ctrl_pts_w.append(1)
-                else:
-                    # one turn, or first turn element in a S or U turn
-                    # remove previous control point
-                    #del self.ctrl_pts[-1]
-                    #del self.ctrl_pts_w[-1]
-                    new_ctrl_point = np.array(center(current_coord[0],current_coord[1])) + apex_offset*np.array(turn_offset_toward_center[signature])*self.scale
-                    self.ctrl_pts.append(new_ctrl_point.tolist())
-                    self.ctrl_pts_w.append(1)
-
-            else:
-                # straights
-
-                # exit point only
-                #exit_ctrl_pt = np.array(lookup_table_dir[exit],dtype='float')/2
-                #exit_ctrl_pt += current_coord
-                #exit_ctrl_pt += np.array([0.5,0.5])
-                #exit_ctrl_pt *= self.scale
-                #self.ctrl_pts.append(exit_ctrl_pt.tolist())
-                #self.ctrl_pts_w.append(1.2)
-
-                # center point
-                #exit_ctrl_pt = np.array(lookup_table_dir[exit],dtype='float')/2
-                exit_ctrl_pt = np.array([0.5,0.5])
-                exit_ctrl_pt += current_coord
-                exit_ctrl_pt *= self.scale
-                self.ctrl_pts.append(exit_ctrl_pt.tolist())
-                self.ctrl_pts_w.append(1)
-            '''
-
             current_coord = current_coord + lookup_table_dir[exit]
             entry = exit
 
@@ -358,7 +310,7 @@ class RCPtrack:
         # friction factor
         mu = 10.0/9.81
         g = 9.81
-        n_steps = 100
+        n_steps = 1000
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
@@ -420,17 +372,32 @@ class RCPtrack:
             v3[(i-1+n_steps)%n_steps] =  min((v3[i%n_steps]**2 + 2*a_lon*ds)**0.5,v2[(i-1+n_steps)%n_steps])
             #print(v3[(i-1+n_steps)%n_steps],v2[(i-1+n_steps)%n_steps])
             pass
+
         v3[-1]=v3[0]
-        self.target_v = v3
+
+        # call with self.targetVfromU(u) alwayos u is in range [0,len(self.ctrl_pts)]
+        self.targetVfromU = interp1d(xx,v3,kind='cubic')
+        self.v1 = interp1d(xx,v1,kind='cubic')
+        self.v2 = interp1d(xx,v2,kind='cubic')
+
         self.max_v = max(v3)
         self.min_v = min(v3)
 
-        p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='1st pass')
-        p2, = plt.plot(v2,label='2nd pass')
-        p3, = plt.plot(v3,label='3rd pass')
-        plt.legend(handles=[p0,p1,p2,p3])
-        plt.show()
+        # debug target v curve fitting
+        #p0, = plt.plot(xx,v3,'*',label='original')
+        #xxx = np.linspace(0,len(pts)-1,10*n_steps)
+        #sampleV = self.targetVfromU(xxx)
+        #p1, = plt.plot(xxx,sampleV,label='fitted')
+        #plt.legend(handles=[p0,p1])
+        #plt.show()
+
+
+        #p0, = plt.plot(curvature, label='curvature')
+        #p1, = plt.plot(v1,label='1st pass')
+        #p2, = plt.plot(v2,label='2nd pass')
+        #p3, = plt.plot(v3,label='3rd pass')
+        #plt.legend(handles=[p0,p1,p2,p3])
+        #plt.show()
 
         # calculate theoretical lap time
         t_total = 0
@@ -461,26 +428,60 @@ class RCPtrack:
         vel_now = v3[0] * np.array(splev(xx[0], self.raceline, der=1))
 
         vel_vec = []
+        
         # traverse through one lap in equal distance time step, this is different from the traverse in equial distance
         for j in range(n_steps):
             # tangential direction
-            tan_dir = splev(xx[int(i_now)%n_steps], self.raceline, der=1)
+            tan_dir = splev(u_now, self.raceline, der=1)
             tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
-            vel_now = v3[int(i_now)%n_steps] * tan_dir
+            vel_now = self.v1(u_now%len(self.ctrl_pts)) * tan_dir
             vel_vec.append(vel_now)
 
             # get u and i corresponding to next time step
-            func = lambda x:distuu(u_now,x)-v3[int(i_now)%n_steps]*dt
+            func = lambda x:distuu(u_now,x)-self.v1(u_now%len(self.ctrl_pts))*dt
             bound_low = u_now
-            #bound_high = u_now+len(pts)/100.0*self.max_v/self.min_v
+            #bound_high = u_now+len(pts)/self.n_steps*self.max_v/self.min_v
             bound_high = u_now+len(pts)/9
             assert(func(bound_low)*func(bound_high)<0)
             u_now = brentq(func,bound_low,bound_high)
-            i_now = u2i(u_now)
 
         vel_vec = np.array(vel_vec)
-        acc_vec = np.diff(vel_vec,axis=0)
-        plt.plot(acc_vec[:,0],acc_vec[:,1],'*')
+
+        lat_acc_vec = []
+        dtheta_vec = []
+        theta_vec = []
+        mean_v_vec = []
+        for j in range(n_steps-1):
+            #mean_v = np.linalg.norm(vel_vec[j]) + np.linalg.norm(vel_vec[j+1])
+            #mean_v /= 2
+            theta = np.arctan2(vel_vec[j,1],vel_vec[j,0])
+            theta_vec.append(theta)
+
+            dtheta = np.arctan2(vel_vec[j+1,1],vel_vec[j+1,0]) - theta
+            dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
+            dtheta_vec.append(dtheta)
+
+            mean_v = np.linalg.norm(vel_vec[j])
+            mean_v_vec.append(mean_v)
+
+            lat_acc_vec.append(mean_v*dtheta/dt)
+
+        #acc_vec = np.diff(vel_vec,axis=0)/dt
+
+        #plt.plot(acc_vec[:,0],acc_vec[:,1],'*')
+
+        p0, = plt.plot(theta_vec,label='theta')
+        #p1, = plt.plot(np.diff(theta_vec)/dt,label='dtheta_diff')
+        #p1, = plt.plot(mean_v_vec/np.average(mean_v_vec),label='v')
+        p2, = plt.plot(dtheta_vec/np.average(dtheta_vec),label='dtheta')
+        p3, = plt.plot(np.array(lat_acc_vec)/10.0,label='lateral')
+        plt.legend(handles=[p0,p2,p3])
+
+        # draw the traction circle
+        #cc = np.linspace(0,2*np.pi)
+        #circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+        #plt.plot(circle[0,:],circle[1,:])
+        #plt.gcf().gca().set_aspect('equal','box')
         plt.show()
 
         return t_total
@@ -518,7 +519,7 @@ class RCPtrack:
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.getVelocityFromU(u_new[i])), thickness=3) 
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%len(self.ctrl_pts))), thickness=3) 
 
         # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
@@ -726,15 +727,10 @@ class RCPtrack:
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
         # return target velocity
-        request_velocity = self.getVelocityFromU(min_fun_x)
+        request_velocity = self.targetVfromU(min_fun_x%len(self.ctrl_pts))
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
         return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
-
-    # given u, get optimal velocity at this point on the raceline
-    def getVelocityFromU(self,u):
-        n_steps = self.n_steps
-        return self.target_v[int((u%len(self.ctrl_pts))/(len(self.ctrl_pts))*n_steps)]
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -911,11 +907,11 @@ if __name__ == "__main__":
                         5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
 
     mk103.initRaceline((2,2),'d',4,offset=manual_adj)
+    exit(0)
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
     plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
     plt.show()
-    exit(0)
 
     # select a track
     s = mk103
