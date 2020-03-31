@@ -312,8 +312,8 @@ class RCPtrack:
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:10
-        dec_max_motor = lambda x:10
+        acc_max_motor = lambda x:5
+        dec_max_motor = lambda x:5
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,len(pts)-1,n_steps+1)
@@ -470,34 +470,33 @@ class RCPtrack:
         acc_vec = acc_vec / dt_vec2
 
         # plot acceleration vector cloud
-        # with x,y axis being track frame
-        #plt.plot(acc_vec[:,0],acc_vec[:,1],'*')
-
         # with x,y axis being vehicle frame, x lateral
-        plt.plot(lat_acc_vec,lon_acc_vec,'*')
+        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
 
         # draw the traction circle
         cc = np.linspace(0,2*np.pi)
         circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        plt.plot(circle[0,:],circle[1,:])
+        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
         plt.gcf().gca().set_aspect('equal','box')
         plt.xlim(-12,12)
         plt.ylim(-12,12)
+        plt.xlabel('Lateral Acceleration')
+        plt.ylabel('Longitudinal Acceleration')
+        plt.legend(handles=[p0,p1])
         plt.show()
 
 
         #p0, = plt.plot(theta_vec,label='theta')
         #p1, = plt.plot(v_vec,label='v')
         #p2, = plt.plot(dtheta_vec,label='dtheta')
-        acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
-        p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
-        p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+        #acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+        #p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+        #p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
 
         #p2, = plt.plot(lon_acc_vec,label='longitudinal')
         #p3, = plt.plot(lat_acc_vec,label='lateral')
-        plt.legend(handles=[p0,p1])
-
-        plt.show()
+        #plt.legend(handles=[p0,p1])
+        #plt.show()
 
         return t_total
     
