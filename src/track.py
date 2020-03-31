@@ -111,7 +111,6 @@ class RCPtrack:
 
         #grid[0][0].setEntry(description[-1])
 
-
         # process the linked list, replace with the following
         # straight segment = WE(EW), NS(SN)
         # curved segment = SE,SW,NE,NW
@@ -132,7 +131,6 @@ class RCPtrack:
                     exit(1)
 
         self.track = grid
-        # TODO add save pickle function
         return 
 
 
@@ -336,21 +334,28 @@ class RCPtrack:
 
         dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         # second pass, based on engine capacity and available longitudinal traction
-        # start from the smallest index
+        # start from the index with lowest speed
         min_xx = np.argmin(v1)
         v2 = np.zeros_like(v1)
         v2[min_xx] = v1[min_xx]
         for i in range(min_xx,min_xx+n_steps):
-            a_lat = v1[i%n_steps]**2*curvature[(i+1)%n_steps]
-            a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
-            a_lon = min(acc_max_motor(v2[i%n_steps]),a_lon_available_traction)
+            # lateral acc at next step if the car mainains speed
+            a_lat = v2[i%n_steps]**2*curvature[(i+1)%n_steps]
 
-            (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
-            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
-            # distance between two steps
-            ds = dist((x_i, y_i),(x_i_1, y_i_1))
-            # assume vehicle accelerate uniformly between the two steps
-            v2[(i+1)%n_steps] =  min((v2[i%n_steps]**2 + 2*a_lon*ds)**0.5,v1[(i+1)%n_steps])
+            # is there available traction for acceleration?
+            if ((mu*g)**2-a_lat**2)>0:
+                a_lon_available_traction = ((mu*g)**2-a_lat**2)**0.5
+                # constrain with motor capacity
+                a_lon = min(acc_max_motor(v2[i%n_steps]),a_lon_available_traction)
+
+                (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
+                (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
+                # distance between two steps
+                ds = dist((x_i, y_i),(x_i_1, y_i_1))
+                # assume vehicle accelerate uniformly between the two steps
+                v2[(i+1)%n_steps] =  min((v2[i%n_steps]**2 + 2*a_lon*ds)**0.5,v1[(i+1)%n_steps])
+            else:
+                v2[(i+1)%n_steps] =  v1[(i+1)%n_steps]
 
         v2[-1]=v2[0]
         # third pass, backwards for braking
@@ -359,7 +364,7 @@ class RCPtrack:
         v3[min_xx] = v2[min_xx]
         for i in np.linspace(min_xx,min_xx-n_steps,n_steps+2):
             i = int(i)
-            a_lat = v2[i%n_steps]**2*curvature[(i-1+n_steps)%n_steps]
+            a_lat = v3[i%n_steps]**2*curvature[(i-1+n_steps)%n_steps]
             a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
             a_lon = min(dec_max_motor(v3[i%n_steps]),a_lon_available_traction)
             #print(a_lon)
@@ -379,6 +384,7 @@ class RCPtrack:
         self.targetVfromU = interp1d(xx,v3,kind='cubic')
         self.v1 = interp1d(xx,v1,kind='cubic')
         self.v2 = interp1d(xx,v2,kind='cubic')
+        self.v3 = interp1d(xx,v3,kind='cubic')
 
         self.max_v = max(v3)
         self.min_v = min(v3)
@@ -406,82 +412,91 @@ class RCPtrack:
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
-            t_total += ds/v3[i%n_steps]
+            t_total += ds/v1[i%n_steps]
         print("top speed = %.2fm/s"%max(v3))
         print("total time = %.2fs"%t_total)
 
-        # calculate acceleration vector
-        tt = np.linspace(0,t_total,n_steps)
-        dt = t_total/n_steps
-        # reference u as we go around the track
-        # this is for splev, float
-        u_now = 0.0
-        # reference index
-        # this is for indexing xx,v3 array, int
-        i_now = 0
-        # map from u space to i space
-        u2i = lambda x:int(float(x)/(len(pts)-1)*(n_steps))%n_steps
         # get direct distance from two u
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
 
-        xx = np.linspace(0,len(pts)-1,n_steps+1)
-        vel_now = v3[0] * np.array(splev(xx[0], self.raceline, der=1))
-
         vel_vec = []
-        
-        # traverse through one lap in equal distance time step, this is different from the traverse in equial distance
-        for j in range(n_steps):
-            # tangential direction
-            tan_dir = splev(u_now, self.raceline, der=1)
-            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
-            vel_now = self.v1(u_now%len(self.ctrl_pts)) * tan_dir
-            vel_vec.append(vel_now)
+        ds_vec = []
+        #xx = np.linspace(0,len(pts)-1,n_steps+1)
 
-            # get u and i corresponding to next time step
-            func = lambda x:distuu(u_now,x)-self.v1(u_now%len(self.ctrl_pts))*dt
-            bound_low = u_now
-            #bound_high = u_now+len(pts)/self.n_steps*self.max_v/self.min_v
-            bound_high = u_now+len(pts)/9
-            assert(func(bound_low)*func(bound_high)<0)
-            u_now = brentq(func,bound_low,bound_high)
+        # get velocity at each point
+        for i in range(n_steps):
+            # tangential direction
+            tan_dir = splev(xx[i], self.raceline, der=1)
+            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
+            vel_now = self.v3(xx[i]%len(self.ctrl_pts)) * tan_dir
+            vel_vec.append(vel_now)
 
         vel_vec = np.array(vel_vec)
 
         lat_acc_vec = []
+        lon_acc_vec = []
         dtheta_vec = []
         theta_vec = []
-        mean_v_vec = []
-        for j in range(n_steps-1):
-            #mean_v = np.linalg.norm(vel_vec[j]) + np.linalg.norm(vel_vec[j+1])
-            #mean_v /= 2
-            theta = np.arctan2(vel_vec[j,1],vel_vec[j,0])
+        v_vec = []
+        dt_vec = []
+
+        # get lateral and longitudinal acceleration
+        for i in range(n_steps-1):
+
+            theta = np.arctan2(vel_vec[i,1],vel_vec[i,0])
             theta_vec.append(theta)
 
-            dtheta = np.arctan2(vel_vec[j+1,1],vel_vec[j+1,0]) - theta
+            dtheta = np.arctan2(vel_vec[i+1,1],vel_vec[i+1,0]) - theta
             dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
             dtheta_vec.append(dtheta)
 
-            mean_v = np.linalg.norm(vel_vec[j])
-            mean_v_vec.append(mean_v)
+            speed = np.linalg.norm(vel_vec[i])
+            next_speed = np.linalg.norm(vel_vec[i+1])
+            v_vec.append(speed)
 
-            lat_acc_vec.append(mean_v*dtheta/dt)
+            dt = distuu(xx[i],xx[i+1])/speed
+            dt_vec.append(dt)
 
-        #acc_vec = np.diff(vel_vec,axis=0)/dt
+            lat_acc_vec.append(speed*dtheta/dt)
+            lon_acc_vec.append((next_speed-speed)/dt)
 
+        dt_vec = np.array(dt_vec)
+        lon_acc_vec = np.array(lon_acc_vec)
+        lat_acc_vec = np.array(lat_acc_vec)
+
+        # get acc_vector, track frame
+        dt_vec2 = np.vstack([dt_vec,dt_vec]).T
+        acc_vec = np.diff(vel_vec,axis=0)
+        acc_vec = acc_vec / dt_vec2
+
+        # plot acceleration vector cloud
+        # with x,y axis being track frame
         #plt.plot(acc_vec[:,0],acc_vec[:,1],'*')
 
-        p0, = plt.plot(theta_vec,label='theta')
-        #p1, = plt.plot(np.diff(theta_vec)/dt,label='dtheta_diff')
-        #p1, = plt.plot(mean_v_vec/np.average(mean_v_vec),label='v')
-        p2, = plt.plot(dtheta_vec/np.average(dtheta_vec),label='dtheta')
-        p3, = plt.plot(np.array(lat_acc_vec)/10.0,label='lateral')
-        plt.legend(handles=[p0,p2,p3])
+        # with x,y axis being vehicle frame, x lateral
+        plt.plot(lat_acc_vec,lon_acc_vec,'*')
 
         # draw the traction circle
-        #cc = np.linspace(0,2*np.pi)
-        #circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        #plt.plot(circle[0,:],circle[1,:])
-        #plt.gcf().gca().set_aspect('equal','box')
+        cc = np.linspace(0,2*np.pi)
+        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+        plt.plot(circle[0,:],circle[1,:])
+        plt.gcf().gca().set_aspect('equal','box')
+        plt.xlim(-12,12)
+        plt.ylim(-12,12)
+        plt.show()
+
+
+        #p0, = plt.plot(theta_vec,label='theta')
+        #p1, = plt.plot(v_vec,label='v')
+        #p2, = plt.plot(dtheta_vec,label='dtheta')
+        acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+        p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+        p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+
+        #p2, = plt.plot(lon_acc_vec,label='longitudinal')
+        #p3, = plt.plot(lat_acc_vec,label='lateral')
+        plt.legend(handles=[p0,p1])
+
         plt.show()
 
         return t_total
