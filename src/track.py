@@ -399,11 +399,11 @@ class RCPtrack:
 
 
         #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='1st pass')
-        #p2, = plt.plot(v2,label='2nd pass')
-        #p3, = plt.plot(v3,label='3rd pass')
-        #plt.legend(handles=[p0,p1,p2,p3])
-        #plt.show()
+        p1, = plt.plot(v1,label='1st pass')
+        p2, = plt.plot(v2,label='2nd pass')
+        p3, = plt.plot(v3,label='3rd pass')
+        plt.legend(handles=[p1,p2,p3])
+        plt.show()
 
         # calculate theoretical lap time
         t_total = 0
