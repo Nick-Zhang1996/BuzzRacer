@@ -70,5 +70,6 @@ if __name__ == "__main__":
 
     if saveGif:
         gifimages[0].save(fp="./optimization.gif",format='GIF',append_images=gifimages,save_all=True,duration = 100,loop=0)
-    plt.plot(laptime_vec)
-    plt.show()
+
+    #plt.plot(laptime_vec)
+    #plt.show()

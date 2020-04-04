@@ -398,12 +398,13 @@ class RCPtrack:
         #plt.show()
 
 
+        # three pass of velocity profile
         #p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='1st pass')
-        p2, = plt.plot(v2,label='2nd pass')
-        p3, = plt.plot(v3,label='3rd pass')
-        plt.legend(handles=[p1,p2,p3])
-        plt.show()
+        #p1, = plt.plot(v1,label='1st pass')
+        #p2, = plt.plot(v2,label='2nd pass')
+        #p3, = plt.plot(v3,label='3rd pass')
+        #plt.legend(handles=[p1,p2,p3])
+        #plt.show()
 
         # calculate theoretical lap time
         t_total = 0
@@ -413,8 +414,8 @@ class RCPtrack:
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             t_total += ds/v1[i%n_steps]
-        print("top speed = %.2fm/s"%max(v3))
-        print("total time = %.2fs"%t_total)
+        #print("top speed = %.2fm/s"%max(v3))
+        #print("total time = %.2fs"%t_total)
 
         # get direct distance from two u
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
@@ -471,19 +472,19 @@ class RCPtrack:
 
         # plot acceleration vector cloud
         # with x,y axis being vehicle frame, x lateral
-        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+        #p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
 
         # draw the traction circle
-        cc = np.linspace(0,2*np.pi)
-        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
-        plt.gcf().gca().set_aspect('equal','box')
-        plt.xlim(-12,12)
-        plt.ylim(-12,12)
-        plt.xlabel('Lateral Acceleration')
-        plt.ylabel('Longitudinal Acceleration')
-        plt.legend(handles=[p0,p1])
-        plt.show()
+        #cc = np.linspace(0,2*np.pi)
+        #circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+        #p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+        #plt.gcf().gca().set_aspect('equal','box')
+        #plt.xlim(-12,12)
+        #plt.ylim(-12,12)
+        #plt.xlabel('Lateral Acceleration')
+        #plt.ylabel('Longitudinal Acceleration')
+        #plt.legend(handles=[p0,p1])
+        #plt.show()
 
 
         #p0, = plt.plot(theta_vec,label='theta')
@@ -921,11 +922,11 @@ if __name__ == "__main__":
                         5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
 
     mk103.initRaceline((2,2),'d',4,offset=manual_adj)
-    exit(0)
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
     plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
     plt.show()
+    exit(0)
 
     # select a track
     s = mk103
