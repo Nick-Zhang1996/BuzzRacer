@@ -413,7 +413,7 @@ class RCPtrack:
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
-            t_total += ds/v1[i%n_steps]
+            t_total += ds/v3[i%n_steps]
         #print("top speed = %.2fm/s"%max(v3))
         #print("total time = %.2fs"%t_total)
 
