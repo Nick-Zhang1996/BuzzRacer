@@ -4,7 +4,7 @@ This document explains how to generate velocity profile for a given trajectory a
 ### Theory
 One simple model of vehicle traction is Traction Circle, which states that at any instant, the norm of maximum acceleration a vehicle can generate is a fixed value. Stated graphically, it means that if one is to plot the lateral acceleration on x axis, and longitudinal acceleration on y axis, the achievable values lie inside a circle. This circle is called Traction Circle, and the radius of which is maximum acceleration. In road cars, the radius is somewhat around 1g.
 
-![Traction Circle](../traction-circle.jpg)
+![Traction Circle](../pics/traction-circle.jpg)
 
 ### Implementation
 Given a fixed trajectory, there are two limiting factors that govern speed profile, one being traction available, the other being vehicle's accelerating and braking capabilities. It is intuitive that in order to maximize speed, the vehicle has to utilize all traction available. This gives rise to a three pass algorithm, originally designed by Dr Tsiotras.
@@ -28,7 +28,7 @@ The first pass calculates speed limited sorely by lateral acceleration, which re
 
 Plotted below is the acceleration throughout the trajectory, if the vehicle were to follow `v1`
 
-![First Pass](../v1.png)
+![First Pass](../pics/v1.png)
 
 The second pass takes into account vehicle's ability to accelerate, starting from the slowest point in `v1`, it iterates forward and constrains vehicle's velocity to available traction and engine's acceleration capabilities.
 
@@ -63,7 +63,7 @@ The second pass takes into account vehicle's ability to accelerate, starting fro
 
 Plotted below is the acceleration throughout the trajectory, if the vehicle were to follow `v2`
 
-![Second Pass](../v2.png)
+![Second Pass](../pics/v2.png)
 
 The third pass takes into account vehicle's ability to decelerate, starting from the slowest point in `v2`, it iterates backward and constrains vehicle's velocity to available traction and vehicle's braking capabilities.
 
@@ -93,7 +93,7 @@ The third pass takes into account vehicle's ability to decelerate, starting from
 
 Plotted below is the acceleration throughout the trajectory, if the vehicle were to follow `v3`
 
-![Third Pass](../v3.png)
+![Third Pass](../pics/v3.png)
 
 This is the final velocity profile, a cubic spline is fitted to smooth out the profile, since the original profile is calculated discretely.
 
