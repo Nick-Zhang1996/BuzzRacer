@@ -1,3 +1,4 @@
+# test max speed/acc
 import sys
 from threading import Lock
 from math import radians,degrees,isnan,cos,sin

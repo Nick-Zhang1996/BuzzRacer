@@ -1,3 +1,4 @@
+# for quick and dirty code profiling
 from time import time
 
 class execution_timer:

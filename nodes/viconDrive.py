@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 # utilize track.py to operate a vehicle
-# this node directly publish to RCchannel
 
 import sys
 import serial

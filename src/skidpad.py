@@ -1,3 +1,4 @@
+# a simulated skidpad
 import cv2
 import numpy as np
 from math import cos,sin,pi,atan2,radians,degrees,tan

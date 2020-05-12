@@ -1,6 +1,5 @@
-#!/usr/bin/env python
-
-#drive the car(equipped with onboard computer) with a joystick
+# ROS node
+# drive the car(equipped with onboard computer) with a joystick
 import rospy
 import std_msgs.msg
 from sensor_msgs.msg import Joy

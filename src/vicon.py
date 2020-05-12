@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Interface for VICON UDB Object Stream
 # Parse Vicon UDP Object Stream, supports multiple objects on SINGLE port
 import socket
 from time import time,sleep

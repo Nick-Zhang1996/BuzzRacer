@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 # record a video from the image_raw topic
-
-
 import argparse
 import cv2
 import rospy
