@@ -20,12 +20,13 @@ class KalmanFilter():
         # x,y coordinate(m), longitudinal velocity(m/s), vehicle heading(rad,ccw), angular speed(rad/s,ccw)
         # (x,y,v,theta,omega)
         self.state_count = 5
+        self.action_count = 2
         self.X = None
 
         # TODO verify these...
-        # variance of linear acceleration in prediction
-        # in meters
-        self.var_acc = 5.0**2
+        # variance of action
+        self.action_var = [radians(5)**2,0.5**2]
+        self.action_cov_mtx = np.diag(self.action_var)
 
         # var of noise in observation
         # from observation of a steady object:
@@ -92,7 +93,7 @@ class KalmanFilter():
             steering = np.clip(steering,-self.max_steering,self.max_steering)
 
         # update state matrix
-        # x' = Fx (+ Ga)
+        # x' = F(x,u) + B(u)(noise)
         self.F = np.zeros([self.state_count,self.state_count])
 
         # x' means x at next step
@@ -109,6 +110,12 @@ class KalmanFilter():
         self.F[4,4] = 1
         self.F = np.matrix(self.F)
 
+        self.B = np.zeros([self.state_count,self.action_count])
+        self.B[2,1] = dt
+        # NOTE ignored small items
+        self.B[4,0] = acc_long/self.wheelbase/cos(steering)**2*dt
+        self.B[4,1] = dt/self.wheelbase*tan(steering)
+
         # predict
         self.X[0,0] += v*cos(heading)*dt
         self.X[1,0] += v*sin(heading)*dt
@@ -121,8 +128,10 @@ class KalmanFilter():
         # update covariance matrix
         # TODO find a better Q
         # Maybe use ALS etc?
-        self.Q = np.diag([0.5*dt**2,0.5*dt**2,0.25*dt**4,0.5*dt**2,0.5*dt**2])*10
+        #self.Q = np.diag([0.5*dt**2,0.5*dt**2,0.25*dt**4,0.5*dt**2,0.5*dt**2])*5000
+        self.Q = np.diag([(1*dt)**2,(1*dt)**2,(1*dt)**2,(radians(100)*dt)**2,(radians(100)*dt)**2])
 
+        self.P = self.F @ self.P @ self.F.T + self.B @ self.action_cov_mtx @ self.B.T + self.Q
         self.P = self.F @ self.P @ self.F.T + self.Q
 
         self.state_ts = timestamp
@@ -134,10 +143,10 @@ class KalmanFilter():
         y = z - self.H @ self.X
         S = self.H @ self.P @ self.H.T + self.R
 
-        K = self.P @ self.H.T @ np.linalg.inv(S)
+        self.K = self.P @ self.H.T @ np.linalg.inv(S)
 
-        self.X = self.X + K @ y
-        self.P = (np.identity(self.state_count) - K @ self.H) @ self.P
+        self.X = self.X + self.K @ y
+        self.P = (np.identity(self.state_count) - self.K @ self.H) @ self.P
 
         if timestamp is None:
             timestamp = time()
