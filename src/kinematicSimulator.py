@@ -21,9 +21,12 @@ class kinematicSimulator():
         self.wheelbase = 0.102
 
         # error on observation
-        self.observation_var = (5e-3)**2
+        self.var_xy = 0.005**2
+        self.var_theta = radians(0.1)**2
         # error on action in prediction
-        self.action_var = [radians(5)**2,0.5**2]
+        self.action_var = [radians(0.1)**2,0.1**2]
+        # FIXME
+        #self.action_var = [0,0]
         random.Random(time())
 
         if (X is None):
@@ -33,6 +36,7 @@ class kinematicSimulator():
             self.X = X
 
         self.true_state_vec = []
+        self.observed_vec = []
         self.kf_state_vec = []
         self.kf_K_vec = []
 
@@ -48,9 +52,9 @@ class kinematicSimulator():
         return (steering,acc)
 
     def getNoisyObservation(self):
-        x_obs = self.X[0,0] + random.gauss(0,0.005)
-        y_obs = self.X[1,0] + random.gauss(0,0.005)
-        theta_obs = self.X[3,0] + random.gauss(0,radians(2))
+        x_obs = self.X[0,0] + random.gauss(0,self.var_xy**0.5)
+        y_obs = self.X[1,0] + random.gauss(0,self.var_xy**0.5)
+        theta_obs = self.X[3,0] + random.gauss(0,self.var_theta**0.5)
         return (x_obs,y_obs,theta_obs)
         # FIXME
         #return (self.X[0,0],self.X[1,0],self.X[3,0])
@@ -88,6 +92,7 @@ def run(steps):
     dt = 0.01
     sim = kinematicSimulator()
     kf = KalmanFilter(sim.wheelbase)
+
     kf.init(timestamp=0.0)
     for i in range(steps):
         #action = (radians(10),3)
@@ -102,6 +107,7 @@ def run(steps):
         kf.update(z,timestamp = dt*i)
         #print("updated kf.X = "+str(kf.X))
 
+        sim.observed_vec.append(z)
         sim.true_state_vec.append(sim.X.copy())
         sim.kf_state_vec.append(kf.X.copy())
         sim.kf_K_vec.append(np.mean(kf.K))
@@ -115,24 +121,38 @@ def run(steps):
     # pos,x
     ax1 = plt.subplot(3,2,1)
     true_pos_x = [x[0,0] for x in sim.true_state_vec]
+    true_pos_y = [x[1,0] for x in sim.true_state_vec]
     kf_pos_x = [x[0,0] for x in sim.kf_state_vec]
+    observed_x = [x[0,0] for x in sim.observed_vec]
+    observed_y = [x[1,0] for x in sim.observed_vec]
+    observed_theta = np.array([x[2,0] for x in sim.observed_vec])
     ax1.plot(true_pos_x)
     ax1.plot(kf_pos_x,linestyle='--')
+    ax1.plot(observed_x,linestyle='-.')
     ax1.set_title("pos,x")
+
     # vel
     ax2 = plt.subplot(3,2,2)
     true_vel = [x[2,0] for x in sim.true_state_vec]
     kf_vel = [x[2,0] for x in sim.kf_state_vec]
-    ax2.plot(true_vel)
-    ax2.plot(kf_vel,linestyle='--')
+    d_x = np.array(observed_x)
+    d_x = np.hstack([np.diff(d_x),0])
+    d_y = np.array(observed_y)
+    d_y = np.hstack([0,np.diff(d_y)])
+    v_diff = (d_x**2+d_y**2)**0.5/dt
+
+    ax2.plot(np.abs(true_vel))
+    ax2.plot(np.abs(kf_vel),linestyle='--')
+    #ax2.plot(np.abs(v_diff),linestyle='-.')
     ax2.set_title("vel")
     # theta
     ax3 = plt.subplot(3,2,3)
-    true_theta = [x[3,0] for x in sim.true_state_vec]
-    kf_theta = [x[3,0] for x in sim.kf_state_vec]
-    ax3.plot(true_theta)
-    ax3.plot(kf_theta,linestyle='--')
-    ax3.set_title("theta")
+    true_theta = np.array([x[3,0] for x in sim.true_state_vec])
+    kf_theta = np.array([x[3,0] for x in sim.kf_state_vec])
+    ax3.plot(true_theta*180.0/np.pi)
+    ax3.plot(kf_theta*180.0/np.pi,linestyle='--')
+    ax3.plot(observed_theta*180.0/np.pi,linestyle='-.')
+    ax3.set_title("theta(deg)")
     # omega
     ax4 = plt.subplot(3,2,4)
     true_omega = [x[4,0] for x in sim.true_state_vec]
@@ -157,7 +177,7 @@ def run(steps):
 
 
 if __name__ == "__main__":
-    run(300)
+    run(100000)
 
 
 

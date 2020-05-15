@@ -25,7 +25,7 @@ class KalmanFilter():
 
         # TODO verify these...
         # variance of action
-        self.action_var = [radians(5)**2,0.5**2]
+        self.action_var = [radians(1)**2,0.1**2]
         self.action_cov_mtx = np.diag(self.action_var)
 
         # var of noise in observation
@@ -34,7 +34,7 @@ class KalmanFilter():
         # x,y: 0.0002 m
         # theta: 0.5 deg
         self.var_xy = 0.005**2
-        self.var_theta = radians(2)**2
+        self.var_theta = radians(0.1)**2
 
         self.H = np.zeros([3,self.state_count])
         self.H[0,0] = 1
@@ -128,8 +128,8 @@ class KalmanFilter():
         # update covariance matrix
         # TODO find a better Q
         # Maybe use ALS etc?
-        #self.Q = np.diag([0.5*dt**2,0.5*dt**2,0.25*dt**4,0.5*dt**2,0.5*dt**2])*5000
-        self.Q = np.diag([(1*dt)**2,(1*dt)**2,(1*dt)**2,(radians(100)*dt)**2,(radians(100)*dt)**2])
+        #self.Q = np.diag([(0.05*dt)**2,(0.05*dt)**2,(0.05*dt)**2,(radians(10)*dt)**2,(radians(10)*dt)**2])*0
+        self.Q = np.diag([0.0]*5)
 
         self.P = self.F @ self.P @ self.F.T + self.B @ self.action_cov_mtx @ self.B.T + self.Q
         self.P = self.F @ self.P @ self.F.T + self.Q
