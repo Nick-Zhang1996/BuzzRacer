@@ -1,14 +1,15 @@
 # calculate the adjustment vector to minimize laptime 
-from track import RCPtrack
+from RCPTrack import RCPtrack
 from time import time
 from scipy.optimize import minimize
 import numpy as np
 from PIL import Image
 import cv2
 import matplotlib.pyplot as plt
+import sys
 
 #make a gif of the optimization process
-saveGif = False
+saveGif = True
 gifimages = []
 laptime_vec = []
 
@@ -19,6 +20,8 @@ def getLaptime(ctrl_offset,track_obj):
     count += 1
     laptime = track_obj.initRaceline((2,2),'d',4,offset=ctrl_offset)
     laptime_vec.append(laptime)
+    sys.stdout.write('.')
+    sys.stdout.flush()
     if saveGif:
         img_track_raceline = mk103.drawRaceline(img=img_track.copy())
         gifimages.append(Image.fromarray(cv2.cvtColor(img_track_raceline,cv2.COLOR_BGR2RGB)))
@@ -59,8 +62,8 @@ if __name__ == "__main__":
     max_offset = 0.5
     bnds = ((-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset))
 
-    res = minimize(getLaptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
-    #res = minimize(getLaptime,adjustment,args=(mk103),method='SLSQP',bounds=bnds,constraints=cons)
+    #res = minimize(getLaptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
+    res = minimize(getLaptime,adjustment,args=(mk103),method='SLSQP',bounds=bnds,constraints=cons)
     print(res)
     adjustment = res.x
     print(res.x)

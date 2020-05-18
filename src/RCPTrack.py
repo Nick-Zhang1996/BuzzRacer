@@ -25,6 +25,7 @@ from timeUtil import execution_timer
 import cv2
 from PIL import Image
 from car import Car
+from Track import Track
 
 # debugging
 K_vec = [] # curvature
