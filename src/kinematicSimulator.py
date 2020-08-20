@@ -25,7 +25,7 @@ class kinematicSimulator():
         self.var_xy = 0.005**2
         self.var_theta = radians(0.1)**2
         # error on action in prediction
-        self.action_var = [radians(0.1)**2,0.1**2]
+        self.action_var = [radians(1)**2,0.1**2]
         random.Random(time())
 
         if (X is None):
@@ -95,17 +95,16 @@ def run(steps):
         noisy_action = sim.getNoisyAction()
 
         kf.predict(noisy_action,timestamp = dt*i)
-        #print("predicted kf.X = "+str(kf.X))
 
         z = sim.getNoisyObservation()
         z = np.matrix(z).reshape(3,1)
         kf.update(z,timestamp = dt*i)
-        #print("updated kf.X = "+str(kf.X))
 
         sim.observed_vec.append(z)
         sim.true_state_vec.append(sim.X.copy())
         sim.kf_state_vec.append(kf.X.copy())
         sim.kf_K_vec.append(np.mean(kf.K))
+        #sim.kf_K_vec.append(0)
 
         #print(kf.X[0,0]-sim.X[0,0])
 

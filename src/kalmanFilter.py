@@ -132,7 +132,7 @@ class KalmanFilter():
         self.Q = np.diag([0.0]*5)
 
         self.P = self.F @ self.P @ self.F.T + self.B @ self.action_cov_mtx @ self.B.T + self.Q
-        self.P = self.F @ self.P @ self.F.T + self.Q
+        #self.P = self.F @ self.P @ self.F.T + self.Q
 
         self.state_ts = timestamp
         return self.X

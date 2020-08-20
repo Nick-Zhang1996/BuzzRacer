@@ -296,7 +296,8 @@ class RCPtrack(Track):
         # s= smoothing factor
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
-        smoothing_factor = 0.01*(m)
+        #smoothing_factor = 0.01*(m)
+        smoothing_factor = 0
         tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
         #NOTE 
         #tck, u = CubicSpline(np.linspace(0,len(pts)-1,len(pts)),pts) 
