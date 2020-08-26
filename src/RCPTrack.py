@@ -609,9 +609,6 @@ class RCPtrack(Track):
 
     def optimizeRaceline(self):
         pass
-    def setResolution(self,res):
-        self.resolution = res
-        return
     # given state of robot
     # find the closest point on raceline to center of FRONT axle
     # calculate the lateral offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
@@ -779,7 +776,7 @@ class RCPtrack(Track):
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
-        x,y,heading, vf_lf, vs_lf, omega_lf = state
+        x,y, vf,heading, omega_lf = state
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -926,9 +923,8 @@ if __name__ == "__main__":
     mk103.initRaceline((2,2),'d',4,offset=manual_adj)
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
-    plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
-    plt.show()
-    exit(0)
+    #plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
+    #plt.show()
 
     # select a track
     s = mk103
@@ -957,7 +953,7 @@ if __name__ == "__main__":
     heading = pi/2
     # be careful here
     reverse = False
-    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],heading,0,0,0],s)
+    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
     # should be x,y,heading,vf,vs,omega, i didn't implement the last two
     #s.state = np.array([coord[0],coord[1],heading,0,0,0])
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
@@ -966,7 +962,7 @@ if __name__ == "__main__":
     #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     gifimages = []
 
-    state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
+    state = np.array([sim_states['coord'][0],sim_states['coord'][1],0,sim_states['heading'],sim_states['omega']])
     img_track_car = s.drawCar(img_track.copy(),state,steering)
     cv2.imshow('car',img_track_car)
     # prepare save gif
@@ -985,7 +981,7 @@ if __name__ == "__main__":
         sim_states = s.updateCar(sim_dt,sim_states,throttle,steering,v_override=v_override)
         sim_log_vec['omega'].append(sim_states['omega'])
 
-        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['vf'],sim_states['heading'],sim_states['omega']])
         throttle,steering,valid,debug_dict = car.ctrlCar(state,s,reverse=reverse)
 
         if (len(sim_log_vec['v_target'])>0):
@@ -1002,7 +998,7 @@ if __name__ == "__main__":
         cv2.imshow('car',img_track_car)
         if saveGif:
             gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
-        k = cv2.waitKey(int(sim_dt/0.001)) & 0xFF
+        k = cv2.waitKey(10*int(sim_dt/0.001)) & 0xFF
         if k == ord('q'):
             break
 

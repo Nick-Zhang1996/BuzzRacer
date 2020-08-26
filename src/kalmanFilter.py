@@ -155,5 +155,5 @@ class KalmanFilter():
         return
 
     def getState(self):
-        return (self.X[0,0],self.X[1,0],self.X[2,0],self.X[3,0],self.X[4,0],self.X[5,0],self.X[6,0],self.X[7,0])
+        return (self.X[0,0],self.X[1,0],self.X[2,0],self.X[3,0],self.X[4,0])
 
