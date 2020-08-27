@@ -679,7 +679,7 @@ class RCPtrack(Track):
         #B = np.mat([fun(x0), fun(x1), fun(x2)]).T
         B = fun(iv).T
         #abc = np.linalg.solve(A,B)
-        abc = np.linalg.lstsq(A,B)[0]
+        abc = np.linalg.lstsq(A,B, rcond=-1)[0]
         a = abc[0]
         b = abc[1]
         c = abc[2]
