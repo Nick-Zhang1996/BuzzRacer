@@ -775,7 +775,10 @@ class RCPtrack(Track):
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
-        x,y, v, heading, omega = state
+        # FIXME
+        #x,y, v, heading, omega = state
+        x,y,heading, vf_lf, vs_lf, omega_lf = state
+
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -963,14 +966,21 @@ if __name__ == "__main__":
     # be careful here
     reverse = False
     # x,y,v,heading,omega
-    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
+    # FIXME
+    #throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
+    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],heading,0,0,0],s)
+
+
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
     #print(throttle,steering,valid)
 
     #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     gifimages = []
 
-    state = np.array([sim_states['coord'][0],sim_states['coord'][1],0,sim_states['heading'],sim_states['omega']])
+    #FIXME
+    #state = np.array([sim_states['coord'][0],sim_states['coord'][1],0,sim_states['heading'],sim_states['omega']])
+    state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
+
     img_track_car = s.drawCar(img_track.copy(),state,steering)
     cv2.imshow('car',img_track_car)
     # prepare save gif
@@ -991,7 +1001,9 @@ if __name__ == "__main__":
         sim_states = s.updateCar(sim_dt,sim_states,throttle,steering,v_override=v_override)
         sim_log_vec['omega'].append(sim_states['omega'])
 
-        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['vf'],sim_states['heading'],sim_states['omega']])
+        # FIXME
+        #state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['vf'],sim_states['heading'],sim_states['omega']])
+        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
         throttle,steering,valid,debug_dict = car.ctrlCar(state,s,reverse=reverse)
 
         if (len(sim_log_vec['v_target'])>0):
@@ -1011,7 +1023,7 @@ if __name__ == "__main__":
         cv2.imshow('car',img_track_car)
         if saveGif:
             gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
-        k = cv2.waitKey(10*int(sim_dt/0.001)) & 0xFF
+        k = cv2.waitKey(int(sim_dt/0.001)) & 0xFF
         if k == ord('q'):
             break
 
