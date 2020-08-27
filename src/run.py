@@ -29,6 +29,9 @@ class VehiclePlatform(Enum):
 class Main():
     def __init__(self,):
         self.enableLog = False
+        # if log is enabled this will be updated
+        # if log is not enabled this will be used as gif image name
+        self.log_no = 0
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory: vicon
@@ -81,7 +84,7 @@ class Main():
 
         # prepare save gif, this provides an easy to use visualization for presentation
         # FIXME test this
-        self.saveGif = False
+        self.saveGif = True
         self.prepareGif()
 
     # run experiment until user press q in visualization window
@@ -94,7 +97,10 @@ class Main():
         self.stopStateUpdate()
 
         if self.saveGif:
-            self.gifimages[0].save(fp="./gifs/mk103exp"+str(self.log_no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
+            gif_filename = "../gifs/sim"+str(self.log_no)+".gif"
+            # TODO better way of determining duration
+            self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
+            print_info("gif saved at "+gif_filename)
 
         if self.enableLog:
             output = open(self.logFilename,'wb')
