@@ -18,7 +18,7 @@ class Car:
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
         # for actual car 1 seems to work
-        self.P = 2.0/180*pi/0.01
+        self.P = 3.0/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -110,16 +110,19 @@ class Car:
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi)%(2*pi) -pi
+            '''
             if (steering>self.max_steering_left):
                 steering = self.max_steering_left
             elif (steering<-self.max_steering_right):
                 steering = -self.max_steering_right
+            '''
             if (v_override is None):
                 throttle,err_der = self.calcThrottle(vf,v_target)
             else:
                 throttle,err_der = self.calcThrottle(vf,v_override)
+            print(steering)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target})
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
 
         return ret
 

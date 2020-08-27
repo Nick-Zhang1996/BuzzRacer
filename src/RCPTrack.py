@@ -790,6 +790,16 @@ class RCPtrack(Track):
 
         return img
 
+    # draw a point on canvas at coord
+    def drawPoint(self, img, coord, color = (0,0,0)):
+        src = self.m2canvas(coord)
+        if src is None:
+            print("Can't draw point -- outside track")
+            return img
+        img = cv2.circle(img, src, 3, color,-1)
+
+        return img
+
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
     def drawAcc(acc,img):
         pass
@@ -975,6 +985,8 @@ if __name__ == "__main__":
     sim_log_vec['omega'] = []
     sim_log_vec['vf'] = []
     sim_log_vec['v_target'] = []
+    sim_log_vec['offset'] = []
+    sim_log_vec['steering'] = []
     v_override = 0
     for i in range(620):
         # update car
@@ -989,7 +1001,10 @@ if __name__ == "__main__":
 
         sim_log_vec['vf'].append(debug_dict['vf'])
         sim_log_vec['v_target'].append(debug_dict['v_target'])
+        sim_log_vec['offset'].append(debug_dict['offset'])
+        sim_log_vec['steering'].append(steering)
         img_track_car = s.drawCar(img_track.copy(),state,steering)
+        img_track_car = s.drawPoint(img_track_car,debug_dict['local_ctrl_point'])
         #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
         #print(sim_states['acc'])
         acc = sim_states['acc']
@@ -1006,7 +1021,6 @@ if __name__ == "__main__":
     if saveGif:
         gifimages[0].save(fp="./mk103new.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
-    #p0, = plt.plot(sim_log_vec['vf'],label='vf')
-    #p1, = plt.plot(sim_log_vec['v_target'],label='v_target')
-    #plt.show()
+    p0, = plt.plot(sim_log_vec['steering'],label='vf')
+    plt.show()
 
