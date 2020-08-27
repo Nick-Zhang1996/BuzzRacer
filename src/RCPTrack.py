@@ -296,8 +296,7 @@ class RCPtrack(Track):
         # s= smoothing factor
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
-        #smoothing_factor = 0.01*(m)
-        smoothing_factor = 0
+        smoothing_factor = 0.01*(m)
         tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
         #NOTE 
         #tck, u = CubicSpline(np.linspace(0,len(pts)-1,len(pts)),pts) 
@@ -776,7 +775,7 @@ class RCPtrack(Track):
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
-        x,y, vf,heading, omega_lf = state
+        x,y, v, heading, omega = state
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -963,9 +962,8 @@ if __name__ == "__main__":
     heading = pi/2
     # be careful here
     reverse = False
+    # x,y,v,heading,omega
     throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
-    # should be x,y,heading,vf,vs,omega, i didn't implement the last two
-    #s.state = np.array([coord[0],coord[1],heading,0,0,0])
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
     #print(throttle,steering,valid)
 

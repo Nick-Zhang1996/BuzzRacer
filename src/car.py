@@ -18,7 +18,7 @@ class Car:
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
         # for actual car 1 seems to work
-        self.P = 3.0/180*pi/0.01
+        self.P = 2.0/180*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
