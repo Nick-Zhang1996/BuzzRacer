@@ -8,7 +8,7 @@ from common import *
 
 
 class Optitrack:
-    def __init__(self,enableKF=True):
+    def __init__(self,wheelbase,enableKF=True):
         self.newState = Event()
         self.enableKF = Event()
         if enableKF:
@@ -17,7 +17,7 @@ class Optitrack:
         # to be used in Kalman filter update
         # action = (steering in rad left positive, longitudinal acc (m/s2))
         self.action = (0,0)
-        self.wheelbase = 0.0102
+        self.wheelbase = wheelbase
 
         # This will create a new NatNet client
         self.streamingClient = NatNetClient()

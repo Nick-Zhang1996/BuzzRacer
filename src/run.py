@@ -6,15 +6,17 @@ import pickle
 from threading import Event,Lock
 from time import sleep,time
 from PIL import Image
+from math import pi,radians,degrees,asin,acos
 
 from common import *
 from vicon import Vicon
 from car import Car
-from track import RCPtrack
+from Track import Track
+from RCPTrack import RCPtrack
 from skidpad import Skidpad
 
 from enum import Enum, auto
-class VisualTrackingSystem(Enum):
+class StateUpdateSource(Enum):
     vicon = auto()
     optitrack = auto()
     simulator = auto()
@@ -32,41 +34,43 @@ class Main():
         # Indoor Flight Laboratory: vicon
         # G13: optitrack
         # simulation: simulator
-        self.visualTrackingSystem = VisualTrackingSystem.simulator
+        self.stateUpdateSource = StateUpdateSource.simulator
         # set target platform
         # if running simulation set this to simulator
         self.vehiclePlatform = VehiclePlatform.simulator
 
-        if self.visualTrackingSystem == VisualTrackingSystem.optitrack:
-            self.initVisualTracking = self.initOptitrack
-            self.updateVisualTracking = self.updateOptitrack
-            self.stopVisualTracking = self.stopOptitrack
+        if self.stateUpdateSource == StateUpdateSource.optitrack:
+            self.initStateUpdate = self.initOptitrack
+            self.updateState = self.updateOptitrack
+            self.stopStateUpdate = self.stopOptitrack
+        elif self.stateUpdateSource == StateUpdateSource.vicon:
+            self.initStateUpdate = self.initVicon
+            self.updateState = self.updateVicon
+            self.stopStateUpdate = self.stopVicon
+        elif self.stateUpdateSource == StateUpdateSource.simulator:
+            self.initStateUpdate = self.initSimulation
+            self.updateState = self.updateSimulation
+            self.stopStateUpdate = self.stopSimulation
         else:
-            self.initVisualTracking = self.initVicon
-            self.updateVisualTracking = self.updateVicon
-            self.stopVisualTracking = self.stopVicon
+            print_error("unknown state update source")
+            exit(1)
 
         # flag to quit all child threads gracefully
         self.exit_request = Event()
 
-        if self.visualTrackingSystem != VisualTrackingSystem.simulator:
-            # initialize visual tracking system
-            self.initVisualTracking()
-        else:
-            # TODO add simulation init code here
-            self.simulation_dt = 0.02
+        # TODO: handle simulator case
+        self.car = self.prepareCar()
+
+        self.initStateUpdate()
 
         # prepare log
         if (self.enableLog):
             self.resolveLogname()
             self.state_log = []
 
-        # TODO: handle simulator case
-        self.car = self.prepareCar()
-
-        self.track = self.prepareSkidpad()
+        #self.track = self.prepareSkidpad()
         # or, use RCP track
-        #self.track = self.prepareRcpTrack()
+        self.track = self.prepareRcpTrack()
 
         # verify that a valid track subclass is sued
         if not issubclass(type(self.track),Track):
@@ -76,7 +80,8 @@ class Main():
         self.prepareVisualization()
 
         # prepare save gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        # FIXME test this
+        self.saveGif = False
         self.prepareGif()
 
     # run experiment until user press q in visualization window
@@ -86,50 +91,33 @@ class Main():
 
         # exit point
         cv2.destroyAllWindows()
-        self.vi.stopUpdateDaemon()
+        self.stopStateUpdate()
+
         if self.saveGif:
-            self.gifimages[0].save(fp="./gifs/mk103exp"+str(no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
+            self.gifimages[0].save(fp="./gifs/mk103exp"+str(self.log_no)+".gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
         if self.enableLog:
             output = open(self.logFilename,'wb')
             pickle.dump(state_vec,output)
             output.close()
 
-    def updateSimulation(self,):
-        pass
-
-    # update local state
-    # TODO use new KF
-    # OBSOLETE
-    def updateVicon(self,):
-        # retrieve vehicle state
-        retval = self.vi.getState2d(car.vicon_id)
-        if retval is None:
-            return
-        (x,y,heading) = retval
-        kf_x,vx,ax,kf_y,vy,ay,kf_heading,omega = self.vi.getKFstate(self.car.vicon_id)
-
-        # state_car = (x,y,heading, vf, vs, omega)
-        # assume no lateral velocity
-        vf = (vx**2+vy**2)**0.5
-
-        # low pass filter on vf
-        vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
-        vf = vf_lf[0]
-
-        self.car_state = (x,y,vf,heading,omega)
-        return
 
     def updateVisualization(self,):
         # restrict update rate to 0.1s/frame, a rate higher than this can lead to frozen frames
-        if (time()-self.visualization_ts>0.1):
-            img = track.drawCar(self.img_track.copy(), self.car_state[0], self.car.steering)
+        # TODO investigate if the following line is needed
+        #if (time()-self.visualization_ts>0.1):
+        if True:
+            img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
 
             self.visualization_ts = time()
             cv2.imshow('experiment',img)
             if self.saveGif:
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
-            k = cv2.waitKey(1) & 0xFF
+
+            if (self.stateUpdateSource == StateUpdateSource.simulator):
+                k = cv2.waitKey(int(self.sim_dt/0.001)) & 0xFF
+            else:
+                k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
                 self.exit_request.set()
 
@@ -141,33 +129,39 @@ class Main():
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
     # client (this function) need to unset that event
     def update(self,):
-        if (self.visualTrackingSystem == VisualTrackingSystem.simulator):
-            sleep(self.simulation_dt)
+        # in simulation, sleep() between updates
+        # in real experiment, wait on next state update
+        if (self.stateUpdateSource == StateUpdateSource.simulator):
+            #sleep(self.sim_dt)
             self.updateSimulation()
         else:
+            # wait on next state update
             self.new_visual_update.wait()
+            # manually clear the Event()
             self.new_visual_update.clear()
+            # retrieve car state from visual tracking update
+            self.updateState()
+        
+        throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+        # TODO debug only
+        self.v_target = debug_dict['v_target']
+        
+        self.car.steering = steering
+        self.car.throttle = throttle
 
-            # retrieve car state
-            self.updateVisualTracking()
-        
-        throttle,steering,valid,debug_dic = self.car.ctrlCar(self.car_state,self.track,reverse=False)
-        
-        car.steering = steering
-        car.throttle = throttle
-        if (self.visualTrackingSystem == VisualTrackingSystem.simulator):
-            #
+        if (self.stateUpdateSource == StateUpdateSource.simulator):
+            # update is done in updateSimulation()
+            pass
         else:
-            car.actuate(steering,throttle)
+            self.car.actuate(steering,throttle)
             # TODO implement throttle model
             self.vi.updateAction(car.steering, car.getExpectedAcc())
 
 
-        self.state_log.append(self.car_state)
         self.updateVisualization()
         
-
-    def prepareGif():
+# ---- Short Routine ----
+    def prepareGif(self):
         if self.saveGif:
             self.gifimages = []
             self.gifimages.append(Image.fromarray(cv2.cvtColor(self.img_track.copy(),cv2.COLOR_BGR2RGB)))
@@ -178,46 +172,6 @@ class Main():
         self.img_track = self.track.drawRaceline(img=self.img_track)
         cv2.imshow('experiment',self.img_track)
         cv2.waitKey(1)
-
-
-    # call before exiting
-    def stop(self,):
-        self.stopVisualTracking()
-
-    def initVicon(self,):
-        print_info("Initializing Vicon...")
-        self.vi = Vicon()
-        self.new_visual_update = self.vi.newState
-        self.vicon_dt = 0.01
-        # wait for vicon to find objects
-        sleep(0.05)
-        self.car.vicon_id = self.vi.getItemID('nick_mr03_porsche')
-        if car.vicon_id is None:
-            print_error("error, can't find car in vicon")
-            exit(1)
-        return
-
-    def stopVicon(self,):
-        self.vi.stopUpdateDaemon()
-
-    def initOptitrack(self,)vi
-        print_info("Initializing Optitrack...")
-        self.vi = Optitrack()
-        # TODO use acutal optitrack id for car
-        self.car.internal_id = self.vi.getInternalId(1)
-        self.new_visual_update = self.vi.newState
-
-    def stopOptitrack(self,):
-        # the optitrack destructor should handle things properly
-        pass
-
-    def updateOptitrack(self,):
-        # update for eachj car
-        (x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
-        self.car_state = (x,y,v,theta,omega)
-        return
-        
-
 
     def prepareSkidpad(self,):
         sp = Skidpad()
@@ -255,6 +209,10 @@ class Main():
                          'serial_port' : '/dev/ttyUSB1',
                          'max_throttle' : 0.5}
 
+        if (self.stateUpdateSource == StateUpdateSource.simulator):
+            porsche_setting['serial_port'] = None
+            lambo_setting['serial_port'] = None
+
         # porsche 911
         car = Car(porsche_setting)
         return car
@@ -270,7 +228,98 @@ class Main():
         no = 1
         while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
             no += 1
+
+        self.log_no = no
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+
+    # call before exiting
+    def stop(self,):
+        self.stopStateUpdate()
+
+
+# ---- VICON ----
+    def initVicon(self,):
+        print_info("Initializing Vicon...")
+        self.vi = Vicon()
+        self.new_visual_update = self.vi.newState
+        self.vicon_dt = 0.01
+        # wait for vicon to find objects
+        sleep(0.05)
+        self.car.vicon_id = self.vi.getItemID('nick_mr03_porsche')
+        if car.vicon_id is None:
+            print_error("error, can't find car in vicon")
+            exit(1)
+        return
+
+    # update local state
+    # TODO use new KF
+    # OBSOLETE
+    def updateVicon(self,):
+        # retrieve vehicle state
+        retval = self.vi.getState2d(car.vicon_id)
+        if retval is None:
+            return
+        (x,y,heading) = retval
+        kf_x,vx,ax,kf_y,vy,ay,kf_heading,omega = self.vi.getKFstate(self.car.vicon_id)
+
+        # state_car = (x,y,heading, vf, vs, omega)
+        # assume no lateral velocity
+        vf = (vx**2+vy**2)**0.5
+
+        # low pass filter on vf
+        vf_lf, z_vf = signal.lfilter(b,a,[vf],zi=z_vf)
+        vf = vf_lf[0]
+
+        self.car_state = (x,y,vf,heading,omega)
+        return
+
+    def stopVicon(self,):
+        self.vi.stopUpdateDaemon()
+
+# ---- Optitrack ----
+    def initOptitrack(self,):
+        print_info("Initializing Optitrack...")
+        self.vi = Optitrack(wheelbase=self.car.wheelbase)
+        # TODO use acutal optitrack id for car
+        self.car.internal_id = self.vi.getInternalId(1)
+        self.new_visual_update = self.vi.newState
+
+    def updateOptitrack(self,):
+        # update for eachj car
+        (x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
+        self.car_state = (x,y,v,theta,omega)
+        return
+
+    def stopOptitrack(self,):
+        # the optitrack destructor should handle things properly
+        pass
+
+# ---- Simulation ----
+# TODO encapsulate this in a different class/file
+    def initSimulation(self):
+        coord = (0.5*0.565,1.7*0.565)
+        x,y = coord
+        heading = pi/2
+        omega = 0
+        v = 0
+
+        self.car.steering = steering = 0
+        self.car.throttle = throttle = 0
+        self.v_target = 0
+
+        self.car_state = (x,y,v,heading,omega)
+        self.sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        self.sim_dt = 0.01
+
+    def updateSimulation(self):
+        # update car
+        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering,v_override=self.v_target)
+        self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+
+    def stopSimulation(self):
+        return
+
+
 
 
 if __name__ == '__main__':
