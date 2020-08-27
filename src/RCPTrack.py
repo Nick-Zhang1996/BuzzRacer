@@ -25,6 +25,7 @@ from timeUtil import execution_timer
 import cv2
 from PIL import Image
 from car import Car
+from Track import Track
 
 # debugging
 K_vec = [] # curvature
@@ -926,7 +927,6 @@ if __name__ == "__main__":
     img_track = mk103.drawRaceline(img=img_track)
     plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
     plt.show()
-    exit(0)
 
     # select a track
     s = mk103
