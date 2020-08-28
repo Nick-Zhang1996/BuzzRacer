@@ -2,16 +2,22 @@
 
 from NatNetClient import NatNetClient
 from time import time,sleep
-from threading import Event
+from threading import Event,Lock
+from tf import TF
 from common import *
+from kalmanFilter import KalmanFilter
+import numpy as np
+from math import pi
 
 
 
 class Optitrack:
-    def __init__(self,wheelbase,enableKF=True):
+    def __init__(self,wheelbase=102e-3,enableKF=True):
         self.newState = Event()
         self.enableKF = Event()
         if enableKF:
+            self.action = (0,0)
+            self.kf = []
             self.enableKF.set()
 
         # to be used in Kalman filter update
@@ -42,7 +48,8 @@ class Optitrack:
         self.tf = TF()
         # items related to tf
         # for upright origin
-        q_t = self.tf.euler2q(0,0,0)
+        q_t = self.tf.euler2q(0,0,pi)
+        # translation
         self.T = np.hstack([q_t,np.array([-0.0,-0.0,0])])
 
         self.obj_count = 0
@@ -59,6 +66,9 @@ class Optitrack:
 
 
     def __del__(self):
+        self.streamingClient.requestQuit()
+
+    def quit(self):
         self.streamingClient.requestQuit()
 
     # there are two sets of id
@@ -86,56 +96,68 @@ class Optitrack:
     # this differs from receiveRigidBodyFrame in that
     # 1. does not include kalman filter update
     # 2. if an unseen id is found, it will be added to id list and an KF instance will be created for it
-    def receiveRigidBodyFrameInit( optitrack_id, position, rotation ):
+    def receiveRigidBodyFrameInit( self, optitrack_id, position, rotation ):
+
         if not (optitrack_id in self.optitrack_id_lookup):
             self.obj_count +=1
-            self.optitrack_id_lookup.append(id)
+            self.optitrack_id_lookup.append(optitrack_id)
 
             # TODO verify this
             x,y,z = position
             # TODO verify
-            rx,ry,rz = rotation
+            qx, qy, qz, qw = rotation
+            rx, ry, rz = self.tf.q2euler((qx,qy,qz,qw))
 
             # TODO add correct wheelbase here
             if self.enableKF.isSet():
                 self.kf.append(KalmanFilter(wheelbase=self.wheelbase))
-            # get body pose in track frame
+            # get body pose in track/local frame
             # (x,y,heading)
             # (z_x,z_y,z_theta)
-            x,y,theta = self.tf.reframeR(self.T,x,y,z,self.tf.euler2Rxyz(rx,ry,rz))
+            x_local,y_local,theta_local = self.tf.reframeR(self.T,x,y,z,self.tf.euler2Rxyz(rx,ry,rz))
             if self.enableKF.isSet():
-                self.kf[-1].init(x,y,theta)
+                self.kf[-1].init(x_local,y_local,theta_local)
 
             self.state_lock.acquire()
             self.state_list.append((x,y,z,rx,ry,rz))
-            self.state2d_list.append((x,y,theta))
+            self.state2d_list.append((x_local,y_local,theta_local))
             if self.enableKF.isSet():
                 # (x,y,v,theta,omega)
-                self.kf_state_list.append((x,y,0,theta,0))
+                self.kf_state_list.append((x_local,y_local,0,theta_local,0))
             self.state_lock.release()
 
-
     # regular callback for state update
-    def receiveRigidBodyFrame( optitrack_id, position, rotation ):
+    def receiveRigidBodyFrame(self, optitrack_id, position, rotation ):
         #print( "Received frame for rigid body", id )
         internal_id = self.getInternalId(optitrack_id)
         x,y,z = position
-        rx,ry,rz = rotation
-        (z_x,z_y,z_theta) = self.tf.reframeR(self.T,x,y,z,self.tf.euler2Rxyz(rx,ry,rz))
+        qx, qy, qz, qw = rotation
+        rx, ry, rz = self.tf.q2euler((qx,qy,qz,qw))
+
+        x_local,y_local,theta_local = self.tf.reframeR(self.T,x,y,z,self.tf.euler2Rxyz(rx,ry,rz))
 
         if self.enableKF.isSet():
             self.kf[internal_id].predict(self.action)
-            z = np.matrix([[z_x,z_y,z_theta]]).T
-            self.kf[internal_id].update(z)
+            observation = np.matrix([[x_local,y_local,theta_local]]).T
+            self.kf[internal_id].update(observation)
 
         self.state_lock.acquire()
         self.state_list[internal_id] = (x,y,z,rx,ry,rz)
-        self.state2d_list[internal_id] = (z_x, z_y, z_theta)
+        self.state2d_list[internal_id] = (x_local,y_local,theta_local)
+
         if self.enableKF.isSet():
             # kf.getState() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].getState()
         self.state_lock.release()
         self.newState.set()
+        #print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
+        #print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
+        #print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))
+        #(kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.getKFstate(i)
+        #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
+        #print("\n")
+        return
+    
 
     # get state by internal id
     def getState(self, internal_id):
@@ -167,7 +189,7 @@ class Optitrack:
 
     # get KF state by internal id
     def getKFstate(self,internal_id):
-        self.kf[internal_id].predict()
+        self.kf[internal_id].predict(self.action)
         # (x,y,v,theta,omega)
         return self.kf[internal_id].getState()
 
@@ -189,8 +211,11 @@ if __name__ == '__main__':
         (kf_x,kf_y,kf_v,kf_theta,kf_omega) = op.getKFstate(i)
         print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
-        print("2d state: %0.2f,%0.2f, heading= %0.2f"(x2d,y2d,theta2d))
-        print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"(kf_x,kf_y,kf_theta))
+        print("2d state: %0.2f,%0.2f, heading= %0.2f"%(x2d,y2d,theta2d))
+        print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         print("\n")
+
+    input("press enter to stop\n")
+    op.quit()
 
 
