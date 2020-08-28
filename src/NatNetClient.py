@@ -33,13 +33,15 @@ DoubleValue = struct.Struct( '<d' )
 
 class NatNetClient:
     def __init__( self ):
+        self.newFrameListener = None
+        self.rigidBodyListener = None
         self.flag_quit = Event()
         self.child_threads = []
         # Change this value to the IP address of the NatNet server.
-        self.serverIPAddress = "127.0.0.1" 
+        self.serverIPAddress = "192.168.0.100" 
 
         # Change this value to the IP address of your local network interface
-        self.localIPAddress = "127.0.0.1"
+        self.localIPAddress = "0.0.0.0"
 
         # This should match the multicast address listed in Motive's streaming settings.
         self.multicastAddress = "239.255.42.99"
@@ -92,6 +94,7 @@ class NatNetClient:
     # Create a command socket to attach to the NatNet stream
     def __createCommandSocket( self ):
         result = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
+        result.settimeout(0.05)
         result.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         result.bind( ('', 0) )
         result.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -436,12 +439,15 @@ class NatNetClient:
             elif( type == 2 ):
                 offset += self.__unpackSkeletonDescription( data[offset:] )
             
-    def __dataThreadFunction( self, socket ):
+    def __dataThreadFunction( self, sock ):
         while not self.flag_quit.is_set():
             # Block for input
-            data, addr = socket.recvfrom( 32768 ) # 32k byte buffer size
-            if( len( data ) > 0 ):
-                self.__processMessage( data )
+            try:
+                data, addr = sock.recvfrom( 32768 ) # 32k byte buffer size
+                if( len( data ) > 0 ):
+                    self.__processMessage( data )
+            except socket.timeout:
+                continue
 
     def __processMessage( self, data ):
         trace( "Begin Packet\n------------\n" )
