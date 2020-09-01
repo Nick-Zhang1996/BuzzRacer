@@ -83,8 +83,7 @@ class Main():
         self.prepareVisualization()
 
         # prepare save gif, this provides an easy to use visualization for presentation
-        # FIXME test this
-        self.saveGif = True
+        self.saveGif = False
         self.prepareGif()
 
     # run experiment until user press q in visualization window

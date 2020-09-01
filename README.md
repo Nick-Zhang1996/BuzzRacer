@@ -1,77 +1,49 @@
 # RC-VIP project
+# VIP RC project
 
-Some of this README may be outdated, refer to wiki for updated info.
+Welcome to the RC subteam repo. This is part of Georgia Tech's VIP team -- Autonomous and Semi-autonomous Vehicle Safety, led by professor P. Tsiotras
 
-# Car Info (Odroid XU4 based)
+This readme is updated Aug 31 2020 to reflect the latest change to the code base. The repo contains some files that are not actively being used due to historical reasons, please ignore the files that are not mentioned in this readme for now.
 
-  * 16.04 Ubuntu Mate w/ ROS Kinetic
-  * Odroid XU4 Username: odroid, Password: galanti5
-  * Network: TP-Link_8DDA Static IP: 192.168.0.2
+## Overview
 
-# Car Info (RPi 3B based)
+The platform you will be working on are the off-board platforms which are only passive actuators of throttle and steering commands. We have hardware that can plug into your computer's USB socket, and send command to the cars. You will have access to the vehicle's state, like vehicle's position, orientation, and speed. This is accomplished through our optitrack visual tracking system and an EKF (still in progress)
 
-  * Custom OS from ROS: ubiquityrobots
-  * Username: ubuntu, Password: ubuntu
-  * hostname: ubiquityrobots
+In an actual experiment that involves real cars driving on real track, the optitrack system will capture vehicles' state, relay them to your computer, and you computer would process them, and send appropriate control command via our special hardware to the cars. The cars would move, and the optitrack would find new states, and the process repeats.
 
-## Starting the car for XU4 (Recommended workflow)
+Now, since nobody likes to come to lab to spend hours finding silly bugs, it is important to be able to run the pipeline locally, at the comfort of your home, without having to connect to all the equipment at lab. We've created a simple simulator that allows you verify that your code works, at least grammarly and kinematically. To see how this works in action, run `python src/run.py` after you install all the dependencies.
 
-1. Run startup.sh, wait for startup sequence to finish (~15sec, until it says listening on /throttle and /steer_angle)
+Now, to facilitate easy switching between running with the simulator and with actual hardware, we want our code to be modular. So the switching can be as simple as changing a single line of code, from using the simulator module to the realExperiment module. Something like that.
 
-or, alternatively:
+Being modular also allow us to develop an alternative for a particular part of the code, and quickly integrate into the pipeline. This can be the state streamer, the trajectory server, the control algorithm, the visualization, etc. for example students could work on their own control algorithm without worrying about the rest of pipeline
 
-1. `roscore` (Start ros)
-2. `rosrun uvc_camera uvc_camera_node _device:=/dev/video0` (Start camera)
-    1. If video0 is not there, use `ls /dev/video*` and use the lowest one
-3. `rosrun rosserial_python serial_node.py /dev/ttyUSB0`
+## Dependencies
 
-## Start a RPI 3B based car
+This project is build mainly written in Python3 and C/C++, with C/C++ on PCB firmware only.
 
-1. `cd ~/carkin_ws/src/rc_vip`
-2. `./rpi-startup`
-3. In case `./rpi-startup` does not already include this. `python src/onelane.py`
+I've long lost track of the list of packages we use, or the steps used to install them. Most should come with pip. Google is your friend.
 
-## Core Files
-    * `onelane.py`
-    * Startup scripts
-    
+To name a few packages, python-opencv, pickle, numpy, scipy, PIL...
 
-## ROS Topics used (Summer 2018)
-  * /rc_vip/CarControl - Throttle (range:0~1) and Steering angle (in degrees)
-  * /rc_vip/CarSensors - Sensors from car, IMU, battery voltage, etc.
-  * /image_raw or /raspicam_node/image/compressed - video feed from camera
+Run `src/run.py` and see what you're missing. 
 
-## ROS Topics used (Spring 2018)
-* **/throttle** - Accepts values between -1 (reverse), 0 (stopped) and 1 (forward)
+## Important Files
+`src/run.py' The entry point for running experiments, either for real or in simulation. If you run it as is it should show you a racetrack, with a car following trajectory. The black line denotes vehicle's heading, and the red line denotes the current steering angle.
 
-* **/steer_angle** - Accepts values between -1 (left), 0 (straight) and 1 (right)
+`src/Track.py` Template for a Track object
 
-* **/image_raw** - Raw images from camera 
+`src/Skidpad.py` A subclass of Track, a skidpad is a circular track. It is used frequently in automotive testing to study handling characteristics for a car.
 
-## ROS nodes in use (Spring 2018) -- is this obsolete?
+`src/RCPTrack.py` A subclass of Track. RCP track is a type of track that consists of multiple tiles. Each tile can be a straight or 90 deg bend section. They can be assembled into various combination tracks. This is the one that will be most frequently used as it is the track we have in our lab. It also has member functions to generate a raceline/trajectory, and provide information regarding a trajectory to facilitate control. In addition it contains some visualization implementations.
 
-* **drive_node** - runs on the Arduino. Subscribes to throttle and steer_angle and converts the signal to PWM
-* **image_processor** - takes images from image_raw and converts them to OpenCV images
+`src/car.py` Interface with cars and where ctrlCar(), the control algorithm lives.
 
-## Connecting to the router in MK101
-SSID: TP_Link_8DDA
-password: 90040948
-This information can also be found on the stickers underneath the router. Do NOT change these.
-Odroid information:
-odroid	74-DA-38-C7-F8-3D	192.168.0.2
+Above are all you need to worry about right now
 
-## Core algorithm / functions
+## Getting Started
 
-Nick: I'll write more detailed description over the summer, ask me if you have questions 
+Run `src/run.py` to verify you have installed all the packages, then read the code thoroughly and focus on what each class/function does. If you are asked to develop a new control algorithm, you will likely implement your own versions of `car.ctrlCar()` and `track.localTrajectory()`. The current versions are implemented loosely according to the Stanly's control algorithm, it's not a big deal if you don't get it.
 
-findCenterline() attempts to find a 2nd degree polynomial that describes the centerline/desired trajectory of the car. 
-This polynomial transformed near the end of the function to a real-world coordinate system.(transform() performs a point to point transformation from projected points(image) to original(real-world)) The x axis coincides with the rear axle, pointing to the right. The y axis coincides with the vehicle's centerline, pointing forward.This is called a car reference frame, as it is stational with respect to the car. unit is in cm.
+If you run into problems, shoot me an email at (nickzhang at GA Tech dot edu)
 
-purePursuit() takes the polynomial and find on it a point that is one lookahead distance away from the origin. Lookahead is currently a constant value determined from experiments, although future work may be done to automatically adjust the lookahead distance on the flow. It then calculates the steering angle necessary to reach that point. To better understand pure pursuit algorithm, check the papers in the Google Drive. The one by CMU is particularly clear and friendly to beginners. There's also another article about derivation of pure pursuit that describes basic car dynamics. If you are reading that article keep in mind our L_fw is zero. 
-
-Finally, calcSteer() calculate the actual value to send to the ros_topic to obtain the requested steering angle. 
-
-You may notice that transform() and calcSteer() are super simple functions drawn out of thin air. These transformation relations are obtained by performing a linear regression analysis on measured data with MATLAB. Related .m files can be found on Google drive as well. 
-
-In the very likely case that I forget to update this when you are reading my code. Ask me via email or groupme any question you may have before you give up trying to understand the code and curse me for lack of comments in source files. 
-
+Have fun and good luck!
