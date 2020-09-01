@@ -5,7 +5,7 @@ import socket
 from time import time,sleep
 from struct import unpack
 from math import degrees,radians
-from threading import Lock
+from threading import Lock,Event
 from kalmanFilter import KalmanFilter
 import numpy as np
 from tf import TF
@@ -32,6 +32,9 @@ class Vicon:
     # One object per port would solve this issue since each object would have a unique ID, whether or not it is active/detected
     # However it is not currently supported. If you have a strong need for this feature please contact author
     def __init__(self,IP=None,PORT=None,daemon=True,enableKF=True):
+
+        self.newState = Event()
+
         if IP is None:
             IP = "0.0.0.0"
         if PORT is None:
@@ -64,6 +67,8 @@ class Vicon:
         q_t = self.tf.euler2q(0,0,0)
         self.T = np.hstack([q_t,np.array([-0.0,-0.0,0])])
 
+        self.updateCallback = self.doNothing
+
         if enableKF:
             # temporarily unset enableKF to trick getViconUpdate() to ignore kf before it's inited
             if not daemon:
@@ -94,6 +99,15 @@ class Vicon:
             self.quit_thread = True
             self.thread.join()
         self.sock.close()
+
+    # set a callback function for new vicon updates
+    def setCallback(self,fun):
+        self.updateCallback = fun
+        return
+
+    # placeholder for an empty function
+    def doNothing():
+        pass
 
     # get name of an object given its ID. This can be useful for verifying ID <-> object relationship
     def getItemName(self,obj_id):
@@ -192,6 +206,10 @@ class Vicon:
         self.state2d_lock.acquire()
         self.state2d_list = local_state2d_list
         self.state2d_lock.release()
+        # call the callback function 
+        self.updateCallback()
+
+        self.newState.set()
         return local_state_list
 
     def getState2d(self,inquiry_id):

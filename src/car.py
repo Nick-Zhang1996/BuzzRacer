@@ -76,10 +76,16 @@ class Car:
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
+        # FIXME debug
+        #vf = state[2]
+        #heading = state[3]
+        #omega = state[4]
+
         heading = state[2]
         omega = state[5]
         vf = state[3]
         vs = state[4]
+
         ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
@@ -120,9 +126,10 @@ class Car:
             else:
                 throttle,err_der = self.calcThrottle(vf,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target})
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
 
         return ret
+
     def actuate(self,steering,throttle):
         if not (self.car_interface is None):
             self.car_interface.write((str(self.mapdata(steering, self.max_steering_left,-self.max_steering_right,self.min_pwm_left,self.max_pwm_right))+","+str(self.mapdata(throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))

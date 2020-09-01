@@ -608,9 +608,6 @@ class RCPtrack(Track):
 
     def optimizeRaceline(self):
         pass
-    def setResolution(self,res):
-        self.resolution = res
-        return
     # given state of robot
     # find the closest point on raceline to center of FRONT axle
     # calculate the lateral offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
@@ -682,7 +679,7 @@ class RCPtrack(Track):
         #B = np.mat([fun(x0), fun(x1), fun(x2)]).T
         B = fun(iv).T
         #abc = np.linalg.solve(A,B)
-        abc = np.linalg.lstsq(A,B)[0]
+        abc = np.linalg.lstsq(A,B, rcond=-1)[0]
         a = abc[0]
         b = abc[1]
         c = abc[2]
@@ -778,7 +775,10 @@ class RCPtrack(Track):
     #def drawCar(self, coord, heading,steering, img):
     def drawCar(self, img, state, steering):
         # check if vehicle is outside canvas
+        # FIXME
+        #x,y, v, heading, omega = state
         x,y,heading, vf_lf, vs_lf, omega_lf = state
+
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -789,6 +789,16 @@ class RCPtrack(Track):
 
         # draw steering angle, orientation as red arrow
         img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+
+        return img
+
+    # draw a point on canvas at coord
+    def drawPoint(self, img, coord, color = (0,0,0)):
+        src = self.m2canvas(coord)
+        if src is None:
+            print("Can't draw point -- outside track")
+            return img
+        img = cv2.circle(img, src, 3, color,-1)
 
         return img
 
@@ -925,8 +935,9 @@ if __name__ == "__main__":
     mk103.initRaceline((2,2),'d',4,offset=manual_adj)
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
-    plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
-    plt.show()
+    # show trajectory
+    #plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
+    #plt.show()
 
     # select a track
     s = mk103
@@ -955,16 +966,22 @@ if __name__ == "__main__":
     heading = pi/2
     # be careful here
     reverse = False
+    # x,y,v,heading,omega
+    # FIXME
+    #throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
     throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],heading,0,0,0],s)
-    # should be x,y,heading,vf,vs,omega, i didn't implement the last two
-    #s.state = np.array([coord[0],coord[1],heading,0,0,0])
+
+
     sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
     #print(throttle,steering,valid)
 
     #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
     gifimages = []
 
+    #FIXME
+    #state = np.array([sim_states['coord'][0],sim_states['coord'][1],0,sim_states['heading'],sim_states['omega']])
     state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
+
     img_track_car = s.drawCar(img_track.copy(),state,steering)
     cv2.imshow('car',img_track_car)
     # prepare save gif
@@ -977,12 +994,16 @@ if __name__ == "__main__":
     sim_log_vec['omega'] = []
     sim_log_vec['vf'] = []
     sim_log_vec['v_target'] = []
+    sim_log_vec['offset'] = []
+    sim_log_vec['steering'] = []
     v_override = 0
     for i in range(620):
         # update car
         sim_states = s.updateCar(sim_dt,sim_states,throttle,steering,v_override=v_override)
         sim_log_vec['omega'].append(sim_states['omega'])
 
+        # FIXME
+        #state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['vf'],sim_states['heading'],sim_states['omega']])
         state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
         throttle,steering,valid,debug_dict = car.ctrlCar(state,s,reverse=reverse)
 
@@ -991,7 +1012,10 @@ if __name__ == "__main__":
 
         sim_log_vec['vf'].append(debug_dict['vf'])
         sim_log_vec['v_target'].append(debug_dict['v_target'])
+        sim_log_vec['offset'].append(debug_dict['offset'])
+        sim_log_vec['steering'].append(steering)
         img_track_car = s.drawCar(img_track.copy(),state,steering)
+        img_track_car = s.drawPoint(img_track_car,debug_dict['local_ctrl_point'])
         #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
         #print(sim_states['acc'])
         acc = sim_states['acc']
@@ -1008,7 +1032,6 @@ if __name__ == "__main__":
     if saveGif:
         gifimages[0].save(fp="./mk103new.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
 
-    #p0, = plt.plot(sim_log_vec['vf'],label='vf')
-    #p1, = plt.plot(sim_log_vec['v_target'],label='v_target')
-    #plt.show()
+    p0, = plt.plot(sim_log_vec['steering'],label='vf')
+    plt.show()
 

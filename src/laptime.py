@@ -1,24 +1,27 @@
 # calculate the adjustment vector to minimize laptime 
-from track import RCPtrack
+from RCPTrack import RCPtrack
 from time import time
 from scipy.optimize import minimize
 import numpy as np
 from PIL import Image
 import cv2
 import matplotlib.pyplot as plt
+import sys
 
 #make a gif of the optimization process
-saveGif = False
+saveGif = True
 gifimages = []
 laptime_vec = []
 
 # given control offset, get laptime
 count = 0
-def getLaptime(ctrl_offset,track_obj):
+def getLaptime(ctrl_offset,track_obj,start_grid,start_dir,start_seqno):
     global saveGif,gifimages,img_track,count
     count += 1
-    laptime = track_obj.initRaceline((2,2),'d',4,offset=ctrl_offset)
+    laptime = track_obj.initRaceline(start_grid,start_dir,start_seqno,offset=ctrl_offset)
     laptime_vec.append(laptime)
+    sys.stdout.write('.')
+    sys.stdout.flush()
     if saveGif:
         img_track_raceline = mk103.drawRaceline(img=img_track.copy())
         gifimages.append(Image.fromarray(cv2.cvtColor(img_track_raceline,cv2.COLOR_BGR2RGB)))
@@ -28,21 +31,70 @@ def getLaptime(ctrl_offset,track_obj):
 
 
 if __name__ == "__main__":
-    # current track setup in mk103
+    # initialize instance
     mk103 = RCPtrack()
-    mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
+
+    # define track
+
+    # Reduced "L" Track
+    #descrip = 'uuruurddddll'
+    #track_size = (5,3)
+    # add manual offset for each control points
+    #adjustment = [0,0,0,0,0,0,0,0,0,0,0,0]
+    #adjustment[4] = -0.5
+    #adjustment[8] = -0.5
+    #adjustment[9] = 0
+    #adjustment[10] = -0.5
+    #adjustment = np.array(adjustment)
+    #start_grid = (2,2)
+    #start_dir = 'd'
+    #start_seqno = 4
+
+    # Full Track
+    descrip = 'uuurrullurrrdddddluulddl'
+    track_size = (6,4)
+    # add manual offset for each control points
+    adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+    adjustment[0] = -0.2
+    adjustment[1] = -0.2
+    #bottom right turn
+    adjustment[2] = -0.2
+    adjustment[3] = 0.5
+    adjustment[4] = -0.2
+
+    #bottom middle turn
+    adjustment[6] = -0.2
+
+    #bottom left turn
+    adjustment[9] = -0.2
+
+    # left L turn
+    adjustment[12] = 0.5
+    adjustment[13] = 0.5
+
+    adjustment[15] = -0.5
+    adjustment[16] = 0.5
+    adjustment[18] = 0.5
+
+    adjustment[21] = 0.35
+    adjustment[22] = 0.35
+
+    # initialize track
+    track_len = len(descrip)
+    mk103.initTrack(descrip,track_size,scale=0.565)
+    start_grid = (3,3)
+    start_dir = 'd'
+    start_seqno = 10
+
     img_track = mk103.drawTrack()
 
-    # add manual offset for each control points
-    adjustment = [0,0,0,0,0,0,0,0,0,0,0,0]
-    adjustment[4] = -0.5
-    adjustment[8] = -0.5
-    adjustment[9] = 0
-    adjustment[10] = -0.5
-    adjustment = np.array(adjustment)
-    print("benchmark laptime = "+str(getLaptime(adjustment,mk103)))
+    print("benchmark laptime = "+str(getLaptime(adjustment,mk103,start_grid,start_dir,start_seqno)))
 
     fun = lambda x: x
+    cons = tuple([{'type': 'ineq', 'fun': lambda x:x[i]} for i in range(track_len)])
+
+    '''
     cons = ({'type': 'ineq', 'fun': lambda x:x[0]},
             {'type': 'ineq', 'fun': lambda x:x[1]},
             {'type': 'ineq', 'fun': lambda x:x[2]},
@@ -55,16 +107,17 @@ if __name__ == "__main__":
             {'type': 'ineq', 'fun': lambda x:x[9]},
             {'type': 'ineq', 'fun': lambda x:x[10]},
             {'type': 'ineq', 'fun': lambda x:x[11]})
+    '''
     #bnds = ((-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1),(-1,1))
     max_offset = 0.5
-    bnds = ((-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset))
+    bnds = tuple([(-max_offset,max_offset) for i in range(track_len)])
+    #bnds = ((-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset))
 
-    res = minimize(getLaptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
-    #res = minimize(getLaptime,adjustment,args=(mk103),method='SLSQP',bounds=bnds,constraints=cons)
+    #res = minimize(getLaptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
+    res = minimize(getLaptime,adjustment,args=(mk103,start_grid,start_dir,start_seqno),method='SLSQP',bounds=bnds,constraints=cons)
     print(res)
     adjustment = res.x
     print(res.x)
-    mk103.initRaceline((2,2),'d',4,offset=adjustment)
     print("iter = %d"%count)
     print("gif len = %d"%len(gifimages))
 
