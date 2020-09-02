@@ -841,7 +841,7 @@ class RCPtrack(Track):
             dy = ds
         else:
             dx = - L/tan(beta)*(1-cos(dtheta))
-            dy =  abs(L/tan(beta)*sin(dtheta))
+            dy =  (L/tan(beta)*sin(dtheta))
 
         #print(dx,dy)
         # specific to world frame

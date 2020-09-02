@@ -3,7 +3,6 @@
 from NatNetClient import NatNetClient
 from time import time,sleep
 from threading import Event,Lock
-from tf import TF
 from common import *
 from kalmanFilter import KalmanFilter
 import numpy as np

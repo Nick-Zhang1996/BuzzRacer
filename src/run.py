@@ -15,6 +15,7 @@ from Track import Track
 from RCPTrack import RCPtrack
 from skidpad import Skidpad
 from Optitrack import Optitrack
+from joystick import Joystick
 
 from enum import Enum, auto
 class StateUpdateSource(Enum):
@@ -27,29 +28,46 @@ class VehiclePlatform(Enum):
     onboard = auto() # NOT IMPLEMENTED
     simulator = auto()
 
+class Controller(Enum):
+    joystick = auto()
+    stanley = auto()
+    purePursuit = auto() # NOT IMPLEMENTED
+
 class Main():
     def __init__(self,):
+
+        # CONFIG
+        # whether to record control command, car state, etc.
         self.enableLog = False
-        # if log is enabled this will be updated
-        # if log is not enabled this will be used as gif image name
-        self.log_no = 0
+        # save experiment as a gif, this provides an easy to use visualization for presentation
+        self.saveGif = False
 
         # set visual tracking system to be used
-        # Indoor Flight Laboratory: vicon
-        # G13: optitrack
+        # Indoor Flight Laboratory (MK101/103): vicon
+        # MK G13: optitrack
         # simulation: simulator
-        self.stateUpdateSource = StateUpdateSource.optitrack
-        #self.stateUpdateSource = StateUpdateSource.simulator
+        #self.stateUpdateSource = StateUpdateSource.optitrack
+        self.stateUpdateSource = StateUpdateSource.simulator
+
         # set target platform
         # if running simulation set this to simulator
-        self.vehiclePlatform = VehiclePlatform.offboard
-        #self.vehiclePlatform = VehiclePlatform.simulator
+        #self.vehiclePlatform = VehiclePlatform.offboard
+        self.vehiclePlatform = VehiclePlatform.simulator
+
+        # set control pipeline
+        self.controller = Controller.joystick
+
+        if (self.controller == Controller.joystick):
+            self.joystick = Joystick()
+
+
 
         if self.stateUpdateSource == StateUpdateSource.optitrack:
             self.initStateUpdate = self.initOptitrack
             self.updateState = self.updateOptitrack
             self.stopStateUpdate = self.stopOptitrack
         elif self.stateUpdateSource == StateUpdateSource.vicon:
+            print_error("vicon not ready")
             self.initStateUpdate = self.initVicon
             self.updateState = self.updateVicon
             self.stopStateUpdate = self.stopVicon
@@ -61,10 +79,13 @@ class Main():
             print_error("unknown state update source")
             exit(1)
 
+        # if log is enabled this will be updated
+        # if log is not enabled this will be used as gif image name
+        self.log_no = 0
+
         # flag to quit all child threads gracefully
         self.exit_request = Event()
 
-        # TODO: handle simulator case
         self.car = self.prepareCar()
 
         self.initStateUpdate()
@@ -86,7 +107,6 @@ class Main():
         self.prepareVisualization()
 
         # prepare save gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
         self.prepareGif()
 
     # run experiment until user press q in visualization window
@@ -139,7 +159,8 @@ class Main():
         # in real experiment, wait on next state update
         if (self.stateUpdateSource == StateUpdateSource.simulator):
             # delay handled in cv2.waitKey()
-            #sleep(self.sim_dt)
+            # no need to sleep here
+            # sleep(self.sim_dt)
             self.updateSimulation()
         else:
             # wait on next state update
@@ -150,9 +171,16 @@ class Main():
             self.updateState()
         
         # get control signal
-        throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
-        # TODO debug only
-        self.v_target = debug_dict['v_target']
+        if (self.controller == Controller.stanley):
+            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+            # TODO debug only
+            self.v_target = debug_dict['v_target']
+        elif (self.controller == Controller.joystick):
+            throttle = self.joystick.throttle
+            # just use right side for both ends
+            steering = self.joystick.steering*self.car.max_steering_right
+            self.v_target = throttle*0.1
+            
         
         self.car.steering = steering
         self.car.throttle = throttle

@@ -78,6 +78,7 @@ class Car:
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
+    # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
 
