@@ -50,7 +50,11 @@ class Car:
         self.decay_factor = exp(-1.0/50/tc)
         self.serial_port = car_setting['serial_port']
         if not (self.serial_port is None):
-            self.car_interface = serial.Serial(self.serial_port,115200, timeout=0.001,writeTimeout=0)
+            try:
+                self.car_interface = serial.Serial(self.serial_port,115200, timeout=0.001,writeTimeout=0)
+            except FileNotFoundError:
+                print_error(" interface %s not found"%self.serial_port)
+                exit(1)
 
     def __del__(self):
         if (not (self.serial_port is None) and self.car_interface.is_open):
@@ -76,10 +80,6 @@ class Car:
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         coord = (state[0],state[1])
-        # FIXME debug
-        #vf = state[2]
-        #heading = state[3]
-        #omega = state[4]
 
         heading = state[2]
         omega = state[5]

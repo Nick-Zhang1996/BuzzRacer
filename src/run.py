@@ -14,6 +14,7 @@ from car import Car
 from Track import Track
 from RCPTrack import RCPtrack
 from skidpad import Skidpad
+from Optitrack import Optitrack
 
 from enum import Enum, auto
 class StateUpdateSource(Enum):
@@ -37,10 +38,12 @@ class Main():
         # Indoor Flight Laboratory: vicon
         # G13: optitrack
         # simulation: simulator
-        self.stateUpdateSource = StateUpdateSource.simulator
+        self.stateUpdateSource = StateUpdateSource.optitrack
+        #self.stateUpdateSource = StateUpdateSource.simulator
         # set target platform
         # if running simulation set this to simulator
-        self.vehiclePlatform = VehiclePlatform.simulator
+        self.vehiclePlatform = VehiclePlatform.offboard
+        #self.vehiclePlatform = VehiclePlatform.simulator
 
         if self.stateUpdateSource == StateUpdateSource.optitrack:
             self.initStateUpdate = self.initOptitrack
@@ -84,7 +87,7 @@ class Main():
 
         # prepare save gif, this provides an easy to use visualization for presentation
         # FIXME test this
-        self.saveGif = True
+        self.saveGif = False
         self.prepareGif()
 
     # run experiment until user press q in visualization window
@@ -109,10 +112,8 @@ class Main():
 
 
     def updateVisualization(self,):
-        # restrict update rate to 0.1s/frame, a rate higher than this can lead to frozen frames
-        # TODO investigate if the following line is needed
-        #if (time()-self.visualization_ts>0.1):
-        if True:
+        # restrict update rate to 0.01s/frame, a rate higher than this can lead to frozen frames
+        if (time()-self.visualization_ts>0.02 or self.stateUpdateSource == StateUpdateSource.simulator):
             img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
 
             self.visualization_ts = time()
@@ -138,6 +139,7 @@ class Main():
         # in simulation, sleep() between updates
         # in real experiment, wait on next state update
         if (self.stateUpdateSource == StateUpdateSource.simulator):
+            # delay handled in cv2.waitKey()
             #sleep(self.sim_dt)
             self.updateSimulation()
         else:
@@ -148,6 +150,7 @@ class Main():
             # retrieve car state from visual tracking update
             self.updateState()
         
+        # get control signal
         throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
         # TODO debug only
         self.v_target = debug_dict['v_target']
@@ -155,13 +158,17 @@ class Main():
         self.car.steering = steering
         self.car.throttle = throttle
 
-        if (self.stateUpdateSource == StateUpdateSource.simulator):
-            # update is done in updateSimulation()
-            pass
-        else:
+        if (self.vehiclePlatform == VehiclePlatform.offboard):
+            throttle = 0.3
             self.car.actuate(steering,throttle)
             # TODO implement throttle model
-            self.vi.updateAction(car.steering, car.getExpectedAcc())
+            # do not use EKF for now
+            #self.vi.updateAction(car.steering, car.getExpectedAcc())
+        elif (self.vehiclePlatform == VehiclePlatform.simulator):
+            # update is done in updateSimulation()
+            pass
+        elif (self.vehiclePlatform == VehiclePlatform.onboard):
+            raise NotImplementedError
 
 
         self.updateVisualization()
@@ -331,13 +338,19 @@ class Main():
         print_info("Initializing Optitrack...")
         self.vi = Optitrack(wheelbase=self.car.wheelbase)
         # TODO use acutal optitrack id for car
-        self.car.internal_id = self.vi.getInternalId(1)
+        # porsche: 2
+        self.car.internal_id = self.vi.getInternalId(2)
         self.new_visual_update = self.vi.newState
 
     def updateOptitrack(self,):
         # update for eachj car
-        (x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
-        self.car_state = (x,y,v,theta,omega)
+        # not using kf state for now
+        #(x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
+
+
+        (x,y,theta) = self.vi.getState2d(self.car.internal_id)
+        # (x,y,theta,vforward,vsideway=0,omega)
+        self.car_state = (x,y,theta,0,0,0)
         return
 
     def stopOptitrack(self,):
@@ -357,7 +370,7 @@ class Main():
         self.car.throttle = throttle = 0
         self.v_target = 0
 
-        self.car_state = (x,y,v,heading,omega)
+        self.car_state = (x,y,heading,v,0,omega)
         self.sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
         self.sim_dt = 0.01
 
