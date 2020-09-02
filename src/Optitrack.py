@@ -7,7 +7,7 @@ from tf import TF
 from common import *
 from kalmanFilter import KalmanFilter
 import numpy as np
-from math import pi,degrees
+from math import pi,degrees,atan2
 from scipy.spatial.transform import Rotation
 
 
@@ -29,6 +29,13 @@ class Optitrack:
         self.streamingClient = NatNetClient()
         # set up callback functions later
         self.streamingClient.run()
+
+        # set the relation between Optitrack world frame and our track frame
+        # describe the rotation needed to rotate the world frame to track frame
+        # in sequence Z, Y, X, each time using intermediate frame axis (intrinsic)
+        self.R = Rotation.from_euler("ZYX",[180,0,90],degrees=True).inv()
+        # use the rotation matrix
+        # vector_track_frame = self.R.apply(vector_world_frame)
 
 
         # a list of state tuples, state tuples take the form: (x,y,z,rx,ry,rz), in meters and radians, respectively
@@ -98,7 +105,16 @@ class Optitrack:
             r = Rotation.from_quat([qx,qy,qz,qw])
             rz, ry, rx = r.as_euler('ZYX',degrees=False)
 
-            # TODO add correct wheelbase here
+            # get body pose in track frame
+            # x,y,z in track frame
+            x_local, y_local, z_local = self.R.apply([x,y,z])
+            # x in car frame is forward direction, get that in world frame
+            heading_world = r.apply([1,0,0])
+            # now convert that to track frame
+            heading_track = self.R.apply(heading_world)
+            # heading in 2d world is the Z component
+            theta_local = atan2(heading_track[1],heading_track[0])
+
             if self.enableKF.isSet():
                 self.kf.append(KalmanFilter(wheelbase=self.wheelbase))
             # get body pose in track/local frame
@@ -126,11 +142,15 @@ class Optitrack:
         r = Rotation.from_quat([qx,qy,qz,qw])
         rz, ry, rx = r.as_euler('ZYX',degrees=False)
 
-        # get body pose in track/local frame
-        # current setup in G13
-        x_local = -x
-        y_local = z 
-        theta_local = ry + pi/2
+        # get body pose in track frame
+        # x,y,z in track frame
+        x_local, y_local, z_local = self.R.apply([x,y,z])
+        # x in car frame is forward direction, get that in world frame
+        heading_world = r.apply([1,0,0])
+        # now convert that to track frame
+        heading_track = self.R.apply(heading_world)
+        # heading in 2d world is the Z component
+        theta_local = atan2(heading_track[1],heading_track[0])
 
         if self.enableKF.isSet():
             self.kf[internal_id].predict(self.action)
@@ -203,7 +223,7 @@ if __name__ == '__main__':
     #for i in range(op.obj_count):
     while True:
         #op_id = op.getOptitrackId(i)
-        op_id = 1
+        op_id = 2
         i = op.getInternalId(op_id)
         x2d,y2d,theta2d = op.getState2d(i)
         x,y,z,rx,ry,rz = op.getState(i)
@@ -214,7 +234,7 @@ if __name__ == '__main__':
         print("rx: %0.2f, ry: %0.2f, rz: %0.2f"%(degrees(rx),degrees(ry),degrees(rz)))
         #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         print("\n")
-        sleep(0.5)
+        sleep(0.2)
 
     input("press enter to stop\n")
     op.quit()
