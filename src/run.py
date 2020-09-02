@@ -86,7 +86,6 @@ class Main():
         self.prepareVisualization()
 
         # prepare save gif, this provides an easy to use visualization for presentation
-        # FIXME test this
         self.saveGif = False
         self.prepareGif()
 
