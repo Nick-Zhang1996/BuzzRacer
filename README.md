@@ -1,5 +1,4 @@
 # RC-VIP project
-# VIP RC project
 
 Welcome to the RC subteam repo. This is part of Georgia Tech's VIP team -- Autonomous and Semi-autonomous Vehicle Safety, led by professor P. Tsiotras
 
