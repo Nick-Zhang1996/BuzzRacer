@@ -38,9 +38,9 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
+        self.saveGif = True
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -93,7 +93,9 @@ class Main():
         # prepare log
         if (self.enableLog):
             self.resolveLogname()
-            self.state_log = []
+            # the vector that's written to pickle file
+            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1) )
+            self.full_state_log = []
 
         #self.track = self.prepareSkidpad()
         # or, use RCP track
@@ -111,22 +113,32 @@ class Main():
 
     # run experiment until user press q in visualization window
     def run(self):
+        print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             self.update()
+            (x,y,theta,_,_,_) = self.car_state
+            self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle])
 
         # exit point
+        print_info("Exiting ...")
         cv2.destroyAllWindows()
         self.stopStateUpdate()
 
+        if (self.controller == Controller.joystick):
+            print_info("exiting joystick... move joystick a little")
+            self.joystick.quit()
+
         if self.saveGif:
+            print_info("saving gif.. This may take a while")
             gif_filename = "../gifs/sim"+str(self.log_no)+".gif"
             # TODO better way of determining duration
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
             print_info("gif saved at "+gif_filename)
 
         if self.enableLog:
+            print_info("saving log")
             output = open(self.logFilename,'wb')
-            pickle.dump(state_vec,output)
+            pickle.dump(self.full_state_log,output)
             output.close()
 
 
@@ -306,8 +318,8 @@ class Main():
         # setup log file
         # log file will record state of the vehicle for later analysis
         #   state: (x,y,heading,v_forward,v_sideway,omega)
-        logFolder = "./log/"
-        logPrefix = "exp_state"
+        logFolder = "../log/throttleStudy/"
+        logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
         while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
