@@ -60,8 +60,6 @@ class Main():
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
 
-
-
         if self.stateUpdateSource == StateUpdateSource.optitrack:
             self.initStateUpdate = self.initOptitrack
             self.updateState = self.updateOptitrack
@@ -94,7 +92,8 @@ class Main():
         if (self.enableLog):
             self.resolveLogname()
             # the vector that's written to pickle file
-            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1) )
+            # this is updated frequently, use the last line
+            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
             self.full_state_log = []
 
         #self.track = self.prepareSkidpad()
@@ -117,8 +116,9 @@ class Main():
         while not self.exit_request.isSet():
             self.update()
             (x,y,theta,_,_,_) = self.car_state
+            (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
             if self.enableLog:
-                self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle])
+                self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle, kf_x, kf_y, kf_v, kf_theta, kf_omega])
 
         # exit point
         print_info("Exiting ...")
@@ -317,8 +317,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        #   state: (x,y,heading,v_forward,v_sideway,omega)
-        logFolder = "../log/throttleStudy/"
+        logFolder = "../log/kf/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
