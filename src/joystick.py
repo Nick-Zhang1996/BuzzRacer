@@ -5,7 +5,6 @@
 from inputs import get_gamepad
 from threading import Thread,Lock,Event
 from common import *
-from time import sleep
 
 class Joystick:
     def __init__(self,):
@@ -16,7 +15,6 @@ class Joystick:
         print_info("please move all joystick to initialize")
         while not (all([x in self.gamepad for x in self.used_channels])) and not self.exit_signal.isSet():
             self.update()
-            sleep(0.01)
         print_ok("Success")
 
         self.child_threads = []
@@ -38,11 +36,13 @@ class Joystick:
     def updateDaemon(self,):
         while not self.exit_signal.isSet():
             self.update()
-            # left:1, right:-1
+            # lef:1, right:-1
             self.steering = -np.clip(float(self.gamepad['ABS_X']) / 32767.0, -1, 1)
             # full reverse/brake: -1, full throttle:1
-            self.throttle = np.clip(float(self.gamepad['ABS_RZ']) / 1024.0 - float(self.gamepad['ABS_Z']) / 1024.0, -1, 1)*30.0
+            self.throttle = np.clip(float(self.gamepad['ABS_RZ']) / 1024.0 - float(self.gamepad['ABS_Z']) / 1024.0, -1, 1)
 
 if __name__ == '__main__':
     joy = Joystick()
+    while True:
+        print(joy.steering,joy.throttle)
 

@@ -40,19 +40,19 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        #self.stateUpdateSource = StateUpdateSource.optitrack
-        self.stateUpdateSource = StateUpdateSource.simulator
+        self.stateUpdateSource = StateUpdateSource.optitrack
+        #self.stateUpdateSource = StateUpdateSource.simulator
 
         # set target platform
         # if running simulation set this to simulator
-        #self.vehiclePlatform = VehiclePlatform.offboard
-        self.vehiclePlatform = VehiclePlatform.simulator
+        self.vehiclePlatform = VehiclePlatform.offboard
+        #self.vehiclePlatform = VehiclePlatform.simulator
 
         # set control pipeline
         self.controller = Controller.joystick
@@ -117,7 +117,8 @@ class Main():
         while not self.exit_request.isSet():
             self.update()
             (x,y,theta,_,_,_) = self.car_state
-            self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle])
+            if self.enableLog:
+                self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle])
 
         # exit point
         print_info("Exiting ...")
@@ -191,14 +192,13 @@ class Main():
             throttle = self.joystick.throttle
             # just use right side for both ends
             steering = self.joystick.steering*self.car.max_steering_right
-            self.v_target = throttle*0.1
+            self.v_target = throttle
             
         
         self.car.steering = steering
         self.car.throttle = throttle
 
         if (self.vehiclePlatform == VehiclePlatform.offboard):
-            throttle = 0.3
             self.car.actuate(steering,throttle)
             # TODO implement throttle model
             # do not use EKF for now
@@ -394,6 +394,7 @@ class Main():
 
     def stopOptitrack(self,):
         # the optitrack destructor should handle things properly
+        self.vi.quit()
         pass
 
 # ---- Simulation ----
@@ -427,5 +428,6 @@ class Main():
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
+    print_info("program complete")
 
 

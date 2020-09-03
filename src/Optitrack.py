@@ -124,7 +124,7 @@ class Optitrack:
             if self.enableKF.isSet():
                 self.kf[-1].init(x_local,y_local,theta_local)
 
-            self.state_lock.acquire()
+            self.state_lock.acquire(timeout=0.01)
             self.state_list.append((x,y,z,rx,ry,rz))
             self.state2d_list.append((x_local,y_local,theta_local))
             if self.enableKF.isSet():
@@ -156,7 +156,7 @@ class Optitrack:
             observation = np.matrix([[x_local,y_local,theta_local]]).T
             self.kf[internal_id].update(observation)
 
-        self.state_lock.acquire()
+        self.state_lock.acquire(timeout=0.01)
         self.state_list[internal_id] = (x,y,z,rx,ry,rz)
         self.state2d_list[internal_id] = (x_local,y_local,theta_local)
 
@@ -179,7 +179,7 @@ class Optitrack:
         if internal_id>=self.obj_count:
             print_error("can't find internal id %d"%(internal_id))
             return None
-        self.state_lock.acquire()
+        self.state_lock.acquire(timeout=0.01)
         retval = self.state_list[internal_id]
         self.state_lock.release()
         return retval
@@ -189,7 +189,7 @@ class Optitrack:
             print_error("can't find internal id %d"%(internal_id))
             return None
         try:
-            self.state_lock.acquire()
+            self.state_lock.acquire(timeout=0.01)
             retval = self.state2d_list[internal_id]
         except IndexError as e:
             print_error("can't find internal id %d"%(internal_id))
