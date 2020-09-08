@@ -9,6 +9,7 @@ from common import *
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 from mpl_toolkits.mplot3d import Axes3D
+from math import degrees,radians
 
 
 t_vec = []
@@ -42,18 +43,49 @@ for filename in filenames:
     throttle_vec.append(throttle[2:])
     steering_vec.append(steering[2:])
     acc_vec.append(acc)
+    v_vec.append(smooth_v[1:])
 
 acc = [m for p in acc_vec for m in p]
 throttle = [m for p in throttle_vec for m in p]
 steering = [m for p in steering_vec for m in p]
+v = [m for p in v_vec for m in p]
+
+acc = np.array(acc)
+throttle = np.array(throttle)
+steering = np.array(steering)
+v = np.array(v)
+
+
+# filter out throttle<0 samples
+mask = throttle>0.01
+mask = np.bitwise_and(mask,np.abs(steering)<radians(1))
+#mask = np.bitwise_and(mask,np.abs(v)<2)
+#mask = np.bitwise_and(mask,np.abs(v)>0.5)
+print(acc.shape)
+acc = acc[mask]
+print(acc.shape)
+throttle = throttle[mask]
+v = v[mask]
+
+p = np.polyfit(throttle,acc,1)
+print(p)
+xx = np.linspace(np.min(throttle),np.max(throttle))
+fit_acc = np.polyval(p,xx)
+
+# sample data points measured in step response
+sample_throttle = [0, 0.316, 0.276, 0.346, 0.516, 0.238, -1, -0.6]
+sample_acc = [-1.368, 0.721, 0.544, 1.08, 4.316, 0.2483, -5.244, -1.6866]
 
 fig = plt.figure()
-'''
 ax = fig.gca()
 ax.plot(throttle,acc,'*',label="acc vs throttle")
+ax.plot(xx,fit_acc,label="fit acc")
+ax.plot(sample_throttle,sample_acc,'*r',label="fit acc")
 ax.legend()
-'''
+plt.show()
 
+'''
 ax = fig.add_subplot(111,projection='3d')
 ax.scatter(throttle,steering,acc)
 plt.show()
+'''
