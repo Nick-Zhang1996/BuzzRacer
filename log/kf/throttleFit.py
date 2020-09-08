@@ -57,10 +57,11 @@ v = np.array(v)
 
 
 # filter out throttle<0 samples
-mask = throttle>0.01
-mask = np.bitwise_and(mask,np.abs(steering)<radians(1))
+mask = throttle>-1.1
+#mask = throttle>0.01
+#mask = np.bitwise_and(mask,np.abs(steering)<radians(1))
 #mask = np.bitwise_and(mask,np.abs(v)<2)
-#mask = np.bitwise_and(mask,np.abs(v)>0.5)
+mask = np.bitwise_and(mask,np.abs(v)>0.1)
 print(acc.shape)
 acc = acc[mask]
 print(acc.shape)
@@ -69,7 +70,8 @@ v = v[mask]
 
 p = np.polyfit(throttle,acc,1)
 print(p)
-xx = np.linspace(np.min(throttle),np.max(throttle))
+#xx = np.linspace(np.min(throttle),np.max(throttle))
+xx = np.linspace(-1,np.max(throttle))
 fit_acc = np.polyval(p,xx)
 
 # sample data points measured in step response
