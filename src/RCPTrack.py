@@ -313,7 +313,7 @@ class RCPtrack(Track):
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:5
+        acc_max_motor = lambda x:3
         dec_max_motor = lambda x:5
         # generate velocity profile
         # u values for control points
@@ -829,11 +829,21 @@ class RCPtrack(Track):
         ds = vf*dt
         dtheta = ds*tan(beta)/L
 
-        #new_v = max(vf+(throttle-0.2)*4*dt,0)
-        # NOTE add a time constant
-        #new_v = max((throttle-0.16779736)/0.05022026,0)
-        new_v = v_override
-        dvf = new_v - vf
+        if v_override is None:
+            # update velocity using a simplified model
+            # fit model from log/kf/throttleFit.py
+            acc = throttle * 4.95445214 - 1.01294228
+            # if vehicle is stationary, it won't go backwards
+            # when throttle is <0.245 and vehicle is stationary, vehicle won't move
+            # (according to linear model acc>0 for this throttle val but vehicle doesn't actually move)
+            if vf < 0.01 and throttle<0.245:
+                acc = 0
+            dvf = acc * dt
+
+        else:
+            # velocity override, force velocity to be any value
+            dvf = v_override - vf
+
         dvs = 0
         # specific to vehicle frame (x to right of rear axle, y to forward)
         if (beta==0):

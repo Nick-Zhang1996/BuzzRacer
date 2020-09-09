@@ -46,16 +46,16 @@ class Main():
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        self.stateUpdateSource = StateUpdateSource.optitrack
-        #self.stateUpdateSource = StateUpdateSource.simulator
+        #self.stateUpdateSource = StateUpdateSource.optitrack
+        self.stateUpdateSource = StateUpdateSource.simulator
 
         # set target platform
         # if running simulation set this to simulator
-        self.vehiclePlatform = VehiclePlatform.offboard
-        #self.vehiclePlatform = VehiclePlatform.simulator
+        #self.vehiclePlatform = VehiclePlatform.offboard
+        self.vehiclePlatform = VehiclePlatform.simulator
 
         # set control pipeline
-        self.controller = Controller.joystick
+        self.controller = Controller.stanley
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -88,6 +88,9 @@ class Main():
 
         self.initStateUpdate()
 
+        # log with undetermined format
+        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[]}
+
         # prepare log
         if (self.enableLog):
             self.resolveLogname()
@@ -115,8 +118,19 @@ class Main():
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             self.update()
-            (x,y,theta,_,_,_) = self.car_state
-            (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
+            (x,y,theta,v_forward,_,_) = self.car_state
+
+            # (x,y,theta,vforward,vsideway=0,omega)
+            self.debug_dict['target_v'].append(self.v_target)
+            self.debug_dict['actual_v'].append(v_forward)
+            self.debug_dict['throttle'].append(self.car.throttle)
+
+            if self.stateUpdateSource != StateUpdateSource.simulator:
+                (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
+            else:
+                # in simulation there's no need for kf states, just use ground truth
+                (kf_x,kf_y,kf_theta,kf_v,_,kf_omega) = self.car_state
+
             if self.enableLog:
                 self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle, kf_x, kf_y, kf_v, kf_theta, kf_omega])
 
@@ -137,10 +151,19 @@ class Main():
             print_info("gif saved at "+gif_filename)
 
         if self.enableLog:
-            print_info("saving log")
+            print_info("saving log...")
+            print_info(self.logFilename)
+
             output = open(self.logFilename,'wb')
             pickle.dump(self.full_state_log,output)
             output.close()
+
+            print_info("saving log...")
+            print_info(self.logDictFilename)
+            output = open(self.logDictFilename,'wb')
+            pickle.dump(self.debug_dict,output)
+            output.close()
+
 
 
     def updateVisualization(self,):
@@ -308,6 +331,9 @@ class Main():
         if (self.stateUpdateSource == StateUpdateSource.simulator):
             porsche_setting['serial_port'] = None
             lambo_setting['serial_port'] = None
+            # NOTE discrepancy with actual experiment
+            print_warning("using different max_throttle setting")
+            porsche_setting['max_throttle'] = 1.0
 
         # porsche 911
         car = Car(porsche_setting)
@@ -326,6 +352,9 @@ class Main():
 
         self.log_no = no
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+
+        logPrefix = "debug_dict"
+        self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
 
     # call before exiting
     def stop(self,):
@@ -415,13 +444,11 @@ class Main():
 
     def updateSimulation(self):
         # update car
-        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering,v_override=self.v_target)
+        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
 
     def stopSimulation(self):
         return
-
-
 
 
 if __name__ == '__main__':

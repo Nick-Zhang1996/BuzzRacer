@@ -50,20 +50,19 @@ v = v*v_is_forward
 
 # predict future state based on initial state and control signal
 # x0: v0
-# u: throttle command, starting from the one aligned with v0, 1*n, n being number of steps to calculate
+# u: [throttle...,steering...] command, starting from the one aligned with v0, 1*n, n being number of steps to calculate
 # return: x: 1*n, predicted state
 def predict(x0,u,param=None):
     # acc = K*(Dead(u)-c*v)
     dt = 0.01
-    K = 7.569
-    c = 0
     x = [x0]
+    c1 = 0
+    c2 = 0
+    c3 = 0
+    c4 = -1.685/dt
     for val in u:
-        if (val > 0):
-            K = 7.569
-        else:
-            K = 3
-        a = K*(val - c*x[-1])-1.685
+        # steering direction doesn't matter
+        c1*x[-1] + c2*val[0] + c3*abs(val[1]) + c4
         x.append(x[-1]+a*dt)
     # ignore the very last one, which will be substituted with ground truth in next cycle
     return x[:-1]
@@ -80,11 +79,13 @@ predict_v = []
 
 # visualize model performance
 horizon = 50
+'''
 for i in range(0,len(v),horizon):
-    new_state = predict(v[i],throttle[i:i+horizon])
+    new_state = predict(v[i],[throttle[i:i+horizon],steering[i:i+horizon]])
     predict_v.append(new_state)
+'''
 
-predict_v = [a for b in predict_v for a in b]
+#predict_v = [a for b in predict_v for a in b]
 
 fig = plt.figure()
 ax = fig.gca()
@@ -92,7 +93,7 @@ ax = fig.gca()
 #ax.plot(t,x,label="raw")
 #ax.plot(t,kf_x, label="kf")
 ax.plot(t[1:],v, label="v")
-ax.plot(t,predict_v, label="predict v")
+#ax.plot(t,predict_v, label="predict v")
 ax.plot(t,throttle, label="throttle")
 ax.plot(t,steering, label="steering")
 ax.legend()

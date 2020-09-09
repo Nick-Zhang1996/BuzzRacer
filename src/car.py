@@ -123,11 +123,11 @@ class Car:
             elif (steering<-self.max_steering_right):
                 steering = -self.max_steering_right
             if (v_override is None):
-                throttle,err_der = self.calcThrottle(vf,v_target)
+                throttle = self.calcThrottle(state,v_target)
             else:
-                throttle,err_der = self.calcThrottle(vf,v_override)
+                throttle = self.calcThrottle(state,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'der':err_der,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
 
         return ret
 
@@ -147,20 +147,20 @@ class Car:
             return False
 
     # PI controller for forward velocity
-    def calcThrottle(self,v,v_target):
+    def calcThrottle(self,state,v_target):
+        P = 10.0
+        I = 0.1 # 0.1
+        alfa = 0.9
+
+        vf = state[3]
         # PI control for throttle
-        v_err = v - v_target
-        self.verr_integral = self.verr_integral*self.decay_factor + v_err
-        v_err_der = v_err-self.last_v_err
-        throttle = 0.05022026*v_target + 0.16779736
-        throttle += -self.throttle_P * v_err - self.verr_integral * self.throttle_I - v_err_der*self.throttle_D
-        #print("D/P = "+str(v_err_der*self.throttle_D/(self.throttle_P*v_err)))
-        #print("I/P = "+str(self.verr_integral*self.throttle_I))
-        self.last_v_err = v_err
-        #print(self.z_throttle,throttle,self.b,self.a)
-        #throttle, self.z_throttle = signal.lfilter(self.b,self.a,[throttle],zi=self.z_throttle)
-        #print("target = %.2f, v= %.2f"%(v_target,v))
-        return max(min(throttle,self.max_throttle),-1),v_err_der
+        v_err = v_target - vf
+        acc_target = v_err * P + self.verr_integral * I
+        self.verr_integral *= 0.9
+        self.verr_integral += v_err
+        throttle = (acc_target + 1.01294228)/4.95445214 
+
+        return max(min(throttle,self.max_throttle),-1)
 
     # for simulation only
     # update car state with bicycle model, no slip
