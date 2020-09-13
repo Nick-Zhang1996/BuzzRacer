@@ -6,6 +6,9 @@ import sys
 import os
 sys.path.append(os.path.abspath('../../src/'))
 from common import *
+from kalmanFilter import KalmanFilter
+from math import pi
+from scipy.signal import savgol_filter
 
 if (len(sys.argv) != 2):
     print_error("Specify a log to load")
@@ -22,13 +25,13 @@ y = data[:,2]
 heading = data[:,3]
 steering = data[:,4]
 throttle = data[:,5]
-kf_x = data[:,6]
-kf_y = data[:,7]
-kf_v = data[:,8]
-kf_theta = data[:,9]
-kf_omega = data[:,10]
+exp_kf_x = data[:,6]
+exp_kf_y = data[:,7]
+exp_kf_v = data[:,8]
+exp_kf_theta = data[:,9]
+exp_kf_omega = data[:,10]
 
-# calculate speed
+# calculate speed from pos, to use as no-bias but noise reference
 dt = 0.01
 dx = np.diff(x)
 dy = np.diff(y)
@@ -40,61 +43,82 @@ dot_product = np.empty(dr.shape[1])
 for i in range(dr.shape[1]):
     dot_product[i] = np.dot(dr[:,i],d_dir[:,i])+0.001
 
+# add forward/backward signage to speed
 v_is_forward = ((dot_product > 0) - 0.5)* (2)
-
 ds = np.sqrt(dx**2+dy**2)
 v = ds/dt
 v = v*v_is_forward
+smooth_v = savgol_filter(v,51,2)
+acc = np.diff(smooth_v)/dt
 
-# establish cost function
+def getLongitudinalAcc(state,throttle,steering):
+    vf = state[3]
+    acc = throttle * 4.95445214  - 1.01294228 - abs(steering)
+    if (vf<0.01 and throttle<0.245):
+        acc = 0
+    return acc
 
-# predict future state based on initial state and control signal
-# x0: v0
-# u: [throttle...,steering...] command, starting from the one aligned with v0, 1*n, n being number of steps to calculate
-# return: x: 1*n, predicted state
-def predict(x0,u,param=None):
-    # acc = K*(Dead(u)-c*v)
-    dt = 0.01
-    x = [x0]
-    c1 = 0
-    c2 = 0
-    c3 = 0
-    c4 = -1.685/dt
-    for val in u:
-        # steering direction doesn't matter
-        c1*x[-1] + c2*val[0] + c3*abs(val[1]) + c4
-        x.append(x[-1]+a*dt)
-    # ignore the very last one, which will be substituted with ground truth in next cycle
-    return x[:-1]
+# test kalman filter
+kf_state_vec = []
+action_vec = []
+kf = KalmanFilter(1.02e-3)
+kf.init(x=x[0],y=y[0],theta=heading[0],timestamp=0)
+for i in range(len(x)-1):
+    # action: steering(rad,left pos),forward acc
+    # steering sign convention in log is right positive
+    # FIXME this sign discrepancy
+    #   state: (x,y,heading,v_forward,v_sideway,omega)
+    state = (x[i],y[i],heading[i],v[i],0,0)
 
-# calculate state difference
-def stateDiff(x1,x2):
-    return (np.sum(x1-x2)**2)
+    predicted_acc = getLongitudinalAcc(state,throttle[i],steering[i])
+    action = (-steering[i],predicted_acc)
+    action_vec.append(action)
+    # FIXME
+    action = (0,0)
+    kf.predict(action,timestamp = dt*i)
+    z = (x[i],y[i],heading[i])
+    z = np.matrix(z).reshape(3,1)
+    kf.update(z,timestamp = dt*i)
+    kf_state = kf.getState()
+    kf_state_vec.append(kf_state)
 
 
-# prepare sample data frames
-# v > 0.1
 
-predict_v = []
-
-# visualize model performance
-horizon = 50
-'''
-for i in range(0,len(v),horizon):
-    new_state = predict(v[i],[throttle[i:i+horizon],steering[i:i+horizon]])
-    predict_v.append(new_state)
-'''
-
-#predict_v = [a for b in predict_v for a in b]
+kf_state = np.array(kf_state_vec)
+action_vec = np.array(action_vec)
+#kf_x, kf_y, kf_v, kf_theta, kf_omega = kf_state
 
 fig = plt.figure()
 ax = fig.gca()
-#ax.plot(t,heading/np.pi*180.0, label="heading")
-#ax.plot(t,x,label="raw")
-#ax.plot(t,kf_x, label="kf")
+ax.plot(x,y, label="trajectory")
+ax.legend()
+plt.show()
+
+# plot velocity
+fig = plt.figure()
+ax = fig.gca()
 ax.plot(t[1:],v, label="v")
-#ax.plot(t,predict_v, label="predict v")
+ax.plot(t[1:],kf_state[:,2], label="kf_v")
+#ax.plot(t,exp_kf_v, label="ori_kf_v")
 ax.plot(t,throttle, label="throttle")
-ax.plot(t,steering, label="steering")
+ax.legend()
+plt.show()
+
+# plot acc
+'''
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(t[:-2],acc, label="acc measured")
+ax.plot(t[:-1],action_vec[:,1], label="kf_a")
+ax.plot(t,throttle, label="throttle")
+ax.plot(t,np.abs(steering), label="steering")
+ax.legend()
+plt.show()
+'''
+
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(t,heading/pi*180,label="raw heading")
+ax.plot(t[:-1],kf_state[:,3]/pi*180+0.01, label="kf")
 ax.legend()
 plt.show()

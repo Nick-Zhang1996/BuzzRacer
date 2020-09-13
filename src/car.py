@@ -146,6 +146,15 @@ class Car:
         else:
             return False
 
+    # longitudinal acceleration has proven to be difficult to predict
+    # therefore we ignore this in the EKF
+    def getLongitudinalAcc(self,state,throttle):
+        vf = state[3]
+        acc = throttle * 4.95445214  - 1.01294228
+        if (vf<0.01 and throttle<0.245):
+            acc = 0
+        return acc
+
     # PI controller for forward velocity
     def calcThrottle(self,state,v_target):
         P = 10.0
