@@ -6,6 +6,7 @@ from scipy import signal
 from numpy import isclose 
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import matplotlib.pyplot as plt
+from PidController import PidController
 
 class Car:
     def __init__(self,car_setting):
@@ -18,7 +19,9 @@ class Car:
         # unit: radiant of steering per meter offset
         # the way it is set up now the first number is degree of steering per cm offset
         # for actual car 1 seems to work
-        self.P = 2.0/180*pi/0.01
+        #self.P = 2.0/180*pi/0.01
+        # variable P
+        self.Pfun = lambda v: max(min((-0.5*v+2.25),2.8),1.3)/280*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -33,11 +36,11 @@ class Car:
         # NOTE, parameters below may not be actively used in current version of code
         # D is applied on delta_omega, a damping on angular speed error
         self.D = radians(4)/3
-        # PI controller for speed
-        self.throttle_I = 0.015*0
-        self.throttle_P = 0.5
-        self.throttle_D = 0.25
-        self.last_v_err = 0
+        #speed controller
+        P = 5 # to be more aggressive use 15
+        I = 0.0 #0.1
+        D = 0.8
+        self.throttle_pid = PidController(P,I,D,0.01,1,2)
         # low pass filter for throttle controller
 
         self.b, self.a = signal.butter(1,0.2,'low',analog=False,fs=50)
@@ -95,9 +98,10 @@ class Car:
             return (0,0,False,{'offset':0})
             #return ret
 
-        # NOTE v target is currently ignored
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        # FIXME
+        v_target *= 0.8
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
@@ -114,7 +118,7 @@ class Car:
             # this is the convention used in track class, determined arbituarily
             # control logic
             #steering = (orientation-heading) - (offset * self.P) - (omega-curvature*vf)*self.D
-            steering = (orientation-heading) - (offset * self.P)
+            steering = (orientation-heading) - (offset * self.Pfun(abs(vf)))
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi)%(2*pi) -pi
@@ -155,18 +159,11 @@ class Car:
             acc = 0
         return acc
 
-    # PI controller for forward velocity
+    # PID controller for forward velocity
     def calcThrottle(self,state,v_target):
-        P = 10.0
-        I = 0.1 # 0.1
-        alfa = 0.9
-
         vf = state[3]
         # PI control for throttle
-        v_err = v_target - vf
-        acc_target = v_err * P + self.verr_integral * I
-        self.verr_integral *= 0.9
-        self.verr_integral += v_err
+        acc_target = self.throttle_pid.control(v_target,vf)
         throttle = (acc_target + 1.01294228)/4.95445214 
 
         return max(min(throttle,self.max_throttle),-1)

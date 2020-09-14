@@ -314,7 +314,7 @@ class RCPtrack(Track):
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
         acc_max_motor = lambda x:3
-        dec_max_motor = lambda x:5
+        dec_max_motor = lambda x:4.5
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,len(pts)-1,n_steps+1)
@@ -473,32 +473,35 @@ class RCPtrack(Track):
 
         # plot acceleration vector cloud
         # with x,y axis being vehicle frame, x lateral
-        #p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+        '''
+        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
 
         # draw the traction circle
-        #cc = np.linspace(0,2*np.pi)
-        #circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        #p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
-        #plt.gcf().gca().set_aspect('equal','box')
-        #plt.xlim(-12,12)
-        #plt.ylim(-12,12)
-        #plt.xlabel('Lateral Acceleration')
-        #plt.ylabel('Longitudinal Acceleration')
-        #plt.legend(handles=[p0,p1])
-        #plt.show()
+        cc = np.linspace(0,2*np.pi)
+        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+        plt.gcf().gca().set_aspect('equal','box')
+        plt.xlim(-12,12)
+        plt.ylim(-12,12)
+        plt.xlabel('Lateral Acceleration')
+        plt.ylabel('Longitudinal Acceleration')
+        plt.legend(handles=[p0,p1])
+        plt.show()
 
 
-        #p0, = plt.plot(theta_vec,label='theta')
-        #p1, = plt.plot(v_vec,label='v')
-        #p2, = plt.plot(dtheta_vec,label='dtheta')
-        #acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
-        #p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
-        #p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+        p0, = plt.plot(theta_vec,label='theta')
+        p1, = plt.plot(v_vec,label='v')
+        p2, = plt.plot(dtheta_vec,label='dtheta')
+        acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+        p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+        p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
 
-        #p2, = plt.plot(lon_acc_vec,label='longitudinal')
-        #p3, = plt.plot(lat_acc_vec,label='lateral')
-        #plt.legend(handles=[p0,p1])
-        #plt.show()
+        p2, = plt.plot(lon_acc_vec,label='longitudinal')
+        p3, = plt.plot(lat_acc_vec,label='lateral')
+        plt.legend(handles=[p0,p1])
+        plt.show()
+        '''
+        print("theoretical laptime %.2f"%t_total)
 
         return t_total
     

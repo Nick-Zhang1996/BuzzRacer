@@ -105,7 +105,6 @@ ax.legend()
 plt.show()
 
 # plot acc
-'''
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(t[:-2],acc, label="acc measured")
@@ -114,7 +113,6 @@ ax.plot(t,throttle, label="throttle")
 ax.plot(t,np.abs(steering), label="steering")
 ax.legend()
 plt.show()
-'''
 
 fig = plt.figure()
 ax = fig.gca()

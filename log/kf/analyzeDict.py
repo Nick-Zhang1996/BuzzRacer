@@ -17,11 +17,16 @@ with open(filename, 'rb') as f:
 target_v = data['target_v']
 actual_v = data['actual_v']
 throttle = data['throttle']
+p = np.array(data['p'])
+i = np.array(data['i'])
+d = np.array(data['d'])
 
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(target_v,label="target_v")
 ax.plot(actual_v,label="actual_v")
 ax.plot(throttle,label="throttle")
+ax.plot(p/10-1,'--',label="p")
+ax.plot(d/10-1,'--',label="d")
 ax.legend()
 plt.show()
