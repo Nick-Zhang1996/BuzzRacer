@@ -55,7 +55,8 @@ class Main():
         self.vehiclePlatform = VehiclePlatform.simulator
 
         # set control pipeline
-        self.controller = Controller.joystick
+        #self.controller = Controller.joystick
+        self.controller = Controller.stanley
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()

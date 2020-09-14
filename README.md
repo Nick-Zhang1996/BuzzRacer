@@ -27,7 +27,7 @@ To name a few packages, python-opencv, pickle, numpy, scipy, PIL...
 Run `src/run.py` and see what you're missing. 
 
 ## Important Files
-`src/run.py' The entry point for running experiments, either for real or in simulation. If you run it as is it should show you a racetrack, with a car following trajectory. The black line denotes vehicle's heading, and the red line denotes the current steering angle.
+`src/run.py' The entry point for running experiments, either for real or in simulation. If you run it as is it should show you a racetrack, with a car following trajectory. The black line denotes vehicle's heading, and the red line denotes the current steering angle. Implement your own controller and set self.controller to your controller.
 
 `src/Track.py` Template for a Track object
 
