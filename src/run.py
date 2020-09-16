@@ -16,6 +16,7 @@ from RCPTrack import RCPtrack
 from skidpad import Skidpad
 from Optitrack import Optitrack
 from joystick import Joystick
+from laptimer import Laptimer
 
 from enum import Enum, auto
 class StateUpdateSource(Enum):
@@ -41,6 +42,8 @@ class Main():
         self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
+        # enable Laptime Voiceover, if True, will read out lap time after each lap
+        self.enableLaptimer = True
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -206,6 +209,11 @@ class Main():
             # retrieve car state from visual tracking update
             self.updateState()
         
+        if (self.enableLaptimer):
+            retval = self.laptimer.update((self.car_state[0],self.car_state[1]))
+            if retval:
+                self.laptimer.announce()
+                print(self.laptimer.last_laptime)
         # get control signal
         if (self.controller == Controller.stanley):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
@@ -268,9 +276,7 @@ class Main():
         return mk103
 
     def prepareRcpTrack(self,):
-        # current track setup in mk103, L shaped
-        # TODO change dimension
-        # width 0.563, square length 0.6
+        # width 0.563, square tile side length 0.6
 
         # full RCP track
         # row, col
@@ -309,6 +315,8 @@ class Main():
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
         fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
+        if self.enableLaptimer:
+            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
         return fulltrack
 
     def prepareCar(self,):
