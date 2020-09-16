@@ -28,11 +28,16 @@ class VehiclePlatform(Enum):
     offboard = auto()
     onboard = auto() # NOT IMPLEMENTED
     simulator = auto()
+    # no controller, this means out of loop control
+    empty = auto()
+
 
 class Controller(Enum):
-    joystick = auto()
     stanley = auto()
     purePursuit = auto() # NOT IMPLEMENTED
+    joystick = auto()
+    # no controller, this means out of loop control
+    empty = auto()
 
 class Main():
     def __init__(self,):
@@ -224,6 +229,9 @@ class Main():
             # just use right side for both ends
             steering = self.joystick.steering*self.car.max_steering_right
             self.v_target = throttle
+        elif (self.controller == Controller.empty):
+            throttle = 0
+            steering = 0
             
         
         self.car.steering = steering
