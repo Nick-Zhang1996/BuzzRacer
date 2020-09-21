@@ -313,7 +313,7 @@ class RCPtrack(Track):
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:5
+        acc_max_motor = lambda x:3
         dec_max_motor = lambda x:5
         # generate velocity profile
         # u values for control points
@@ -400,23 +400,29 @@ class RCPtrack(Track):
 
 
         # three pass of velocity profile
-        #p0, = plt.plot(curvature, label='curvature')
-        #p1, = plt.plot(v1,label='1st pass')
-        #p2, = plt.plot(v2,label='2nd pass')
-        #p3, = plt.plot(v3,label='3rd pass')
-        #plt.legend(handles=[p1,p2,p3])
-        #plt.show()
+        '''
+        p0, = plt.plot(curvature, label='curvature')
+        p1, = plt.plot(v1,label='1st pass')
+        p2, = plt.plot(v2,label='2nd pass')
+        p3, = plt.plot(v3,label='3rd pass')
+        plt.legend(handles=[p1,p2,p3])
+        plt.show()
+        '''
 
         # calculate theoretical lap time
         t_total = 0
+        path_len = 0
         for i in range(n_steps):
             (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            path_len += ds
             t_total += ds/v3[i%n_steps]
-        #print("top speed = %.2fm/s"%max(v3))
-        #print("total time = %.2fs"%t_total)
+        print("Theoretical value:")
+        print("top speed = %.2fm/s"%max(v3))
+        print("total time = %.2fs"%t_total)
+        print("path len = %.2f"%path_len)
 
         # get direct distance from two u
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
@@ -829,11 +835,21 @@ class RCPtrack(Track):
         ds = vf*dt
         dtheta = ds*tan(beta)/L
 
-        #new_v = max(vf+(throttle-0.2)*4*dt,0)
-        # NOTE add a time constant
-        #new_v = max((throttle-0.16779736)/0.05022026,0)
-        new_v = v_override
-        dvf = new_v - vf
+        if v_override is None:
+            # update velocity using a simplified model
+            # fit model from log/kf/throttleFit.py
+            acc = throttle * 4.95445214 - 1.01294228
+            # if vehicle is stationary, it won't go backwards
+            # when throttle is <0.245 and vehicle is stationary, vehicle won't move
+            # (according to linear model acc>0 for this throttle val but vehicle doesn't actually move)
+            if vf < 0.01 and throttle<0.245:
+                acc = 0
+            dvf = acc * dt
+
+        else:
+            # velocity override, force velocity to be any value
+            dvf = v_override - vf
+
         dvs = 0
         # specific to vehicle frame (x to right of rear axle, y to forward)
         if (beta==0):
@@ -902,7 +918,7 @@ if __name__ == "__main__":
     # start coord, direction, sequence number of origin
     # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
     # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-    #fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
+    fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
     #fulltrack.initRaceline((3,3),'d',10)
 
 
@@ -912,13 +928,13 @@ if __name__ == "__main__":
     #alter.initRaceline((3,3),'u')
 
     # simple track, one loop
-    simple = RCPtrack()
-    simple.initTrack('uurrddll',(3,3),scale=0.565)
+    #simple = RCPtrack()
+    #simple.initTrack('uurrddll',(3,3),scale=0.565)
     #simple.initRaceline((0,0),'l',0)
 
     # current track setup in mk103
-    mk103 = RCPtrack()
-    mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
+    #mk103 = RCPtrack()
+    #mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
 
     # heuristic manually generated adjustment
     manual_adj = [0,0,0,0,0,0,0,0,0,0,0,0]
@@ -932,7 +948,9 @@ if __name__ == "__main__":
                 5.00000000e-01,  4.56985291e-01,  3.91826908e-03, -6.50918621e-18,
                         5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
 
-    mk103.initRaceline((2,2),'d',4,offset=manual_adj)
+    #mk103.initRaceline((2,2),'d',4,offset=manual_adj)
+    exit(0)
+
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
     # show trajectory

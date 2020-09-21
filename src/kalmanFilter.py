@@ -3,7 +3,7 @@
 import numpy as np
 from time import time
 import random
-from math import sin,cos,radians,degrees,tan
+from math import sin,cos,radians,degrees,tan,pi
 import matplotlib.pyplot as plt
 import warnings
 
@@ -22,10 +22,16 @@ class KalmanFilter():
         self.state_count = 5
         self.action_count = 2
         self.X = None
+        #z = (x[i],y[i],heading[i])
+        # for detecting optitrack failuter
+        # if optitrack loses track of the target, it will continue to stream the last known state
+        z = (0,0,0)
+        z = np.matrix(z).reshape(3,1)
+        self.last_z = z
 
         # TODO verify these...
         # variance of action
-        self.action_var = [radians(1)**2,0.1**2]
+        self.action_var = [radians(3)**2,1.5**2]
         self.action_cov_mtx = np.diag(self.action_var)
 
         # var of noise in observation
@@ -33,8 +39,8 @@ class KalmanFilter():
         # bound of error, ~100 samples
         # x,y: 0.0002 m
         # theta: 0.5 deg
-        self.var_xy = 0.005**2
-        self.var_theta = radians(0.1)**2
+        self.var_xy = 0.001**2
+        self.var_theta = radians(0.5)**2
 
         self.H = np.zeros([3,self.state_count])
         self.H[0,0] = 1
@@ -86,7 +92,10 @@ class KalmanFilter():
         heading = self.X[3,0]
         omega = self.X[4,0]
         steering = action[0]
-        acc_long = action[1]
+        # NOTE longitudinal seems to have a complicated model
+        # involving throttle, speed, steering, and delay, we therefore do not attempt to predict it
+        #acc_long = action[1]
+        acc_long = 0
 
         if (abs(steering)>self.max_steering):
             warnings.warn("Extreme steering value, %f"%steering)
@@ -126,10 +135,9 @@ class KalmanFilter():
         self.last_steering = steering
 
         # update covariance matrix
-        # TODO find a better Q
-        # Maybe use ALS etc?
-        #self.Q = np.diag([(0.05*dt)**2,(0.05*dt)**2,(0.05*dt)**2,(radians(10)*dt)**2,(radians(10)*dt)**2])*0
-        self.Q = np.diag([0.0]*5)
+        # x,y, v, heading, omega
+        # NOTE for 100Hz update
+        self.Q = np.diag([0.005, 0.005, 6, 0.00005, 0.01])
 
         self.P = self.F @ self.P @ self.F.T + self.B @ self.action_cov_mtx @ self.B.T + self.Q
         #self.P = self.F @ self.P @ self.F.T + self.Q
@@ -137,15 +145,33 @@ class KalmanFilter():
         self.state_ts = timestamp
         return self.X
 
+    def wrap(self,val):
+        return (val + pi) % (2*pi) - pi
+
     # update given z(observation) and associated timestamp
     # z should be a column vector consisting [x(m),y,theta(rad)].T
     def update(self,z,timestamp=None):
+        z_diff = self.last_z - z
+        # detect optitrack frame loss
+        if (self.last_z[0,0]-z[0,0]==0.0 and self.last_z[1,0]-z[1,0]==0.0):
+            #print("frame loss")
+            return
+        self.last_z = z
+
+        # wrap heading so we don't create large innovation with pi->-pi jump
+        # which are essentially the same angle
+        heading = z[2,0]
+        heading_diff = self.wrap(heading-self.X[3,0])
+        z[2,0] = self.X[3,0]+heading_diff
+
         y = z - self.H @ self.X
         S = self.H @ self.P @ self.H.T + self.R
 
         self.K = self.P @ self.H.T @ np.linalg.inv(S)
 
         self.X = self.X + self.K @ y
+        # wrap again for numerical stability
+        self.X[3,0] = self.wrap(self.X[3,0])
         self.P = (np.identity(self.state_count) - self.K @ self.H) @ self.P
 
         if timestamp is None:

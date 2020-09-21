@@ -16,6 +16,7 @@ from RCPTrack import RCPtrack
 from skidpad import Skidpad
 from Optitrack import Optitrack
 from joystick import Joystick
+from laptimer import Laptimer
 
 from enum import Enum, auto
 class StateUpdateSource(Enum):
@@ -27,11 +28,16 @@ class VehiclePlatform(Enum):
     offboard = auto()
     onboard = auto() # NOT IMPLEMENTED
     simulator = auto()
+    # no controller, this means out of loop control
+    empty = auto()
+
 
 class Controller(Enum):
-    joystick = auto()
     stanley = auto()
     purePursuit = auto() # NOT IMPLEMENTED
+    joystick = auto()
+    # no controller, this means out of loop control
+    empty = auto()
 
 class Main():
     def __init__(self,):
@@ -40,7 +46,9 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
+        # enable Laptime Voiceover, if True, will read out lap time after each lap
+        self.enableLaptimer = True
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -60,8 +68,6 @@ class Main():
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
-
-
 
         if self.stateUpdateSource == StateUpdateSource.optitrack:
             self.initStateUpdate = self.initOptitrack
@@ -91,11 +97,15 @@ class Main():
 
         self.initStateUpdate()
 
+        # log with undetermined format
+        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[]}
+
         # prepare log
         if (self.enableLog):
             self.resolveLogname()
             # the vector that's written to pickle file
-            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1) )
+            # this is updated frequently, use the last line
+            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
             self.full_state_log = []
 
         #self.track = self.prepareSkidpad()
@@ -117,8 +127,21 @@ class Main():
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             self.update()
-            (x,y,theta,_,_,_) = self.car_state
-            self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle])
+            (x,y,theta,v_forward,_,_) = self.car_state
+
+            # (x,y,theta,vforward,vsideway=0,omega)
+            self.debug_dict['target_v'].append(self.v_target)
+            self.debug_dict['actual_v'].append(v_forward)
+            self.debug_dict['throttle'].append(self.car.throttle)
+
+            if self.stateUpdateSource != StateUpdateSource.simulator:
+                (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
+            else:
+                # in simulation there's no need for kf states, just use ground truth
+                (kf_x,kf_y,kf_theta,kf_v,_,kf_omega) = self.car_state
+
+            if self.enableLog:
+                self.full_state_log.append([time(),x,y,theta,self.car.steering,self.car.throttle, kf_x, kf_y, kf_v, kf_theta, kf_omega])
 
         # exit point
         print_info("Exiting ...")
@@ -137,10 +160,19 @@ class Main():
             print_info("gif saved at "+gif_filename)
 
         if self.enableLog:
-            print_info("saving log")
+            print_info("saving log...")
+            print_info(self.logFilename)
+
             output = open(self.logFilename,'wb')
             pickle.dump(self.full_state_log,output)
             output.close()
+
+            print_info("saving log...")
+            print_info(self.logDictFilename)
+            output = open(self.logDictFilename,'wb')
+            pickle.dump(self.debug_dict,output)
+            output.close()
+
 
 
     def updateVisualization(self,):
@@ -183,6 +215,11 @@ class Main():
             # retrieve car state from visual tracking update
             self.updateState()
         
+        if (self.enableLaptimer):
+            retval = self.laptimer.update((self.car_state[0],self.car_state[1]))
+            if retval:
+                self.laptimer.announce()
+                print(self.laptimer.last_laptime)
         # get control signal
         if (self.controller == Controller.stanley):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
@@ -192,14 +229,16 @@ class Main():
             throttle = self.joystick.throttle
             # just use right side for both ends
             steering = self.joystick.steering*self.car.max_steering_right
-            self.v_target = throttle*0.1
+            self.v_target = throttle
+        elif (self.controller == Controller.empty):
+            throttle = 0
+            steering = 0
             
         
         self.car.steering = steering
         self.car.throttle = throttle
 
         if (self.vehiclePlatform == VehiclePlatform.offboard):
-            throttle = 0.3
             self.car.actuate(steering,throttle)
             # TODO implement throttle model
             # do not use EKF for now
@@ -246,9 +285,7 @@ class Main():
         return mk103
 
     def prepareRcpTrack(self,):
-        # current track setup in mk103, L shaped
-        # TODO change dimension
-        # width 0.563, square length 0.6
+        # width 0.563, square tile side length 0.6
 
         # full RCP track
         # row, col
@@ -287,6 +324,8 @@ class Main():
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
         fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
+        if self.enableLaptimer:
+            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
         return fulltrack
 
     def prepareCar(self,):
@@ -309,6 +348,9 @@ class Main():
         if (self.stateUpdateSource == StateUpdateSource.simulator):
             porsche_setting['serial_port'] = None
             lambo_setting['serial_port'] = None
+            # NOTE discrepancy with actual experiment
+            print_warning("using different max_throttle setting")
+            porsche_setting['max_throttle'] = 1.0
 
         # porsche 911
         car = Car(porsche_setting)
@@ -318,8 +360,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        #   state: (x,y,heading,v_forward,v_sideway,omega)
-        logFolder = "../log/throttleStudy/"
+        logFolder = "../log/kf/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -328,6 +369,9 @@ class Main():
 
         self.log_no = no
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+
+        logPrefix = "debug_dict"
+        self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
 
     # call before exiting
     def stop(self,):
@@ -395,6 +439,7 @@ class Main():
 
     def stopOptitrack(self,):
         # the optitrack destructor should handle things properly
+        self.vi.quit()
         pass
 
 # ---- Simulation ----
@@ -416,17 +461,16 @@ class Main():
 
     def updateSimulation(self):
         # update car
-        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering,v_override=self.v_target)
+        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
 
     def stopSimulation(self):
         return
 
 
-
-
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
+    print_info("program complete")
 
 
