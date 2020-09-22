@@ -15,17 +15,20 @@
 # runfile
 
 import numpy as np
+import os.path
 from numpy import isclose
 import matplotlib.pyplot as plt
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from scipy.optimize import minimize_scalar,minimize,brentq
+from scipy.integrate import solve_ivp
 from time import sleep,time
 from timeUtil import execution_timer
 import cv2
 from PIL import Image
 from car import Car
 from Track import Track
+import pickle
 
 # debugging
 K_vec = [] # curvature
@@ -60,6 +63,23 @@ class RCPtrack(Track):
         # for PID to use
         self.offset_history = []
         self.offset_timestamp = []
+        self.log_no = 0
+
+    def resolveLogname(self,):
+
+        # setup log file
+        # log file will record state of the vehicle for later analysis
+        logFolder = "./optimization/"
+        logPrefix = "K"
+        logSuffix = ".p"
+        no = 1
+        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
+            no += 1
+
+        self.log_no = no
+        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+        return
+
 
     def initTrack(self,description, gridsize, scale,savepath=None):
         # build a track and save it
@@ -114,7 +134,7 @@ class RCPtrack(Track):
 
         # process the linked list, replace with the following
         # straight segment = WE(EW), NS(SN)
-        # curved segment = SE,SW,NE,NW
+        # curved segment = SE,SW,NE,NW, orientation of apex wrt center of grid
         lookup_table = { 'WE':['rr','ll'],'NS':['uu','dd'],'SE':['ur','ld'],'SW':['ul','rd'],'NE':['dr','lu'],'NW':['ru','dl']}
         for i in range(gridsize[1]):
             for j in range(gridsize[0]):
@@ -303,7 +323,7 @@ class RCPtrack(Track):
 
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
-        #self.u = u
+        self.u = u
         self.raceline = tck
 
         # friction factor
@@ -507,6 +527,295 @@ class RCPtrack(Track):
         #plt.show()
 
         return t_total
+
+    # ---------- for curvature norm minimization -----
+    def prepareTrack(self,):
+        # prepare full track
+        track_size = (6,4)
+        self.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
+        # add manual offset for each control points
+        adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+        adjustment[0] = -0.2
+        adjustment[1] = -0.2
+        #bottom right turn
+        adjustment[2] = -0.2
+        adjustment[3] = 0.5
+        adjustment[4] = -0.2
+
+        #bottom middle turn
+        adjustment[6] = -0.2
+
+        #bottom left turn
+        adjustment[9] = -0.2
+
+        # left L turn
+        adjustment[12] = 0.5
+        adjustment[13] = 0.5
+
+        adjustment[15] = -0.5
+        adjustment[16] = 0.5
+        adjustment[18] = 0.5
+
+        adjustment[21] = 0.35
+        adjustment[22] = 0.35
+
+        # start coord, direction, sequence number of origin
+        # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
+        # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
+        #fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
+        self.initRaceline((3,3),'d',10)
+        return
+
+    # calculate distance
+    def calcPathDistance(self,u0,u1):
+        s = 0
+        steps = 10
+        uu = np.linspace(u0,u1,steps)
+        xx,yy = splev(uu,self.raceline,der=0)
+        dx = np.diff(xx)
+        dy = np.diff(yy)
+        s = np.sum(np.sqrt(dx**2+dy**2))
+        return s
+
+    # new representation of raceline via piecewise curvature map along path
+    def discretizePath(self,):
+        steps = 1000
+        u = np.linspace(0,self.u[-1],steps)
+        # s[k]: path distance from k to k+1
+        s = np.zeros_like(u)
+        for i in range(1,steps):
+            s[i] = self.calcPathDistance(u[i-1],u[i])
+        S = np.cumsum(s)
+        print("discretized path total length is: %.2f"%S[-1])
+
+        # K: curvature
+        # let raceline curve be r(u)
+        # dr = r'(u), parameterized with xx/u
+        dr = np.array(splev(u,self.raceline,der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(u,self.raceline,der=2))
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        # we need signed curvature, get that with cross product dr and ddr
+        cross = np.cross(dr.T,ddr.T)
+        curvature = np.copysign(curvature,cross)
+
+        # resample K at uniform interval of s
+        S_interp = interp1d(S,curvature, kind='cubic')
+        self.S = np.linspace(0,S[-1],steps)
+        self.ds = S[-1]/(steps-1)
+        self.K = S_interp(self.S)
+
+        # phi0: heading at u=0
+        x,y = splev(0,self.raceline,der=1)
+
+        self.phi0 = atan2(y,x)
+        self.x0,self.y0 = splev(0,self.raceline,der=0)
+
+        # DEBUG
+        '''
+        plt.plot(S,curvature)
+        plt.plot(self.S,self.K)
+        plt.show()
+        '''
+
+    # verify that we can restore x,y coordinate from K(s)/curvature path distance space
+    def verify(self):
+        steps = 1000
+        # convert from K(s) space to X,Y(s) space using Fresnel integral
+        # state variable X,Y,Heading
+        K = interp1d(self.S,self.K)
+        def kensel(s,x):
+            return [ cos(x[2]), sin(x[2]), K(s)]
+
+        s_span = [0,self.S[-1]]
+        x0 = (self.x0,self.y0,self.phi0)
+        # error 0.02, lateral error
+        #sol = solve_ivp(kensel,s_span, x0, method='DOP853',t_eval = self.S )
+        # error 0.02, longitudinal error
+        sol = solve_ivp(kensel,s_span, x0, method='LSODA',t_eval = self.S )
+
+        # plot results
+        # original path
+        u = np.linspace(0,self.u[-1],steps)
+        x,y = splev(u,self.raceline,der=0)
+        # quantify error
+        error = ((x[-1]-sol.y[0,-1])**2 + (y[-1]-sol.y[1,-1])**2)**0.5
+        print("error %.2f"%error)
+
+        plt.plot(x,y)
+        # regenerated path
+        plt.plot(sol.y[0],sol.y[1])
+        plt.show()
+                
+        return
+
+
+    # optimize
+    def optimizePiecewiseCurvatureNorm(self,):
+        pass
+
+    # constrain >= 0
+    # given coord=(x,y) unit:m
+    # calculate distance to left/right boundary
+    # return min(wl, wr), distance to closest side
+    def checkTrackBoundary(self,coord):
+        # figure out which grid the coord is in
+        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+
+        # e.g. 'WE','SE'
+        grid_type = self.track[nondim[0]][nondim[1]]
+
+        # change ref frame to tile local ref frame
+        x_local = coord[0]/self.scale - nondim[0]
+        y_local = coord[1]/self.scale - nondim[1]
+
+        # find the distance to track sides
+        # boundary/wall width / grid side length
+        deadzone = 0.087
+        straights = ['WE','NS']
+        turns = ['SE','SW','NE','NW']
+        if grid_type in straights:
+            if grid_type == 'WE':
+                # track section is staight, arranged horizontally
+                # remaining space on top (negative means coord outside track
+                wl = y_local - deadzone
+                wr = 1 - deadzone - y_local
+            if grid_type == 'NS':
+                # track section is staight, arranged vertically
+                # remaining space on left (negative means coord outside track
+                wl = x_local - deadzone
+                wr = 1 - deadzone - x_local
+        elif grid_type in turns:
+            if grid_type == 'SE':
+                apex = (1,0)
+            if grid_type == 'SW':
+                apex = (0,0)
+            if grid_type == 'NE':
+                apex = (1,1)
+            if grid_type == 'NW':
+                apex = (0,1)
+            radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
+            wl = 1-deadzone-radius
+            wr = radius - deadzone
+        return min(wl,wr)
+
+    # distance between start and end of path, 
+    # must be sufficiently close
+    def pathGap(self,):
+        return
+
+    # convert from K(s) space to cartesian X,Y(s) space using Fresnel integral
+    def kenselTransform(self,K,ds):
+        steps = K.shape[0]
+        s_total = ds*(steps-1)
+        S = np.linspace(0,s_total,steps)
+        # state variable X,Y,Heading
+        Kfun = interp1d(S,K)
+        def kensel(s,x):
+            return [ cos(x[2]), sin(x[2]), Kfun(s)]
+
+        s_span = [0,s_total]
+        x0 = (self.x0,self.y0,self.phi0)
+        sol = solve_ivp(kensel,s_span, x0, method='LSODA',t_eval = S )
+        x = sol.y[0]
+        y = sol.y[1]
+        return x,y
+
+    # generate an array of boundary clearance
+    def boundaryClearanceVector(self,k):
+        x,y = self.kenselTransform(k,self.ds)
+        retval = [self.checkTrackBoundary((xx,yy)) for xx,yy in zip(x,y)]
+        return retval
+        
+    # calculate cost, among other things
+    def cost(self,k):
+        self.cost_count += 1
+        # save a checkpoint
+        if (self.cost_count % 1000 == 0):
+            self.K = k
+            #self.verify()
+            self.resolveLogname()
+            output = open(self.logFilename,'wb')
+            pickle.dump(k,output)
+            output.close()
+            print("checkpoint %d saved"%self.log_no)
+
+        # part 1: curvature norm
+        k = np.array(k)
+        p1_cost = np.sum(k**2)
+        # part 2: smoothness
+        # relative importance of smoothness w.r.t curvature
+        alfa = 1.0
+        p2_cost = np.sum(np.abs(np.diff(k)))
+        total_cost = p1_cost + alfa*p2_cost
+        print("call %d, cost = %.5f"%(self.cost_count,total_cost))
+        return total_cost
+
+    def minimizeCurvatureRoutine(self,):
+        # initialize an initial raceline for reference
+        print("base raceline")
+        self.prepareTrack()
+        # discretize the initial raceline
+        self.discretizePath()
+
+        # NOTE the reconstructed path's end deviate from original by around 5cm
+        #self.verify()
+        # let's use it as a starting point for now
+        K0 = self.K
+
+
+        # steps = 1000
+        # optimize on curvature norm
+        # var: 
+        # K(s), (steps,) vector of curvature along path
+        # the parameterization variable is defined such that
+        # s[0] = path start, s[steps-1] = path end
+        # TODO uniform ds is enforced in each optimization iteration but the magnitude may change if the path length shrinks/expands
+        # NOTE for now ds is fixed at self.ds
+
+        # cost:
+        # curvature norm, sum(|K|)
+        # constrains:
+        # must not cross track boundary (inequality)
+        # curvature at start and finish must agree (loop) (equality)
+
+        # assemble constrains
+        wheelbase = 102e-3
+        max_steering = radians(25)
+        R_min = wheelbase / tan(max_steering)
+        K_max = 1.0/R_min
+        # track boundary
+        cons = [{'type': 'ineq', 'fun': self.boundaryClearanceVector}]
+        cons = tuple(cons)
+
+        # bounds
+        # part 1: hard on Ki < C, no super tight curves
+        # how tight depends on vehicle wheelbase and steering angle
+        steps = 1000
+        bnds = tuple([(-K_max,K_max) for i in range(steps)])
+
+        self.cost_count = 0
+        res = minimize(self.cost,K0,method='SLSQP', jac='2-point',constraints=cons,bounds=bnds,options={'eps':1e-8} )
+        print(res)
+        # verify again
+        self.K = res.x
+        print(self.K)
+        self.verify()
+
+
+
+
+
+
+
+    # ---------- for curvature norm minimization -----
     
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None):
@@ -886,71 +1195,9 @@ if __name__ == "__main__":
     # full RCP track
     # row, col
     fulltrack = RCPtrack()
-    track_size = (6,4)
-    fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
-    # add manual offset for each control points
-    adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    fulltrack.minimizeCurvatureRoutine()
 
-    adjustment[0] = -0.2
-    adjustment[1] = -0.2
-    #bottom right turn
-    adjustment[2] = -0.2
-    adjustment[3] = 0.5
-    adjustment[4] = -0.2
-
-    #bottom middle turn
-    adjustment[6] = -0.2
-
-    #bottom left turn
-    adjustment[9] = -0.2
-
-    # left L turn
-    adjustment[12] = 0.5
-    adjustment[13] = 0.5
-
-    adjustment[15] = -0.5
-    adjustment[16] = 0.5
-    adjustment[18] = 0.5
-
-    adjustment[21] = 0.35
-    adjustment[22] = 0.35
-
-    # start coord, direction, sequence number of origin
-    # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
-    # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-    fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
-    #fulltrack.initRaceline((3,3),'d',10)
-
-
-    # another complex track
-    #alter = RCPtrack()
-    #alter.initTrack('ruurddruuuuulddllddd',(6,4),scale=1.0)
-    #alter.initRaceline((3,3),'u')
-
-    # simple track, one loop
-    #simple = RCPtrack()
-    #simple.initTrack('uurrddll',(3,3),scale=0.565)
-    #simple.initRaceline((0,0),'l',0)
-
-    # current track setup in mk103
-    #mk103 = RCPtrack()
-    #mk103.initTrack('uuruurddddll',(5,3),scale=0.565)
-
-    # heuristic manually generated adjustment
-    manual_adj = [0,0,0,0,0,0,0,0,0,0,0,0]
-    manual_adj[4] = -0.5
-    manual_adj[8] = -0.5
-    manual_adj[9] = 0
-    manual_adj[10] = -0.5
-    manual_adj = np.array(manual_adj)
-    # optimized with SLSQP, 2.62s
-    slsqp_adj = np.array([ 3.76377694e-01,  5.00000000e-01,  4.98625816e-01,  5.00000000e-01,
-                5.00000000e-01,  4.56985291e-01,  3.91826908e-03, -6.50918621e-18,
-                        5.00000000e-01,  5.00000000e-01,  5.00000000e-01,  3.16694602e-01])
-
-    #mk103.initRaceline((2,2),'d',4,offset=manual_adj)
     exit(0)
-
     img_track = mk103.drawTrack()
     img_track = mk103.drawRaceline(img=img_track)
     # show trajectory
