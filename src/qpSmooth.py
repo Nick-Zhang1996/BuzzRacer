@@ -14,7 +14,7 @@ class QpSmooth(RCPtrack):
     # track: RCPtrack object
     def __init__(self):
         RCPtrack.__init__(self)
-        warnings.simplefilter("error")
+        #warnings.simplefilter("error")
         return
 
 
@@ -164,25 +164,112 @@ class QpSmooth(RCPtrack):
     # calculate variance of curvature w.r.t. break point variation
     # correspond to equation 6 in paper
     def curvatureJac(self):
-        A = np.array([[0 -1],[1,0]])
+        break_pnts = np.array(self.break_pts).T
         # u_max is also number of break points
-        C = np.zeros([self.u_max,self.u_max])
-        K = np.zeros([self.u_max,1])
+        N = self.u_max
+        A = np.matrix([[0,-1],[1,0]])
+
 
         # prepare ds vector with initial raceline
         # s[i] = arc distance r_i to r_{i+1}
-        s = []
+        # NOTE maybe more accurately this is ds
+        ds = []
         fun = lambda x:self.raceline_fun(x).flatten()
+        for i in range(N):
+            ds.append(self.arcLen(fun,i,(i+1)))
 
-        for i in range(self.u_max):
-            s.append(self.arcLen(fun,i,(i+1)))
+        # calculate first and second derivative
+        # w.r.t. ds
+        dr_vec = []
+        ddr_vec = []
+        # (N,3)
+        # see eq 1
+        alfa_vec = []
+        # see eq 2
+        beta_vec = []
+        # see eq 6
+        x_vec = []
+        # see eq 3
+        k_vec = []
+        # normal vector
+        n_vec = []
 
 
-        for i in range(self.u_max):
-            # calculate normal vector
-            pass
+        # calculate terms in eq 6
+        for i in range(N):
+            # rl -> r_k-1
+            rl = break_pnts[:,(i-1)%N]
+            # r -> r_k
+            r  = break_pnts[:,(i)%N]
+            # rr -> r_k+1
+            rr = break_pnts[:,(i+1)%N]
+            points = [rl, r, rr]
+            sl = ds[(i-1)%N]
+            sr = ds[(i)%N]
+            
+            ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points,ds=(sl,sr))
+            dr = al*rl + a*r + ar*rr
+            ddr = bl*rl + b*r + br*rr
 
-        return
+            dr_vec.append(dr)
+            ddr_vec.append(ddr)
+
+            alfa_vec.append( [al,a,ar])
+            beta_vec.append( [bl,b,br])
+
+            n = A @ dr
+            n_vec.append(n.T)
+
+        for i in range(N):
+            # curvature at this characteristic point
+            k = np.dot(A @ dr_vec[i], ddr_vec[i])
+            xl = np.dot(A @ dr_vec[i], beta_vec[i][0] * n_vec[(i-1)%N])
+            xl += np.dot(ddr_vec[i], alfa_vec[i][0] * A @ n_vec[(i-1)%N])
+
+            x = beta_vec[i][1] + np.dot(ddr_vec[i], alfa_vec[i][1] * A @ n_vec[i])
+            
+            xr = np.dot(A @ dr_vec[i], beta_vec[i][2] * n_vec[(i+1)%N])
+            xr += np.dot(ddr_vec[i], alfa_vec[i][2] * A @ n_vec[(i+1)%N])
+
+            k_vec.append(k[0,0])
+            x_vec.append([xl[0,0],x[0,0],xr[0,0]])
+
+        # assemble matrix K, C, Ds
+        x_vec = np.array(x_vec)
+        k_vec = np.array(k_vec)
+
+        K = np.matrix(k_vec).reshape(N,1)
+        C = np.zeros([N,N])
+        C[0,0] = x_vec[0,1]
+        C[0,1] = x_vec[0,2]
+        C[0,-1] = x_vec[0,0]
+
+        C[-1,-2] = x_vec[-1,0]
+        C[-1,-1] = x_vec[-1,1]
+        C[-1,0] = x_vec[-1,2]
+
+        for i in range(1,N-1):
+            C[i,i-1] = x_vec[i,0]
+            C[i,i] = x_vec[i,1]
+            C[i,i+1] = x_vec[i,2]
+
+        C = np.matrix(C)
+
+        # NOTE Ds is not simply ds
+        # it is a helper for trapezoidal rule
+        Ds = np.array(ds[:-2]) + np.array(ds[1:-1])
+        Ds = np.hstack([ds[0], Ds, ds[-1]])
+
+        Ds = 0.5*np.matrix(np.diag(Ds))
+
+        # NOTE for DEBUG
+        self.ds = ds
+        self.k = k_vec
+        self.n = n_vec
+        self.dr = dr_vec
+        self.ddr = ddr_vec
+
+        return K, C, Ds
 
 
 
@@ -240,6 +327,66 @@ class QpSmooth(RCPtrack):
 
         return img
 
+    # input:
+    # coord=r=(x,y) unit:m
+    # normal direction vector n, NOTE |n|!=1
+    # return:
+    # F,R such that r+F*n and r-R*n are boundaries of the track
+    # F,R will be bounded by sigma_max
+    def checkTrackBoundary(self,coord,n,sigma_max):
+        # figure out which grid the coord is in
+        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+
+        # e.g. 'WE','SE'
+        grid_type = self.track[nondim[0]][nondim[1]]
+
+        # change ref frame to tile local ref frame
+        x_local = coord[0]/self.scale - nondim[0]
+        y_local = coord[1]/self.scale - nondim[1]
+
+        # find the distance to track sides
+        # boundary/wall width / grid side length
+        deadzone = 0.087
+        straights = ['WE','NS']
+        turns = ['SE','SW','NE','NW']
+        if grid_type in straights:
+            if grid_type == 'WE':
+                # track section is staight, arranged horizontally
+                sin_val = n[1]/((n[0]**2+n[1]**2)**0.5)
+                if (n[1]>0):
+                    # pointing upward
+                    F = (1 - deadzone - y_local)/sin_val
+                    R = (y_local - deadzone)/sin_val
+                else:
+                    R = -(1 - deadzone - y_local)/sin_val
+                    F = -(y_local - deadzone)/sin_val
+            elif grid_type == 'NS':
+                # track section is staight, arranged vertically
+                cos_val = n[1]/((n[0]**2+n[1]**2)**0.5)
+                if (n[0]>0):
+                    # pointing rightward
+                    F = (1 - deadzone - x_local)/cos_val
+                    R = (x_local - deadzone)/cos_val
+                else:
+                    R = -(1 - deadzone - x_local)/cos_val
+                    F = -(x_local - deadzone)/cos_val
+        elif grid_type in turns:
+            if grid_type == 'SE':
+                apex = (1,0)
+            if grid_type == 'SW':
+                apex = (0,0)
+            if grid_type == 'NE':
+                apex = (1,1)
+            if grid_type == 'NW':
+                apex = (0,1)
+            radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
+            wl = 1-deadzone-radius
+            wr = radius - deadzone
+        return min(wl,wr)
+
 
     def testLagrangeDer(self):
         # generate three points
@@ -283,26 +430,6 @@ class QpSmooth(RCPtrack):
 
         return
 
-    def testCurvatureJac(self):
-        # prepare the full racetrack
-        self.prepareTrack()
-        self.break_pts = self.ctrl_pts
-
-        # use control points as bezier breakpoints
-        # generate bezier spline
-        self.P = self.bezierSpline(self.break_pts)
-        self.u_max = len(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
-
-        self.curvatureJac()
-        # render
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
-        plt.imshow(img_track)
-        plt.show()
-
-        return
-
     # plot Bezier curve based raceline on a track map
     def testTrack(self):
         # prepare the full racetrack
@@ -318,8 +445,180 @@ class QpSmooth(RCPtrack):
         plt.imshow(img_track)
         plt.show()
 
+    def testCurvatureJac(self,param=0):
+        # prepare the full racetrack
+        self.prepareTrack()
+        self.break_pts = self.ctrl_pts
+
+        # use control points as bezier breakpoints
+        # generate bezier spline
+        self.P = self.bezierSpline(self.break_pts)
+        self.u_max = len(self.break_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+
+        K, C, Ds = self.curvatureJac()
+        '''
+        # NOTE verify matrix for compatible dimension
+        print("N")
+        print(self.u_max)
+        print("K")
+        print(K.shape)
+        print("C")
+        print(C.shape)
+        print("Ds")
+        print(Ds.shape)
+        '''
+
+        # verify J(X) = (K+CX).T Ds (K+CX)
+        # test model with random variation
+
+        # calculate J(0), without K,C,D
+        N = self.u_max
+        ds = self.ds
+        k = self.k
+        J = 0
+        # trapezoidal rule
+        J += 0.5*k[0]**2*ds[0]
+        for i in range(1,N-1):
+            J += 0.5*k[i]**2 * (ds[i-1]+ds[i])
+        J += 0.5*k[-1]**2*ds[-1]
+
+        X = np.zeros([N,1])
+        M_temp = K + C @ X
+        J_m = M_temp.T @ Ds @ M_temp
+
+        # error sum
+        #print("err sum, un perturbed ")
+        #print(np.sum(np.abs(J - J_m)))
+
+        # calculate J(X) with random perturbation X
+        delta_max = 1e-2
+        #X = (np.random.random([N,1])-0.5)/0.5*delta_max
+        X = np.zeros([N,1])
+        X[param,0] = delta_max
+        # move break points in tangential direction by X
+        n = np.array(self.n).reshape(-1,2)
+        perturbed_break_pts = np.array(self.break_pts)
+        for i in range(N):
+            perturbed_break_pts[i,:] += n[i]*X[i]
+
+        # visually verify the pertuabation is reasonable
+        # i.e. tangential to path and small in magnitude
+        old_pts = np.array(self.break_pts)
+        plt.plot(old_pts[:,0],old_pts[:,1],'ro')
+        new_pts = perturbed_break_pts
+        plt.plot(new_pts[:,0],new_pts[:,1],'b*')
+        plt.show()
+        print("curvature before")
+        print(self.k[param])
+
+        # show raceline
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
+        # calculate predicted new J(X) with 
+        # J(X) = (K+CX).T Ds (K+CX)
+        M_temp = K + C @ X
+        J_pm = M_temp.T @ Ds @ M_temp
+
+        # calculate new J(X) without matrices
+        # this requires re-generation of the Bezier Spline
+        self.break_pts = new_pts
+        self.P = self.bezierSpline(self.break_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+        # need this to calculate new ds and k
+        K, C, Ds = self.curvatureJac()
+        ds = self.ds
+        k = self.k
+        J_p = 0
+        # trapezoidal rule
+        J_p += 0.5*k[0]**2*ds[0]
+        for i in range(1,N-1):
+            J_p += 0.5*k[i]**2 * (ds[i-1]+ds[i])
+        J_p += 0.5*k[-1]**2*ds[-1]
+        #print("err sum, random perturbation ")
+        #print(np.sum(np.abs(J_p - J_pm)))
+        # 0.2 error
+        # are we at least going in right direction?
+        print("qualitative verification")
+        #print(np.sum(np.abs(J_p - J_m)))
+        print("ground truth")
+        print(J_p-J)
+
+        print("jacobian prediction")
+        #print(np.sum(np.abs(J_p - J_pm)))
+        print(J_pm[0,0]-J)
+        print("curvature after")
+        print(self.k[param])
+
+        # show raceline
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
+
+
+
+        # render
+        '''
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+        '''
+
+        # 1.0 is ideal
+        return (J_p-J)/(J_pm[0,0]-J)
+
+    def testOptimizer(self):
+        # initialize
+        # prepare the full racetrack
+        self.prepareTrack()
+        # use control points as bezier breakpoints
+        self.break_pts = self.ctrl_pts
+
+        # iterate over ----
+
+        # generate bezier spline
+        self.P = self.bezierSpline(self.break_pts)
+        self.u_max = len(self.break_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+
+        K, C, Ds = self.curvatureJac()
+
+        # assemble matrices in QP
+        # NOTE ignored W, W=I
+        P_qp = 2 * C.T @ Ds @ C
+        q_qp = np.transpose(K.T @ Ds @ C + K.T @ Ds @ C)
+
+
+        # assemble constrains
+
+        # track boundary
+        # maximum variation
+
+        # optimize
+
+        # check terminal condition
+
+        # re-sample break points
+
+
+
+
 
 if __name__ == "__main__":
     fulltrack = RCPtrack()
     qp = QpSmooth()
-    qp.testCurvatureJac()
+    val = qp.testCurvatureJac(3)
+    '''
+    for i in range(24):
+        val = qp.testCurvatureJac(i)
+        if val<0:
+            print_warning("%d, %.2f"%(i,val))
+        else:
+            print_ok("%d, %.2f"%(i,val))
+    '''
