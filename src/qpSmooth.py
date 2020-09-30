@@ -7,12 +7,16 @@ import matplotlib.pyplot as plt
 from common import *
 from math import pi,isclose
 import warnings
+from time import time
+import cv2
 
-class QpSmooth:
+class QpSmooth(RCPtrack):
     # track: RCPtrack object
-    def __init__(self,track):
+    def __init__(self):
+        RCPtrack.__init__(self)
         warnings.simplefilter("error")
         return
+
 
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
@@ -131,6 +135,7 @@ class QpSmooth:
     # u (iterable): parameter, domain [0,n], where n is number of break points in spline generation
 
     def evalBezierSpline(self,P,u):
+        u = np.array(u).reshape(-1,1)
         n = len(P)
         assert (u>=0).all()
         assert (u<=n).all()
@@ -143,6 +148,97 @@ class QpSmooth:
             print(e)
 
         return np.array(r)
+
+    # calculate arc length of <x,y> = fun(u) from ui to uf
+    def arcLen(self,fun,ui,uf):
+        steps = 20
+        uu = np.linspace(ui,uf,steps)
+        s = 0
+        last_x,last_y = fun(ui)
+        for i in range(steps):
+            x,y = fun(uu[i])
+            s += ((x-last_x)**2 + (y-last_y)**2)**0.5
+            last_x,last_y = x,y
+        return s
+
+    # calculate variance of curvature w.r.t. break point variation
+    # correspond to equation 6 in paper
+    def curvatureJac(self):
+        A = np.array([[0 -1],[1,0]])
+        # u_max is also number of break points
+        C = np.zeros([self.u_max,self.u_max])
+        K = np.zeros([self.u_max,1])
+
+        # prepare ds vector with initial raceline
+        # s[i] = arc distance r_i to r_{i+1}
+        s = []
+        fun = lambda x:self.raceline_fun(x).flatten()
+
+        for i in range(self.u_max):
+            s.append(self.arcLen(fun,i,(i+1)))
+
+
+        for i in range(self.u_max):
+            # calculate normal vector
+            pass
+
+        return
+
+
+
+    # override RCPTrack function
+    # draw raceline with Bezier curve
+    def drawRaceline(self,lineColor=(0,0,255), img=None):
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        # this gives smoother result, but difficult to relate u to actual grid
+        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
+
+        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        # x_new and y_new are in non-dimensional grid unit
+        # NOTE add new function here
+        u_new = np.linspace(0,self.u_max,1000)
+        xy = self.raceline_fun(u_new).reshape(-1,2)
+        x_new = xy[:,0]
+        y_new = xy[:,1]
+
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        y_new /= self.scale
+        y_new *= self.resolution
+        y_new = self.resolution*rows - y_new
+
+        if img is None:
+            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
+
+        pts = np.vstack([x_new,y_new]).T
+        # for polylines, pts = pts.reshape((-1,1,2))
+        pts = pts.reshape((-1,2))
+        pts = pts.astype(np.int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        for i in range(len(u_new)-1):
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%len(self.ctrl_pts))), thickness=3) 
+
+        # solid color
+        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        for point in self.ctrl_pts:
+            x = point[0]
+            y = point[1]
+            x /= self.scale
+            x *= self.resolution
+            y /= self.scale
+            y *= self.resolution
+            y = self.resolution*rows - y
+            
+            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+
+        return img
 
 
     def testLagrangeDer(self):
@@ -163,15 +259,19 @@ class QpSmooth:
     # test bezier curve
     def testBezierCurve(self):
         # generate a batch of points following a unit circle
-        u = np.linspace(0,(2*pi)/15.0*14,15)
+        u = np.linspace(0,(2*pi)/17.0*14,17)
         xx = np.cos(u)
         yy = np.sin(u)
         points = np.vstack([xx,yy]).T
+
+        tic = time()
+        # just test w/ an outlier
         points[4,:] = [0,1.2]
         P = self.bezierSpline(points)
 
         u_close = np.linspace(0,points.shape[0],1000)
         r = self.evalBezierSpline(P,u_close)
+        print(time()-tic)
 
         B_x = r[:,0]
         B_y = r[:,1]
@@ -183,8 +283,43 @@ class QpSmooth:
 
         return
 
+    def testCurvatureJac(self):
+        # prepare the full racetrack
+        self.prepareTrack()
+        self.break_pts = self.ctrl_pts
+
+        # use control points as bezier breakpoints
+        # generate bezier spline
+        self.P = self.bezierSpline(self.break_pts)
+        self.u_max = len(self.break_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+
+        self.curvatureJac()
+        # render
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
+        return
+
+    # plot Bezier curve based raceline on a track map
+    def testTrack(self):
+        # prepare the full racetrack
+        self.prepareTrack()
+        # use control points as bezier breakpoints
+        # generate bezier spline
+        self.P = self.bezierSpline(self.ctrl_pts)
+        self.u_max = len(self.ctrl_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+        # render
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
 
 
 if __name__ == "__main__":
-    qp = QpSmooth(None)
-    qp.testBezierCurve()
+    fulltrack = RCPtrack()
+    qp = QpSmooth()
+    qp.testCurvatureJac()
