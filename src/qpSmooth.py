@@ -10,6 +10,7 @@ import warnings
 from time import time
 import cv2
 import cvxopt
+from scipy.interpolate import interp1d
 
 class QpSmooth(RCPtrack):
     # track: RCPtrack object
@@ -158,9 +159,9 @@ class QpSmooth(RCPtrack):
         steps = 20
         uu = np.linspace(ui,uf,steps)
         s = 0
-        last_x,last_y = fun(ui)
+        last_x,last_y = fun(ui).flatten()
         for i in range(steps):
-            x,y = fun(uu[i])
+            x,y = fun(uu[i]).flatten()
             s += ((x-last_x)**2 + (y-last_y)**2)**0.5
             last_x,last_y = x,y
         return s
@@ -363,7 +364,7 @@ class QpSmooth(RCPtrack):
 
         # find the distance to track sides
         # boundary/wall width / grid side length
-        deadzone = 0.087
+        deadzone = 0.087 * 2
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:
@@ -622,8 +623,24 @@ class QpSmooth(RCPtrack):
         plt.show()
         '''
 
-        uu = np.linspace(0,N,new_n+1)
-        spacing = N/new_n
+        # resample with equal arc distance
+        # NOTE this seems to introduce instability
+        arc_len = [0]
+        # we have N+1 points here
+        for i in range(1,N+1):
+            s = self.arcLen(self.raceline_fun,i-1,i)
+            arc_len.append(s)
+        uu = np.linspace(0,N,N+1)
+        arc_len = np.array(arc_len)
+        arc_len = np.cumsum(arc_len)
+        s2u = interp1d(arc_len,uu)
+        ss = np.linspace(0,arc_len[-1],new_n+1)
+        uu = s2u(ss)
+
+        # resample in parameter space
+        #uu = np.linspace(0,N,new_n+1)
+
+        #spacing = N/new_n
         # raceline(0) and raceline(N) are the same points
         # if we include both we would have numerical issues
         uu = uu[:-1]
@@ -664,6 +681,7 @@ class QpSmooth(RCPtrack):
         for iter_count in range(max_iter):
 
             # TODO re-sample break points before every iteration
+            self.resamplePath(new_N)
 
             # generate bezier spline
             self.P = self.bezierSpline(self.break_pts)
@@ -674,12 +692,10 @@ class QpSmooth(RCPtrack):
 
             # show raceline
             print(iter_count)
-            '''
             img_track = self.drawTrack()
             img_track = self.drawRaceline(img=img_track)
             plt.imshow(img_track)
             plt.show()
-            '''
 
             K, C, Ds = self.curvatureJac()
 
@@ -723,6 +739,7 @@ class QpSmooth(RCPtrack):
             assert G.shape[0]==4*N
             assert h.shape[0]==4*N
 
+
             # optimize
             P_qp = cvxopt.matrix(P_qp)
             q_qp = cvxopt.matrix(q_qp)
@@ -740,6 +757,11 @@ class QpSmooth(RCPtrack):
             #print("h-GX, should be positive")
             constrain_met = np.array(h) - np.array(G) @ np.array(variance)
             assert constrain_met.all()
+
+            # verify K do not violate constrain
+            # FIXME this is not met
+            #assert (Kmax-K >0).all()
+            #assert (K-Kmin >0).all()
 
             # check terminal condition
             print("max variation %.2f"%(np.max(np.abs(variance))))
