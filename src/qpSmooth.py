@@ -15,7 +15,7 @@ class QpSmooth(RCPtrack):
     # track: RCPtrack object
     def __init__(self):
         RCPtrack.__init__(self)
-        #warnings.simplefilter("error")
+        warnings.simplefilter("error")
         return
 
 
@@ -38,13 +38,16 @@ class QpSmooth(RCPtrack):
             sl = -ds[0]
             sr = ds[1]
 
-        al = - sr/sl/(sl-sr)
-        a = -(sl+sr)/sl/sr
-        ar = -sl/sr/(sr-sl)
+        try:
+            al = - sr/sl/(sl-sr)
+            a = -(sl+sr)/sl/sr
+            ar = -sl/sr/(sr-sl)
 
-        bl = 2/sl/(sl-sr)
-        b = 2/sl/sr
-        br = 2/sr/(sr-sl)
+            bl = 2/sl/(sl-sr)
+            b = 2/sl/sr
+            br = 2/sr/(sr-sl)
+        except Warning as e:
+            print(e)
 
         return ((al,a,ar),(bl,b,br))
 
@@ -64,8 +67,8 @@ class QpSmooth(RCPtrack):
             ds = dist(rl,rr)
 
         # two sets of equations, one for x, one for y
-        #bx = np.matrix([rl[0],rr[0],drl[0],drr[0],ddrl[0],ddrr[0]]).T
-        #by = np.matrix([rl[1],rr[1],drl[1],drr[1],ddrl[1],ddrr[1]]).T
+        #bx = np.array([rl[0],rr[0],drl[0],drr[0],ddrl[0],ddrr[0]]).T
+        #by = np.array([rl[1],rr[1],drl[1],drr[1],ddrl[1],ddrr[1]]).T
 
         # dr = dr/ds = dr/dt * dt/ds
         # we want dB/dt = dr/dt = dr(input) * ds/dt = dr * ds(between two endpoints)
@@ -168,7 +171,7 @@ class QpSmooth(RCPtrack):
         break_pts = np.array(self.break_pts).T
         # u_max is also number of break points
         N = self.u_max
-        A = np.matrix([[0,-1],[1,0]])
+        A = np.array([[0,-1],[1,0]])
 
 
         # prepare ds vector with initial raceline
@@ -232,14 +235,14 @@ class QpSmooth(RCPtrack):
             xr = np.dot(A @ dr_vec[i], beta_vec[i][2] * n_vec[(i+1)%N])
             xr += np.dot(ddr_vec[i], alfa_vec[i][2] * A @ n_vec[(i+1)%N])
 
-            k_vec.append(k[0,0])
-            x_vec.append([xl[0,0],x[0,0],xr[0,0]])
+            k_vec.append(k)
+            x_vec.append([xl,x,xr])
 
         # assemble matrix K, C, Ds
         x_vec = np.array(x_vec)
         k_vec = np.array(k_vec)
 
-        K = np.matrix(k_vec).reshape(N,1)
+        K = np.array(k_vec).reshape(N,1)
         C = np.zeros([N,N])
         C[0,0] = x_vec[0,1]
         C[0,1] = x_vec[0,2]
@@ -254,14 +257,14 @@ class QpSmooth(RCPtrack):
             C[i,i] = x_vec[i,1]
             C[i,i+1] = x_vec[i,2]
 
-        C = np.matrix(C)
+        C = np.array(C)
 
         # NOTE Ds is not simply ds
         # it is a helper for trapezoidal rule
         Ds = np.array(ds[:-2]) + np.array(ds[1:-1])
         Ds = np.hstack([ds[0], Ds, ds[-1]])
 
-        Ds = 0.5*np.matrix(np.diag(Ds))
+        Ds = 0.5*np.array(np.diag(Ds))
 
         # NOTE for DEBUG
         self.ds = ds
@@ -287,7 +290,7 @@ class QpSmooth(RCPtrack):
         # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
         # x_new and y_new are in non-dimensional grid unit
         # NOTE add new function here
-        u_new = np.linspace(0,self.u_max,1000)
+        u_new = np.linspace(0,len(self.break_pts),1000)
         xy = self.raceline_fun(u_new).reshape(-1,2)
         x_new = xy[:,0]
         y_new = xy[:,1]
@@ -311,7 +314,9 @@ class QpSmooth(RCPtrack):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
+            #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
+            # ignore color for now
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=(0,255,0), thickness=3) 
 
         # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
@@ -599,27 +604,65 @@ class QpSmooth(RCPtrack):
         # 1.0 is ideal
         return (J_p-J)/(J_pm[0,0]-J)
 
+    # resample path defined in raceline_fun
+    # new_n: number of break points on the new path
+    def resamplePath(self,new_n):
+        # generate bezier spline
+        P = self.bezierSpline(self.break_pts)
+        N = len(self.break_pts)
+
+        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
+
+        # show initial raceline
+        print("showing initial raceline BEFORE resampling")
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
+        uu = np.linspace(0,N,new_n+1)
+        spacing = N/new_n
+        # raceline(0) and raceline(N) are the same points
+        # if we include both we would have numerical issues
+        uu = uu[:-1]
+        #uu += np.hstack([0,np.random.rand(new_n-2)/3,0])
+        new_break_pts =[]
+        for u in uu:
+            new_break_pts.append(self.raceline_fun(u).flatten())
+
+        # regenerate spline
+        self.break_pts = np.array(new_break_pts)
+        P = self.bezierSpline(self.break_pts)
+        N = len(self.break_pts)
+        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
+
+        print("showing initial raceline AFTER resampling")
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
     def testOptimizer(self):
         # initialize
         # prepare the full racetrack
         self.prepareTrack()
 
-        x = 0.5*self.scale
-        y = 0.5*self.scale
-        angle = radians(90)
-        n = (cos(angle),sin(angle))
-
-        # test track boundary
-        #F,R = self.checkTrackBoundary((x,y),n,1*self.scale)
-        #print("F=%.2f, R=%.2f"%(F/self.scale,R/self.scale))
-
-        # use control points as bezier breakpoints
+        # use control points as initial bezier breakpoints
+        # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
 
-        # iterate over ----
+        # re-sample path, get more break points
+        new_N = len(self.break_pts)*3
+        print_info("Had %d break points, resample to %d"%(len(self.break_pts),new_N))
+        self.resamplePath(new_N)
+
+
+
 
         max_iter = 20
         for iter_count in range(max_iter):
+
+            # TODO re-sample break points before every iteration
 
             # generate bezier spline
             self.P = self.bezierSpline(self.break_pts)
@@ -630,10 +673,12 @@ class QpSmooth(RCPtrack):
 
             # show raceline
             print(iter_count)
+            '''
             img_track = self.drawTrack()
             img_track = self.drawRaceline(img=img_track)
             plt.imshow(img_track)
             plt.show()
+            '''
 
             K, C, Ds = self.curvatureJac()
 
@@ -655,9 +700,9 @@ class QpSmooth(RCPtrack):
                 h1.append(F)
                 h2.append(R)
 
-            h = np.matrix(h1+h2).T
+            h = np.array(h1+h2).T
             G = np.vstack([np.identity(N),-np.identity(N)])
-            G = np.matrix(G)
+            G = np.array(G)
 
             assert G.shape[1]==N
             assert G.shape[0]==2*N
@@ -673,15 +718,13 @@ class QpSmooth(RCPtrack):
             # DEBUG
             # verify Gx <= h is not violated
             #print(sol)
-            print(sol['x'])
+            #print(sol['x'])
 
             variance = sol['x']
             # verify Gx <= h
-            print("h-GX, should be positive")
-            constrain_met = np.matrix(h) - np.matrix(G) @ np.matrix(variance)
+            #print("h-GX, should be positive")
+            constrain_met = np.array(h) - np.array(G) @ np.array(variance)
             assert constrain_met.all()
-            print("max n")
-            print(np.max(np.abs(self.n)))
 
             # check terminal condition
             print("max variation %.2f"%(np.max(np.abs(variance))))
@@ -698,7 +741,11 @@ class QpSmooth(RCPtrack):
 
             self.break_pts = perturbed_break_pts
 
-            # TODO re-sample break points
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track)
+        plt.imshow(img_track)
+        plt.show()
+
 
 
 
