@@ -1,16 +1,20 @@
 # smooth path with quadratic programming
 # following paper "A quadratic programming approach to path smoothing"
 
-from RCPTrack import RCPtrack
-import numpy as np
-import matplotlib.pyplot as plt
-from common import *
-from math import pi,isclose,radians,cos,sin,atan2,tan
-import warnings
-from time import time
 import cv2
 import cvxopt
+import warnings
+import numpy as np
 from scipy.interpolate import interp1d
+from math import pi,isclose,radians,cos,sin,atan2,tan
+
+from PIL import Image
+import matplotlib.pyplot as plt
+
+from time import time
+from common import *
+from RCPTrack import RCPtrack
+
 
 class QpSmooth(RCPtrack):
     # track: RCPtrack object
@@ -677,6 +681,13 @@ class QpSmooth(RCPtrack):
         print_info("Had %d break points, resample to %d"%(len(self.break_pts),new_N))
         self.resamplePath(new_N)
 
+        # save a gif of the optimization process
+        self.saveGif = True
+
+        if self.saveGif:
+            self.gifimages = []
+            #self.gifimages.append(Image.fromarray(cv2.cvtColor(self.img_track.copy(),cv2.COLOR_BGR2RGB)))
+
         max_iter = 20
         for iter_count in range(max_iter):
 
@@ -694,8 +705,10 @@ class QpSmooth(RCPtrack):
             print(iter_count)
             img_track = self.drawTrack()
             img_track = self.drawRaceline(img=img_track)
-            plt.imshow(img_track)
-            plt.show()
+            #plt.imshow(img_track)
+            #plt.show()
+            if self.saveGif:
+                self.gifimages.append(Image.fromarray(cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)))
 
             K, C, Ds = self.curvatureJac()
 
@@ -778,10 +791,19 @@ class QpSmooth(RCPtrack):
 
             self.break_pts = perturbed_break_pts
 
+        if self.saveGif:
+            print_info("saving gif.. This may take a while")
+            self.log_no = 0
+            gif_filename = "./qpOpt"+str(self.log_no)+".gif"
+            # TODO better way of determining duration
+            self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 600,loop=0)
+            print_info("gif saved at "+gif_filename)
+
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
+
 
 
 
