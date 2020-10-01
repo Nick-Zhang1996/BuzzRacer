@@ -36,8 +36,6 @@ steering_vec = []
 sim_omega_vec = []
 sim_log_vec = {}
 
-
-
 class Node:
     def __init__(self,previous=None,entrydir=None):
         # entry direction
@@ -439,10 +437,12 @@ class RCPtrack(Track):
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             path_len += ds
             t_total += ds/v3[i%n_steps]
+        '''
         print("Theoretical value:")
         print("top speed = %.2fm/s"%max(v3))
         print("total time = %.2fs"%t_total)
         print("path len = %.2f"%path_len)
+        '''
 
         # get direct distance from two u
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
@@ -563,7 +563,7 @@ class RCPtrack(Track):
         # start coord, direction, sequence number of origin
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-        #fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
+        #self.initRaceline((3,3),'d',10,offset=adjustment)
         self.initRaceline((3,3),'d',10)
         return
 
@@ -579,8 +579,7 @@ class RCPtrack(Track):
         return s
 
     # new representation of raceline via piecewise curvature map along path
-    def discretizePath(self,):
-        steps = 1000
+    def discretizePath(self,steps=1000):
         u = np.linspace(0,self.u[-1],steps)
         # s[k]: path distance from k to k+1
         s = np.zeros_like(u)
@@ -623,10 +622,11 @@ class RCPtrack(Track):
         '''
 
     # verify that we can restore x,y coordinate from K(s)/curvature path distance space
-    def verify(self):
-        steps = 1000
+    def verify(self,K=None):
         # convert from K(s) space to X,Y(s) space using Fresnel integral
         # state variable X,Y,Heading
+        if K is None:
+            K = self.K
         K = interp1d(self.S,self.K)
         def kensel(s,x):
             return [ cos(x[2]), sin(x[2]), K(s)]
@@ -640,6 +640,7 @@ class RCPtrack(Track):
 
         # plot results
         # original path
+        steps = 1000
         u = np.linspace(0,self.u[-1],steps)
         x,y = splev(u,self.raceline,der=0)
         # quantify error
@@ -732,15 +733,27 @@ class RCPtrack(Track):
     def boundaryClearanceVector(self,k):
         x,y = self.kenselTransform(k,self.ds)
         retval = [self.checkTrackBoundary((xx,yy)) for xx,yy in zip(x,y)]
+        # DEBUG
+        '''
+        for i in retval:
+            if i<0:
+                print("unmet constrain!")
+                break
+        '''
         return retval
         
     # calculate cost, among other things
     def cost(self,k):
         self.cost_count += 1
-        # save a checkpoint
-        if (self.cost_count % 1000 == 0):
+        if (False and self.cost_count % 100 == 0):
             self.K = k
-            #self.verify()
+            self.verify()
+            bdy = self.boundaryClearanceVector(k)
+            plt.plot(bdy)
+            plt.show()
+
+        # save a checkpoint
+        if (False and self.cost_count % 1000 == 0):
             self.resolveLogname()
             output = open(self.logFilename,'wb')
             pickle.dump(k,output)
@@ -755,20 +768,35 @@ class RCPtrack(Track):
         alfa = 1.0
         p2_cost = np.sum(np.abs(np.diff(k)))
         total_cost = p1_cost + alfa*p2_cost
-        print("call %d, cost = %.5f"%(self.cost_count,total_cost))
+
+        #print("call %d, cost = %.5f"%(self.cost_count,total_cost))
+        #print("p1/p2 = %.2f"%(p1_cost/p2_cost))
         return total_cost
 
     def minimizeCurvatureRoutine(self,):
+        steps = 100
+        self.steps=steps
         # initialize an initial raceline for reference
         print("base raceline")
         self.prepareTrack()
         # discretize the initial raceline
-        self.discretizePath()
+        self.discretizePath(steps)
 
         # NOTE the reconstructed path's end deviate from original by around 5cm
-        #self.verify()
+        self.verify()
         # let's use it as a starting point for now
         K0 = self.K
+
+        # DEBUG sensitivity analysis
+        '''
+        eps = 1e-5
+        k = self.K
+        k -= 3*eps
+        self.verify(k)
+        tmp = self.boundaryClearanceVector(k)
+        plt.plot(tmp)
+        plt.show()
+        '''
 
 
         # steps = 1000
@@ -793,21 +821,22 @@ class RCPtrack(Track):
         K_max = 1.0/R_min
         # track boundary
         cons = [{'type': 'ineq', 'fun': self.boundaryClearanceVector}]
+        cons.append({'type': 'eq', 'fun': lambda x: x[-1]-x[0]})
+
         cons = tuple(cons)
 
         # bounds
         # part 1: hard on Ki < C, no super tight curves
         # how tight depends on vehicle wheelbase and steering angle
-        steps = 1000
         bnds = tuple([(-K_max,K_max) for i in range(steps)])
 
         self.cost_count = 0
-        res = minimize(self.cost,K0,method='SLSQP', jac='2-point',constraints=cons,bounds=bnds,options={'eps':1e-8} )
+        res = minimize(self.cost,K0,method='SLSQP', jac='2-point',constraints=cons,bounds=bnds,options={'maxiter':1000,'eps':1e-10} )
         print(res)
         # verify again
         self.K = res.x
         print(self.K)
-        self.verify()
+        self.verify(steps)
 
 
 
