@@ -5,7 +5,7 @@ from RCPTrack import RCPtrack
 import numpy as np
 import matplotlib.pyplot as plt
 from common import *
-from math import pi,isclose,radians,cos,sin,atan2
+from math import pi,isclose,radians,cos,sin,atan2,tan
 import warnings
 from time import time
 import cv2
@@ -614,11 +614,13 @@ class QpSmooth(RCPtrack):
         self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
         # show initial raceline
+        '''
         print("showing initial raceline BEFORE resampling")
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
+        '''
 
         uu = np.linspace(0,N,new_n+1)
         spacing = N/new_n
@@ -636,11 +638,13 @@ class QpSmooth(RCPtrack):
         N = len(self.break_pts)
         self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
+        '''
         print("showing initial raceline AFTER resampling")
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
+        '''
 
     def testOptimizer(self):
         # initialize
@@ -655,9 +659,6 @@ class QpSmooth(RCPtrack):
         new_N = len(self.break_pts)*3
         print_info("Had %d break points, resample to %d"%(len(self.break_pts),new_N))
         self.resamplePath(new_N)
-
-
-
 
         max_iter = 20
         for iter_count in range(max_iter):
@@ -689,6 +690,7 @@ class QpSmooth(RCPtrack):
 
             # assemble constrains
             # as in Gx <= h
+
             # track boundary
             # h = [F..., R...], split into two vec
             h1 =  []
@@ -700,13 +702,26 @@ class QpSmooth(RCPtrack):
                 h1.append(F)
                 h2.append(R)
 
-            h = np.array(h1+h2).T
+            h = np.array(h1+h2)
             G = np.vstack([np.identity(N),-np.identity(N)])
-            G = np.array(G)
+
+            # curvature constrain
+            # CX <= Kmax - K
+            Rmin = 0.102/tan(radians(27))
+            Kmax = 1.0/Rmin
+            Kmin = -1.0/Rmin
+            h3 = Kmax - K
+            h3 = h3.flatten()
+            h4 = -(Kmin - K)
+            h4 = h4.flatten()
+            h = np.hstack([h,h3,h4])
+            G = np.vstack([G,C,-C])
+            print("min radius")
+            print(np.min(np.abs(1.0/K)))
 
             assert G.shape[1]==N
-            assert G.shape[0]==2*N
-            assert h.shape[0]==2*N
+            assert G.shape[0]==4*N
+            assert h.shape[0]==4*N
 
             # optimize
             P_qp = cvxopt.matrix(P_qp)
