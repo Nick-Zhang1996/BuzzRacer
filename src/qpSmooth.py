@@ -5,10 +5,11 @@ from RCPTrack import RCPtrack
 import numpy as np
 import matplotlib.pyplot as plt
 from common import *
-from math import pi,isclose
+from math import pi,isclose,radians,cos,sin,atan2
 import warnings
 from time import time
 import cv2
+import cvxopt
 
 class QpSmooth(RCPtrack):
     # track: RCPtrack object
@@ -92,20 +93,20 @@ class QpSmooth(RCPtrack):
         return P
 
     # generate a bezier spline matching derivative estimated from lagrange interpolation
-    # break_pnts.shape = (n,2)
+    # break_pts.shape = (n,2)
     # return: vector function, domain [0,len(points)]
-    def bezierSpline(self,break_pnts):
-        break_pnts = np.array(break_pnts).T
+    def bezierSpline(self,break_pts):
+        break_pts = np.array(break_pts).T
 
         # calculate first and second derivative
         # w.r.t. ds, estimated with 2-norm
         df = []
         ddf = []
-        n = break_pnts.shape[1]
+        n = break_pts.shape[1]
         for i in range(n):
-            rl = break_pnts[:,(i-1)%n]
-            r  = break_pnts[:,(i)%n]
-            rr = break_pnts[:,(i+1)%n]
+            rl = break_pts[:,(i-1)%n]
+            r  = break_pts[:,(i)%n]
+            rr = break_pts[:,(i+1)%n]
             points = [rl, r, rr]
             
             ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points)
@@ -115,8 +116,8 @@ class QpSmooth(RCPtrack):
         P = []
         for i in range(n):
             # generate bezier spline segments
-            rl = break_pnts[:,(i)%n]
-            r  = break_pnts[:,(i+1)%n]
+            rl = break_pts[:,(i)%n]
+            r  = break_pts[:,(i+1)%n]
             section_P = self.bezierCurve([rl,r],[df[i],df[(i+1)%n]],[ddf[i],ddf[(i+1)%n]],ds=None)
             # NOTE testing
             B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
@@ -164,7 +165,7 @@ class QpSmooth(RCPtrack):
     # calculate variance of curvature w.r.t. break point variation
     # correspond to equation 6 in paper
     def curvatureJac(self):
-        break_pnts = np.array(self.break_pts).T
+        break_pts = np.array(self.break_pts).T
         # u_max is also number of break points
         N = self.u_max
         A = np.matrix([[0,-1],[1,0]])
@@ -198,11 +199,11 @@ class QpSmooth(RCPtrack):
         # calculate terms in eq 6
         for i in range(N):
             # rl -> r_k-1
-            rl = break_pnts[:,(i-1)%N]
+            rl = break_pts[:,(i-1)%N]
             # r -> r_k
-            r  = break_pnts[:,(i)%N]
+            r  = break_pts[:,(i)%N]
             # rr -> r_k+1
-            rr = break_pnts[:,(i+1)%N]
+            rr = break_pts[:,(i+1)%N]
             points = [rl, r, rr]
             sl = ds[(i-1)%N]
             sr = ds[(i)%N]
@@ -265,8 +266,8 @@ class QpSmooth(RCPtrack):
         # NOTE for DEBUG
         self.ds = ds
         self.k = k_vec
-        self.n = n_vec
-        self.dr = dr_vec
+        self.n = np.array(n_vec).reshape(-1,2)
+        self.dr = np.array(dr_vec)
         self.ddr = ddr_vec
 
         return K, C, Ds
@@ -310,11 +311,11 @@ class QpSmooth(RCPtrack):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%len(self.ctrl_pts))), thickness=3) 
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
 
         # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        for point in self.ctrl_pts:
+        for point in self.break_pts:
             x = point[0]
             y = point[1]
             x /= self.scale
@@ -332,8 +333,16 @@ class QpSmooth(RCPtrack):
     # normal direction vector n, NOTE |n|!=1
     # return:
     # F,R such that r+F*n and r-R*n are boundaries of the track
-    # F,R will be bounded by sigma_max
-    def checkTrackBoundary(self,coord,n,sigma_max):
+    # F,R will be bounded by delta_max
+    def checkTrackBoundary(self,coord,n,delta_max):
+        # since we use 1/sin and 1/cos
+        # if n[0]or n[1] = 0, then there's numerical instability
+        # we use a dirty workaround that when they're too small we force them to be radians(0.1)
+        if (abs(n[0])<0.01):
+            n = (0.01,n[1])
+        if (abs(n[1])<0.01):
+            n = (n[0],0.01)
+
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
@@ -365,7 +374,7 @@ class QpSmooth(RCPtrack):
                     F = -(y_local - deadzone)/sin_val
             elif grid_type == 'NS':
                 # track section is staight, arranged vertically
-                cos_val = n[1]/((n[0]**2+n[1]**2)**0.5)
+                cos_val = n[0]/((n[0]**2+n[1]**2)**0.5)
                 if (n[0]>0):
                     # pointing rightward
                     F = (1 - deadzone - x_local)/cos_val
@@ -374,18 +383,35 @@ class QpSmooth(RCPtrack):
                     R = -(1 - deadzone - x_local)/cos_val
                     F = -(x_local - deadzone)/cos_val
         elif grid_type in turns:
+            norm = ((n[0]**2+n[1]**2)**0.5)
             if grid_type == 'SE':
                 apex = (1,0)
-            if grid_type == 'SW':
+                dot = np.dot(n,(-0.5**0.5,0.5**0.5))
+            elif grid_type == 'SW':
                 apex = (0,0)
-            if grid_type == 'NE':
+                dot = np.dot(n,(0.5**0.5,0.5**0.5))
+            elif grid_type == 'NE':
                 apex = (1,1)
-            if grid_type == 'NW':
+                dot = np.dot(n,(-0.5**0.5,-0.5**0.5))
+            elif grid_type == 'NW':
                 apex = (0,1)
+                dot = np.dot(n,(0.5**0.5,-0.5**0.5))
+
             radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
-            wl = 1-deadzone-radius
-            wr = radius - deadzone
-        return min(wl,wr)
+            if (dot > 0):
+                # pointing radially outward
+                F = (1 - deadzone - radius)/dot*norm
+                R = (radius - deadzone)/dot*norm
+            else:
+                R = -(1 - deadzone - radius)/dot*norm
+                F = -(radius - deadzone)/dot*norm
+
+        # if the point given already violates constrain, then F, R may <0
+        # NOTE maybe raise a warning?
+        F = max(F,0)
+        R = max(R,0)
+
+        return min(F*self.scale,delta_max), min(R*self.scale,delta_max)
 
 
     def testLagrangeDer(self):
@@ -577,34 +603,103 @@ class QpSmooth(RCPtrack):
         # initialize
         # prepare the full racetrack
         self.prepareTrack()
+
+        x = 0.5*self.scale
+        y = 0.5*self.scale
+        angle = radians(90)
+        n = (cos(angle),sin(angle))
+
+        # test track boundary
+        #F,R = self.checkTrackBoundary((x,y),n,1*self.scale)
+        #print("F=%.2f, R=%.2f"%(F/self.scale,R/self.scale))
+
         # use control points as bezier breakpoints
-        self.break_pts = self.ctrl_pts
+        self.break_pts = np.array(self.ctrl_pts)
 
         # iterate over ----
 
-        # generate bezier spline
-        self.P = self.bezierSpline(self.break_pts)
-        self.u_max = len(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
+        max_iter = 20
+        for iter_count in range(max_iter):
 
-        K, C, Ds = self.curvatureJac()
+            # generate bezier spline
+            self.P = self.bezierSpline(self.break_pts)
+            self.u_max = len(self.break_pts)
+            N = self.u_max
 
-        # assemble matrices in QP
-        # NOTE ignored W, W=I
-        P_qp = 2 * C.T @ Ds @ C
-        q_qp = np.transpose(K.T @ Ds @ C + K.T @ Ds @ C)
+            self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
+            # show raceline
+            print(iter_count)
+            img_track = self.drawTrack()
+            img_track = self.drawRaceline(img=img_track)
+            plt.imshow(img_track)
+            plt.show()
 
-        # assemble constrains
+            K, C, Ds = self.curvatureJac()
 
-        # track boundary
-        # maximum variation
+            # assemble matrices in QP
+            # NOTE ignored W, W=I
+            P_qp = 2 * C.T @ Ds @ C
+            q_qp = np.transpose(K.T @ Ds @ C + K.T @ Ds @ C)
 
-        # optimize
+            # assemble constrains
+            # as in Gx <= h
+            # track boundary
+            # h = [F..., R...], split into two vec
+            h1 =  []
+            h2 =  []
+            delta_max = 5e-2
+            for i in range(N):
+                coord = self.break_pts[i]
+                F,R = self.checkTrackBoundary(coord,self.n[i],delta_max)
+                h1.append(F)
+                h2.append(R)
 
-        # check terminal condition
+            h = np.matrix(h1+h2).T
+            G = np.vstack([np.identity(N),-np.identity(N)])
+            G = np.matrix(G)
 
-        # re-sample break points
+            assert G.shape[1]==N
+            assert G.shape[0]==2*N
+            assert h.shape[0]==2*N
+
+            # optimize
+            P_qp = cvxopt.matrix(P_qp)
+            q_qp = cvxopt.matrix(q_qp)
+            G = cvxopt.matrix(G)
+            h = cvxopt.matrix(h)
+            sol = cvxopt.solvers.qp(P_qp, q_qp, G, h)
+
+            # DEBUG
+            # verify Gx <= h is not violated
+            #print(sol)
+            print(sol['x'])
+
+            variance = sol['x']
+            # verify Gx <= h
+            print("h-GX, should be positive")
+            constrain_met = np.matrix(h) - np.matrix(G) @ np.matrix(variance)
+            assert constrain_met.all()
+            print("max n")
+            print(np.max(np.abs(self.n)))
+
+            # check terminal condition
+            print("max variation %.2f"%(np.max(np.abs(variance))))
+            if np.max(np.abs(variance))<0.1*delta_max:
+                print("terminal condition met")
+                break
+
+            # apply changes to break points
+            # move break points in tangential direction by variance vector
+            n = np.array(self.n).reshape(-1,2)
+            perturbed_break_pts = np.array(self.break_pts)
+            for i in range(N):
+                perturbed_break_pts[i,:] += n[i]*variance[i]
+
+            self.break_pts = perturbed_break_pts
+
+            # TODO re-sample break points
+
 
 
 
@@ -613,7 +708,7 @@ class QpSmooth(RCPtrack):
 if __name__ == "__main__":
     fulltrack = RCPtrack()
     qp = QpSmooth()
-    val = qp.testCurvatureJac(3)
+    val = qp.testOptimizer()
     '''
     for i in range(24):
         val = qp.testCurvatureJac(i)
