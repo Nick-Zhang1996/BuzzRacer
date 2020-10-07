@@ -44,11 +44,11 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = True
+        self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -98,6 +98,8 @@ class Main():
 
         # log with undetermined format
         self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[]}
+        # for sharing debug info
+        self.debug = {}
 
         # prepare log
         if (self.enableLog):
@@ -178,6 +180,9 @@ class Main():
         # restrict update rate to 0.01s/frame, a rate higher than this can lead to frozen frames
         if (time()-self.visualization_ts>0.02 or self.stateUpdateSource == StateUpdateSource.simulator):
             img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
+            # DEBUG
+            # draw the range where solver is seeking answer
+            #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
             self.visualization_ts = time()
             cv2.imshow('experiment',img)
@@ -287,8 +292,14 @@ class Main():
         # width 0.563, square tile side length 0.6
 
         # full RCP track
-        # row, col
+        # NOTE load track instead of re-constructing
         fulltrack = RCPtrack()
+        if self.enableLaptimer:
+            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
+        fulltrack.load()
+        return fulltrack
+
+        # row, col
         track_size = (6,4)
         #fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
         fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
@@ -323,8 +334,6 @@ class Main():
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
         fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
-        if self.enableLaptimer:
-            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
         return fulltrack
 
     def prepareCar(self,):
