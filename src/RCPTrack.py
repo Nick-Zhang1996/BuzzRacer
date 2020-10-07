@@ -29,6 +29,7 @@ from PIL import Image
 from car import Car
 from Track import Track
 import pickle
+from common import *
 
 # debugging
 K_vec = [] # curvature
@@ -315,19 +316,38 @@ class RCPtrack(Track):
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
         smoothing_factor = 0.01*(m)
-        tck, u = splprep(pts.T, u=np.linspace(0,len(pts)-1,len(pts)), s=smoothing_factor, per=1) 
+        tck, u = splprep(pts.T, u=np.linspace(0,self.track_length,self.track_length+1), s=smoothing_factor, per=1) 
         #NOTE 
-        #tck, u = CubicSpline(np.linspace(0,len(pts)-1,len(pts)),pts) 
+        #tck, u = CubicSpline(np.linspace(0,self.track_length,self.track_length+1),pts) 
 
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
         self.u = u
         self.raceline = tck
+        '''
+        u_new = np.linspace(0,self.track_length,100)
+        x_new, y_new = splev(u_new, tck)
+        plt.plot(x_new,y_new,'*')
+        plt.show()
+        '''
 
+
+        # generate speed profile
+        '''
+        print_ok("initial trajectory")
+        self.generateSpeedProfile()
+        self.verifySpeedProfile()
+        img_track = self.drawTrack()
+        img_track = self.drawRaceline(img=img_track,points=[])
+        plt.imshow(img_track)
+        plt.show()
+        '''
+        
+
+    def generateSpeedProfile(self, n_steps=1000):
         # friction factor
         mu = 10.0/9.81
         g = 9.81
-        n_steps = 1000
         self.n_steps = n_steps
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
@@ -335,7 +355,7 @@ class RCPtrack(Track):
         dec_max_motor = lambda x:5
         # generate velocity profile
         # u values for control points
-        xx = np.linspace(0,len(pts)-1,n_steps+1)
+        xx = np.linspace(0,self.track_length,n_steps+1)
         #curvature = splev(xx,self.raceline,der=2)
         #curvature = np.linalg.norm(curvature,axis=0)
 
@@ -410,7 +430,7 @@ class RCPtrack(Track):
 
         # debug target v curve fitting
         #p0, = plt.plot(xx,v3,'*',label='original')
-        #xxx = np.linspace(0,len(pts)-1,10*n_steps)
+        #xxx = np.linspace(0,self.track_length,10*n_steps)
         #sampleV = self.targetVfromU(xxx)
         #p1, = plt.plot(xxx,sampleV,label='fitted')
         #plt.legend(handles=[p0,p1])
@@ -418,18 +438,22 @@ class RCPtrack(Track):
 
 
         # three pass of velocity profile
-        '''
         p0, = plt.plot(curvature, label='curvature')
         p1, = plt.plot(v1,label='1st pass')
         p2, = plt.plot(v2,label='2nd pass')
         p3, = plt.plot(v3,label='3rd pass')
         plt.legend(handles=[p1,p2,p3])
         plt.show()
-        '''
 
+    def verifySpeedProfile(self,n_steps=1000):
         # calculate theoretical lap time
+        mu = 10.0/9.81
+        g = 9.81
         t_total = 0
         path_len = 0
+        xx = np.linspace(0,self.track_length,n_steps+1)
+        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        v3 = self.v3(xx)
         for i in range(n_steps):
             (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
@@ -437,19 +461,18 @@ class RCPtrack(Track):
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             path_len += ds
             t_total += ds/v3[i%n_steps]
-        '''
-        print("Theoretical value:")
-        print("top speed = %.2fm/s"%max(v3))
-        print("total time = %.2fs"%t_total)
-        print("path len = %.2f"%path_len)
-        '''
+
+        print_info("Theoretical value:")
+        print_info("\t top speed = %.2fm/s"%max(v3))
+        print_info("\t total time = %.2fs"%t_total)
+        print_info("\t path len = %.2fm"%path_len)
 
         # get direct distance from two u
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
 
         vel_vec = []
         ds_vec = []
-        #xx = np.linspace(0,len(pts)-1,n_steps+1)
+        xx = np.linspace(0,self.track_length,n_steps+1)
 
         # get velocity at each point
         for i in range(n_steps):
@@ -499,19 +522,21 @@ class RCPtrack(Track):
 
         # plot acceleration vector cloud
         # with x,y axis being vehicle frame, x lateral
-        #p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+        '''
+        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
 
         # draw the traction circle
-        #cc = np.linspace(0,2*np.pi)
-        #circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        #p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
-        #plt.gcf().gca().set_aspect('equal','box')
-        #plt.xlim(-12,12)
-        #plt.ylim(-12,12)
-        #plt.xlabel('Lateral Acceleration')
-        #plt.ylabel('Longitudinal Acceleration')
-        #plt.legend(handles=[p0,p1])
-        #plt.show()
+        cc = np.linspace(0,2*np.pi)
+        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+        plt.gcf().gca().set_aspect('equal','box')
+        plt.xlim(-12,12)
+        plt.ylim(-12,12)
+        plt.xlabel('Lateral Acceleration')
+        plt.ylabel('Longitudinal Acceleration')
+        plt.legend(handles=[p0,p1])
+        plt.show()
+        '''
 
 
         #p0, = plt.plot(theta_vec,label='theta')
@@ -565,6 +590,52 @@ class RCPtrack(Track):
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
         #self.initRaceline((3,3),'d',10,offset=adjustment)
         self.initRaceline((3,3),'d',10)
+        return
+
+    # save raceline to pickle file
+    def save(self,filename=None):
+        if filename is None:
+            filename = "raceline.p"
+
+        # assemble save data
+        save = {}
+        save['grid_sequence'] = self.grid_sequence
+        save['scale'] = self.scale
+        save['origin_seq_no'] = self.origin_seq_no
+        save['track_length'] = self.track_length
+        save['raceline'] = self.raceline
+        save['gridsize'] = self.gridsize
+        save['resolution'] = self.resolution
+        save['targetVfromU'] = self.targetVfromU
+        save['track'] = self.track
+        save['min_v'] = self.min_v
+        save['max_v'] = self.max_v
+
+        with open(filename, 'wb') as f:
+            pickle.dump(save,f)
+        print_ok("track and raceline saved")
+
+    def load(self,filename=None):
+        if filename is None:
+            filename = "raceline.p"
+
+        with open(filename, 'rb') as f:
+            save = pickle.load(f)
+
+        # restore save data
+        self.grid_sequence = save['grid_sequence']
+        self.scale = save['scale']
+        self.origin_seq_no = save['origin_seq_no']
+        self.track_length = save['track_length']
+        self.raceline = save['raceline']
+        self.gridsize = save['gridsize']
+        self.resolution = save['resolution']
+        self.targetVfromU = save['targetVfromU']
+        self.track = save['track']
+        self.min_v = save['min_v']
+        self.max_v = save['max_v']
+
+        print_ok("track and raceline loaded")
         return
 
     # calculate distance
@@ -838,16 +909,10 @@ class RCPtrack(Track):
         print(self.K)
         self.verify(steps)
 
-
-
-
-
-
-
     # ---------- for curvature norm minimization -----
     
     # draw the raceline from self.raceline
-    def drawRaceline(self,lineColor=(0,0,255), img=None):
+    def drawRaceline(self,lineColor=(0,0,255), img=None,points=None):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -858,7 +923,7 @@ class RCPtrack(Track):
 
         # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
         # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0,len(self.ctrl_pts),1000)
+        u_new = np.linspace(0,self.track_length,1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
         x_new /= self.scale
@@ -879,20 +944,23 @@ class RCPtrack(Track):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%len(self.ctrl_pts))), thickness=3) 
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%self.track_length)), thickness=3) 
 
-        # solid color
+        # plot reference points
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        for point in self.ctrl_pts:
-            x = point[0]
-            y = point[1]
-            x /= self.scale
-            x *= self.resolution
-            y /= self.scale
-            y *= self.resolution
-            y = self.resolution*rows - y
-            
-            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        if points is None:
+            points = self.ctrl_pts
+        if len(points)>0:
+            for point in points:
+                x = point[0]
+                y = point[1]
+                x /= self.scale
+                x *= self.resolution
+                y /= self.scale
+                y *= self.resolution
+                y = self.resolution*rows - y
+                
+                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         return img
 
@@ -998,7 +1066,7 @@ class RCPtrack(Track):
 
         # distance squared, not need to find distance here
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
-        fun = lambda u: dist_2(splev(u%len(self.ctrl_pts),self.raceline),coord)
+        fun = lambda u: dist_2(splev(u%self.track_length,self.raceline),coord)
         # determine which end is the coord closer to, since seq points to the previous control point,
         # not necessarily the closest one
         if fun(seq+1) < fun(seq):
@@ -1056,10 +1124,10 @@ class RCPtrack(Track):
         #print('x err', abs(min_fun_x-res.x))
         #print('fun err',abs(min_fun_val-res.fun))
 
-        raceline_point = splev(min_fun_x%len(self.ctrl_pts),self.raceline)
+        raceline_point = splev(min_fun_x%self.track_length,self.raceline)
         #raceline_point = splev(res.x,self.raceline)
 
-        der = splev(min_fun_x%len(self.ctrl_pts),self.raceline,der=1)
+        der = splev(min_fun_x%self.track_length,self.raceline,der=1)
         #der = splev(res.x,self.raceline,der=1)
 
         if (False):
@@ -1078,13 +1146,13 @@ class RCPtrack(Track):
         cross_theta = np.cross(vec_raceline,vec_offset)
 
 
-        vec_curvature = splev(min_fun_x%len(self.ctrl_pts),self.raceline,der=2)
+        vec_curvature = splev(min_fun_x%self.track_length,self.raceline,der=2)
         norm_curvature = np.linalg.norm(vec_curvature)
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
 
         # return target velocity
-        request_velocity = self.targetVfromU(min_fun_x%len(self.ctrl_pts))
+        request_velocity = self.targetVfromU(min_fun_x%self.track_length)
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
         return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
@@ -1218,114 +1286,6 @@ class RCPtrack(Track):
 
     
 if __name__ == "__main__":
-
-    # initialize track and raceline, multiple tracks are defined here, you may choose any one
-
-    # full RCP track
-    # row, col
     fulltrack = RCPtrack()
-    fulltrack.minimizeCurvatureRoutine()
-
-    exit(0)
-    img_track = mk103.drawTrack()
-    img_track = mk103.drawRaceline(img=img_track)
-    # show trajectory
-    #plt.imshow(cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB))
-    #plt.show()
-
-    # select a track
-    s = mk103
-    # visualize raceline
-    img_track = s.drawTrack()
-    img_track = s.drawRaceline(img=img_track)
-
-    porsche_setting = {'wheelbase':90e-3,
-                     'max_steer_angle_left':radians(27.1),
-                     'max_steer_pwm_left':1150,
-                     'max_steer_angle_right':radians(27.1),
-                     'max_steer_pwm_right':1850,
-                     'serial_port' : None,
-                     'max_throttle' : 0.5}
-    # porsche 911
-    car = Car(porsche_setting)
-
-    # given a starting simulation location, find car control and visualize it
-    # for RCP track
-    coord = (3.6*0.565,3.5*0.565)
-    # for simple track
-    # coord = (2.5*0.565,1.5*0.565)
-
-    # for mk103 track
-    coord = (0.5*0.565,1.7*0.565)
-    heading = pi/2
-    # be careful here
-    reverse = False
-    # x,y,v,heading,omega
-    # FIXME
-    #throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],0,heading,0],s)
-    throttle,steering,valid,debug_dict = car.ctrlCar([coord[0],coord[1],heading,0,0,0],s)
-
-
-    sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
-    #print(throttle,steering,valid)
-
-    #img_track_car = s.drawCar(coord,heading,steering,img_track.copy())
-    gifimages = []
-
-    #FIXME
-    #state = np.array([sim_states['coord'][0],sim_states['coord'][1],0,sim_states['heading'],sim_states['omega']])
-    state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],0,0,sim_states['omega']])
-
-    img_track_car = s.drawCar(img_track.copy(),state,steering)
-    cv2.imshow('car',img_track_car)
-    # prepare save gif
-    saveGif = False
-    if saveGif:
-        gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
-
-    max_acc = 0
-    sim_dt = 0.01
-    sim_log_vec['omega'] = []
-    sim_log_vec['vf'] = []
-    sim_log_vec['v_target'] = []
-    sim_log_vec['offset'] = []
-    sim_log_vec['steering'] = []
-    v_override = 0
-    for i in range(620):
-        # update car
-        sim_states = s.updateCar(sim_dt,sim_states,throttle,steering,v_override=v_override)
-        sim_log_vec['omega'].append(sim_states['omega'])
-
-        # FIXME
-        #state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['vf'],sim_states['heading'],sim_states['omega']])
-        state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
-        throttle,steering,valid,debug_dict = car.ctrlCar(state,s,reverse=reverse)
-
-        if (len(sim_log_vec['v_target'])>0):
-            v_override = sim_log_vec['v_target'][-1]
-
-        sim_log_vec['vf'].append(debug_dict['vf'])
-        sim_log_vec['v_target'].append(debug_dict['v_target'])
-        sim_log_vec['offset'].append(debug_dict['offset'])
-        sim_log_vec['steering'].append(steering)
-        img_track_car = s.drawCar(img_track.copy(),state,steering)
-        img_track_car = s.drawPoint(img_track_car,debug_dict['local_ctrl_point'])
-        #img_track_car = s.drawAcc(sim_state['acc'],img_track_car)
-        #print(sim_states['acc'])
-        acc = sim_states['acc']
-        acc_mag = (acc[0]**2+acc[1]**2)**0.5
-
-        cv2.imshow('car',img_track_car)
-        if saveGif:
-            gifimages.append(Image.fromarray(cv2.cvtColor(img_track_car,cv2.COLOR_BGR2RGB)))
-        k = cv2.waitKey(int(sim_dt/0.001)) & 0xFF
-        if k == ord('q'):
-            break
-
-    cv2.destroyAllWindows()
-    if saveGif:
-        gifimages[0].save(fp="./mk103new.gif",format='GIF',append_images=gifimages,save_all=True,duration = 50,loop=0)
-
-    p0, = plt.plot(sim_log_vec['steering'],label='vf')
-    plt.show()
+    fulltrack.prepareTrack()
 

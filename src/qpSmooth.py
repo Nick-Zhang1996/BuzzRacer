@@ -4,9 +4,11 @@
 import cv2
 import cvxopt
 import warnings
+import pickle
 import numpy as np
 from scipy.interpolate import interp1d
 from math import pi,isclose,radians,cos,sin,atan2,tan
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -22,8 +24,6 @@ class QpSmooth(RCPtrack):
         RCPtrack.__init__(self)
         warnings.simplefilter("error")
         return
-
-
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
     # return: 2*3, tuple
@@ -271,7 +271,6 @@ class QpSmooth(RCPtrack):
 
         Ds = 0.5*np.array(np.diag(Ds))
 
-        # NOTE for DEBUG
         self.ds = ds
         self.k = k_vec
         self.n = np.array(n_vec).reshape(-1,2)
@@ -422,6 +421,30 @@ class QpSmooth(RCPtrack):
         R = max(R,0)
 
         return min(F*self.scale,delta_max), min(R*self.scale,delta_max)
+
+    # convert raceline to a B spline to reuse old code for velocity generation and localTrajectory, since they expect a spline object
+    def convertToSpline(self):
+        # sample entire path
+        steps = 100
+        N = len(self.break_pts)
+        uu = np.linspace(0,N,steps)
+        r = self.raceline_fun(uu).reshape(-1,2).T
+        tck, u = splprep(r, u=np.linspace(0,self.track_length,steps),s=0,per=1) 
+
+        self.u = u
+        self.raceline = tck
+        u_new = np.linspace(0,self.track_length,steps)
+        x_new, y_new = splev(u_new, self.raceline)
+
+        self.generateSpeedProfile()
+        self.verifySpeedProfile()
+        img_track = self.drawTrack()
+        #img_track = super().drawRaceline(img=img_track, points=self.break_pts)
+        # do not show break points
+        img_track = super().drawRaceline(img=img_track, points=[])
+        plt.imshow(img_track)
+        plt.show()
+        return
 
 
     def testLagrangeDer(self):
@@ -667,7 +690,8 @@ class QpSmooth(RCPtrack):
         plt.show()
         '''
 
-    def testOptimizer(self):
+    # optimize path and save to pickle file
+    def optimizePath(self):
         # initialize
         # prepare the full racetrack
         self.prepareTrack()
@@ -682,7 +706,7 @@ class QpSmooth(RCPtrack):
         self.resamplePath(new_N)
 
         # save a gif of the optimization process
-        self.saveGif = True
+        self.saveGif = False
 
         if self.saveGif:
             self.gifimages = []
@@ -702,12 +726,12 @@ class QpSmooth(RCPtrack):
             self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
             # show raceline
-            print(iter_count)
-            img_track = self.drawTrack()
-            img_track = self.drawRaceline(img=img_track)
-            #plt.imshow(img_track)
-            #plt.show()
+            print_ok("iter: %d"%(iter_count,))
             if self.saveGif:
+                img_track = self.drawTrack()
+                img_track = self.drawRaceline(img=img_track)
+                #plt.imshow(img_track)
+                #plt.show()
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)))
 
             K, C, Ds = self.curvatureJac()
@@ -745,8 +769,7 @@ class QpSmooth(RCPtrack):
             h4 = h4.flatten()
             h = np.hstack([h,h3,h4])
             G = np.vstack([G,C,-C])
-            print("min radius")
-            print(np.min(np.abs(1.0/K)))
+            print_info("min radius = %.2f"%np.min(np.abs(1.0/K)))
 
             assert G.shape[1]==N
             assert G.shape[0]==4*N
@@ -758,6 +781,7 @@ class QpSmooth(RCPtrack):
             q_qp = cvxopt.matrix(q_qp)
             G = cvxopt.matrix(G)
             h = cvxopt.matrix(h)
+            cvxopt.solvers.options['show_progress'] = False
             sol = cvxopt.solvers.qp(P_qp, q_qp, G, h)
 
             # DEBUG
@@ -777,9 +801,9 @@ class QpSmooth(RCPtrack):
             #assert (K-Kmin >0).all()
 
             # check terminal condition
-            print("max variation %.2f"%(np.max(np.abs(variance))))
+            print_info("max variation %.2f"%(np.max(np.abs(variance))))
             if np.max(np.abs(variance))<0.1*delta_max:
-                print("terminal condition met")
+                print_ok("terminal condition met")
                 break
 
             # apply changes to break points
@@ -795,31 +819,29 @@ class QpSmooth(RCPtrack):
             print_info("saving gif.. This may take a while")
             self.log_no = 0
             gif_filename = "./qpOpt"+str(self.log_no)+".gif"
-            # TODO better way of determining duration
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 600,loop=0)
-            print_info("gif saved at "+gif_filename)
+            print_ok("gif saved at "+gif_filename)
 
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
 
-
-
-
-
-
+        self.convertToSpline()
+        self.save()
 
 
 if __name__ == "__main__":
-    fulltrack = RCPtrack()
+    # optimize and save
     qp = QpSmooth()
-    val = qp.testOptimizer()
-    '''
-    for i in range(24):
-        val = qp.testCurvatureJac(i)
-        if val<0:
-            print_warning("%d, %.2f"%(i,val))
-        else:
-            print_ok("%d, %.2f"%(i,val))
-    '''
+    val = qp.optimizePath()
+
+    # load and show
+    fulltrack = RCPtrack()
+    print("-----------------")
+    print_info("testing loading")
+    fulltrack.load()
+    img_track = fulltrack.drawTrack()
+    img_track = fulltrack.drawRaceline(img=img_track,points=[])
+    plt.imshow(img_track)
+    plt.show()
