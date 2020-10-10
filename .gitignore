@@ -6,3 +6,5 @@ __pycache__/
 *.avi
 *.pyc
 *.p
+*.gif
+*.py.swp
