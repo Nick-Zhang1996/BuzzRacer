@@ -63,6 +63,10 @@ class RCPtrack(Track):
         self.offset_history = []
         self.offset_timestamp = []
         self.log_no = 0
+        self.debug = {}
+
+        # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
+        self.last_u = None
 
     def resolveLogname(self,):
 
@@ -910,6 +914,15 @@ class RCPtrack(Track):
         self.verify(steps)
 
     # ---------- for curvature norm minimization -----
+
+    # draw point corresponding to u
+    def drawPointU(self,img,uu):
+        rows = self.gridsize[0]
+        x_new, y_new = splev(uu, self.raceline, der=0)
+
+        for x,y in zip(x_new,y_new):
+            img = self.drawPoint(img,(x,y))
+        return img
     
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None,points=None):
@@ -948,9 +961,7 @@ class RCPtrack(Track):
 
         # plot reference points
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        if points is None:
-            points = self.ctrl_pts
-        if len(points)>0:
+        if not (points is None):
             for point in points:
                 x = point[0]
                 y = point[1]
@@ -1039,38 +1050,44 @@ class RCPtrack(Track):
         # coord should be given in meters
         nondim= np.array((coord/self.scale)//1,dtype=np.int)
 
-        # the seq here starts from origin
-        seq = -1
-        # figure out which u this grid corresponds to 
-        for i in range(len(self.grid_sequence)):
-            if nondim[0]==self.grid_sequence[i][0] and nondim[1]==self.grid_sequence[i][1]:
-                seq = i
-                break
-
-        if seq == -1:
-            print("error, coord not on track")
-            return None
-
-        # the grid that contains the coord
-        #print("in grid : " + str(self.grid_sequence[seq]))
-
-        # find the closest point to the coord
-        # because we wrapped the end point to the beginning of sample point, we need to add this offset
-        # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
-        seq += self.origin_seq_no
-        seq %= self.track_length
-
-        # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
-        # due to smoothing factor
-        #print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
-
         # distance squared, not need to find distance here
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
         fun = lambda u: dist_2(splev(u%self.track_length,self.raceline),coord)
-        # determine which end is the coord closer to, since seq points to the previous control point,
-        # not necessarily the closest one
-        if fun(seq+1) < fun(seq):
-            seq += 1
+        # last_u is the seq found last time, which should be a good estimate of where to start
+        if self.last_u is None:
+            # the seq here starts from origin
+            seq = -1
+            # figure out which u this grid corresponds to 
+            for i in range(len(self.grid_sequence)):
+                if nondim[0]==self.grid_sequence[i][0] and nondim[1]==self.grid_sequence[i][1]:
+                    seq = i
+                    break
+
+            if seq == -1:
+                print("error, coord not on track")
+                return None
+
+            # the grid that contains the coord
+            #print("in grid : " + str(self.grid_sequence[seq]))
+
+            # find the closest point to the coord
+            # because we wrapped the end point to the beginning of sample point, we need to add this offset
+            # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
+            seq += self.origin_seq_no
+            seq %= self.track_length
+
+            # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
+            # due to smoothing factor
+            #print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
+
+            # determine which end is the coord closer to, since seq points to the previous control point,
+            # not necessarily the closest one
+            if fun(seq+1) < fun(seq):
+                seq += 1
+            if fun(seq-1) < fun(seq):
+                seq -= 1
+        else:
+            seq = self.last_u
 
         # Goal: find the point on raceline closest to coord
         # i.e. find x that minimizes fun(x)
@@ -1085,6 +1102,7 @@ class RCPtrack(Track):
         # improved method: from observation, fun(x) is quadratic in proximity of seq
         # we assume it to be ax^3 + bx^2 + cx + d and formulate this minimization as a linalg problem
         # sample some points to build the trinomial simulation
+        self.debug['seq'] = seq
         iv = np.array([-0.6,-0.3,0,0.3,0.6])+seq
         # formulate linear problem
         A = np.vstack([iv**3, iv**2,iv,[1,1,1,1,1]]).T
@@ -1099,6 +1117,7 @@ class RCPtrack(Track):
         fun = lambda x : a*x*x*x + b*x*x + c*x + d
         fit = minimize(fun, x0=seq, method='L-BFGS-B', bounds=((seq-0.6,seq+0.6),))
         min_fun_x = fit.x[0]
+        self.last_u = min_fun_x%self.track_length
 
         min_fun_val = fit.fun[0]
         # find min val
