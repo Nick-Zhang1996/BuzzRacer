@@ -44,11 +44,11 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = False
+        self.enableLaptimer = True
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -241,6 +241,8 @@ class Main():
         # get control signal
         if (self.controller == Controller.stanley):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+            if not valid:
+                print_warning("ctrlCar invalid retval")
             if self.slowdown.isSet():
                 throttle = 0.0
 
@@ -385,7 +387,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/kf/"
+        logFolder = "../log/oct9/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1

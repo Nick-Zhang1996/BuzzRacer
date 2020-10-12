@@ -7,6 +7,7 @@ from numpy import isclose
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import matplotlib.pyplot as plt
 from PidController import PidController
+from common import *
 
 class Car:
     def __init__(self,car_setting):
@@ -21,7 +22,12 @@ class Car:
         # for actual car 1 seems to work
         #self.P = 2.0/180*pi/0.01
         # variable P
-        self.Pfun = lambda v: max(min((-0.5*v+2.25),2.8),1.3)/280*pi/0.01
+        # define two velocity->gain map, a linear interpolation would be used to determine gain
+        p1 = (1.0,2.0)
+        p2 = (4.0,0.5)
+        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
+        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
+        self.Pfun = lambda v: max(min((self.Pfun_slope*v+self.Pfun_offset),4.0),0.5)/280*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -39,7 +45,7 @@ class Car:
         #speed controller
         P = 5 # to be more aggressive use 15
         I = 0.0 #0.1
-        D = 0.8
+        D = 0.4
         self.throttle_pid = PidController(P,I,D,0.01,1,2)
         # low pass filter for throttle controller
 
@@ -52,15 +58,16 @@ class Car:
         #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/50/tc)
         self.serial_port = car_setting['serial_port']
+        self.car_interface = None
         if not (self.serial_port is None):
             try:
                 self.car_interface = serial.Serial(self.serial_port,115200, timeout=0.001,writeTimeout=0)
-            except FileNotFoundError:
+            except (FileNotFoundError,serial.serialutil.SerialException):
                 print_error(" interface %s not found"%self.serial_port)
                 exit(1)
 
     def __del__(self):
-        if (not (self.serial_port is None) and self.car_interface.is_open):
+        if ((not self.serial_port is None) and (not self.car_interface is None) and self.car_interface.is_open):
             self.car_interface.close()
     def mapdata(self,x,a,b,c,d):
         y=(x-a)/(b-a)*(d-c)+c
@@ -101,7 +108,7 @@ class Car:
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         # FIXME
-        v_target *= 0.8
+        #v_target *= 0.8
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})

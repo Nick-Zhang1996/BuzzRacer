@@ -762,7 +762,7 @@ class QpSmooth(RCPtrack):
 
             # curvature constrain
             # CX <= Kmax - K
-            Rmin = 0.102/tan(radians(27))
+            Rmin = 0.102/tan(radians(23))
             Kmax = 1.0/Rmin
             Kmin = -1.0/Rmin
             h3 = Kmax - K
@@ -835,8 +835,8 @@ class QpSmooth(RCPtrack):
 
 if __name__ == "__main__":
     # optimize and save
-    qp = QpSmooth()
-    val = qp.optimizePath()
+    #qp = QpSmooth()
+    #val = qp.optimizePath()
 
     # load and show
     fulltrack = RCPtrack()

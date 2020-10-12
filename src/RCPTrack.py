@@ -97,7 +97,7 @@ class RCPtrack(Track):
         # gridsize (rows, cols), size of thr track
         # savepath, where to store the track file
 
-        # scale : meters per grid width (for RCP roughly 0.565m)
+        # scale : meters per grid width 0.6m
         self.scale = scale
         self.gridsize = gridsize
         self.track_length = len(description)
