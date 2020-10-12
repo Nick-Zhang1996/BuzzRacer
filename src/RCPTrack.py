@@ -57,7 +57,7 @@ class Node:
 class RCPtrack(Track):
     def __init__(self):
         # resolution : pixels per grid side length
-        self.resolution = 150
+        self.resolution = 120
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -557,7 +557,7 @@ class RCPtrack(Track):
     def prepareTrack(self,):
         # prepare full track
         track_size = (6,4)
-        self.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
+        self.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
         # add manual offset for each control points
         adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
@@ -629,7 +629,7 @@ class RCPtrack(Track):
         self.track_length = save['track_length']
         self.raceline = save['raceline']
         self.gridsize = save['gridsize']
-        self.resolution = save['resolution']
+        #self.resolution = save['resolution']
         self.targetVfromU = save['targetVfromU']
         self.track = save['track']
         self.min_v = save['min_v']
