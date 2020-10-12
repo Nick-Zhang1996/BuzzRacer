@@ -369,7 +369,7 @@ class QpSmooth(RCPtrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        deadzone = 0.087 * 2.8
+        deadzone = 0.087 * 3.0
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:
@@ -762,7 +762,8 @@ class QpSmooth(RCPtrack):
 
             # curvature constrain
             # CX <= Kmax - K
-            Rmin = 0.102/tan(radians(23))
+            # min radius allowed
+            Rmin = 0.102/tan(radians(18))
             Kmax = 1.0/Rmin
             Kmin = -1.0/Rmin
             h3 = Kmax - K
@@ -835,8 +836,8 @@ class QpSmooth(RCPtrack):
 
 if __name__ == "__main__":
     # optimize and save
-    #qp = QpSmooth()
-    #val = qp.optimizePath()
+    qp = QpSmooth()
+    val = qp.optimizePath()
 
     # load and show
     fulltrack = RCPtrack()
