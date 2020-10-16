@@ -82,11 +82,57 @@ for i in range(len(x)-1):
     kf_state = kf.getState()
     kf_state_vec.append(kf_state)
 
+def getAccCarFrame(x,y,dt):
+    dxdt = np.diff(x)/dt
+    dydt = np.diff(y)/dt
+    dxdt = savgol_filter(dxdt,51,2)
+    dydt = savgol_filter(dydt,51,2)
+
+    vel_vec = np.vstack([dxdt,dydt]).T
+
+    lat_acc_vec = []
+    lon_acc_vec = []
+    total_acc_vec = []
+    dtheta_vec = []
+    theta_vec = []
+    v_vec = []
+
+    # get lateral and longitudinal acceleration
+    for i in range(vel_vec.shape[0]-1):
+
+        theta = np.arctan2(vel_vec[i,1],vel_vec[i,0])
+        theta_vec.append(theta)
+
+        dtheta = np.arctan2(vel_vec[i+1,1],vel_vec[i+1,0]) - theta
+        dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
+        dtheta_vec.append(dtheta)
+
+        speed = np.linalg.norm(vel_vec[i])
+        next_speed = np.linalg.norm(vel_vec[i+1])
+        v_vec.append(speed)
+
+        lat_acc_vec.append(speed*dtheta/dt)
+        lon_acc_vec.append((next_speed-speed)/dt)
+        total_acc_vec.append((lat_acc_vec[-1]**2+lon_acc_vec[-1]**2)**0.5)
+
+    lon_acc_vec = np.array(lon_acc_vec)
+    lat_acc_vec = np.array(lat_acc_vec)
+    lon_acc_vec = savgol_filter(lon_acc_vec,51,2)
+    lat_acc_vec = savgol_filter(lat_acc_vec,51,2)
+    total_acc_vec = savgol_filter(total_acc_vec,51,2)
+
+    # get acc_vector, track frame
+    acc_vec = np.diff(vel_vec,axis=0)
+    acc_vec = acc_vec / dt
+    return np.array(lat_acc_vec), np.array(lon_acc_vec), np.array(total_acc_vec)
 
 
 kf_state = np.array(kf_state_vec)
 action_vec = np.array(action_vec)
 #kf_x, kf_y, kf_v, kf_theta, kf_omega = kf_state
+
+# prepare acc vector
+lat_acc, lon_acc, total_acc = getAccCarFrame(x,y,dt)
 
 fig = plt.figure()
 ax = fig.gca()
@@ -105,18 +151,33 @@ ax.legend()
 plt.show()
 
 # plot acc
+'''
 fig = plt.figure()
 ax = fig.gca()
-ax.plot(t[:-2],acc, label="acc measured")
+ax.plot(t[:-2],acc, label="longitudinal acc measured")
 ax.plot(t[:-1],action_vec[:,1], label="kf_a")
 ax.plot(t,throttle, label="throttle")
 ax.plot(t,np.abs(steering), label="steering")
 ax.legend()
 plt.show()
+'''
 
+# plot acc
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(t[:-2],lon_acc, label="longitudinal acc ")
+ax.plot(t[:-2],lat_acc, label="lateral acc ")
+ax.plot(t[:-2],total_acc, label="acc norm")
+ax.plot(t,throttle, label="throttle")
+#ax.plot(t,np.abs(steering), label="steering")
+ax.legend()
+plt.show()
+
+'''
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(t,heading/pi*180,label="raw heading")
 ax.plot(t[:-1],kf_state[:,3]/pi*180+0.01, label="kf")
 ax.legend()
 plt.show()
+'''

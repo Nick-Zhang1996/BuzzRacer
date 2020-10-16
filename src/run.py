@@ -54,13 +54,13 @@ class Main():
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        #self.stateUpdateSource = StateUpdateSource.optitrack
-        self.stateUpdateSource = StateUpdateSource.simulator
+        self.stateUpdateSource = StateUpdateSource.optitrack
+        #self.stateUpdateSource = StateUpdateSource.simulator
 
         # set target platform
         # if running simulation set this to simulator
-        #self.vehiclePlatform = VehiclePlatform.offboard
-        self.vehiclePlatform = VehiclePlatform.simulator
+        self.vehiclePlatform = VehiclePlatform.offboard
+        #self.vehiclePlatform = VehiclePlatform.simulator
 
         # set control pipeline
         #self.controller = Controller.joystick
@@ -92,13 +92,17 @@ class Main():
 
         # flag to quit all child threads gracefully
         self.exit_request = Event()
+        # if set, continue to follow trajectory but set throttle to -0.1
+        # so we don't leave car uncontrolled at max speed
+        self.slowdown = Event()
+        self.slowdown_ts = 0
 
         self.car = self.prepareCar()
 
         self.initStateUpdate()
 
         # log with undetermined format
-        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[]}
+        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],}
 
         # prepare log
         if (self.enableLog):
@@ -133,6 +137,10 @@ class Main():
             self.debug_dict['target_v'].append(self.v_target)
             self.debug_dict['actual_v'].append(v_forward)
             self.debug_dict['throttle'].append(self.car.throttle)
+            p,i,d = self.car.throttle_pid.getDebug()
+            self.debug_dict['p'].append(p)
+            self.debug_dict['i'].append(i)
+            self.debug_dict['d'].append(d)
 
             if self.stateUpdateSource != StateUpdateSource.simulator:
                 (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
@@ -179,6 +187,9 @@ class Main():
         # restrict update rate to 0.01s/frame, a rate higher than this can lead to frozen frames
         if (time()-self.visualization_ts>0.02 or self.stateUpdateSource == StateUpdateSource.simulator):
             img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
+            # DEBUG
+            # draw the range where solver is seeking answer
+            #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
             self.visualization_ts = time()
             cv2.imshow('experiment',img)
@@ -188,9 +199,17 @@ class Main():
             if (self.stateUpdateSource == StateUpdateSource.simulator):
                 k = cv2.waitKey(int(self.sim_dt/0.001)) & 0xFF
             else:
+                # real experiment
                 k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
-                self.exit_request.set()
+                # first time q is presed, slow down
+                if not self.slowdown.isSet():
+                    print("slowing down, press q again to shutdown")
+                    self.slowdown.set()
+                    self.slowdown_ts = time()
+                else:
+                    # second time, shut down
+                    self.exit_request.set()
 
     # run the control/visualization update
     # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
@@ -223,6 +242,11 @@ class Main():
         # get control signal
         if (self.controller == Controller.stanley):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+            if not valid:
+                print_warning("ctrlCar invalid retval")
+            if self.slowdown.isSet():
+                throttle = 0.0
+
             # TODO debug only
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.joystick):
@@ -288,8 +312,14 @@ class Main():
         # width 0.563, square tile side length 0.6
 
         # full RCP track
-        # row, col
+        # NOTE load track instead of re-constructing
         fulltrack = RCPtrack()
+        if self.enableLaptimer:
+            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
+        fulltrack.load()
+        return fulltrack
+
+        # row, col
         track_size = (6,4)
         #fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
         fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
@@ -324,8 +354,6 @@ class Main():
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
         fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
-        if self.enableLaptimer:
-            self.laptimer = Laptimer((0.6*3.5,0.6*1.75),radians(90))
         return fulltrack
 
     def prepareCar(self,):
@@ -335,7 +363,7 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 0.5}
+                         'max_throttle' : 0.7}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -360,7 +388,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/kf/"
+        logFolder = "../log/oct9/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -429,12 +457,12 @@ class Main():
     def updateOptitrack(self,):
         # update for eachj car
         # not using kf state for now
-        #(x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
+        (x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
 
 
-        (x,y,theta) = self.vi.getState2d(self.car.internal_id)
+        #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
         # (x,y,theta,vforward,vsideway=0,omega)
-        self.car_state = (x,y,theta,0,0,0)
+        self.car_state = (x,y,theta,v,0,omega)
         return
 
     def stopOptitrack(self,):
