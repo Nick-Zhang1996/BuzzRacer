@@ -144,6 +144,7 @@ class Optitrack:
     # regular callback for state update
     def receiveRigidBodyFrame(self, optitrack_id, position, rotation ):
         #print( "Received frame for rigid body", id )
+        tic = time()
         internal_id = self.getInternalId(optitrack_id)
         x,y,z = position
         qx, qy, qz, qw = rotation
@@ -174,6 +175,7 @@ class Optitrack:
             self.kf_state_list[internal_id] = self.kf[internal_id].getState()
         self.state_lock.release()
         self.newState.set()
+        print("process new state took %.2f ms"%(time()-tic)*1000.0)
         #print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         #print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
         #print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))
