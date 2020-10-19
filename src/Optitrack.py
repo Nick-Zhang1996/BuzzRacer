@@ -8,16 +8,19 @@ from kalmanFilter import KalmanFilter
 import numpy as np
 from math import pi,degrees,atan2
 from scipy.spatial.transform import Rotation
+import matplotlib.pyplot as plt
 
 
 class Optitrack:
-    def __init__(self,wheelbase=102e-3,enableKF=True):
+    def __init__(self,wheelbase=102e-3,enableKF=True,reportLatency=True):
+        self.reportLatency = reportLatency
         self.newState = Event()
         self.enableKF = Event()
         if enableKF:
             self.action = (0,0)
             self.kf = []
             self.enableKF.set()
+        self.sysLatency = []
 
         # to be used in Kalman filter update
         # action = (steering in rad left positive, longitudinal acc (m/s2))
@@ -59,6 +62,8 @@ class Optitrack:
             sleep(0.1)
             # switch to regular callback now that everything is initialized
             self.streamingClient.rigidBodyListener = self.receiveRigidBodyFrame
+            if (self.reportLatency):
+                self.reportLatency = self.logLatency()
 
 
 
@@ -67,6 +72,10 @@ class Optitrack:
 
     def quit(self):
         self.streamingClient.requestQuit()
+
+    def logLatency(self,ab_latency_ms,system_latency_ms):
+        self.sysLatency.append(system_latency_ms)
+        print("ab=%.2f"%ab_latency_ms)
 
     # there are two sets of id
     # Optitrack ID: like object name in vicon, each object has a unique ID that can be any integer value
@@ -237,5 +246,7 @@ if __name__ == '__main__':
 
     input("press enter to stop\n")
     op.quit()
+    plt.plot(op.sysLatency)
+    plt.show()
 
 

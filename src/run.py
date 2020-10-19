@@ -7,6 +7,7 @@ from threading import Event,Lock
 from time import sleep,time
 from PIL import Image
 from math import pi,radians,degrees,asin,acos
+import matplotlib.pyplot as plt
 
 from common import *
 from vicon import Vicon
@@ -154,6 +155,10 @@ class Main():
         print_info("Exiting ...")
         cv2.destroyAllWindows()
         self.stopStateUpdate()
+
+        # NOTE latency display
+        plt.plot(self.vi.sysLatency)
+        plt.show()
 
         if (self.controller == Controller.joystick):
             print_info("exiting joystick... move joystick a little")

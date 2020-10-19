@@ -34,8 +34,10 @@ DoubleValue = struct.Struct( '<d' )
 
 class NatNetClient:
     def __init__( self ):
+        self.reportLatency = True
         self.newFrameListener = None
         self.rigidBodyListener = None
+        self.reportLatency = None
         self.flag_quit = Event()
         self.child_threads = []
         # Change this value to the IP address of the NatNet server.
@@ -351,6 +353,12 @@ class NatNetClient:
         if self.newFrameListener is not None:
             self.newFrameListener( frameNumber, markerSetCount, unlabeledMarkersCount, rigidBodyCount, skeletonCount,
                                   labeledMarkerCount, timecode, timecodeSub, timestamp, isRecording, trackedModelsChanged )
+            if self.reportLatency is not None:
+                # stamps are measured in ticks of host computer
+                system_latency_ms = (stampTransmit - stampCameraExposure)*10000.0
+                ab_latency_ms = (stampDataReceived - stampCameraExposure)*10000.0
+                self.reportLatency(ab_latency_ms,system_latency_ms)
+
 
     # Unpack a marker set description packet
     def __unpackMarkerSetDescription( self, data ):
