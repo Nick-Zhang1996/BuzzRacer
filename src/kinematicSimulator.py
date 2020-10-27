@@ -3,7 +3,7 @@
 import random
 import numpy as np
 from time import time
-from math import sin,cos,degrees,radians,tan
+from math import sin,cos,degrees,radians,tan,pi
 from kalmanFilter import KalmanFilter
 import matplotlib.pyplot as plt
 import progressbar
@@ -20,6 +20,9 @@ class kinematicSimulator():
         self.acc_l = 0
         self.state_count = 5
         self.wheelbase = 0.102
+
+        # for simulation
+        self.t = 0
 
         # error on observation
         self.var_xy = 0.005**2
@@ -65,6 +68,7 @@ class kinematicSimulator():
         
 
     def step(self,dt,action=None):
+        self.t += dt
         if action is None:
             action = self.action
         v = self.X[2,0]
@@ -80,6 +84,71 @@ class kinematicSimulator():
         self.X[2,0] += acc_long*dt
         self.X[4,0] = self.X[2,0]/self.wheelbase * tan(steering)
         pass
+
+    # update car state with bicycle model, no slip
+    # dt: time, in sec
+    # state: (x,y,theta), np array
+    # x,y: coordinate of car origin(center of rear axle)
+    # theta, car heading, in rad, ref from x axis
+    # beta: steering angle, left positive, in rad
+    # return new state (x,y,theta)
+    def updateCar(self,dt,state,throttle,beta,v_override=None):
+        self.t += dt
+        # wheelbase, in meter
+        # heading of pi/2, i.e. vehile central axis aligned with y axis,
+        # means theta = 0 (the x axis of car and world frame is aligned)
+        coord = state['coord']
+        heading = state['heading']
+        vf = state['vf']
+        vs = state['vs']
+        omega = state['omega']
+
+        theta = state['heading'] - pi/2
+        L = 90e-3
+        # NOTE if side slip is ever modeled, update ds
+        ds = vf*dt
+        dtheta = ds*tan(beta)/L
+
+        if v_override is None:
+            # update velocity using a simplified model
+            # fit model from log/kf/throttleFit.py
+            acc = throttle * 4.95445214 - 1.01294228
+            # if vehicle is stationary, it won't go backwards
+            # when throttle is <0.245 and vehicle is stationary, vehicle won't move
+            # (according to linear model acc>0 for this throttle val but vehicle doesn't actually move)
+            if vf < 0.01 and throttle<0.245:
+                acc = 0
+            dvf = acc * dt
+
+        else:
+            # velocity override, force velocity to be any value
+            dvf = v_override - vf
+
+        dvs = 0
+        # specific to vehicle frame (x to right of rear axle, y to forward)
+        if (beta==0):
+            dx = 0
+            dy = ds
+        else:
+            dx = - L/tan(beta)*(1-cos(dtheta))
+            dy =  (L/tan(beta)*sin(dtheta))
+
+        #print(dx,dy)
+        # specific to world frame
+        dX = dx*cos(theta)-dy*sin(theta)
+        dY = dx*sin(theta)+dy*cos(theta)
+
+        acc_x = vf+dvf - vf*cos(dtheta) - vs*sin(dtheta)
+        acc_y = vs+dvs - vs*cos(dtheta) - vf*sin(dtheta)
+
+        state['coord'] = (state['coord'][0]+dX,state['coord'][1]+dY)
+        state['heading'] += dtheta
+        state['vf'] = vf + dvf
+        state['vs'] = vs + dvs
+        state['omega'] = dtheta/dt
+        # in new vehicle frame
+        state['acc'] = (acc_x,acc_y)
+        return state
         
 
 

@@ -11,7 +11,7 @@ class advCarSim:
         self.Caf = 5*0.25*self.m*g
         self.Car = 5*0.25*self.m*g
         # longitudinal speed
-        self.Vx = 1
+        self.Vx = 2
         self.Vy = 0
         # CG to front axle
         self.lf = 0.05
@@ -33,6 +33,7 @@ class advCarSim:
         # control signal: throttle(acc),steering
         self.throttle = 0
         self.steering = 0
+        self.t = 0
 
 
     # update vehicle state
@@ -48,6 +49,7 @@ class advCarSim:
         Vx = sim_states['vf']
         '''
 
+        self.t += dt
         # NOTE page 30 of book vehicle dynamics and control
         # ref frame vehicle CG, x forward y leftward
         # this is in car frame, rotate to world frame

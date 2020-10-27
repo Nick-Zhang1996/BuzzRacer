@@ -18,6 +18,7 @@ from Optitrack import Optitrack
 from joystick import Joystick
 from laptimer import Laptimer
 from advCarSim import advCarSim
+from kinematicSimulator import kinematicSimulator
 
 from enum import Enum, auto
 class StateUpdateSource(Enum):
@@ -60,6 +61,9 @@ class Main():
         #self.stateUpdateSource = StateUpdateSource.optitrack
         #self.stateUpdateSource = StateUpdateSource.simulator
         self.stateUpdateSource = StateUpdateSource.dynamic_simulator
+
+        # real time/sim_time
+        self.real_sim_time_ratio = 2.0
 
         # set target platform
         # if running simulation set this to simulator
@@ -192,6 +196,12 @@ class Main():
 
 
     def updateVisualization(self,):
+        # we want a real-time simulation, waiting sim_dt between each simulation step
+        # however, since we cannot update visualization at sim_dt, we need to keep track of how much time has passed in simulation and match visualization accordingly
+        if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator \
+                or self.stateUpdateSource == StateUpdateSource.simulator):
+            sleep(max(0,self.real_sim_dt-(time()-self.simulator.t*self.real_sim_time_ratio)))
+
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
         if (time()-self.visualization_ts>0.02 or self.stateUpdateSource == StateUpdateSource.simulator):
             img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
@@ -200,17 +210,14 @@ class Main():
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
             self.visualization_ts = time()
+            self.last_visualized_sim_t = self.simulator.t
+
             cv2.imshow('experiment',img)
+
             if self.saveGif:
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
 
-            if (self.stateUpdateSource == StateUpdateSource.simulator \
-                    or self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
-                k = cv2.waitKey(int(self.sim_dt/0.001)) & 0xFF
-                sleep(0.01)
-            else:
-                # real experiment
-                k = cv2.waitKey(1) & 0xFF
+            k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
                 # first time q is presed, slow down
                 if not self.slowdown.isSet():
@@ -490,6 +497,8 @@ class Main():
     def initSimulation(self):
         self.new_state_update = Event()
         self.new_state_update.set()
+        self.simulator = kinematicSimulator()
+        self.real_sim_dt = time()-self.simulator.t
         coord = (0.5*0.565,1.7*0.565)
         x,y = coord
         heading = pi/2
@@ -506,7 +515,7 @@ class Main():
 
     def updateSimulation(self):
         # update car
-        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
+        sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
         self.new_state_update.set()
 
@@ -521,6 +530,7 @@ class Main():
         x,y = coord
         heading = pi/2
         self.simulator = advCarSim(x,y,heading)
+        self.real_sim_dt = time()-self.simulator.t
 
         self.car.steering = steering = 0
         self.car.throttle = throttle = 0
@@ -528,7 +538,7 @@ class Main():
 
         self.car_state = (x,y,heading,0,0,0)
         self.sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
-        self.sim_dt = 0.002
+        self.sim_dt = 0.01
 
     def updateAdvSimulation(self):
         # update car
@@ -547,6 +557,7 @@ class Main():
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
+    experiment.simulator.debug()
     print_info("program complete")
 
 
