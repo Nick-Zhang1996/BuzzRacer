@@ -48,7 +48,7 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
@@ -410,7 +410,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/oct9/"
+        logFolder = "../log/sysid/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -557,7 +557,7 @@ class Main():
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
-    experiment.simulator.debug()
+    #experiment.simulator.debug()
     print_info("program complete")
 
 
