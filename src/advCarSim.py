@@ -11,13 +11,13 @@ class advCarSim:
         self.Caf = 5*0.25*self.m*g
         self.Car = 5*0.25*self.m*g
         # longitudinal speed
-        self.Vx = 2
+        self.Vx = 1
         self.Vy = 0
         # CG to front axle
         self.lf = 0.05
         self.lr = 0.05
         # approximate as a solid box
-        self.Iz = 1/12.0*(0.1**2+0.1**2)
+        self.Iz = self.m/12.0*(0.1**2+0.1**2)
 
         self.x = x
         self.y = y

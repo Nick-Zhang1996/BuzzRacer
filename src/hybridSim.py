@@ -14,6 +14,8 @@ from common import ndarray
 
 from torch.utils.data import DataLoader
 from sysidDataloader import CarDataset
+
+from math import cos,sin
 # rewrite advCarSim.py as pytorch nn module
 
 class hybridSim(nn.Module):
@@ -35,13 +37,15 @@ class hybridSim(nn.Module):
 
         self.g = 9.81
         m = 0.2
-        self.m = self.get_param(m)
-        self.Caf = self.get_param(5*0.25*m*self.g)
-        self.Car = self.get_param(5*0.25*m*self.g)
-        self.lf = self.get_param(0.05)
-        self.lr = self.get_param(0.05)
+        self.m = self.get_param(m,False)
+        self.Caf = self.get_param(5*0.25*m*self.g*1.2,True)
+        #self.Car = self.get_param(5*0.25*m*self.g*0.9,True)
+        self.Car = self.Caf
+        self.lf = self.get_param(0.05,False)
+        self.lr = self.get_param(0.05,False)
+
         # approximate as a solid box
-        self.Iz = self.get_param(1/12.0*(0.1**2+0.1**2))
+        self.Iz = self.get_param(m/12.0*(0.1**2+0.1**2),False)
 
 
     # predict future car state
@@ -75,7 +79,7 @@ class hybridSim(nn.Module):
             A[:,3,5] = -Vx-(2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*Vx)
             A[:,4,5] = 1
             A[:,5,3] = -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*Vx)
-            A[:,5,4] = -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*Vx)
+            A[:,5,5] = -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*Vx)
 
             B = torch.zeros((batch_size,6,2),dtype=self.dtype,requires_grad=False)
             B[:,1,0] = 1
@@ -91,7 +95,69 @@ class hybridSim(nn.Module):
 
 
         future_states = full_states[:,-self.forward_steps:,:]
+        # FIXME
+        # verify this function against authentic simulation
+        '''
+        for i in range(batch_size):
+            last_full_state = np.array(full_states[i,-self.forward_steps-1,:].detach())
+            next_full_state = np.array(future_states[i,0,:].detach())
+            advsim_next_full_state = self.testForward(full_states,actions,i)
+            # this should be close to zero
+            error = np.linalg.norm(next_full_state-advsim_next_full_state)
+            if error>1e-10:
+                print("last_state")
+                print(last_full_state)
+                print("hybrid sim")
+                print(next_full_state)
+                print("advSim")
+                print(advsim_next_full_state)
+                print("error norm")
+                print(error)
+                print("----")
+        '''
         return future_states
+
+    # using advCarSim, calculate future states
+    def testForward(self,full_states,actions,i=0):
+        # only do the first one
+        latest_state = full_states[i,-self.forward_steps-1,-(self.state_dim+self.action_dim):-self.action_dim]
+        latest_action = full_states[i,-self.forward_steps-1,-self.action_dim:]
+        # change ref frame to car frame
+        latest_state = latest_state.detach().numpy()
+        latest_action = latest_action.detach().numpy()
+        psi = latest_state[4]
+        Vx = latest_state[1]*cos(psi) + latest_state[3]*sin(psi)
+
+        Caf = self.Caf.detach().item()
+        Car = self.Car.detach().item()
+        lf = self.lf.detach().item()
+        lr = self.lr.detach().item()
+        m = self.m.detach().item()
+        Iz = self.Iz.detach().item()
+
+
+        A = np.array([[0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, -(2*Caf+2*Car)/(m*Vx), 0, -Vx-(2*Caf*lf-2*Car*lr)/(m*Vx)],
+                    [0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, -(2*lf*Caf-2*lr*Car)/(Iz*Vx), 0, -(2*lf**2*Caf+2*lr**2*Car)/(Iz*Vx)]])
+        B = np.array([[0,1,0,0,0,0],[0,0,0,2*Caf/m,0,2*lf*Caf/Iz]]).T
+        u = latest_action
+
+        # active roattion matrix of angle(rad)
+        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
+                        [0, cos(angle), 0,-sin(angle),0,0],
+                        [sin(angle),0,cos(angle),0,0,0],
+                        [0,sin(angle),0,cos(angle),0,0],
+                        [0,0,0,0,1,0],
+                        [0,0,0,0,0,1]])
+        states = latest_state
+        states = states + R(psi) @ (A @ R(-psi) @ states + B @ u)*self.dt
+        actions = actions.detach().numpy()
+        predicted_full_states = np.hstack([states,actions[i,0,:]])
+        return predicted_full_states
+
 
     # get active rotation matrix, batch style
     def get_R(self,psi):
@@ -118,7 +184,7 @@ class hybridSim(nn.Module):
     def get_tensor(self, init_val, requires_grad):
         return torch.tensor(ndarray(init_val), dtype=self.dtype, device=self.device, requires_grad=requires_grad)
     def get_param(self,init_val,requires_grad=True):
-        return nn.Parameter(self.get_tensor([init_val],True))
+        return nn.Parameter(self.get_tensor([init_val],requires_grad),requires_grad)
 
 
 # simple test

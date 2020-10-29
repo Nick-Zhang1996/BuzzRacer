@@ -21,6 +21,9 @@ from advCarSim import advCarSim
 from kinematicSimulator import kinematicSimulator
 
 from enum import Enum, auto
+
+# for cpu/ram analysis
+#import psutil
 class StateUpdateSource(Enum):
     vicon = auto()
     optitrack = auto()
@@ -63,7 +66,8 @@ class Main():
         self.stateUpdateSource = StateUpdateSource.dynamic_simulator
 
         # real time/sim_time
-        self.real_sim_time_ratio = 2.0
+        # larger value result in slower simulation
+        self.real_sim_time_ratio = 0.1
 
         # set target platform
         # if running simulation set this to simulator
@@ -179,6 +183,7 @@ class Main():
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
             print_info("gif saved at "+gif_filename)
 
+
         if self.enableLog:
             print_info("saving log...")
             print_info(self.logFilename)
@@ -216,6 +221,11 @@ class Main():
 
             if self.saveGif:
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
+            '''
+            ram = psutil.virtual_memory().percent
+            cpu = psutil.cpu_percent()
+            print("ram = %.2f, cpu = %.2f"%(ram,cpu))
+            '''
 
             k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
@@ -542,8 +552,6 @@ class Main():
 
     def updateAdvSimulation(self):
         # update car
-        # FIXME
-        self.car.throttle = 0
         sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
         #print(self.car_state)
