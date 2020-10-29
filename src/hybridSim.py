@@ -45,7 +45,7 @@ class hybridSim(nn.Module):
         self.lr = self.get_param(0.05,False)
 
         # approximate as a solid box
-        self.Iz = self.get_param(m/12.0*(0.1**2+0.1**2),False)
+        self.Iz = self.get_param(m/12.0*(0.1**2+0.1**2),True)
 
 
     # predict future car state

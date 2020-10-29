@@ -61,7 +61,7 @@ def train(log_names):
     exit(0)
     '''
     simulator.to(device)
-    optimizer = optim.Adam(simulator.parameters(), lr=1e-3)
+    optimizer = optim.Adam(simulator.parameters(), lr=1e-4) #default lr=1e-3
 
     full_states_mean = torch.tensor(dataset.full_states_mean, dtype=dtype, device=device, requires_grad=False).view(1, simulator.state_dim+simulator.action_dim)
     full_states_std = torch.tensor(dataset.full_states_std, dtype=dtype, device=device, requires_grad=False).view(1, simulator.state_dim+simulator.action_dim)
@@ -166,6 +166,7 @@ def train(log_names):
 
 
 if __name__ == '__main__':
-    log_names =  glob.glob('../log/sysid/full_state*.p')
+    #log_names =  glob.glob('../log/sysid/full_state*.p')
+    log_names =  glob.glob('../log/oct9/full_state*.p')
     train(log_names)
 
