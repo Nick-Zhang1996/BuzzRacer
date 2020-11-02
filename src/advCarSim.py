@@ -9,7 +9,8 @@ class advCarSim:
         g = 9.81
         self.m = 0.2
         self.Caf = 5*0.25*self.m*g
-        self.Car = 5*0.25*self.m*g
+        #self.Car = 5*0.25*self.m*g
+        self.Car = self.Caf
         # longitudinal speed
         self.Vx = 1
         self.Vy = 0

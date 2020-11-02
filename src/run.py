@@ -67,7 +67,7 @@ class Main():
 
         # real time/sim_time
         # larger value result in slower simulation
-        self.real_sim_time_ratio = 0.1
+        self.real_sim_time_ratio = 2.0
 
         # set target platform
         # if running simulation set this to simulator

@@ -36,9 +36,12 @@ class CarDataset(Dataset):
                 dy = np.diff(y)
                 dpsi = np.diff(heading)
 
-                vx = savgol_filter(dx/dt,51,2)
-                vy = savgol_filter(dy/dt,51,2)
-                omega = savgol_filter(dpsi/dt,51,2)
+                vx = dx/dt
+                vy = dy/dt
+                omega = dpsi/dt
+                #vx = savgol_filter(dx/dt,51,2)
+                #vy = savgol_filter(dy/dt,51,2)
+                #omega = savgol_filter(dpsi/dt,51,2)
 
                 data_segment = np.array([x[:-1],vx,y[:-1],vy,heading[:-1],omega,throttle[:-1],steering[:-1]]).T
                 self.raw_data.append(data_segment)
