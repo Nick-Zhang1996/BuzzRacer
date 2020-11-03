@@ -29,7 +29,7 @@ def train(log_names):
     torch.set_num_threads(1)
     dt = 0.01
     history_steps = 2
-    forward_steps = 1
+    forward_steps = 3
     learning_rate = 1e-3
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
@@ -37,20 +37,20 @@ def train(log_names):
     dtype = torch.double
     device = torch.device('cpu') # cpu or cuda
 
-    full_dataset = deepcopy(dataset.dataset)
+    np.random.shuffle(dataset.dataset)
+    full_dataset = dataset.dataset
+    #full_dataset = deepcopy(dataset.dataset)
 
-    # TODO shuffle before splitting
+    # shuffle before splitting
+    # this may be undesirable
     # FIXME
     num_test = len(full_dataset) // 10
-    train_set = MyDataset(full_dataset[:-num_test])
-    test_set = MyDataset(full_dataset[-num_test:])
-
-    # FIXME debug
-    ground_truth_sim = advCarSim(0,0,0)
+    #train_set = MyDataset(full_dataset[:-num_test])
+    #test_set = MyDataset(full_dataset[-num_test:])
 
     # another way of splitting
-    #train_set = MyDataset(full_dataset[num_test:])
-    #test_set = MyDataset(full_dataset[:num_test])
+    train_set = MyDataset(full_dataset[num_test:])
+    test_set = MyDataset(full_dataset[:num_test])
 
     train_data_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=1)
     test_data_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True, num_workers=1)
@@ -180,10 +180,10 @@ def train(log_names):
     plt.plot(param_history[:,4])
     plt.show()
     
-    '''
     print("Iz")
     plt.plot(param_history[:,5])
     plt.show()
+    '''
 
     plt.plot(training_loss_history,'r-')
     plt.plot(test_loss_history,'b.-')
@@ -194,8 +194,8 @@ def train(log_names):
 
 if __name__ == '__main__':
     # simulation data
-    log_names =  glob.glob('../log/sysid/full_state*.p')
+    #log_names =  glob.glob('../log/sysid/full_state*.p')
     # real data
-    #log_names =  glob.glob('../log/oct9/full_state*.p')
+    log_names =  glob.glob('../log/oct9/full_state*.p')
     train(log_names)
 

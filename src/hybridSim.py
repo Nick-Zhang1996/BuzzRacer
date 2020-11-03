@@ -38,10 +38,10 @@ class hybridSim(nn.Module):
         self.g = 9.81
 
         m = 0.2
-        self.m = self.get_param(m,False)
+        self.m = self.get_param(m,True)
 
 
-        self.Caf_base = 5*0.25*m*self.g*1.5
+        self.Caf_base = 5*0.25*m*self.g
         self.Caf_range = (0.5, 1.5)
         assert (np.isclose(np.mean(self.Caf_range),1))
         self.Caf_param = self.get_param(0.0,True)
@@ -54,10 +54,13 @@ class hybridSim(nn.Module):
 
         # approximate as a solid box
         # TODO normalize a parameter around 0.0
-        self.Iz_base = m/12.0*(0.1**2+0.1**2)*20
+        self.Iz_base = m/12.0*(0.1**2+0.1**2)
         self.Iz_pow_ratio = (-2.0, 2.0)
         self.Iz_param = self.get_param(0.0,True)
         assert (np.isclose(np.mean(self.Iz_pow_ratio),0))
+
+        self.throttle_offset = self.get_param(0.27,True)
+        self.throttle_ratio = self.get_param(8.0,True)
 
 
     # predict future car state
@@ -79,6 +82,8 @@ class hybridSim(nn.Module):
         for i in range(self.forward_steps):
             latest_state = full_states[:,-1,-(self.state_dim+self.action_dim):-self.action_dim]
             latest_action = full_states[:,-1,-self.action_dim:]
+            throttle = latest_action[:,0]
+            steering = latest_action[:,1]
             # change ref frame to car frame
             psi = latest_state[:,4]
             Vx = latest_state[:,1]*torch.cos(psi) + latest_state[:,3]*torch.sin(psi)
@@ -101,7 +106,10 @@ class hybridSim(nn.Module):
             #print("hybrid sim A")
             #print(A)
 
-            u = latest_action
+            long_acc = self.getLongitudinalAcc(throttle)
+
+            u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
+
             #self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
             temp = torch.matmul(A,torch.matmul(self.get_R(-psi),latest_state.unsqueeze(2)))+torch.matmul(B,u.unsqueeze(2))
             predicted_state = latest_state.unsqueeze(2) +  torch.matmul(self.get_R(psi),temp)*self.dt
@@ -227,6 +235,10 @@ class hybridSim(nn.Module):
     def Iz(self):
         pow_ratio = (torch.tanh(self.Iz_param) + 1)/2.0 * (self.Iz_pow_ratio[1] - self.Iz_pow_ratio[0]) + self.Iz_pow_ratio[0]
         return self.Iz_base * torch.pow(10.0,pow_ratio)
+
+    def getLongitudinalAcc(self,throttle):
+        acc = (throttle - self.throttle_offset) * self.throttle_ratio
+        return acc
 
 
 
