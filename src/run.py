@@ -68,7 +68,7 @@ class Main():
 
         # real time/sim_time
         # larger value result in slower simulation
-        self.real_sim_time_ratio = 2.0
+        self.real_sim_time_ratio = 20.0
 
         # set target platform
         # if running simulation set this to simulator
@@ -227,6 +227,12 @@ class Main():
             # draw the range where solver is seeking answer
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
+            # draw lookahead points x_ref
+            x_ref = self.debug_dict['x_ref']
+            for coord in x_ref:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y))
+
             self.visualization_ts = time()
             self.last_visualized_sim_t = self.simulator.t
 
@@ -287,6 +293,7 @@ class Main():
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.dynamicMpc):
             throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=False)
+            self.debug_dict['x_ref'] = debug_dict['x_ref']
             if not valid:
                 print_warning("ctrlCar invalid retval")
                 exit(1)

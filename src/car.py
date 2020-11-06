@@ -10,6 +10,7 @@ from PidController import PidController
 from common import *
 from mpc import MPC
 import matplotlib.pyplot as plt
+from time import time
 
 class Car:
     def __init__(self,car_setting):
@@ -160,6 +161,7 @@ class Car:
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCarDynamicMpc(self,state,track,v_override=None,reverse=False):
+        tic = time()
         p = self.mpc_prediction_steps
         dt = self.mpc_dt
         # state dimension
@@ -169,11 +171,13 @@ class Car:
         debug_dict = {}
         x_ref, psi_ref, v_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
         # first element of _ref is current state, we don't need that
+        x_ref_raw = x_ref.copy()
         x_ref = x_ref[1:,:]
         # x_ref here is a list of (x,y) convert it to full state
         o = np.zeros([p,1])
         x_ref = np.hstack([x_ref[:,0].reshape(-1,1),o,x_ref[:,1].reshape(-1,1),o,o,o])
         psi_ref = psi_ref[1:]
+        v_target = v_ref[0]
         v_ref = v_ref[1:]
         if not valid:
             ret =  (0,0,False,debug_dict)
@@ -249,26 +253,28 @@ class Car:
         #plt.plot(u_optimal[1::2,0])
         #plt.show()
         # TODO
-        steering = u_optimal[1,0]
+        steering = u_optimal[3,0]
         #print(u_optimal)
         print(steering)
 
         # throttle is controller by other controller
         #throttle = u_optimal[0,1]
-        throttle = 0.5
+        throttle = self.calcThrottle(state,v_target)
 
-
+        debug_dict['x_ref'] = x_ref_raw
         ret =  (throttle,steering,True,debug_dict)
+        tac = time()
+        #print("freq = %.2f"%(1.0/(tac-tic)))
         return ret
 
     # initialize mpc
     # sim: an instance of advCarSim so we have access to parameters
     def initMpc(self,sim):
         # prediction step
-        self.mpc_prediction_steps = 20
+        self.mpc_prediction_steps = 10
         # prediction discretization dt
         # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
-        self.mpc_dt = 0.05
+        self.mpc_dt = 0.01
         # together p*mpc_dt gives prediction horizon
 
         self.Caf = sim.Caf
