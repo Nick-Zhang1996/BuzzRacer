@@ -221,8 +221,11 @@ class Car:
         getB = lambda psi: R(psi) @ B_raw * dt
 
         # TODO maybe change x_ref and psi_ref to a list
-        A_vec = [getA(Vx,psi) for Vx,psi in zip(v_ref,psi_ref)]
-        B_vec = [getB(psi) for psi in psi_ref]
+        # FIXME using current vehicle heading
+        #A_vec = [getA(Vx,psi) for Vx,psi in zip(v_ref,psi_ref)]
+        #B_vec = [getB(psi) for psi in psi_ref]
+        A_vec = [getA(Vx,heading) for Vx,psi in zip(v_ref,psi_ref)]
+        B_vec = [getB(heading) for psi in psi_ref]
 
         # TODO add a config function to mpc
 
@@ -250,18 +253,18 @@ class Car:
         self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
         u_optimal = self.mpc.solve()
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
-        #plt.plot(u_optimal[1::2,0])
-        #plt.show()
+        plt.plot(u_optimal[1::2,0])
+        plt.show()
         # TODO
-        steering = u_optimal[3,0]
+        steering = u_optimal[1,0]
         #print(u_optimal)
-        print(steering)
 
         # throttle is controller by other controller
         #throttle = u_optimal[0,1]
         throttle = self.calcThrottle(state,v_target)
 
         debug_dict['x_ref'] = x_ref_raw
+        debug_dict['x_project'] = self.mpc.debug()
         ret =  (throttle,steering,True,debug_dict)
         tac = time()
         #print("freq = %.2f"%(1.0/(tac-tic)))

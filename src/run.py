@@ -52,7 +52,7 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = True
+        self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
@@ -233,6 +233,12 @@ class Main():
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y))
 
+            # draw projected state
+            x_project = self.debug_dict['x_project']
+            for coord in x_project:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y))
+
             self.visualization_ts = time()
             self.last_visualized_sim_t = self.simulator.t
 
@@ -294,6 +300,7 @@ class Main():
         elif (self.controller == Controller.dynamicMpc):
             throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=False)
             self.debug_dict['x_ref'] = debug_dict['x_ref']
+            self.debug_dict['x_project'] = debug_dict['x_project']
             if not valid:
                 print_warning("ctrlCar invalid retval")
                 exit(1)
@@ -563,7 +570,7 @@ class Main():
     def initAdvSimulation(self):
         self.new_state_update = Event()
         self.new_state_update.set()
-        coord = (0.5*0.565,1.7*0.565)
+        coord = (0.3*0.565,1.7*0.565)
         x,y = coord
         heading = pi/2
         self.simulator = advCarSim(x,y,heading)

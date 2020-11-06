@@ -1223,8 +1223,8 @@ class RCPtrack(Track):
     def getRefPoint(self, state, p, dt, reverse=False):
         if reverse:
             print_error("reverse is not implemented")
-        # set wheelbase to 0 to get point closest to rear axle center
-        retval = self.localTrajectory(state,wheelbase=0,return_u=True)
+        # set wheelbase to 0 to get point closest to vehicle CG
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
         if retval is None:
             return None,None,False
 

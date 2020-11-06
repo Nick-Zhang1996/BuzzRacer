@@ -97,6 +97,10 @@ class MPC:
         # TODO verify dimension
         h_qp = np.hstack([h1,h2,h3]).T
 
+        # DEBUG
+        self.E = E
+        self.F = F
+
         self.P = P_qp
         self.q = q_qp
         self.G = G_qp
@@ -175,6 +179,19 @@ class MPC:
         self.h = h_qp
         return
 
+    # for debug interest, plot the expected trajectory if u is faithfully followed
+    # call after solve()
+    def debug(self):
+        # x = F @ u + E
+        self.u[1::2,0] = self.u[1,0]
+        print(self.u[1,0])
+        new_u = np.ones_like(self.u) 
+        x_pro = self.F @ self.u + self.E
+        # retrieve x,y
+        xx = x_pro[0::self.n]
+        yy = x_pro[2::self.n]
+        return np.hstack([xx,yy])
+
     def solve(self):
         P_qp = cvxopt.matrix(self.P)
         q_qp = cvxopt.matrix(self.q)
@@ -182,5 +199,8 @@ class MPC:
         h = cvxopt.matrix(self.h)
         sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
         #print(sol['status'])
+        # DEBUG
+        self.u = np.array(sol['x']) 
         return np.array(sol['x'])
+
 
