@@ -1239,12 +1239,20 @@ class RCPtrack(Track):
         der = splev(u0%self.track_length_grid,self.raceline,der=1)
         heading0 = atan2(der[1],der[0])
 
+        vec_curvature = splev(u0%self.track_length_grid,self.raceline,der=2)
+        norm_curvature = np.linalg.norm(vec_curvature)
+        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = np.cross((cos(heading0),sin(heading0)),vec_curvature)
+
         s_vec = [s0]
         v_vec = [v0]
         # TODO check format/dim
         coord_vec = [local_ctrl_pnt]
         heading_vec = [heading0]
+        k_vec = [norm_curvature]
+        k_sign_vec = [cross_curvature]
 
+        # TODO vectorize this loop
         for k in range(1,p+1):
             s_k = s_vec[-1] + v_vec[-1] * dt
             s_vec.append(s_k)
@@ -1261,7 +1269,22 @@ class RCPtrack(Track):
             # find ref coordinates for projection ref points
             coord_k = splev(u_k%self.track_length_grid,self.raceline)
             coord_vec.append(coord_k)
-        return np.array(coord_vec), np.array(heading_vec), np.array(v_vec), True
+
+            vec_curvature = splev(u_k%self.track_length_grid,self.raceline,der=2)
+            norm_curvature = np.linalg.norm(vec_curvature)
+            # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+            cross_curvature = np.cross((cos(heading_k),sin(heading_k)),vec_curvature)
+            k_vec.append(norm_curvature)
+            k_sign_vec.append(cross_curvature)
+
+        # TODO check dimension
+        k_signed_vec = np.copysign(k_vec,k_sign_vec)
+
+        x,y,heading,vf,vs,omega = state
+        e_heading = heading0 - heading
+
+        # verify this: -offset should be positive if vehicle is to the right of the path
+        return -offset, e_heading, np.array(v_vec),np.array(k_signed_vec), True
         
 
 # conver a world coordinate in meters to canvas coordinate

@@ -68,7 +68,7 @@ class Main():
 
         # real time/sim_time
         # larger value result in slower simulation
-        self.real_sim_time_ratio = 20.0
+        self.real_sim_time_ratio = 2.0
 
         # set target platform
         # if running simulation set this to simulator
@@ -228,10 +228,12 @@ class Main():
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
             # draw lookahead points x_ref
+            '''
             x_ref = self.debug_dict['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y))
+            '''
 
             # draw projected state
             x_project = self.debug_dict['x_project']

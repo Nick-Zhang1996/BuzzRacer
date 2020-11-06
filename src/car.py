@@ -165,96 +165,85 @@ class Car:
         p = self.mpc_prediction_steps
         dt = self.mpc_dt
         # state dimension
-        n = 6
-        m = 2
+        n = 5
+        m = 1
 
         debug_dict = {}
-        x_ref, psi_ref, v_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
-        # first element of _ref is current state, we don't need that
-        x_ref_raw = x_ref.copy()
-        x_ref = x_ref[1:,:]
-        # x_ref here is a list of (x,y) convert it to full state
-        o = np.zeros([p,1])
-        x_ref = np.hstack([x_ref[:,0].reshape(-1,1),o,x_ref[:,1].reshape(-1,1),o,o,o])
-        psi_ref = psi_ref[1:]
-        v_target = v_ref[0]
-        v_ref = v_ref[1:]
+        e_cross, e_heading, v_ref, k_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
         if not valid:
             ret =  (0,0,False,debug_dict)
             return ret
 
-        x,y,heading,vf,vs,omega = state
-        vx = vf * cos(heading) - vs*sin(heading)
-        vy = vf * sin(heading) + vs*cos(heading)
+        # first element of _ref is current state, we don't need that
+        v_target = v_ref[0]
+        v_ref = v_ref[1:]
+        k_ref = k_ref[1:]
+        # only reference we need is dpsi_dt = Vx * K
+        dpsi_dt_ref = v_ref * k_ref
+
+        #x,y,heading,vf,vs,omega = state
+        #vx = vf * cos(heading) - vs*sin(heading)
+        #vy = vf * sin(heading) + vs*cos(heading)
 
         # assemble x0
-        # x format for dynamic bicycle model
-        # x = x,dxdt,y,dydt,psi(heading),dpsi/dt
-        # all in track frame
-        x0 = np.array([x,vx,y,vy,heading,omega])
+        # state var for dynamic bicycle model w.r.t. lateral and heading error
+        # e_lateral, dedt_lateral, e_heading,dedt_heading, 1(unity)
+        x0 = np.array([e_cross, 0, e_heading, 0, 1])
+
+        x,y,heading,vf,vs,omega = state
 
         # assemble Ak matrices
-        getA_raw = lambda Vx: \
-             np.array([[0, 1, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, -(2*self.Caf+2*self.Car)/(self.m*Vx), 0, -Vx-(2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*Vx)],
-                        [0, 0, 0, 0, 0, 1],
-                        [0, 0, 0, -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*Vx), 0, -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*Vx)]])
+        Car = self.Car
+        Caf = self.Caf
+        mass = self.m
+        lf = self.lf
+        lr = self.lr
+        Iz = self.Iz
+        Vx = vf
+        getA_raw = lambda Vx,dpsi_r: \
+             np.array([[0, 1, 0, 0, 0],
+                        [0, -(2*Caf+2*Car)/mass/Vx, (2*Caf+2*Car)/mass, (-2*Caf*lf+2*Car*lr)/mass/Vx, (-(2*Caf*lf-2*Car*lr)/mass/Vx - Vx)*dpsi_r],
+                        [0, 0, 0, 1, 0],
+                        [0, -(2*Caf*lf-2*Car*lr)/Iz/Vx, (2*Caf*lf-2*Car*lr)/Iz, -(2*Caf*lf*lf+2*Car*lr*lr)/Iz/Vx, -(2*Caf*lf*lf+2*Car*lr*lr)/Iz/Vx*dpsi_r],
+                        [0, 0, 0, 0, 0]])
+
 
         # assemble Bk matrices
-        B_raw = np.array([[0,1,0,0,0,0],[0,0,0,2*self.Caf/self.m,0,2*self.lf*self.Caf/self.Iz]]).T
+        B = np.array([[0, 2*Caf/mass, 0, 2*Caf*lf/Iz,0]]).T
 
-        # active roattion matrix of angle(rad)
-        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
-                        [0, cos(angle), 0,-sin(angle),0,0],
-                        [sin(angle),0,cos(angle),0,0,0],
-                        [0,sin(angle),0,cos(angle),0,0],
-                        [0,0,0,0,1,0],
-                        [0,0,0,0,0,1]])
-        
         # since
-        #self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
+        #self.states = self.states + (Ak @ self.states + Bk @ u)*dt
         # we now compute augmented A and B
         In = np.eye(n)
-        getA = lambda Vx,psi: In + R(psi) @ getA_raw(Vx) @ R(-psi) * dt
-        getB = lambda psi: R(psi) @ B_raw * dt
+        getA = lambda Vx,dpsi_r: In + getA_raw(Vx,dpsi_r) * dt
 
         # TODO maybe change x_ref and psi_ref to a list
-        # FIXME using current vehicle heading
-        #A_vec = [getA(Vx,psi) for Vx,psi in zip(v_ref,psi_ref)]
-        #B_vec = [getB(psi) for psi in psi_ref]
-        A_vec = [getA(Vx,heading) for Vx,psi in zip(v_ref,psi_ref)]
-        B_vec = [getB(heading) for psi in psi_ref]
-
-        # TODO add a config function to mpc
+        A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip(v_ref,dpsi_dt_ref)]
+        B_vec = [B] * p
 
         P = np.zeros([n,n])
-        # x
+        # e_cross
         P[0,0] = 1
-        # y
+        # e_heading
+        # TODO maybe lower
         P[2,2] = 1
-        # psi
-        P[4,4] = 1
 
         Q = np.zeros([m,m])
-        # only apply cost to steering
-        Q[1,1] = 0.0
-        x_ref = x_ref
+        x_ref = np.zeros([p,n])
         x0 = x0
         p = p
         # 5 deg/s
         # typical servo speed 60deg/0.1s
-        # u: throttle,steering
-        du_max = np.array([0,radians(60)/0.1*dt])
-        u_max = np.array([0,radians(25)])
+        # u: steering
+        du_max = np.array([radians(60)/0.1*dt])
+        u_max = np.array([radians(25)])
 
         self.mpc.setup(n,m,p)
         self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
         u_optimal = self.mpc.solve()
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
-        plt.plot(u_optimal[1::2,0])
-        plt.show()
+        #plt.plot(u_optimal[1::2,0])
+        #plt.show()
         # TODO
         steering = u_optimal[1,0]
         #print(u_optimal)
@@ -263,7 +252,7 @@ class Car:
         #throttle = u_optimal[0,1]
         throttle = self.calcThrottle(state,v_target)
 
-        debug_dict['x_ref'] = x_ref_raw
+        debug_dict['x_ref'] = x_ref
         debug_dict['x_project'] = self.mpc.debug()
         ret =  (throttle,steering,True,debug_dict)
         tac = time()
