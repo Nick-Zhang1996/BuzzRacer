@@ -5,42 +5,102 @@ import cvxopt
 class MPC:
     def __init__(self,):
         cvxopt.solvers.options['show_progress'] = False
-
-
         return
 
-    # convert problem of form 
-    #  u* = argmin_u (x-x_ref).T P (x-x_ref) + u.T Q u
-    #  s.t. x_k+1 = Ak xk + Bk uk 
-    # k = 0..h
-    # Ak = Rnn
-    # Bk = Rnm
-    def setup(self):
+    # setup parameters
+    def setup(self,n,m,p):
+        # dim of state
+        self.n = n
+        # dim of action
+        self.m = m
+        # prediction horizon
+        self.p = p
         return
 
-    # linear time variant model, where Ak(t)
-    # input:
-    # A: [A1, A2, A... Ap] or np.matrix of shape p,n*p,n*m
-    # B: [B1, B2, B... Bp], where p is horizon steps, n is dim of states, m is dim of ctrl
-    # if n=1 this is automatically a LTI problem
-    # convert a linear time variant problem of form 
-    #  u* = argmin_u (x-x_ref).T P (x-x_ref) + u.T Q u
-    #  s.t. x_k+1 = Ak xk + Bk uk 
-    # k = 0..h
-    # A = R(n*p)(n*p)
-    # B = R(n*p)(m*p)
-    # to form 
+    # convert linear time variant model of following form to general form for cvxopt.qp()
+    #  u* = argmin_u (x_k-x_ref_k).T P (x_k-x_ref_k) + u_k.T Q u_k (summed for all k=1..p)
+    #  s.t. x_k+1 = Ak xk + Bk uk  NOTE diecrete system, do your own discretization
+    # k = 1..p, prediction horizon for MPC
+
+    # target form 
     # J = 1/2 x.T P x + q.T x, where x is u in pervious eq
     # Gx <= h
     # Ax = b
     # the result will be stored internally
     # user may call solve() to obtain solution
-    def convertLtv(self,A,B):
-        F = np.zeros(p,m)
+
+    # input:
+    # A_vec: [A0, A1, Ak... Ap-1] or np.array of shape (p,n,n)
+    # B_vec: [B0, B1, Bk... Bp-1], or np.array of shape (p,m,n)
+    # where n is dim of states, m is dim of ctrl
+    # P: n*n, cost for x(state)
+    # Q: m*m, cost for u(control), 
+    # P,Q must be symmetric, this is applied equally to all projected states
+    # x_ref : [x_ref_1, x_ref_2, ... ], or np.array of shape (p,n,1) reference/target state
+    # x0 : initial/current state
+    # p : prediction horizon/steps
+    # du_max : (m,) max|uk - uk-1|, for each u channel
+    # u_max  : (m,) max|uk|, for each u channel
+    def convertLtv(self,A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max):
+        p = self.p
+        n = self.n
+        m = self.m
+        A = list(A_vec)
+        B = list(B_vec)
+        assert len(A_vec) == p
+        assert A[0].shape == (n,n)
+        assert len(B_vec) == p
+        assert B[0].shape == (n,m)
+        assert P.shape == (n,n)
+        assert Q.shape == (m,m)
+        assert x_ref.shape == (p,n,1) or x_ref.shape == (p,n)
+        # vertically stack all ref states
+        x_ref = x_ref.reshape([n*p,1])
+        assert x0.shape == (n,)
+
+        # expand to proper dimension
+        # TODO absorb this to setup for performance
+        P = np.kron(np.eye(p,dtype=int),P)
+        Q = np.kron(np.eye(p,dtype=int),Q)
+
+        # assemble cost function
+        F = np.zeros([p*n,p*m])
         for i in range(p-1):
-            F[i,i] = B[i]
-            F[i+1,:] = A[i] @ F[i,:]
-        F[p-1,p-1] = B[p-1]
+            F[i*n:(i+1)*n,i*m:(i+1)*m] = B[i]
+            F[(i+1)*n:(i+2)*n,:] = A[i] @ F[i*n:(i+1)*n,:]
+
+        F[(p-1)*n:,(p-1)*m:] = B[p-1]
+
+        E = np.empty([n*p,1])
+
+        E[0*n:1*n] = x0.reshape(-1,1)
+        for i in range(1,p):
+            E[i*n:(i+1)*n] = A[i] @ E[(i-1)*n:i*n]
+
+        P_qp = F.T @ P @ F + Q
+        q_qp = F.T @ P @ E - F.T @ P @ x_ref
+
+        # assemble constrains
+        # u_k+1 - uk
+        G1 = np.hstack([-np.eye((p-1)*m),np.zeros([(p-1)*m,m])]) \
+                + np.hstack([np.zeros([(p-1)*m,m]),np.eye((p-1)*m)])
+        du_max = du_max.flatten()
+        h1 = np.hstack([du_max]*(p-1))
+
+        G2 = np.eye(p*m)
+        h2 = np.hstack([u_max]*p)
+        
+        G3 = - np.eye(p*m)
+        h3 = np.hstack([u_max]*p)
+
+        G_qp = np.vstack([G1,G2,G3])
+        # TODO verify dimension
+        h_qp = np.hstack([h1,h2,h3]).T
+
+        self.P = P_qp
+        self.q = q_qp
+        self.G = G_qp
+        self.h = h_qp
         return
 
     # convert a linear time invariant problem of form 
@@ -113,8 +173,6 @@ class MPC:
         self.q = q_qp
         self.G = G_qp
         self.h = h_qp
-        sol = self.solve()
-
         return
 
     def solve(self):
@@ -124,5 +182,5 @@ class MPC:
         h = cvxopt.matrix(self.h)
         sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
         #print(sol['status'])
-        return sol['x']
+        return np.array(sol['x'])
 

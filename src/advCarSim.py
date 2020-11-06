@@ -56,6 +56,7 @@ class advCarSim:
         # this is in car frame, rotate to world frame
         psi = self.states[4]
         # change ref frame to car frame
+        # vehicle longitudinal velocity
         self.Vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
 
         A = np.array([[0, 1, 0, 0, 0, 0],
@@ -75,6 +76,10 @@ class advCarSim:
                         [0,0,0,0,1,0],
                         [0,0,0,0,0,1]])
         self.old_states = self.states.copy()
+        # A and B work in vehicle frame
+        # we use R() to convert state to vehicle frame
+        # before we apply A,B
+        # then we convert state back to track/world frame
         self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
         self.states_hist.append(self.states)
         self.local_states_hist.append(R(-psi)@self.states)
@@ -84,8 +89,10 @@ class advCarSim:
 
         coord = (self.states[0],self.states[2])
         heading = self.states[4]
-        Vx = self.states[1]
-        Vy = self.states[3]
+        # longitidunal,velocity forward positive
+        Vx = self.states[1] *cos(heading) + self.states[3] *sin(heading)
+        # lateral, sideway velocity, left positive
+        Vy = -self.states[1] *sin(heading) + self.states[3] *cos(heading)
         omega = self.states[5]
         sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
         return sim_states

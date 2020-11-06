@@ -45,6 +45,7 @@ class Controller(Enum):
     joystick = auto()
     # no controller, this means out of loop control
     empty = auto()
+    dynamicMpc = auto()
 
 class Main():
     def __init__(self,):
@@ -76,7 +77,8 @@ class Main():
         self.vehiclePlatform = VehiclePlatform.dynamic_simulator
 
         # set control pipeline
-        self.controller = Controller.stanley
+        #self.controller = Controller.stanley
+        self.controller = Controller.dynamicMpc
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -101,6 +103,7 @@ class Main():
             print_error("unknown state update source")
             exit(1)
 
+
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0
@@ -115,6 +118,12 @@ class Main():
         self.car = self.prepareCar()
 
         self.initStateUpdate()
+
+        if (self.controller == Controller.dynamicMpc):
+            if (self.stateUpdateSource != StateUpdateSource.dynamic_simulator):
+                print_error("dynamic MPC only work with dynamic simulator currently, initialize parameters in car.initMpc if you want to run with real environment")
+            self.car.initMpc(self.simulator)
+            
 
         # log with undetermined format
         self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],}
@@ -146,6 +155,10 @@ class Main():
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             self.update()
+            # x,y,theta are in track frame
+            # v_forward in vehicle frame, forward positive
+            # v_sideway in vehicle frame, left positive
+            # omega in vehicle frame, axis pointing upward
             (x,y,theta,v_forward,_,_) = self.car_state
 
             # (x,y,theta,vforward,vsideway=0,omega)
@@ -258,20 +271,27 @@ class Main():
             if retval:
                 self.laptimer.announce()
                 print(self.laptimer.last_laptime)
-        # get control signal
+
+
+        # apply controller
         if (self.controller == Controller.stanley):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
             if not valid:
                 print_warning("ctrlCar invalid retval")
-                #FIXME
-                #self.simulator.debug()
                 exit(1)
             if self.slowdown.isSet():
                 throttle = 0.0
 
-            # TODO debug only
+            # DEBUG
             debug_dict['v_target'] =0
             self.v_target = debug_dict['v_target']
+        elif (self.controller == Controller.dynamicMpc):
+            throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=False)
+            if not valid:
+                print_warning("ctrlCar invalid retval")
+                exit(1)
+            if self.slowdown.isSet():
+                throttle = 0.0
         elif (self.controller == Controller.joystick):
             throttle = self.joystick.throttle
             # just use right side for both ends
@@ -553,7 +573,7 @@ class Main():
     def updateAdvSimulation(self):
         # update car
         sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
-        self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+        self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
         #print(self.car_state)
         self.new_state_update.set()
 

@@ -8,6 +8,8 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import matplotlib.pyplot as plt
 from PidController import PidController
 from common import *
+from mpc import MPC
+import matplotlib.pyplot as plt
 
 class Car:
     def __init__(self,car_setting):
@@ -141,6 +143,142 @@ class Car:
             ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
 
         return ret
+
+# given state of the vehicle and an instance of track, provide throttle and steering output
+# input:
+#   state: (x,y,heading,v_forward,v_sideway,omega)
+#   track: track object, can be RCPtrack or skidpad
+#   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
+#   reverse: true if running in opposite direction of raceline init direction
+
+# output:
+#   (throttle,steering,valid,debug) 
+# ranges for output:
+#   throttle -1.0,self.max_throttle
+#   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
+#   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
+#           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
+# debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
+    def ctrlCarDynamicMpc(self,state,track,v_override=None,reverse=False):
+        p = self.mpc_prediction_steps
+        dt = self.mpc_dt
+        # state dimension
+        n = 6
+        m = 2
+
+        debug_dict = {}
+        x_ref, psi_ref, v_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
+        # first element of _ref is current state, we don't need that
+        x_ref = x_ref[1:,:]
+        # x_ref here is a list of (x,y) convert it to full state
+        o = np.zeros([p,1])
+        x_ref = np.hstack([x_ref[:,0].reshape(-1,1),o,x_ref[:,1].reshape(-1,1),o,o,o])
+        psi_ref = psi_ref[1:]
+        v_ref = v_ref[1:]
+        if not valid:
+            ret =  (0,0,False,debug_dict)
+            return ret
+
+        x,y,heading,vf,vs,omega = state
+        vx = vf * cos(heading) - vs*sin(heading)
+        vy = vf * sin(heading) + vs*cos(heading)
+
+        # assemble x0
+        # x format for dynamic bicycle model
+        # x = x,dxdt,y,dydt,psi(heading),dpsi/dt
+        # all in track frame
+        x0 = np.array([x,vx,y,vy,heading,omega])
+
+        # assemble Ak matrices
+        getA_raw = lambda Vx: \
+             np.array([[0, 1, 0, 0, 0, 0],
+                        [0, 0, 0, 0, 0, 0],
+                        [0, 0, 0, 1, 0, 0],
+                        [0, 0, 0, -(2*self.Caf+2*self.Car)/(self.m*Vx), 0, -Vx-(2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*Vx)],
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*Vx), 0, -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*Vx)]])
+
+        # assemble Bk matrices
+        B_raw = np.array([[0,1,0,0,0,0],[0,0,0,2*self.Caf/self.m,0,2*self.lf*self.Caf/self.Iz]]).T
+
+        # active roattion matrix of angle(rad)
+        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
+                        [0, cos(angle), 0,-sin(angle),0,0],
+                        [sin(angle),0,cos(angle),0,0,0],
+                        [0,sin(angle),0,cos(angle),0,0],
+                        [0,0,0,0,1,0],
+                        [0,0,0,0,0,1]])
+        
+        # since
+        #self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
+        # we now compute augmented A and B
+        In = np.eye(n)
+        getA = lambda Vx,psi: In + R(psi) @ getA_raw(Vx) @ R(-psi) * dt
+        getB = lambda psi: R(psi) @ B_raw * dt
+
+        # TODO maybe change x_ref and psi_ref to a list
+        A_vec = [getA(Vx,psi) for Vx,psi in zip(v_ref,psi_ref)]
+        B_vec = [getB(psi) for psi in psi_ref]
+
+        # TODO add a config function to mpc
+
+        P = np.zeros([n,n])
+        # x
+        P[0,0] = 1
+        # y
+        P[2,2] = 1
+        # psi
+        P[4,4] = 1
+
+        Q = np.zeros([m,m])
+        # only apply cost to steering
+        Q[1,1] = 0.0
+        x_ref = x_ref
+        x0 = x0
+        p = p
+        # 5 deg/s
+        # typical servo speed 60deg/0.1s
+        # u: throttle,steering
+        du_max = np.array([0,radians(60)/0.1*dt])
+        u_max = np.array([0,radians(25)])
+
+        self.mpc.setup(n,m,p)
+        self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
+        u_optimal = self.mpc.solve()
+        # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
+        #plt.plot(u_optimal[1::2,0])
+        #plt.show()
+        # TODO
+        steering = u_optimal[1,0]
+        #print(u_optimal)
+        print(steering)
+
+        # throttle is controller by other controller
+        #throttle = u_optimal[0,1]
+        throttle = 0.5
+
+
+        ret =  (throttle,steering,True,debug_dict)
+        return ret
+
+    # initialize mpc
+    # sim: an instance of advCarSim so we have access to parameters
+    def initMpc(self,sim):
+        # prediction step
+        self.mpc_prediction_steps = 20
+        # prediction discretization dt
+        # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
+        self.mpc_dt = 0.05
+        # together p*mpc_dt gives prediction horizon
+
+        self.Caf = sim.Caf
+        self.Car = sim.Car
+        self.lf = sim.lf
+        self.lr = sim.lr
+        self.Iz = sim.Iz
+        self.m = sim.m
+        self.mpc = MPC()
+        return
 
     def actuate(self,steering,throttle):
         if not (self.car_interface is None):
