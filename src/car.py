@@ -164,15 +164,16 @@ class Car:
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCarDynamicMpc(self,state,track,v_override=None,reverse=False):
-        tic = time()
-        p = self.mpc_prediction_steps
-        dt = self.mpc_dt
         # state dimension
         n = 5
         # action dimension
         m = 1
         # output dimension(y=Cx)
         l = 1
+
+        tic = time()
+        p = self.mpc_prediction_steps
+        dt = self.mpc_dt
 
         debug_dict = {}
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
@@ -246,18 +247,17 @@ class Car:
         # 5 deg/s
         # typical servo speed 60deg/0.1s
         # u: steering
-        du_max = np.array([radians(60)/0.1*dt])
+        du_max = np.array([radians(60)/0.1*dt])*0.5
         u_max = np.array([radians(25)])
 
 
-        self.mpc.setup(n,m,l,p)
         self.mpc.convertLtv(A_vec,B_vec,C,P,Q,y_ref,x0,du_max,u_max)
         u_optimal = self.mpc.solve()
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
         #plt.plot(u_optimal[1::2,0])
         #plt.show()
-        steering = u_optimal[0,0]
-        #print(u_optimal)
+        steering = u_optimal[0]
+        #print(degrees(steering))
 
         # throttle is controller by other controller
         #throttle = u_optimal[0,1]
@@ -274,10 +274,10 @@ class Car:
     # sim: an instance of advCarSim so we have access to parameters
     def initMpc(self,sim):
         # prediction step
-        self.mpc_prediction_steps = 15
+        self.mpc_prediction_steps = 20
         # prediction discretization dt
         # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
-        self.mpc_dt = 0.02
+        self.mpc_dt = 0.03
         # together p*mpc_dt gives prediction horizon
 
         self.Caf = sim.Caf
@@ -287,6 +287,14 @@ class Car:
         self.Iz = sim.Iz
         self.m = sim.m
         self.mpc = MPC()
+        # state dimension
+        n = 5
+        # action dimension
+        m = 1
+        # output dimension(y=Cx)
+        l = 1
+        p = self.mpc_prediction_steps
+        self.mpc.setup(n,m,l,p)
         return
 
     def actuate(self,steering,throttle):

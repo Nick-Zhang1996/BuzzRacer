@@ -18,6 +18,8 @@ class MPC:
         self.l = l
         # prediction horizon
         self.p = p
+        # last control command, used for smoothing constrain
+        self.last_u = [0]
         return
 
     # convert linear time variant model of following form to general form for cvxopt.qp()
@@ -100,9 +102,23 @@ class MPC:
         G3 = - np.eye(p*m)
         h3 = np.hstack([u_max]*p)
 
-        G_qp = np.vstack([G1,G2,G3])
+        # give special treatment to u0
+        # du constrain on u0 is calculated from u from last time step
+        # |u0 - last_u| < du_max
+        G4 = np.zeros([m,p*m])
+        G4 = np.block([np.eye(m), np.zeros([m,(p-1)*m])])
+        h4 = np.array(du_max).flatten() + np.array(self.last_u).flatten()
+        print(self.last_u)
+
+        G5 = np.zeros([m,p*m])
+        G5 = np.block([-np.eye(m), np.zeros([m,(p-1)*m])])
+        h5 = np.array(du_max).flatten() - np.array(self.last_u).flatten()
+        print(h5)
+        print('--')
+
+        G_qp = np.vstack([G1,G2,G3,G4,G5])
         # TODO verify dimension
-        h_qp = np.hstack([h1,h2,h3]).T
+        h_qp = np.hstack([h1,h2,h3,h4,h5]).T
 
         # DEBUG
         self.E = E
@@ -207,8 +223,9 @@ class MPC:
         sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
         #print(sol['status'])
         # DEBUG
-        self.u = np.array(sol['x']) 
-        return np.array(sol['x'])
+        #self.u = np.array(sol['x']) 
+        self.last_u =  np.array(sol['x'])[0,:]
+        return self.last_u
 
 if __name__ == "__main__":
     mpc = MPC()
