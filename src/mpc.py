@@ -1,6 +1,7 @@
 import numpy as np
 from time import time
 import cvxopt
+import matplotlib.pyplot as plt
 
 class MPC:
     def __init__(self,):
@@ -187,10 +188,10 @@ class MPC:
         print(self.u[1,0])
         new_u = np.ones_like(self.u) 
         x_pro = self.F @ self.u + self.E
-        # retrieve x,y
-        xx = x_pro[0::self.n]
-        yy = x_pro[2::self.n]
-        return np.hstack([xx,yy])
+        # retrieve e_cross, e_heading
+        e_cross = x_pro[0::self.n]
+        e_heading = x_pro[2::self.n]
+        return 
 
     def solve(self):
         P_qp = cvxopt.matrix(self.P)
@@ -198,9 +199,10 @@ class MPC:
         G = cvxopt.matrix(self.G)
         h = cvxopt.matrix(self.h)
         sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
-        #print(sol['status'])
+        print(sol['status'])
         # DEBUG
         self.u = np.array(sol['x']) 
         return np.array(sol['x'])
 
-
+if __name__ == "__main__":
+    mpc = MPC()

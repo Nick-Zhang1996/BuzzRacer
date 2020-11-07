@@ -169,7 +169,7 @@ class Car:
         m = 1
 
         debug_dict = {}
-        e_cross, e_heading, v_ref, k_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
+        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
         if not valid:
             ret =  (0,0,False,debug_dict)
             return ret
@@ -219,16 +219,17 @@ class Car:
 
         # TODO maybe change x_ref and psi_ref to a list
         A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip(v_ref,dpsi_dt_ref)]
-        B_vec = [B] * p
+        B_vec = [B*dt] * p
 
         P = np.zeros([n,n])
         # e_cross
         P[0,0] = 1
         # e_heading
         # TODO maybe lower
-        P[2,2] = 1
+        P[2,2] = 0.0
 
         Q = np.zeros([m,m])
+        Q[0,0] = 0.01
         x_ref = np.zeros([p,n])
         x0 = x0
         p = p
@@ -237,6 +238,22 @@ class Car:
         # u: steering
         du_max = np.array([radians(60)/0.1*dt])
         u_max = np.array([radians(25)])
+
+        # FIXME DEBUG
+        # simulate a constant command
+        # e_cross + means vehicle is to the left of ref trajectory
+        '''
+        x0 = np.array([0,0,0.1,0,1])
+        A_vec = [getA(1,0)] * p
+        B_vec = [B*dt] * p
+        self.mpc.setup(n,m,p)
+        self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
+        ctrl = self.mpc.solve()
+        print(ctrl)
+        self.mpc.debug()
+        '''
+
+        # END DEBUG
 
         self.mpc.setup(n,m,p)
         self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
@@ -252,8 +269,8 @@ class Car:
         #throttle = u_optimal[0,1]
         throttle = self.calcThrottle(state,v_target)
 
-        debug_dict['x_ref'] = x_ref
-        debug_dict['x_project'] = self.mpc.debug()
+        debug_dict['x_ref'] = coord_ref
+        #debug_dict['x_project'] = self.mpc.debug()
         ret =  (throttle,steering,True,debug_dict)
         tac = time()
         #print("freq = %.2f"%(1.0/(tac-tic)))
@@ -263,10 +280,10 @@ class Car:
     # sim: an instance of advCarSim so we have access to parameters
     def initMpc(self,sim):
         # prediction step
-        self.mpc_prediction_steps = 10
+        self.mpc_prediction_steps = 15
         # prediction discretization dt
         # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
-        self.mpc_dt = 0.01
+        self.mpc_dt = 0.02
         # together p*mpc_dt gives prediction horizon
 
         self.Caf = sim.Caf

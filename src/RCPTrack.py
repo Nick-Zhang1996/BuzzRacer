@@ -1201,6 +1201,7 @@ class RCPtrack(Track):
 
         self.uToS = interp1d(uu,ss,kind='cubic')
         self.sToU = interp1d(ss,uu,kind='cubic')
+        self.raceline_len_m = path_len
         #print("verify u and s mapping accuracy")
         ss_remap = self.uToS(self.sToU(ss))
         #print("mean error in s %.5f m "%(np.mean(np.abs(ss-ss_remap))))
@@ -1257,7 +1258,7 @@ class RCPtrack(Track):
             s_k = s_vec[-1] + v_vec[-1] * dt
             s_vec.append(s_k)
             # find u value for projection ref points
-            u_k = self.sToU(s_k)
+            u_k = self.sToU(s_k%self.raceline_len_m)
             # find ref velocity for projection ref points
             # TODO adjust ref velocity for current vehicle velocity
             v_k = self.targetVfromU(u_k%self.track_length_grid)
@@ -1281,10 +1282,9 @@ class RCPtrack(Track):
         k_signed_vec = np.copysign(k_vec,k_sign_vec)
 
         x,y,heading,vf,vs,omega = state
-        e_heading = heading0 - heading
+        e_heading = heading - heading0
 
-        # verify this: -offset should be positive if vehicle is to the right of the path
-        return -offset, e_heading, np.array(v_vec),np.array(k_signed_vec), True
+        return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         
 
 # conver a world coordinate in meters to canvas coordinate
