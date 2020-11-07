@@ -199,7 +199,7 @@ class MPC:
         G = cvxopt.matrix(self.G)
         h = cvxopt.matrix(self.h)
         sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
-        print(sol['status'])
+        #print(sol['status'])
         # DEBUG
         self.u = np.array(sol['x']) 
         return np.array(sol['x'])

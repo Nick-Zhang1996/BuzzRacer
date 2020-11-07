@@ -229,7 +229,7 @@ class Car:
         P[2,2] = 0.0
 
         Q = np.zeros([m,m])
-        Q[0,0] = 0.01
+        Q[0,0] = 1e-3
         x_ref = np.zeros([p,n])
         x0 = x0
         p = p
@@ -239,21 +239,6 @@ class Car:
         du_max = np.array([radians(60)/0.1*dt])
         u_max = np.array([radians(25)])
 
-        # FIXME DEBUG
-        # simulate a constant command
-        # e_cross + means vehicle is to the left of ref trajectory
-        '''
-        x0 = np.array([0,0,0.1,0,1])
-        A_vec = [getA(1,0)] * p
-        B_vec = [B*dt] * p
-        self.mpc.setup(n,m,p)
-        self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
-        ctrl = self.mpc.solve()
-        print(ctrl)
-        self.mpc.debug()
-        '''
-
-        # END DEBUG
 
         self.mpc.setup(n,m,p)
         self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)

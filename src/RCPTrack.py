@@ -1282,7 +1282,7 @@ class RCPtrack(Track):
         k_signed_vec = np.copysign(k_vec,k_sign_vec)
 
         x,y,heading,vf,vs,omega = state
-        e_heading = heading - heading0
+        e_heading = ((heading - heading0) + pi/2.0 ) % (2*pi) - pi/2.0
 
         return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         
