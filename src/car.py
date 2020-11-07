@@ -169,7 +169,10 @@ class Car:
         dt = self.mpc_dt
         # state dimension
         n = 5
+        # action dimension
         m = 1
+        # output dimension(y=Cx)
+        l = 1
 
         debug_dict = {}
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
@@ -220,22 +223,26 @@ class Car:
         In = np.eye(n)
         getA = lambda Vx,dpsi_r: In + getA_raw(Vx,dpsi_r) * dt
 
-        # TODO maybe change x_ref and psi_ref to a list
         A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip(v_ref,dpsi_dt_ref)]
         B_vec = [B*dt] * p
 
-        P = np.zeros([n,n])
+        # define output matrix C, for a single state vector
+        # y = Cx 
+        C = np.zeros([l,n])
+        C[0,0] = 1
+
+        # J = y.T P y + u.T Q u
+        P = np.zeros([l,l])
         # e_cross
         P[0,0] = 1
-        # e_heading
-        # TODO maybe lower
-        P[2,2] = 0.0
 
         Q = np.zeros([m,m])
         Q[0,0] = 1e-3
-        x_ref = np.zeros([p,n])
+        y_ref = np.zeros([p,l])
         x0 = x0
         p = p
+
+
         # 5 deg/s
         # typical servo speed 60deg/0.1s
         # u: steering
@@ -243,8 +250,8 @@ class Car:
         u_max = np.array([radians(25)])
 
 
-        self.mpc.setup(n,m,p)
-        self.mpc.convertLtv(A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max)
+        self.mpc.setup(n,m,l,p)
+        self.mpc.convertLtv(A_vec,B_vec,C,P,Q,y_ref,x0,du_max,u_max)
         u_optimal = self.mpc.solve()
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
         #plt.plot(u_optimal[1::2,0])

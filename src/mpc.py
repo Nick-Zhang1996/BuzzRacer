@@ -9,17 +9,20 @@ class MPC:
         return
 
     # setup parameters
-    def setup(self,n,m,p):
+    def setup(self,n,m,l,p):
         # dim of state
         self.n = n
         # dim of action
         self.m = m
+        # dim of output y
+        self.l = l
         # prediction horizon
         self.p = p
         return
 
     # convert linear time variant model of following form to general form for cvxopt.qp()
-    #  u* = argmin_u (x_k-x_ref_k).T P (x_k-x_ref_k) + u_k.T Q u_k (summed for all k=1..p)
+    #  u* = argmin_u (y_k - y_ref_k).T @ P @ (y_k - y_ref_k) + u_k.T Q u_k (summed for all k=1..p)
+    #  where  y_k = C @ x_k
     #  s.t. x_k+1 = Ak xk + Bk uk  NOTE diecrete system, do your own discretization
     # k = 1..p, prediction horizon for MPC
 
@@ -34,29 +37,31 @@ class MPC:
     # A_vec: [A0, A1, Ak... Ap-1] or np.array of shape (p,n,n)
     # B_vec: [B0, B1, Bk... Bp-1], or np.array of shape (p,m,n)
     # where n is dim of states, m is dim of ctrl
-    # P: n*n, cost for x(state)
+    # C: y = Cx, output matrix, dim (l,n)
+    # P: l*l, cost for y = Cx
     # Q: m*m, cost for u(control), 
-    # P,Q must be symmetric, this is applied equally to all projected states
-    # x_ref : [x_ref_1, x_ref_2, ... ], or np.array of shape (p,n,1) reference/target state
+    # P,Q must be symmetric, this is applied equally to all projected timesteps
+    # y_ref : [y_ref_1, y_ref_2, ... ], or np.array of shape (p,l,1) reference output
     # x0 : initial/current state
     # p : prediction horizon/steps
     # du_max : (m,) max|uk - uk-1|, for each u channel
     # u_max  : (m,) max|uk|, for each u channel
-    def convertLtv(self,A_vec,B_vec,P,Q,x_ref,x0,du_max,u_max):
+    def convertLtv(self,A_vec,B_vec,C,P,Q,y_ref,x0,du_max,u_max):
         p = self.p
         n = self.n
         m = self.m
+        l = self.l
         A = list(A_vec)
         B = list(B_vec)
         assert len(A_vec) == p
         assert A[0].shape == (n,n)
         assert len(B_vec) == p
         assert B[0].shape == (n,m)
-        assert P.shape == (n,n)
+        assert P.shape == (l,l)
         assert Q.shape == (m,m)
-        assert x_ref.shape == (p,n,1) or x_ref.shape == (p,n)
+        assert y_ref.shape == (p,l,1) or y_ref.shape == (p,l)
         # vertically stack all ref states
-        x_ref = x_ref.reshape([n*p,1])
+        y_ref = y_ref.reshape([l*p,1])
         assert x0.shape == (n,)
 
         # expand to proper dimension
@@ -73,13 +78,14 @@ class MPC:
         F[(p-1)*n:,(p-1)*m:] = B[p-1]
 
         E = np.empty([n*p,1])
-
         E[0*n:1*n] = x0.reshape(-1,1)
         for i in range(1,p):
             E[i*n:(i+1)*n] = A[i] @ E[(i-1)*n:i*n]
 
-        P_qp = F.T @ P @ F + Q
-        q_qp = F.T @ P @ E - F.T @ P @ x_ref
+        G = np.kron(np.eye(p,dtype=int),C)
+
+        P_qp = F.T @ G.T @ P @ G @ F + Q
+        q_qp = F.T @ G.T @ P @ G @ E - F.T @ G.T @ P @ y_ref
 
         # assemble constrains
         # u_k+1 - uk
