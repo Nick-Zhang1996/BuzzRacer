@@ -227,11 +227,12 @@ class Main():
             # draw the range where solver is seeking answer
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
-            # draw lookahead points x_ref
-            x_ref = self.debug_dict['x_ref']
-            for coord in x_ref:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y))
+            if (self.controller == Controller.dynamicMpc):
+                # draw lookahead points x_ref
+                x_ref = self.debug_dict['x_ref']
+                for coord in x_ref:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y))
 
             # draw projected state
             '''

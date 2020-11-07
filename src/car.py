@@ -1,3 +1,7 @@
+# TODO
+# construct cost function on y=Cx+Du instead of full state x
+# apply cost to uk-uk-1
+
 # This document defines methods related to the Car class,
 # which contains the physical dimension, performance, simulation model, and control algorithm for a car
 import numpy as np
@@ -9,7 +13,6 @@ import matplotlib.pyplot as plt
 from PidController import PidController
 from common import *
 from mpc import MPC
-import matplotlib.pyplot as plt
 from time import time
 
 class Car:
@@ -246,8 +249,7 @@ class Car:
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
         #plt.plot(u_optimal[1::2,0])
         #plt.show()
-        # TODO
-        steering = u_optimal[1,0]
+        steering = u_optimal[0,0]
         #print(u_optimal)
 
         # throttle is controller by other controller
