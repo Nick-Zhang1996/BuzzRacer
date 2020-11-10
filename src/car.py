@@ -176,7 +176,7 @@ class Car:
         dt = self.mpc_dt
 
         debug_dict = {}
-        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=False)
+        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=reverse)
         if not valid:
             ret =  (0,0,False,debug_dict)
             return ret

@@ -58,6 +58,9 @@ class Main():
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = False
 
+        # run the track in reverse direction
+        self.reverse = False
+
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
@@ -68,7 +71,7 @@ class Main():
 
         # real time/sim_time
         # larger value result in slower simulation
-        self.real_sim_time_ratio = 2.0
+        self.real_sim_time_ratio = 1.0
 
         # set target platform
         # if running simulation set this to simulator
@@ -77,8 +80,8 @@ class Main():
         self.vehiclePlatform = VehiclePlatform.dynamic_simulator
 
         # set control pipeline
-        #self.controller = Controller.stanley
-        self.controller = Controller.dynamicMpc
+        self.controller = Controller.stanley
+        #self.controller = Controller.dynamicMpc
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -290,7 +293,7 @@ class Main():
 
         # apply controller
         if (self.controller == Controller.stanley):
-            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
             if not valid:
                 print_warning("ctrlCar invalid retval")
                 exit(1)
@@ -301,7 +304,7 @@ class Main():
             debug_dict['v_target'] =0
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.dynamicMpc):
-            throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=False)
+            throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=self.reverse)
             self.debug_dict['x_ref'] = debug_dict['x_ref']
             #self.debug_dict['x_project'] = debug_dict['x_project']
             if not valid:
