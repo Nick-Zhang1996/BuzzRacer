@@ -37,31 +37,57 @@ class hybridSim(nn.Module):
 
         self.g = 9.81
 
-        m = 0.2
-        self.m = self.get_param(m,True)
+        m = 0.1667
+        self.m = self.get_param(m,False)
 
 
         self.Caf_base = 5*0.25*m*self.g
         self.Caf_range = (0.5, 1.5)
         assert (np.isclose(np.mean(self.Caf_range),1))
-        self.Caf_param = self.get_param(0.0,True)
+        self.Caf_param = self.get_param(0.0,False)
 
         #self.Car = self.get_param(5*0.25*m*self.g*0.9,True)
 
 
-        self.lf = self.get_param(0.05,False)
-        self.lr = self.get_param(0.05,False)
+        self.lf = self.get_param(0.09-0.036,False)
+        self.lr = self.get_param(0.036,False)
 
         # approximate as a solid box
         # TODO normalize a parameter around 0.0
-        self.Iz_base = m/12.0*(0.1**2+0.1**2)
+        #self.Iz_base = m/12.0*(0.1**2+0.1**2)
+        self.Iz_base = 0.000267
         self.Iz_pow_ratio = (-2.0, 2.0)
-        self.Iz_param = self.get_param(0.0,True)
+        self.Iz_param = self.get_param(0.0,False)
         assert (np.isclose(np.mean(self.Iz_pow_ratio),0))
 
-        self.throttle_offset = self.get_param(0.27,True)
-        self.throttle_ratio = self.get_param(8.0,True)
+        self.throttle_offset = self.get_param(0.26,False)
+        self.throttle_ratio = self.get_param(7.003,False)
 
+        # residual neural network
+        # input:
+        # - states (history_steps * self.state_dim+self.action_dim)
+        # output:
+        # - residual longitudinal force (scalar)
+        # - residual lateral force (scalar)
+        # - residual torque (scalar)
+        self.fc1 = nn.Linear(history_steps * (self.state_dim+self.action_dim), 16)
+        self.fc2 = nn.Linear(16, 3)
+        if dtype == torch.float:
+            self.fc1 = self.fc1.float()
+            self.fc2 = self.fc2.float()
+        elif dtype == torch.double:
+            self.fc1 = self.fc1.double()
+            self.fc2 = self.fc2.double()
+        self.residual_bounds = self.get_tensor([5e-3*self.g,5e-3*self.g,5e-3*self.g*20e-2],False)
+
+    def get_residual_force(self,states):
+        batch_size, history_steps, state_dim = states.size()
+        y1 = torch.tanh(self.fc1(states.view(batch_size, -1)))
+        y2 = torch.tanh(self.fc2(y1)) * self.residual_bounds.view(1, 3)
+        residual_longitudinal_force = y2[:, 0]
+        residual_lateral_force = y2[:, 1]
+        residual_torque = y2[:,2]
+        return residual_longitudinal_force,residual_lateral_force,residual_torque
 
     # predict future car state
     # Input: 
@@ -71,7 +97,7 @@ class hybridSim(nn.Module):
     #   concatenated
     # Output:
     #       future_states: forward_steps * (states)
-    def forward(self,full_states,actions):
+    def forward(self,full_states,actions, enable_rnn):
         assert len(full_states.size()) == 3
         batch_size, history_steps, full_state_dim = full_states.size()
         assert history_steps == self.history_steps
@@ -110,12 +136,24 @@ class hybridSim(nn.Module):
 
             u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
 
+            # self.states: x,vx,y,vy,psi,dpsi
             #self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
-            temp = torch.matmul(A,torch.matmul(self.get_R(-psi),latest_state.unsqueeze(2)))+torch.matmul(B,u.unsqueeze(2))
-            predicted_state = latest_state.unsqueeze(2) +  torch.matmul(self.get_R(psi),temp)*self.dt
+            # state derivative in local frame
+            state_der_local = torch.matmul(A,torch.matmul(self.get_R(-psi),latest_state.unsqueeze(2)))+torch.matmul(B,u.unsqueeze(2))
+            history_full_state = full_states[:,-self.history_steps:,:]
+
+
+            # TODO check dim
+            if enable_rnn:
+                residual_longitudinal_force,residual_lateral_force,residual_torque = self.get_residual_force(history_full_state)
+                state_der_local[:,1,0] += residual_longitudinal_force/self.m
+                state_der_local[:,3,0] += residual_lateral_force/self.m
+                state_der_local[:,5,0] += residual_torque/self.Iz()
+
+
+            predicted_state = latest_state.unsqueeze(2) +  torch.matmul(self.get_R(psi),state_der_local)*self.dt
             new_full_state = torch.cat([predicted_state.view(batch_size,1,self.state_dim), actions[:,i,:].view(batch_size,1,self.action_dim)],dim=2)
             full_states = torch.cat([full_states, new_full_state],dim=1)
-
 
         future_states = full_states[:,-self.forward_steps:,:]
         # FIXME

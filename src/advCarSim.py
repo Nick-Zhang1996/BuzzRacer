@@ -7,7 +7,7 @@ class advCarSim:
     def __init__(self,x,y,heading):
         # front tire cornering stiffness
         g = 9.81
-        self.m = 0.2
+        self.m = 0.1667
         self.Caf = 5*0.25*self.m*g
         #self.Car = 5*0.25*self.m*g
         self.Car = self.Caf
@@ -15,8 +15,8 @@ class advCarSim:
         self.Vx = 1
         self.Vy = 0
         # CG to front axle
-        self.lf = 0.05
-        self.lr = 0.05
+        self.lf = 0.09-0.036
+        self.lr = 0.036
         # approximate as a solid box
         self.Iz = self.m/12.0*(0.1**2+0.1**2)
 

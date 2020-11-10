@@ -22,15 +22,78 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         return self.dataset[idx]
 
+def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn):
+    #test
+    epoch_loss = 0
+    with torch.no_grad():
+        for i, batch in enumerate(test_data_loader):
+            full_states = batch[:,:history_steps,:]
+            actions = batch[:,-forward_steps:,-simulator.action_dim:]
+            full_states = full_states.to(device)
+            actions = actions.to(device)
+            predicted_state = simulator(full_states,actions,enable_rnn)
 
-def train(log_names):
-    epochs = 30
+            target_states = batch[:,-forward_steps:,:]
+
+            #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
+            loss = criterion(predicted_state, target_states)
+            epoch_loss += loss
+
+    test_loss = epoch_loss.detach().item()/len(test_data_loader)
+    test_loss_history.append(test_loss)
+    return test_loss
+
+def train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,enable_rnn):
+        #training
+        epoch_loss = 0
+        for i, batch in enumerate(train_data_loader):
+            full_states = batch[:,:history_steps,:]
+            actions = batch[:,-forward_steps:,-simulator.action_dim:]
+            full_states = full_states.to(device)
+            actions = actions.to(device)
+
+            #truth_state = simulator.testForward(full_states.clone(), actions, i=0,sim=ground_truth_sim)
+            predicted_state = simulator(full_states,actions,enable_rnn)
+
+            target_states = batch[:,-forward_steps:,:]
+
+            #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
+            loss = criterion(predicted_state, target_states)
+            # FIXME
+            #print(loss)
+
+            latest_state = full_states[:,-1,-(simulator.state_dim+simulator.action_dim):-simulator.action_dim]
+            latest_action = full_states[:,-1,-simulator.action_dim:]
+            latest_full_state = np.hstack([latest_state.detach().numpy(),latest_action.detach().numpy()])
+
+            '''
+            print("predicted state, hybridsim")
+            print(predicted_state.detach().numpy()-target_states.detach().numpy())
+            print("predicted state, ground truth sim")
+            print(truth_state-target_states.detach().numpy())
+            print("target state, training set")
+            print(target_states.detach().numpy()-latest_full_state)
+            '''
+
+            epoch_loss += loss.detach().item()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        train_loss = epoch_loss/len(train_data_loader)
+        train_loss_history.append(train_loss)
+        return train_loss
+
+
+def sysid(log_names):
+    epochs = 20
     batch_size = 256
     torch.set_num_threads(1)
     dt = 0.01
-    history_steps = 2
+    history_steps = 5
     forward_steps = 3
-    learning_rate = 1e-3
+    learning_rate = 1e-5
+    enable_rnn = True
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
@@ -74,7 +137,7 @@ def train(log_names):
     full_states_std = torch.tensor(dataset.full_states_std, dtype=dtype, device=device, requires_grad=False).view(1, simulator.state_dim+simulator.action_dim)
 
     param_history = []
-    training_loss_history = []
+    train_loss_history = []
     test_loss_history = []
     print("-------- initial values -------")
     print("mass = %.3f"%(simulator.m.detach().item()))
@@ -83,69 +146,22 @@ def train(log_names):
     print("lf = %.3f"%(simulator.lf.detach().item()))
     print("lr = %.3f"%(simulator.lr.detach().item()))
     print("Iz = %.6f"%(simulator.Iz().detach().item()))
+    print("throttle offset = %.4f"%(simulator.throttle_offset.detach().item()))
+    print("throttle ratio = %.4f"%(simulator.throttle_ratio.detach().item()))
     print("-------- -------------- -------")
 
+    test_loss = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn)
+    print("initial test cost %.5f"%(test_loss))
+
     for epoch_count in range(epochs):
-        #training
-        epoch_loss = 0
-        for i, batch in enumerate(train_data_loader):
-            full_states = batch[:,:history_steps,:]
-            actions = batch[:,-forward_steps:,-simulator.action_dim:]
-            full_states = full_states.to(device)
-            actions = actions.to(device)
 
-            #truth_state = simulator.testForward(full_states.clone(), actions, i=0,sim=ground_truth_sim)
-            predicted_state = simulator(full_states,actions)
+        train_loss = train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,enable_rnn)
 
-            target_states = batch[:,-forward_steps:,:]
+        test_loss = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn)
 
-            #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-            loss = criterion(predicted_state, target_states)
-            # FIXME
-            #print(loss)
+        print("Train loss = %.6f, Test loss = %.6f"%(train_loss,test_loss))
 
-            latest_state = full_states[:,-1,-(simulator.state_dim+simulator.action_dim):-simulator.action_dim]
-            latest_action = full_states[:,-1,-simulator.action_dim:]
-            latest_full_state = np.hstack([latest_state.detach().numpy(),latest_action.detach().numpy()])
-
-            '''
-            print("predicted state, hybridsim")
-            print(predicted_state.detach().numpy()-target_states.detach().numpy())
-            print("predicted state, ground truth sim")
-            print(truth_state-target_states.detach().numpy())
-            print("target state, training set")
-            print(target_states.detach().numpy()-latest_full_state)
-            '''
-
-            epoch_loss += loss
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        training_loss = epoch_loss.detach().item()/len(train_data_loader)
-        training_loss_history.append(training_loss)
-
-        #test
-        epoch_loss = 0
-        with torch.no_grad():
-            for i, batch in enumerate(test_data_loader):
-                full_states = batch[:,:history_steps,:]
-                actions = batch[:,-forward_steps:,-simulator.action_dim:]
-                full_states = full_states.to(device)
-                actions = actions.to(device)
-                predicted_state = simulator(full_states,actions)
-
-                target_states = batch[:,-forward_steps:,:]
-
-                #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-                loss = criterion(predicted_state, target_states)
-                epoch_loss += loss
-
-        test_loss = epoch_loss.detach().item()/len(test_data_loader)
-        test_loss_history.append(test_loss)
-
-        print("Train loss = %.6f, Test loss = %.6f"%(training_loss,test_loss))
-
+        # log parameter update history
         mass = simulator.m.detach().item()
         Caf = simulator.Caf().detach().item()
         Car = simulator.Car().detach().item()
@@ -162,6 +178,8 @@ def train(log_names):
     print("lf = %.3f"%(simulator.lf.detach().item()))
     print("lr = %.3f"%(simulator.lr.detach().item()))
     print("Iz = %.6f"%(simulator.Iz().detach().item()))
+    print("throttle offset = %.4f"%(simulator.throttle_offset.detach().item()))
+    print("throttle ratio = %.4f"%(simulator.throttle_ratio.detach().item()))
     print("-------- -------------- -------")
 
     param_history = np.array(param_history)
@@ -185,7 +203,7 @@ def train(log_names):
     plt.show()
     '''
 
-    plt.plot(training_loss_history,'r-')
+    plt.plot(train_loss_history,'r-')
     plt.plot(test_loss_history,'b.-')
     plt.show()
 
@@ -197,5 +215,5 @@ if __name__ == '__main__':
     #log_names =  glob.glob('../log/sysid/full_state*.p')
     # real data
     log_names =  glob.glob('../log/oct9/full_state*.p')
-    train(log_names)
+    sysid(log_names)
 
