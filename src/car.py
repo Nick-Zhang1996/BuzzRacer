@@ -14,9 +14,13 @@ from PidController import PidController
 from common import *
 from mpc import MPC
 from time import time
+from timeUtil import execution_timer
 
 class Car:
-    def __init__(self,car_setting):
+    def __init__(self,car_setting,dt):
+        # debug
+        self.freq = []
+        self.t = execution_timer(False)
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
@@ -52,7 +56,7 @@ class Car:
         P = 5 # to be more aggressive use 15
         I = 0.0 #0.1
         D = 0.4
-        self.throttle_pid = PidController(P,I,D,0.01,1,2)
+        self.throttle_pid = PidController(P,I,D,dt,1,2)
         # low pass filter for throttle controller
 
         self.b, self.a = signal.butter(1,0.2,'low',analog=False,fs=50)
@@ -114,7 +118,7 @@ class Car:
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         # FIXME
-        #v_target *= 0.8
+        v_target *= 0.8
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
@@ -172,17 +176,26 @@ class Car:
         l = 1
 
         tic = time()
+        t = self.t
+        t.s()
+
         p = self.mpc_prediction_steps
         dt = self.mpc_dt
 
         debug_dict = {}
+        t.s("get ref point")
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=reverse)
+        t.e("get ref point")
+
+        t.s("assemble ref")
         if not valid:
             ret =  (0,0,False,debug_dict)
             return ret
 
         # first element of _ref is current state, we don't need that
+        # FIXME
         v_target = v_ref[0]
+        v_target *= 0.5
         v_ref = v_ref[1:]
         k_ref = k_ref[1:]
         # only reference we need is dpsi_dt = Vx * K
@@ -198,7 +211,9 @@ class Car:
         x0 = np.array([e_cross, 0, e_heading, 0, 1])
 
         x,y,heading,vf,vs,omega = state
+        t.e("assemble ref")
 
+        t.s("assemble matrix")
         # assemble Ak matrices
         Car = self.Car
         Caf = self.Caf
@@ -249,10 +264,18 @@ class Car:
         # u: steering
         du_max = np.array([radians(60)/0.1*dt])*0.5
         u_max = np.array([radians(25)])
+        t.e("assemble matrix")
 
 
+        t.s("convert problem")
         self.mpc.convertLtv(A_vec,B_vec,C,P,Q,y_ref,x0,du_max,u_max)
+        t.e("convert problem")
+
+        t.s("solve")
         u_optimal = self.mpc.solve()
+        t.e("solve")
+
+        t.s("actuate")
         # u is stacked, so [throttle_0,steering_0, throttle_1, steering_1]
         #plt.plot(u_optimal[1::2,0])
         #plt.show()
@@ -263,18 +286,25 @@ class Car:
         #throttle = u_optimal[0,1]
         throttle = self.calcThrottle(state,v_target)
 
-        debug_dict['x_ref'] = coord_ref
+        #debug_dict['x_ref'] = coord_ref
+        debug_dict['x_ref'] = []
         #debug_dict['x_project'] = self.mpc.debug()
         ret =  (throttle,steering,True,debug_dict)
+        t.e("actuate")
         tac = time()
+        self.freq.append(tac-tic)
+        if len(self.freq)>300:
+            self.freq.pop(0)
         #print("freq = %.2f"%(1.0/(tac-tic)))
+        print("mean freq = %.2f"%(1.0/(np.mean(self.freq))))
+        t.e()
         return ret
 
     # initialize mpc
     # sim: an instance of advCarSim so we have access to parameters
-    def initMpc(self,sim):
+    def initMpcSim(self,sim):
         # prediction step
-        self.mpc_prediction_steps = 20
+        self.mpc_prediction_steps = 15
         # prediction discretization dt
         # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
         self.mpc_dt = 0.03
@@ -286,6 +316,37 @@ class Car:
         self.lr = sim.lr
         self.Iz = sim.Iz
         self.m = sim.m
+        self.mpc = MPC()
+        # state dimension
+        n = 5
+        # action dimension
+        m = 1
+        # output dimension(y=Cx)
+        l = 1
+        p = self.mpc_prediction_steps
+        self.mpc.setup(n,m,l,p)
+        return
+
+    # initialize mpc
+    def initMpcReal(self):
+        # prediction step
+        self.mpc_prediction_steps = 5
+        # prediction discretization dt
+        # NOTE we may be able to use a finer time step in x ref calculation, this can potentially increase accuracy
+        self.mpc_dt = 0.03
+        # together p*mpc_dt gives prediction horizon
+
+        g = 9.81
+        self.m = 0.1667
+        self.Caf = 5*0.25*self.m*g
+        #self.Car = 5*0.25*self.m*g
+        self.Car = self.Caf
+        # CG to front axle
+        self.lf = 0.09-0.036
+        self.lr = 0.036
+        # approximate as a solid box
+        self.Iz = self.m/12.0*(0.1**2+0.1**2)
+
         self.mpc = MPC()
         # state dimension
         n = 5

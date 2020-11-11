@@ -30,6 +30,7 @@ from car import Car
 from Track import Track
 import pickle
 from common import *
+from timeUtil import execution_timer
 
 # debugging
 K_vec = [] # curvature
@@ -56,6 +57,7 @@ class Node:
 
 class RCPtrack(Track):
     def __init__(self):
+        self.t = execution_timer(False)
         # resolution : pixels per grid side length
         self.resolution = 120
         # for calculating derivative and integral of offset
@@ -1222,10 +1224,15 @@ class RCPtrack(Track):
     # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
 
     def getRefPoint(self, state, p, dt, reverse=False):
+        t = self.t
+
+        t.s()
         if reverse:
             print_error("reverse is not implemented")
         # set wheelbase to 0 to get point closest to vehicle CG
+        t.s("local traj")
         retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        t.e("local traj")
         if retval is None:
             return None,None,False
 
@@ -1235,15 +1242,19 @@ class RCPtrack(Track):
             return None,None,False
 
         # calculate s value for projection ref points
+        t.s("find s")
         s0 = self.uToS(u0).item()
         v0 = self.targetVfromU(u0%self.track_length_grid).item()
         der = splev(u0%self.track_length_grid,self.raceline,der=1)
         heading0 = atan2(der[1],der[0])
+        t.e("find s")
 
+        t.s("curvature")
         vec_curvature = splev(u0%self.track_length_grid,self.raceline,der=2)
         norm_curvature = np.linalg.norm(vec_curvature)
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = np.cross((cos(heading0),sin(heading0)),vec_curvature)
+        t.e("curvature")
 
         s_vec = [s0]
         v_vec = [v0]
@@ -1254,29 +1265,43 @@ class RCPtrack(Track):
         k_sign_vec = [cross_curvature]
 
         # TODO vectorize this loop
+        t.s("main loop")
         for k in range(1,p+1):
+            t.s("-- u")
             s_k = s_vec[-1] + v_vec[-1] * dt
             s_vec.append(s_k)
             # find u value for projection ref points
             u_k = self.sToU(s_k%self.raceline_len_m)
+            t.e("-- u")
             # find ref velocity for projection ref points
             # TODO adjust ref velocity for current vehicle velocity
+            t.s("-- v")
             v_k = self.targetVfromU(u_k%self.track_length_grid)
             v_vec.append(v_k)
-            der = splev(u0%self.track_length_grid,self.raceline,der=1)
+            t.e("-- v")
             # find ref heading for projection ref points
+            t.s("-- psi")
+            der = splev(u0%self.track_length_grid,self.raceline,der=1)
             heading_k = atan2(der[1],der[0])
             heading_vec.append(heading_k)
+            t.e("-- psi")
             # find ref coordinates for projection ref points
+            '''
+            t.s("-- coord")
             coord_k = splev(u_k%self.track_length_grid,self.raceline)
             coord_vec.append(coord_k)
+            t.e("-- coord")
+            '''
 
+            t.s("-- K")
             vec_curvature = splev(u_k%self.track_length_grid,self.raceline,der=2)
             norm_curvature = np.linalg.norm(vec_curvature)
             # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
             cross_curvature = np.cross((cos(heading_k),sin(heading_k)),vec_curvature)
             k_vec.append(norm_curvature)
             k_sign_vec.append(cross_curvature)
+            t.e("-- K")
+        t.e("main loop")
 
         # TODO check dimension
         k_signed_vec = np.copysign(k_vec,k_sign_vec)
@@ -1284,7 +1309,9 @@ class RCPtrack(Track):
         x,y,heading,vf,vs,omega = state
         e_heading = ((heading - heading0) + pi/2.0 ) % (2*pi) - pi/2.0
 
-        return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+        t.e()
+        #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+        return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), None,True
         
 
 # conver a world coordinate in meters to canvas coordinate

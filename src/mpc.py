@@ -18,8 +18,11 @@ class MPC:
         self.l = l
         # prediction horizon
         self.p = p
-        # last control command, used for smoothing constrain
-        self.last_u = [0]
+        # last applied control command, used for smoothing constrain
+        self.last_applied_u = [0]
+        # last solution, used for initial guess in next step
+        # this is fuzzy as time is not properly shifter
+        self.last_u = None
         return
 
     # convert linear time variant model of following form to general form for cvxopt.qp()
@@ -104,17 +107,17 @@ class MPC:
 
         # give special treatment to u0
         # du constrain on u0 is calculated from u from last time step
-        # |u0 - last_u| < du_max
+        # |u0 - last_applied_u| < du_max
         G4 = np.zeros([m,p*m])
         G4 = np.block([np.eye(m), np.zeros([m,(p-1)*m])])
-        h4 = np.array(du_max).flatten() + np.array(self.last_u).flatten()
-        print(self.last_u)
+        h4 = np.array(du_max).flatten() + np.array(self.last_applied_u).flatten()
+        #print(self.last_applied_u)
 
         G5 = np.zeros([m,p*m])
         G5 = np.block([-np.eye(m), np.zeros([m,(p-1)*m])])
-        h5 = np.array(du_max).flatten() - np.array(self.last_u).flatten()
-        print(h5)
-        print('--')
+        h5 = np.array(du_max).flatten() - np.array(self.last_applied_u).flatten()
+        #print(h5)
+        #print('--')
 
         G_qp = np.vstack([G1,G2,G3,G4,G5])
         # TODO verify dimension
@@ -207,7 +210,7 @@ class MPC:
     def debug(self):
         # x = F @ u + E
         self.u[1::2,0] = self.u[1,0]
-        print(self.u[1,0])
+        #print(self.u[1,0])
         new_u = np.ones_like(self.u) 
         x_pro = self.F @ self.u + self.E
         # retrieve e_cross, e_heading
@@ -220,12 +223,22 @@ class MPC:
         q_qp = cvxopt.matrix(self.q)
         G = cvxopt.matrix(self.G)
         h = cvxopt.matrix(self.h)
-        sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
+
+        '''
+        if (self.last_u is None):
+            guess = None
+        else:
+            guess = {'x':cvxopt.matrix(self.last_u)}
+        '''
+        # not much difference
+        guess = None
+        sol=cvxopt.solvers.qp(P_qp,q_qp,G,h,initval=guess)
         #print(sol['status'])
         # DEBUG
         #self.u = np.array(sol['x']) 
-        self.last_u =  np.array(sol['x'])[0,:]
-        return self.last_u
+        self.last_applied_u =  np.array(sol['x'])[0,:]
+        self.last_u = sol['x']
+        return self.last_applied_u
 
 if __name__ == "__main__":
     mpc = MPC()

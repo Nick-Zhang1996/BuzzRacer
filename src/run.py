@@ -49,10 +49,12 @@ class Controller(Enum):
 
 class Main():
     def __init__(self,):
+        # state update rate
+        self.dt = 0.01
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
@@ -65,9 +67,9 @@ class Main():
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        #self.stateUpdateSource = StateUpdateSource.optitrack
+        self.stateUpdateSource = StateUpdateSource.optitrack
         #self.stateUpdateSource = StateUpdateSource.simulator
-        self.stateUpdateSource = StateUpdateSource.dynamic_simulator
+        #self.stateUpdateSource = StateUpdateSource.dynamic_simulator
 
         # real time/sim_time
         # larger value result in slower simulation
@@ -75,9 +77,9 @@ class Main():
 
         # set target platform
         # if running simulation set this to simulator
-        #self.vehiclePlatform = VehiclePlatform.offboard
+        self.vehiclePlatform = VehiclePlatform.offboard
         #self.vehiclePlatform = VehiclePlatform.simulator
-        self.vehiclePlatform = VehiclePlatform.dynamic_simulator
+        #self.vehiclePlatform = VehiclePlatform.dynamic_simulator
 
         # set control pipeline
         self.controller = Controller.stanley
@@ -123,9 +125,10 @@ class Main():
         self.initStateUpdate()
 
         if (self.controller == Controller.dynamicMpc):
-            if (self.stateUpdateSource != StateUpdateSource.dynamic_simulator):
-                print_error("dynamic MPC only work with dynamic simulator currently, initialize parameters in car.initMpc if you want to run with real environment")
-            self.car.initMpc(self.simulator)
+            if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
+                self.car.initMpcSim(self.simulator)
+            elif (self.stateUpdateSource == StateUpdateSource.optitrack):
+                self.car.initMpcReal()
             
 
         # log with undetermined format
@@ -246,7 +249,6 @@ class Main():
             '''
 
             self.visualization_ts = time()
-            self.last_visualized_sim_t = self.simulator.t
 
             cv2.imshow('experiment',img)
 
@@ -312,6 +314,9 @@ class Main():
                 exit(1)
             if self.slowdown.isSet():
                 throttle = 0.0
+            # DEBUG
+            debug_dict['v_target'] =0
+            self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.joystick):
             throttle = self.joystick.throttle
             # just use right side for both ends
@@ -452,15 +457,18 @@ class Main():
             print_warning("using different max_throttle setting")
             porsche_setting['max_throttle'] = 1.0
 
+        if (self.controller == Controller.dynamicMpc):
+            pass
+
         # porsche 911
-        car = Car(porsche_setting)
+        car = Car(porsche_setting,self.dt)
         return car
 
     def resolveLogname(self,):
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/sysid/"
+        logFolder = "../log/nov10/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -606,6 +614,8 @@ if __name__ == '__main__':
     experiment = Main()
     experiment.run()
     #experiment.simulator.debug()
+    experiment.car.t.summary()
+    experiment.track.t.summary()
     print_info("program complete")
 
 
