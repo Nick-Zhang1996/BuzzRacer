@@ -23,7 +23,6 @@ from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from scipy.optimize import minimize_scalar,minimize,brentq
 from scipy.integrate import solve_ivp
 from time import sleep,time
-from timeUtil import execution_timer
 import cv2
 from PIL import Image
 from car import Car
@@ -57,7 +56,7 @@ class Node:
 
 class RCPtrack(Track):
     def __init__(self):
-        self.t = execution_timer(False)
+        self.t = execution_timer(True)
         # resolution : pixels per grid side length
         self.resolution = 120
         # for calculating derivative and integral of offset

@@ -67,23 +67,23 @@ class Main():
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        self.stateUpdateSource = StateUpdateSource.optitrack
+        #self.stateUpdateSource = StateUpdateSource.optitrack
         #self.stateUpdateSource = StateUpdateSource.simulator
-        #self.stateUpdateSource = StateUpdateSource.dynamic_simulator
+        self.stateUpdateSource = StateUpdateSource.dynamic_simulator
 
         # real time/sim_time
         # larger value result in slower simulation
-        self.real_sim_time_ratio = 1.0
+        self.real_sim_time_ratio = 2.0
 
         # set target platform
         # if running simulation set this to simulator
-        self.vehiclePlatform = VehiclePlatform.offboard
+        #self.vehiclePlatform = VehiclePlatform.offboard
         #self.vehiclePlatform = VehiclePlatform.simulator
-        #self.vehiclePlatform = VehiclePlatform.dynamic_simulator
+        self.vehiclePlatform = VehiclePlatform.dynamic_simulator
 
         # set control pipeline
-        self.controller = Controller.stanley
-        #self.controller = Controller.dynamicMpc
+        #self.controller = Controller.stanley
+        self.controller = Controller.dynamicMpc
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -468,7 +468,7 @@ class Main():
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/nov10/"
+        logFolder = "../log/sim/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -614,7 +614,9 @@ if __name__ == '__main__':
     experiment = Main()
     experiment.run()
     #experiment.simulator.debug()
+    print("car.py")
     experiment.car.t.summary()
+    print("RCPTrack.py")
     experiment.track.t.summary()
     print_info("program complete")
 

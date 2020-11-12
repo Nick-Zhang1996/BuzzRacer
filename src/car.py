@@ -20,7 +20,7 @@ class Car:
     def __init__(self,car_setting,dt):
         # debug
         self.freq = []
-        self.t = execution_timer(False)
+        self.t = execution_timer(True)
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
@@ -195,7 +195,7 @@ class Car:
         # first element of _ref is current state, we don't need that
         # FIXME
         v_target = v_ref[0]
-        v_target *= 0.5
+        #v_target *= 0.5
         v_ref = v_ref[1:]
         k_ref = k_ref[1:]
         # only reference we need is dpsi_dt = Vx * K
