@@ -20,6 +20,7 @@ class Car:
     def __init__(self,car_setting,dt):
         # debug
         self.freq = []
+        self.min_freq = 999
         self.t = execution_timer(True)
         # max allowable crosstrack error in control algorithm, if vehicle cross track error is larger than this value,
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
@@ -286,8 +287,8 @@ class Car:
         #throttle = u_optimal[0,1]
         throttle = self.calcThrottle(state,v_target)
 
-        #debug_dict['x_ref'] = coord_ref
-        debug_dict['x_ref'] = []
+        debug_dict['x_ref'] = coord_ref
+        #debug_dict['x_ref'] = []
         #debug_dict['x_project'] = self.mpc.debug()
         ret =  (throttle,steering,True,debug_dict)
         t.e("actuate")
@@ -296,8 +297,13 @@ class Car:
         if len(self.freq)>300:
             self.freq.pop(0)
         #print("freq = %.2f"%(1.0/(tac-tic)))
-        print("mean freq = %.2f"%(1.0/(np.mean(self.freq))))
+        #print("mean freq = %.2f"%(1.0/(np.mean(self.freq))))
         t.e()
+        if ( 1.0/(tac-tic) < self.min_freq):
+            self.min_freq = 1.0/(tac-tic)
+        print("min freq = %.2f"%(self.min_freq))
+
+
         return ret
 
     # initialize mpc
