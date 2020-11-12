@@ -22,9 +22,10 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         return self.dataset[idx]
 
-def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn):
+def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,err_history,enable_rnn):
     #test
     epoch_loss = 0
+    cum_error = 0
     with torch.no_grad():
         for i, batch in enumerate(test_data_loader):
             full_states = batch[:,:history_steps,:]
@@ -39,13 +40,25 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
             loss = criterion(predicted_state, target_states)
             epoch_loss += loss
 
+            # loss is difficult to understand, we now calculate the state difference
+            # as fraction of error
+            src = full_states[:,-1,:].detach().numpy()
+            ref = target_states[:,-1,:].detach().numpy()
+            test = predicted_state[:,-1,:].detach().numpy()
+            diff = state_diff(src,ref,test)
+            error = np.mean(diff)
+            cum_error += error
+
     test_loss = epoch_loss.detach().item()/len(test_data_loader)
     test_loss_history.append(test_loss)
-    return test_loss
+    cum_error /= len(test_data_loader)
+    err_history.append(cum_error)
+    return test_loss,error
 
-def train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,enable_rnn):
+def train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,err_history,enable_rnn):
         #training
         epoch_loss = 0
+        cum_error = 0
         for i, batch in enumerate(train_data_loader):
             full_states = batch[:,:history_steps,:]
             actions = batch[:,-forward_steps:,-simulator.action_dim:]
@@ -80,10 +93,38 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             loss.backward()
             optimizer.step()
 
+            # loss is difficult to understand, we now calculate the state difference
+            # as fraction of error
+            src = full_states[:,-1,:].detach().numpy()
+            ref = target_states[:,-1,:].detach().numpy()
+            test = predicted_state[:,-1,:].detach().numpy()
+            diff = state_diff(src,ref,test)
+            error = np.mean(diff)
+            cum_error += error
+
         train_loss = epoch_loss/len(train_data_loader)
         train_loss_history.append(train_loss)
+        cum_error /= len(train_data_loader)
+        err_history.append(cum_error)
         return train_loss
 
+
+# calculate state difference
+# src: starting state
+# ref: reference target state
+# test: state to be tested
+# each state is first normalized
+# criterion: (test-ref)/(ref-src), in norm
+def state_diff(src,ref,test):
+    temp = np.vstack([src,ref,test])
+    state_mean = np.mean(temp,axis=0)
+    state_stddev = np.std(temp,axis=0)
+    src = (src-state_mean)/state_stddev
+    ref = (ref-state_mean)/state_stddev
+    test = (test-state_mean)/state_stddev
+    base_norm = np.linalg.norm(src-ref,axis=1)
+    diff_norm = np.linalg.norm(test-ref,axis=1)
+    return diff_norm/base_norm
 
 def sysid(log_names):
     epochs = 20
@@ -93,20 +134,20 @@ def sysid(log_names):
     history_steps = 5
     forward_steps = 3
     learning_rate = 1e-5
-    enable_rnn = True
+    enable_rnn = False
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
     dtype = torch.double
     device = torch.device('cpu') # cpu or cuda
 
+
+    # shuffle before splitting
+    # this may be undesirable
     np.random.shuffle(dataset.dataset)
     full_dataset = dataset.dataset
     #full_dataset = deepcopy(dataset.dataset)
 
-    # shuffle before splitting
-    # this may be undesirable
-    # FIXME
     num_test = len(full_dataset) // 10
     #train_set = MyDataset(full_dataset[:-num_test])
     #test_set = MyDataset(full_dataset[-num_test:])
@@ -139,6 +180,8 @@ def sysid(log_names):
     param_history = []
     train_loss_history = []
     test_loss_history = []
+    train_err_history = []
+    test_err_history = []
     print("-------- initial values -------")
     print("mass = %.3f"%(simulator.m.detach().item()))
     print("Caf = %.3f"%(simulator.Caf().detach().item()))
@@ -150,16 +193,16 @@ def sysid(log_names):
     print("throttle ratio = %.4f"%(simulator.throttle_ratio.detach().item()))
     print("-------- -------------- -------")
 
-    test_loss = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn)
-    print("initial test cost %.5f"%(test_loss))
+    test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
+    print("initial test cost %.5f (err = %.5f)"%(test_loss,error))
 
     for epoch_count in range(epochs):
 
-        train_loss = train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,enable_rnn)
+        train_loss = train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,train_err_history,enable_rnn)
 
-        test_loss = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,enable_rnn)
+        test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
 
-        print("Train loss = %.6f, Test loss = %.6f"%(train_loss,test_loss))
+        print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
 
         # log parameter update history
         mass = simulator.m.detach().item()
@@ -207,6 +250,16 @@ def sysid(log_names):
     plt.plot(test_loss_history,'b.-')
     plt.show()
 
+    # plot acc
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.plot(train_loss_history, label="train loss")
+    ax.plot(test_loss_history, label="test loss")
+    ax.plot(test_err_history, label="test err")
+    ax.plot(train_err_history, label="train err")
+    ax.legend()
+    plt.show()
+
 
 
 
@@ -214,6 +267,6 @@ if __name__ == '__main__':
     # simulation data
     #log_names =  glob.glob('../log/sysid/full_state*.p')
     # real data
-    log_names =  glob.glob('../log/oct9/full_state*.p')
+    log_names =  glob.glob('../log/nov10/full_state*.p')
     sysid(log_names)
 

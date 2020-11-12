@@ -60,8 +60,10 @@ class hybridSim(nn.Module):
         self.Iz_param = self.get_param(0.0,False)
         assert (np.isclose(np.mean(self.Iz_pow_ratio),0))
 
-        self.throttle_offset = self.get_param(0.26,False)
-        self.throttle_ratio = self.get_param(7.003,False)
+        #self.throttle_offset = self.get_param(0.26,True)
+        #self.throttle_ratio = self.get_param(7.003,True)
+        self.throttle_offset = self.get_param(0.24,False)
+        self.throttle_ratio = self.get_param(6.98,False)
 
         # residual neural network
         # input:
@@ -78,7 +80,8 @@ class hybridSim(nn.Module):
         elif dtype == torch.double:
             self.fc1 = self.fc1.double()
             self.fc2 = self.fc2.double()
-        self.residual_bounds = self.get_tensor([5e-3*self.g,5e-3*self.g,5e-3*self.g*20e-2],False)
+        #self.residual_bounds = self.get_tensor([5e-3*self.g,5e-3*self.g,5e-3*self.g*20e-2],False)
+        self.residual_bounds = self.get_tensor([50e-3*self.g,50e-3*self.g,50e-3*self.g*20e-2],False)
 
     def get_residual_force(self,states):
         batch_size, history_steps, state_dim = states.size()
