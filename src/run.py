@@ -17,12 +17,18 @@ from skidpad import Skidpad
 from Optitrack import Optitrack
 from joystick import Joystick
 from laptimer import Laptimer
+from advCarSim import advCarSim
+from kinematicSimulator import kinematicSimulator
 
 from enum import Enum, auto
+
+# for cpu/ram analysis
+#import psutil
 class StateUpdateSource(Enum):
     vicon = auto()
     optitrack = auto()
     simulator = auto()
+    dynamic_simulator = auto()
 
 class VehiclePlatform(Enum):
     offboard = auto()
@@ -30,6 +36,7 @@ class VehiclePlatform(Enum):
     simulator = auto()
     # no controller, this means out of loop control
     empty = auto()
+    dynamic_simulator = auto()
 
 
 class Controller(Enum):
@@ -38,9 +45,12 @@ class Controller(Enum):
     joystick = auto()
     # no controller, this means out of loop control
     empty = auto()
+    dynamicMpc = auto()
 
 class Main():
     def __init__(self,):
+        # state update rate
+        self.dt = 0.01
 
         # CONFIG
         # whether to record control command, car state, etc.
@@ -48,27 +58,35 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
+
+        # run the track in reverse direction
+        self.reverse = False
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
         # MK G13: optitrack
         # simulation: simulator
-        self.stateUpdateSource = StateUpdateSource.optitrack
+        #self.stateUpdateSource = StateUpdateSource.optitrack
         #self.stateUpdateSource = StateUpdateSource.simulator
+        self.stateUpdateSource = StateUpdateSource.dynamic_simulator
+
+        # real time/sim_time
+        # larger value result in slower simulation
+        self.real_sim_time_ratio = 2.0
 
         # set target platform
         # if running simulation set this to simulator
-        self.vehiclePlatform = VehiclePlatform.offboard
+        #self.vehiclePlatform = VehiclePlatform.offboard
         #self.vehiclePlatform = VehiclePlatform.simulator
+        self.vehiclePlatform = VehiclePlatform.dynamic_simulator
 
         # set control pipeline
-        #self.controller = Controller.joystick
-        self.controller = Controller.stanley
+        #self.controller = Controller.stanley
+        self.controller = Controller.dynamicMpc
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
-
         if self.stateUpdateSource == StateUpdateSource.optitrack:
             self.initStateUpdate = self.initOptitrack
             self.updateState = self.updateOptitrack
@@ -82,9 +100,14 @@ class Main():
             self.initStateUpdate = self.initSimulation
             self.updateState = self.updateSimulation
             self.stopStateUpdate = self.stopSimulation
+        elif self.stateUpdateSource == StateUpdateSource.dynamic_simulator:
+            self.initStateUpdate = self.initAdvSimulation
+            self.updateState = self.updateAdvSimulation
+            self.stopStateUpdate = self.stopAdvSimulation
         else:
             print_error("unknown state update source")
             exit(1)
+
 
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
@@ -100,6 +123,13 @@ class Main():
         self.car = self.prepareCar()
 
         self.initStateUpdate()
+
+        if (self.controller == Controller.dynamicMpc):
+            if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
+                self.car.initMpcSim(self.simulator)
+            elif (self.stateUpdateSource == StateUpdateSource.optitrack):
+                self.car.initMpcReal()
+            
 
         # log with undetermined format
         self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],}
@@ -131,6 +161,10 @@ class Main():
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             self.update()
+            # x,y,theta are in track frame
+            # v_forward in vehicle frame, forward positive
+            # v_sideway in vehicle frame, left positive
+            # omega in vehicle frame, axis pointing upward
             (x,y,theta,v_forward,_,_) = self.car_state
 
             # (x,y,theta,vforward,vsideway=0,omega)
@@ -142,7 +176,8 @@ class Main():
             self.debug_dict['i'].append(i)
             self.debug_dict['d'].append(d)
 
-            if self.stateUpdateSource != StateUpdateSource.simulator:
+            if self.stateUpdateSource == StateUpdateSource.optitrack \
+                    or self.stateUpdateSource == StateUpdateSource.vicon:
                 (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.vi.getKFstate(self.car.internal_id)
             else:
                 # in simulation there's no need for kf states, just use ground truth
@@ -167,6 +202,7 @@ class Main():
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
             print_info("gif saved at "+gif_filename)
 
+
         if self.enableLog:
             print_info("saving log...")
             print_info(self.logFilename)
@@ -184,23 +220,47 @@ class Main():
 
 
     def updateVisualization(self,):
-        # restrict update rate to 0.01s/frame, a rate higher than this can lead to frozen frames
+        # we want a real-time simulation, waiting sim_dt between each simulation step
+        # however, since we cannot update visualization at sim_dt, we need to keep track of how much time has passed in simulation and match visualization accordingly
+        if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator \
+                or self.stateUpdateSource == StateUpdateSource.simulator):
+            sleep(max(0,self.real_sim_dt-(time()-self.simulator.t*self.real_sim_time_ratio)))
+
+        # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
         if (time()-self.visualization_ts>0.02 or self.stateUpdateSource == StateUpdateSource.simulator):
             img = self.track.drawCar(self.img_track.copy(), self.car_state, self.car.steering)
             # DEBUG
             # draw the range where solver is seeking answer
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
+            if (self.controller == Controller.dynamicMpc):
+                # draw lookahead points x_ref
+                x_ref = self.debug_dict['x_ref']
+                for coord in x_ref:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y))
+
+            # draw projected state
+            '''
+            x_project = self.debug_dict['x_project']
+            for coord in x_project:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y))
+            '''
+
             self.visualization_ts = time()
+
             cv2.imshow('experiment',img)
+
             if self.saveGif:
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
+            '''
+            ram = psutil.virtual_memory().percent
+            cpu = psutil.cpu_percent()
+            print("ram = %.2f, cpu = %.2f"%(ram,cpu))
+            '''
 
-            if (self.stateUpdateSource == StateUpdateSource.simulator):
-                k = cv2.waitKey(int(self.sim_dt/0.001)) & 0xFF
-            else:
-                # real experiment
-                k = cv2.waitKey(1) & 0xFF
+            k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
                 # first time q is presed, slow down
                 if not self.slowdown.isSet():
@@ -219,35 +279,43 @@ class Main():
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
     # client (this function) need to unset that event
     def update(self,):
-        # in simulation, sleep() between updates
-        # in real experiment, wait on next state update
-        if (self.stateUpdateSource == StateUpdateSource.simulator):
-            # delay handled in cv2.waitKey()
-            # no need to sleep here
-            # sleep(self.sim_dt)
-            self.updateSimulation()
-        else:
-            # wait on next state update
-            self.new_visual_update.wait()
-            # manually clear the Event()
-            self.new_visual_update.clear()
-            # retrieve car state from visual tracking update
-            self.updateState()
+        # wait on next state update
+        self.new_state_update.wait()
+        # manually clear the Event()
+        self.new_state_update.clear()
+        # retrieve car state from visual tracking update
+        self.updateState()
         
         if (self.enableLaptimer):
             retval = self.laptimer.update((self.car_state[0],self.car_state[1]))
             if retval:
                 self.laptimer.announce()
                 print(self.laptimer.last_laptime)
-        # get control signal
+
+
+        # apply controller
         if (self.controller == Controller.stanley):
-            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=False)
+            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
             if not valid:
                 print_warning("ctrlCar invalid retval")
+                exit(1)
             if self.slowdown.isSet():
                 throttle = 0.0
 
-            # TODO debug only
+            # DEBUG
+            debug_dict['v_target'] =0
+            self.v_target = debug_dict['v_target']
+        elif (self.controller == Controller.dynamicMpc):
+            throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=self.reverse)
+            self.debug_dict['x_ref'] = debug_dict['x_ref']
+            #self.debug_dict['x_project'] = debug_dict['x_project']
+            if not valid:
+                print_warning("ctrlCar invalid retval")
+                exit(1)
+            if self.slowdown.isSet():
+                throttle = 0.0
+            # DEBUG
+            debug_dict['v_target'] =0
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.joystick):
             throttle = self.joystick.throttle
@@ -268,6 +336,9 @@ class Main():
             # do not use EKF for now
             #self.vi.updateAction(car.steering, car.getExpectedAcc())
         elif (self.vehiclePlatform == VehiclePlatform.simulator):
+            # update is done in updateSimulation()
+            pass
+        elif (self.vehiclePlatform == VehiclePlatform.dynamic_simulator):
             # update is done in updateSimulation()
             pass
         elif (self.vehiclePlatform == VehiclePlatform.onboard):
@@ -379,16 +450,25 @@ class Main():
             # NOTE discrepancy with actual experiment
             print_warning("using different max_throttle setting")
             porsche_setting['max_throttle'] = 1.0
+        if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
+            porsche_setting['serial_port'] = None
+            lambo_setting['serial_port'] = None
+            # NOTE discrepancy with actual experiment
+            print_warning("using different max_throttle setting")
+            porsche_setting['max_throttle'] = 1.0
+
+        if (self.controller == Controller.dynamicMpc):
+            pass
 
         # porsche 911
-        car = Car(porsche_setting)
+        car = Car(porsche_setting,self.dt)
         return car
 
     def resolveLogname(self,):
 
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/oct9/"
+        logFolder = "../log/sim/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -410,7 +490,7 @@ class Main():
     def initVicon(self,):
         print_info("Initializing Vicon...")
         self.vi = Vicon()
-        self.new_visual_update = self.vi.newState
+        self.new_state_update = self.vi.newState
         self.vicon_dt = 0.01
         # wait for vicon to find objects
         sleep(0.05)
@@ -452,7 +532,7 @@ class Main():
         # TODO use acutal optitrack id for car
         # porsche: 2
         self.car.internal_id = self.vi.getInternalId(2)
-        self.new_visual_update = self.vi.newState
+        self.new_state_update = self.vi.newState
 
     def updateOptitrack(self,):
         # update for eachj car
@@ -473,6 +553,10 @@ class Main():
 # ---- Simulation ----
 # TODO encapsulate this in a different class/file
     def initSimulation(self):
+        self.new_state_update = Event()
+        self.new_state_update.set()
+        self.simulator = kinematicSimulator()
+        self.real_sim_dt = time()-self.simulator.t
         coord = (0.5*0.565,1.7*0.565)
         x,y = coord
         heading = pi/2
@@ -489,16 +573,51 @@ class Main():
 
     def updateSimulation(self):
         # update car
-        sim_states = self.sim_states = self.track.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
+        sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+        self.new_state_update.set()
 
     def stopSimulation(self):
         return
+
+    # new dynamic simulator
+    def initAdvSimulation(self):
+        self.new_state_update = Event()
+        self.new_state_update.set()
+        coord = (0.3*0.565,1.7*0.565)
+        x,y = coord
+        heading = pi/2
+        self.simulator = advCarSim(x,y,heading)
+        self.real_sim_dt = time()-self.simulator.t
+
+        self.car.steering = steering = 0
+        self.car.throttle = throttle = 0
+        self.v_target = 0
+
+        self.car_state = (x,y,heading,0,0,0)
+        self.sim_states = {'coord':coord,'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        self.sim_dt = 0.01
+
+    def updateAdvSimulation(self):
+        # update car
+        sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
+        self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
+        #print(self.car_state)
+        self.new_state_update.set()
+
+    def stopAdvSimulation(self):
+        return
+
 
 
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
+    #experiment.simulator.debug()
+    print("car.py")
+    experiment.car.t.summary()
+    print("RCPTrack.py")
+    experiment.track.t.summary()
     print_info("program complete")
 
 

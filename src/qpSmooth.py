@@ -431,6 +431,8 @@ class QpSmooth(RCPtrack):
         N = len(self.break_pts)
         uu = np.linspace(0,N,steps)
         r = self.raceline_fun(uu).reshape(-1,2).T
+        # s = smoothing factor
+        # per = loop/period
         tck, u = splprep(r, u=np.linspace(0,self.track_length,steps),s=0,per=1) 
 
         self.u = u

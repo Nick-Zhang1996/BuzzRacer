@@ -23,13 +23,14 @@ from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from scipy.optimize import minimize_scalar,minimize,brentq
 from scipy.integrate import solve_ivp
 from time import sleep,time
-from timeUtil import execution_timer
 import cv2
 from PIL import Image
 from car import Car
 from Track import Track
 import pickle
 from common import *
+from bisect import bisect
+from timeUtil import execution_timer
 
 # debugging
 K_vec = [] # curvature
@@ -56,6 +57,7 @@ class Node:
 
 class RCPtrack(Track):
     def __init__(self):
+        self.t = execution_timer(True)
         # resolution : pixels per grid side length
         self.resolution = 120
         # for calculating derivative and integral of offset
@@ -100,7 +102,7 @@ class RCPtrack(Track):
         # scale : meters per grid width 0.6m
         self.scale = scale
         self.gridsize = gridsize
-        self.track_length = len(description)
+        self.track_length_grid = len(description)
         self.grid_sequence = []
         
         grid = [[None for i in range(gridsize[0])] for j in range(gridsize[1])]
@@ -243,7 +245,7 @@ class RCPtrack(Track):
         self.ctrl_pts_w = []
         self.origin_seq_no = seq_no
         if offset is None:
-            offset = np.zeros(self.track_length)
+            offset = np.zeros(self.track_length_grid)
 
         # provide exit direction given signature and entry direction
         lookup_table = { 'WE':['rr','ll'],'NS':['uu','dd'],'SE':['ur','ld'],'SW':['ul','rd'],'NE':['dr','lu'],'NW':['ru','dl']}
@@ -320,16 +322,16 @@ class RCPtrack(Track):
         #a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
         m = len(self.ctrl_pts)+1
         smoothing_factor = 0.01*(m)
-        tck, u = splprep(pts.T, u=np.linspace(0,self.track_length,self.track_length+1), s=smoothing_factor, per=1) 
+        tck, u = splprep(pts.T, u=np.linspace(0,self.track_length_grid,self.track_length_grid+1), s=smoothing_factor, per=1) 
         #NOTE 
-        #tck, u = CubicSpline(np.linspace(0,self.track_length,self.track_length+1),pts) 
+        #tck, u = CubicSpline(np.linspace(0,self.track_length_grid,self.track_length_grid+1),pts) 
 
         # this gives smoother result, but difficult to relate u to actual grid
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
         self.u = u
         self.raceline = tck
         '''
-        u_new = np.linspace(0,self.track_length,100)
+        u_new = np.linspace(0,self.track_length_grid,100)
         x_new, y_new = splev(u_new, tck)
         plt.plot(x_new,y_new,'*')
         plt.show()
@@ -359,7 +361,7 @@ class RCPtrack(Track):
         dec_max_motor = lambda x:4.5
         # generate velocity profile
         # u values for control points
-        xx = np.linspace(0,self.track_length,n_steps+1)
+        xx = np.linspace(0,self.track_length_grid,n_steps+1)
         #curvature = splev(xx,self.raceline,der=2)
         #curvature = np.linalg.norm(curvature,axis=0)
 
@@ -434,7 +436,7 @@ class RCPtrack(Track):
 
         # debug target v curve fitting
         #p0, = plt.plot(xx,v3,'*',label='original')
-        #xxx = np.linspace(0,self.track_length,10*n_steps)
+        #xxx = np.linspace(0,self.track_length_grid,10*n_steps)
         #sampleV = self.targetVfromU(xxx)
         #p1, = plt.plot(xxx,sampleV,label='fitted')
         #plt.legend(handles=[p0,p1])
@@ -455,7 +457,7 @@ class RCPtrack(Track):
         g = 9.81
         t_total = 0
         path_len = 0
-        xx = np.linspace(0,self.track_length,n_steps+1)
+        xx = np.linspace(0,self.track_length_grid,n_steps+1)
         dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         v3 = self.v3(xx)
         for i in range(n_steps):
@@ -476,7 +478,7 @@ class RCPtrack(Track):
 
         vel_vec = []
         ds_vec = []
-        xx = np.linspace(0,self.track_length,n_steps+1)
+        xx = np.linspace(0,self.track_length_grid,n_steps+1)
 
         # get velocity at each point
         for i in range(n_steps):
@@ -555,6 +557,7 @@ class RCPtrack(Track):
         '''
         print("theoretical laptime %.2f"%t_total)
 
+        self.reconstructRaceline()
         return t_total
 
     # ---------- for curvature norm minimization -----
@@ -606,7 +609,7 @@ class RCPtrack(Track):
         save['grid_sequence'] = self.grid_sequence
         save['scale'] = self.scale
         save['origin_seq_no'] = self.origin_seq_no
-        save['track_length'] = self.track_length
+        save['track_length'] = self.track_length_grid
         save['raceline'] = self.raceline
         save['gridsize'] = self.gridsize
         save['resolution'] = self.resolution
@@ -630,7 +633,7 @@ class RCPtrack(Track):
         self.grid_sequence = save['grid_sequence']
         self.scale = save['scale']
         self.origin_seq_no = save['origin_seq_no']
-        self.track_length = save['track_length']
+        self.track_length_grid = save['track_length']
         self.raceline = save['raceline']
         self.gridsize = save['gridsize']
         #self.resolution = save['resolution']
@@ -640,6 +643,7 @@ class RCPtrack(Track):
         self.max_v = save['max_v']
 
         print_ok("track and raceline loaded")
+        self.reconstructRaceline()
         return
 
     # calculate distance
@@ -936,7 +940,7 @@ class RCPtrack(Track):
 
         # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
         # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0,self.track_length,1000)
+        u_new = np.linspace(0,self.track_length_grid,1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
         x_new /= self.scale
@@ -957,7 +961,7 @@ class RCPtrack(Track):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%self.track_length)), thickness=3) 
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%self.track_length_grid)), thickness=3) 
 
         # plot reference points
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
@@ -1038,7 +1042,7 @@ class RCPtrack(Track):
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
     # wheelbase is needed to calculate the local trajectory closes to the front axle instead of the old axle
-    def localTrajectory(self,state,wheelbase=90e-3):
+    def localTrajectory(self,state,wheelbase=90e-3,return_u=False):
         # figure out which grid the coord is in
         coord = np.array([state[0],state[1]])
         heading = state[2]
@@ -1052,7 +1056,7 @@ class RCPtrack(Track):
 
         # distance squared, not need to find distance here
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
-        fun = lambda u: dist_2(splev(u%self.track_length,self.raceline),coord)
+        fun = lambda u: dist_2(splev(u%self.track_length_grid,self.raceline),coord)
         # last_u is the seq found last time, which should be a good estimate of where to start
         if self.last_u is None:
             # the seq here starts from origin
@@ -1074,7 +1078,7 @@ class RCPtrack(Track):
             # because we wrapped the end point to the beginning of sample point, we need to add this offset
             # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
             seq += self.origin_seq_no
-            seq %= self.track_length
+            seq %= self.track_length_grid
 
             # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
             # due to smoothing factor
@@ -1117,7 +1121,7 @@ class RCPtrack(Track):
         fun = lambda x : a*x*x*x + b*x*x + c*x + d
         fit = minimize(fun, x0=seq, method='L-BFGS-B', bounds=((seq-0.6,seq+0.6),))
         min_fun_x = fit.x[0]
-        self.last_u = min_fun_x%self.track_length
+        self.last_u = min_fun_x%self.track_length_grid
 
         min_fun_val = fit.fun[0]
         # find min val
@@ -1143,10 +1147,10 @@ class RCPtrack(Track):
         #print('x err', abs(min_fun_x-res.x))
         #print('fun err',abs(min_fun_val-res.fun))
 
-        raceline_point = splev(min_fun_x%self.track_length,self.raceline)
+        raceline_point = splev(min_fun_x%self.track_length_grid,self.raceline)
         #raceline_point = splev(res.x,self.raceline)
 
-        der = splev(min_fun_x%self.track_length,self.raceline,der=1)
+        der = splev(min_fun_x%self.track_length_grid,self.raceline,der=1)
         #der = splev(res.x,self.raceline,der=1)
 
         if (False):
@@ -1165,16 +1169,194 @@ class RCPtrack(Track):
         cross_theta = np.cross(vec_raceline,vec_offset)
 
 
-        vec_curvature = splev(min_fun_x%self.track_length,self.raceline,der=2)
+        vec_curvature = splev(min_fun_x%self.track_length_grid,self.raceline,der=2)
         norm_curvature = np.linalg.norm(vec_curvature)
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
-        cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
+        #cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
 
         # return target velocity
-        request_velocity = self.targetVfromU(min_fun_x%self.track_length)
+        request_velocity = self.targetVfromU(min_fun_x%self.track_length_grid)
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
-        return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
+        if return_u:
+            return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity,min_fun_x%self.track_length_grid)
+        else:
+            return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
+
+
+    # create two function to map between u(raceline parameter)<->s(distance along racelien)
+    # also create mapping between s -> v_ref
+    # also create raceline_s, raceline parameterized with s
+    def reconstructRaceline(self):
+        s_vec = [0]
+        n_steps = 1000
+        uu = np.linspace(0,self.track_length_grid,n_steps+1)
+        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        path_len = 0
+        for i in range(n_steps):
+            (x_i, y_i) = splev(uu[i%n_steps], self.raceline, der=0)
+            (x_i_1, y_i_1) = splev(uu[(i+1)%n_steps], self.raceline, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            path_len += ds
+            s_vec.append(path_len)
+
+        ss = np.array(s_vec)
+        vv = self.targetVfromU(uu%self.track_length_grid)
+
+        # using interp1d functions can cause some overhead
+        # when absolute speed is needed, use lookup tables
+        # this may lose some accuracy but with larger n_step
+        # and moderate change in velocity this should not be an issue
+        self.sToV_lut = lambda x: self.v_lut[bisect(self.s_lut,x)]
+        self.s_lut = ss
+        self.v_lut = vv
+
+        self.uToS = interp1d(uu,ss,kind='cubic')
+        self.sToU = interp1d(ss,uu,kind='cubic')
+        self.sToV = interp1d(ss,vv,kind='cubic')
+        self.raceline_len_m = path_len
+        #print("verify u and s mapping accuracy")
+        #ss_remap = self.uToS(self.sToU(ss))
+        #print("mean error in s %.5f m "%(np.mean(np.abs(ss-ss_remap))))
+        #print("max error in s %.5f m "%(np.max(np.abs(ss-ss_remap))))
+
+        # convert self.raceline(parameterized w.r.t. u) 
+        # to self.raceline_s (parameterized w.r.t. s, distance along path)
+        rr = splev(uu%self.track_length_grid,self.raceline)
+        tck, u = splprep(rr, u=ss,s=0,per=1) 
+        self.raceline_s = tck
+        return
+
+    # get future reference point for dynamic MPC
+    # Inputs:
+    # state: vehicle state, same as in self.localTrajectory()
+    # p : lookahead steps
+    # dt : time between each lookahead steps
+
+    # Return:
+    # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
+    # psi_ref : reference heading at the reference points, size (p+1)*2
+    # v_ref : reference heading at the reference points, size (p+1)*2
+    # valid : a boolean indicating whether the function was able to find a valid result
+    # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+
+    def getRefPoint(self, state, p, dt, reverse=False):
+        t = self.t
+
+        t.s()
+        if reverse:
+            print_error("reverse is not implemented")
+        # set wheelbase to 0 to get point closest to vehicle CG
+        t.s("local traj")
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        t.e("local traj")
+        if retval is None:
+            return None,None,False
+
+        # parse return value from localTrajectory
+        (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+        if isnan(orientation):
+            return None,None,False
+
+        # calculate s value for projection ref points
+        t.s("find s")
+        s0 = self.uToS(u0).item()
+        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        der = splev(u0%self.track_length_grid,self.raceline,der=1)
+        heading0 = atan2(der[1],der[0])
+        t.e("find s")
+
+        t.s("curvature")
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+
+        dr = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=1))
+        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=2))
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        t.e("curvature")
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+        s_vec = [s0]
+        v_vec = [v0]
+        coord_vec = [local_ctrl_pnt]
+        heading_vec = [heading0]
+        k_vec = [curvature]
+        k_sign_vec = [cross_curvature]
+
+        u_vec = [u0]
+
+        t.s("main loop")
+        for k in range(1,p+1):
+            s_k = s_vec[-1] + v_vec[-1] * dt
+            s_vec.append(s_k)
+            # find ref velocity for projection ref points
+            # TODO adjust ref velocity for current vehicle velocity
+            #v_k = self.targetVfromU(u_k%self.track_length_grid)
+            #v_k = self.sToV(s_k%self.raceline_len_m)
+            v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            v_vec.append(v_k)
+        t.e("main loop")
+
+        #u_vec = np.array(u_vec)%self.track_length_grid
+        # find ref heading for projection ref points
+        t.s("psi")
+        #der = np.array(splev(u_vec,self.raceline,der=1))
+        s_vec = np.array(s_vec)%self.raceline_len_m
+        der = np.array(splev(s_vec,self.raceline_s,der=1))
+        #heading_k = atan2(der[1],der[0])
+        #heading_vec.append(heading_k)
+        t.e("psi")
+        # find ref coordinates for projection ref points
+
+        t.s("coord")
+        coord_k = np.array(splev(s_vec,self.raceline_s)).T
+        coord_vec = np.vstack([coord_vec,coord_k])
+        t.e("coord")
+
+        t.s("K")
+
+        #norm_curvature = np.linalg.norm(vec_curvature,axis=1)
+        dr = np.array(splev(s_vec,self.raceline_s,der=1))
+        ddr = vec_curvature = np.array(splev(s_vec,self.raceline_s,der=2))
+
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0,:]*vec_curvature[1,:]-der[1,:]*vec_curvature[0,:]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+
+
+        # TODO check dimension
+        k_signed_vec = np.copysign(k_vec,k_sign_vec)
+
+        x,y,heading,vf,vs,omega = state
+        e_heading = ((heading - heading0) + pi/2.0 ) % (2*pi) - pi/2.0
+        t.e("K")
+
+        t.e()
+        #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+        return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+        
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -1236,73 +1418,6 @@ class RCPtrack(Track):
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
     def drawAcc(acc,img):
         pass
-
-    # update car state with bicycle model, no slip
-    # dt: time, in sec
-    # state: (x,y,theta), np array
-    # x,y: coordinate of car origin(center of rear axle)
-    # theta, car heading, in rad, ref from x axis
-    # beta: steering angle, left positive, in rad
-    # return new state (x,y,theta)
-    def updateCar(self,dt,state,throttle,beta,v_override=None):
-        # wheelbase, in meter
-        # heading of pi/2, i.e. vehile central axis aligned with y axis,
-        # means theta = 0 (the x axis of car and world frame is aligned)
-        coord = state['coord']
-        heading = state['heading']
-        vf = state['vf']
-        vs = state['vs']
-        omega = state['omega']
-
-        theta = state['heading'] - pi/2
-        L = 90e-3
-        # NOTE if side slip is ever modeled, update ds
-        ds = vf*dt
-        dtheta = ds*tan(beta)/L
-
-        if v_override is None:
-            # update velocity using a simplified model
-            # fit model from log/kf/throttleFit.py
-            acc = throttle * 4.95445214 - 1.01294228
-            # if vehicle is stationary, it won't go backwards
-            # when throttle is <0.245 and vehicle is stationary, vehicle won't move
-            # (according to linear model acc>0 for this throttle val but vehicle doesn't actually move)
-            if vf < 0.01 and throttle<0.245:
-                acc = 0
-            dvf = acc * dt
-
-        else:
-            # velocity override, force velocity to be any value
-            dvf = v_override - vf
-
-        dvs = 0
-        # specific to vehicle frame (x to right of rear axle, y to forward)
-        if (beta==0):
-            dx = 0
-            dy = ds
-        else:
-            dx = - L/tan(beta)*(1-cos(dtheta))
-            dy =  (L/tan(beta)*sin(dtheta))
-
-        #print(dx,dy)
-        # specific to world frame
-        dX = dx*cos(theta)-dy*sin(theta)
-        dY = dx*sin(theta)+dy*cos(theta)
-
-        acc_x = vf+dvf - vf*cos(dtheta) - vs*sin(dtheta)
-        acc_y = vs+dvs - vs*cos(dtheta) - vf*sin(dtheta)
-
-        state['coord'] = (state['coord'][0]+dX,state['coord'][1]+dY)
-        state['heading'] += dtheta
-        state['vf'] = vf + dvf
-        state['vs'] = vs + dvs
-        state['omega'] = dtheta/dt
-        # in new vehicle frame
-        state['acc'] = (acc_x,acc_y)
-        return state
-    
-
-
     
 if __name__ == "__main__":
     fulltrack = RCPtrack()
