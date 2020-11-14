@@ -433,11 +433,11 @@ class QpSmooth(RCPtrack):
         r = self.raceline_fun(uu).reshape(-1,2).T
         # s = smoothing factor
         # per = loop/period
-        tck, u = splprep(r, u=np.linspace(0,self.track_length,steps),s=0,per=1) 
+        tck, u = splprep(r, u=np.linspace(0,self.track_length_grid,steps),s=0,per=1) 
 
         self.u = u
         self.raceline = tck
-        u_new = np.linspace(0,self.track_length,steps)
+        u_new = np.linspace(0,self.track_length_grid,steps)
         x_new, y_new = splev(u_new, self.raceline)
 
         self.generateSpeedProfile()
