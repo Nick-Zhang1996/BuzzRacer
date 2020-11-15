@@ -62,7 +62,7 @@ class hybridSim(nn.Module):
 
         #self.throttle_offset = self.get_param(0.26,True)
         #self.throttle_ratio = self.get_param(7.003,True)
-        self.throttle_offset = self.get_param(0.24,True)
+        self.throttle_offset = self.get_param(0.24,False)
         self.throttle_ratio = self.get_param(6.98,False)
 
         # residual neural network

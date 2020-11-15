@@ -37,6 +37,10 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
             target_states = batch[:,-forward_steps:,:]
 
             #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
+            # angle wrapping
+            # change target states
+            target_states[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
+
             loss = criterion(predicted_state, target_states)
             epoch_loss += loss
 
@@ -74,7 +78,6 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
                 plt.show()
             '''
     
-    print(len(test_data_loader))
     test_loss = epoch_loss.detach().item()/len(test_data_loader)
     test_loss_history.append(test_loss)
     cum_error /= len(test_data_loader)
@@ -95,9 +98,13 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             predicted_state = simulator(full_states,actions,enable_rnn)
 
             target_states = batch[:,-forward_steps:,:]
+            # angle wrapping
+            # change target states
+            target_states_wrapped = target_states.clone()
+            target_states_wrapped[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
 
             #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-            loss = criterion(predicted_state, target_states)
+            loss = criterion(predicted_state, target_states_wrapped)
             # FIXME
             #print(loss)
 
@@ -122,7 +129,7 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             # loss is difficult to understand, we now calculate the state difference
             # as fraction of error
             src = full_states[:,-1,:].detach().numpy()
-            ref = target_states[:,-1,:].detach().numpy()
+            ref = target_states_wrapped[:,-1,:].detach().numpy()
             test = predicted_state[:,-1,:].detach().numpy()
             diff = state_diff(src,ref,test)
             error = np.mean(diff)
@@ -182,7 +189,7 @@ def sysid(log_names):
     history_steps = 5
     forward_steps = 3
     learning_rate = 1e-5
-    enable_rnn = False
+    enable_rnn = True
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
@@ -242,8 +249,8 @@ def sysid(log_names):
     print("-------- -------------- -------")
 
     test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
-    print("initial test cost %.5f (err = %.5f)"%(test_loss,0))
-    print(test_err_history)
+    print("initial test cost %.5f (err = %.5f)"%(test_loss,-1))
+    print(error)
 
     for epoch_count in range(epochs):
 
@@ -251,7 +258,9 @@ def sysid(log_names):
 
         test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
 
-        print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
+        #print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
+        print("Train loss = %.6f, Test loss = %.6f "%(train_loss,test_loss))
+        print(error)
 
         # log parameter update history
         mass = simulator.m.detach().item()
@@ -304,6 +313,11 @@ def sysid(log_names):
     ax = fig.gca()
     ax.plot(train_loss_history, label="train loss")
     ax.plot(test_loss_history, label="test loss")
+    ax.legend()
+    plt.show()
+
+    fig = plt.figure()
+    ax = fig.gca()
     ax.plot(test_err_history, label="test err")
     ax.plot(train_err_history, label="train err")
     ax.legend()
