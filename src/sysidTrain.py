@@ -25,7 +25,7 @@ class MyDataset(Dataset):
 def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,err_history,enable_rnn):
     #test
     epoch_loss = 0
-    cum_error = 0
+    cum_error = None
     with torch.no_grad():
         for i, batch in enumerate(test_data_loader):
             full_states = batch[:,:history_steps,:]
@@ -46,9 +46,35 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
             ref = target_states[:,-1,:].detach().numpy()
             test = predicted_state[:,-1,:].detach().numpy()
             diff = state_diff(src,ref,test)
-            error = np.mean(diff)
-            cum_error += error
 
+            error = diff
+            #print(error)
+            #error = np.mean(diff)
+            if cum_error is None:
+                cum_error = error
+            else:
+                cum_error += error
+
+            # DEBUG
+            # plot states
+            '''
+            for p in range(100):
+                print(predicted_state[p,-1,:])
+                
+                fig = plt.figure()
+                ax = fig.gca()
+                t_hist = np.linspace(0,history_steps-1,history_steps)
+                t_future = np.linspace(history_steps,forward_steps+history_steps-1,forward_steps)
+                for j in range(6):
+                    ax.plot(t_hist,full_states[p,:,j],'r-', label="hist")
+                    ax.plot(t_future,target_states[p,:,j],'r-', label="target")
+                    ax.plot(t_future,predicted_state[p,:,j],'b--', label="predicted")
+
+                #ax.legend()
+                plt.show()
+            '''
+    
+    print(len(test_data_loader))
     test_loss = epoch_loss.detach().item()/len(test_data_loader)
     test_loss_history.append(test_loss)
     cum_error /= len(test_data_loader)
@@ -58,7 +84,7 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
 def train(train_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,train_loss_history,err_history,enable_rnn):
         #training
         epoch_loss = 0
-        cum_error = 0
+        cum_error = None
         for i, batch in enumerate(train_data_loader):
             full_states = batch[:,:history_steps,:]
             actions = batch[:,-forward_steps:,-simulator.action_dim:]
@@ -100,7 +126,10 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             test = predicted_state[:,-1,:].detach().numpy()
             diff = state_diff(src,ref,test)
             error = np.mean(diff)
-            cum_error += error
+            if cum_error is None:
+                cum_error = error
+            else:
+                cum_error += error
 
         train_loss = epoch_loss/len(train_data_loader)
         train_loss_history.append(train_loss)
@@ -116,15 +145,34 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
 # each state is first normalized
 # criterion: (test-ref)/(ref-src), in norm
 def state_diff(src,ref,test):
-    temp = np.vstack([src,ref,test])
-    state_mean = np.mean(temp,axis=0)
-    state_stddev = np.std(temp,axis=0)
-    src = (src-state_mean)/state_stddev
-    ref = (ref-state_mean)/state_stddev
-    test = (test-state_mean)/state_stddev
-    base_norm = np.linalg.norm(src-ref,axis=1)
-    diff_norm = np.linalg.norm(test-ref,axis=1)
-    return diff_norm/base_norm
+    #temp = np.vstack([src,ref,test])
+    #state_mean = np.mean(temp,axis=0)
+    #state_stddev = np.std(temp,axis=0)
+    #src = (src-state_mean)/state_stddev
+    #ref = (ref-state_mean)/state_stddev
+    #test = (test-state_mean)/state_stddev
+
+    #base_norm = np.linalg.norm(src-ref,axis=1)
+    #diff_norm = np.linalg.norm(test-ref,axis=1)
+    #return diff_norm/base_norm
+
+    # DEBUG
+    diff = np.abs(test-ref)
+
+    # check if angle wrapping is done correctly
+    angle_diff = np.max(diff[:,4])
+    if angle_diff > 1.9*np.pi:
+        print("angle diff too large")
+
+
+    diff = np.mean(diff,axis=0)
+
+    return diff
+
+def angle_diff(a,b):
+    diff = a-b
+    return (diff+np.pi)%(2*np.pi)-np.pi
+
 
 def sysid(log_names):
     epochs = 20
@@ -194,7 +242,8 @@ def sysid(log_names):
     print("-------- -------------- -------")
 
     test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
-    print("initial test cost %.5f (err = %.5f)"%(test_loss,error))
+    print("initial test cost %.5f (err = %.5f)"%(test_loss,0))
+    print(test_err_history)
 
     for epoch_count in range(epochs):
 

@@ -62,7 +62,7 @@ class hybridSim(nn.Module):
 
         #self.throttle_offset = self.get_param(0.26,True)
         #self.throttle_ratio = self.get_param(7.003,True)
-        self.throttle_offset = self.get_param(0.24,False)
+        self.throttle_offset = self.get_param(0.24,True)
         self.throttle_ratio = self.get_param(6.98,False)
 
         # residual neural network
@@ -146,7 +146,8 @@ class hybridSim(nn.Module):
             history_full_state = full_states[:,-self.history_steps:,:]
 
 
-            # TODO check dim
+            # NOTE residual forces/torque probably shouldn't depend on x,y,heading
+            # just the "dynamic" terms
             if enable_rnn:
                 residual_longitudinal_force,residual_lateral_force,residual_torque = self.get_residual_force(history_full_state)
                 state_der_local[:,1,0] += residual_longitudinal_force/self.m
@@ -155,6 +156,9 @@ class hybridSim(nn.Module):
 
 
             predicted_state = latest_state.unsqueeze(2) +  torch.matmul(self.get_R(psi),state_der_local)*self.dt
+            # angle wrapping
+            predicted_state[:,4,:] = (predicted_state[:,4,:]+np.pi)%(2*np.pi)-np.pi
+    # check if angle wrapping is done correctly
             new_full_state = torch.cat([predicted_state.view(batch_size,1,self.state_dim), actions[:,i,:].view(batch_size,1,self.action_dim)],dim=2)
             full_states = torch.cat([full_states, new_full_state],dim=1)
 
