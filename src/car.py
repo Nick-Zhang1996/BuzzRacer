@@ -241,6 +241,10 @@ class Car:
         getA = lambda Vx,dpsi_r: In + getA_raw(Vx,dpsi_r) * dt
 
         A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip(v_ref,dpsi_dt_ref)]
+        # LTI model
+        #v0 = v_ref[0]
+        #A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip([v0]*len(v_ref),[0]*len(v_ref))]
+
         B_vec = [B*dt] * p
 
         # define output matrix C, for a single state vector
