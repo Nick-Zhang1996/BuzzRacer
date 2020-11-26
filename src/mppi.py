@@ -5,19 +5,20 @@ from timeUtil import execution_timer
 # Model Predictive Path Integral
 
 class MPPI:
-    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise):
+    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov):
         self.K = samples_count
         self.T = horizon_steps
         self.m = control_dim
         self.temperature = float(temperature)
         self.dt = dt
         # variation of noise added to ref control
-        self.noise = noise
+        self.noise_cov = noise_cov
         self.p = execution_timer(True)
 
         return
 
 
+    # NOTE INOP
     def control_iterative(self,state,ref_control,acceptable_cost=10,max_iter=10):
         i = 1
         projected_cost = acceptable_cost *2
@@ -34,7 +35,10 @@ class MPPI:
     # state: current plant state
     # ref_control: reference control, dim (self.T,self.m)
     # control_limit: min,max for each control element dim self.m*2 (min,max)
-    def control_single(self,state,ref_control,control_limit):
+    # control_cov: covariance matrix for noise added to ref_control
+    def control_single(self,state,ref_control,control_limit,noise_cov=None):
+        if noise_cov is None:
+            noise_cov = self.noise_cov
         p = self.p
         p.s()
         p.s("prep")
@@ -43,7 +47,8 @@ class MPPI:
 
         # generate random noise for control sampling
         # TODO support multiple dimension/covariance matrix for noise generation
-        epsilon_vec = np.random.normal(loc=0.0, scale=self.noise, size=(self.K,self.T,self.m))
+        #epsilon_vec = np.random.normal(loc=0.0, scale=self.noise, size=(self.K,self.T,self.m))
+        epsilon_vec = np.random.multivariate_normal([0.0]*self.m, noise_cov, size=(self.K,self.T))
         # assemble control, ref_control is broadcasted along axis 0 (K)
         control_vec = ref_control + epsilon_vec
 
@@ -87,7 +92,7 @@ class MPPI:
 
         # synthesize control signal
         for t in range(self.T):
-            ref_control[t] = ref_control[t] + np.sum(weights.reshape(-1,self.m) * clipped_epsilon_vec[:,t,:])
+            ref_control[t] = ref_control[t] + np.sum(weights[:,np.newaxis] * clipped_epsilon_vec[:,t,:])
         p.s("post")
 
 
@@ -105,7 +110,7 @@ class MPPI:
 
         #return ref_control[0]
         p.e()
-        return ref_control, S
+        return ref_control
 
     def evalControl(self,state,candidate_control):
         candidate_control = np.array(candidate_control).reshape(-1,self.m)

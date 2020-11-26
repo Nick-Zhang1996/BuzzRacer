@@ -61,61 +61,74 @@ class dualMass:
         plt.show()
 
 
-if __name__=="__main__":
+if __name__=="__main__x":
     main = dualMass(x0=[0,0,0,0])
     # target: 1,0,3,0
 
-    dt = 0.01
-    for i in range(int(40/dt)):
+    dt = 0.1
+    for i in range(int(20/dt)):
         main.step(dt,[-1,2])
     main.plot()
 
 def dynamics(state,control,dt):
-    m = 1
-    g = 9.81
-    L = 1
-    x = state
+    m1 = 1
+    m2 = 1
+    k1 = 1
+    k2 = 1
+    c1 = 1.4
+    c2 = 1.4
     u = control
-    x[0] += x[1]*dt
-    x[0] = (x[0] + np.pi) % (2*np.pi) - np.pi
-    x[1] += (u[0] - m*g*L*sin(x[0]))*dt
 
-    x[2] += x[3]*dt
-    x[2] = (x[2] + np.pi) % (2*np.pi) - np.pi
-    x[3] += (u[1] - m*g*L*sin(x[2]))*dt
+    x1 = state[0]
+    dx1 = state[1]
+    x2 = state[2]
+    dx2 = state[3]
 
-    return x
+    ddx1 = -(k1*x1 + c1*dx1 + k2*(x1-x2) + c2*(dx1-dx2)-u[0])/m1
+    ddx2 = -(k2*(x2-x1) + c2*(dx2-dx1)-u[1])/m2
+
+    x1 += dx1*dt
+    dx1 += ddx1*dt
+    x2 += dx2*dt
+    dx2 += ddx2*dt
+
+    state[0] = x1
+    state[1] = dx1
+    state[2] = x2
+    state[3] = dx2
+
+    return state
 
 def cost(state):
-    x = state
-    cost = ((x[2]-np.pi + np.pi)%(2*np.pi)-np.pi)**2 + 2.3*(x[3])**2
-    cost += ((x[0]-np.pi + np.pi)%(2*np.pi)-np.pi)**2 + 0.1*(x[1])**2
-    return cost
+    R = np.diag([1,0.1,1,0.1])
+    R = R**2
+    x = np.array(state) - np.array([1,0,3,0])
+    return x.T @ R @ x
 
 
-if __name__=="__main__x":
-    dt = 0.02
+if __name__=="__main__":
+    dt = 0.1
 
-    main = InvertedPendulum(x0=[np.pi/2.0,0.0])
+    main = dualMass(x0=[0,0,0,0])
 
-    noise = 10
+    noise = 2
 
     samples_count = 1000
-    horizon_steps = 20
-    control_dim = 1
+    horizon_steps = 40
+    control_dim = 2
     temperature = 1
     noise_cov = np.eye(control_dim)*noise*noise
 
     mppi = MPPI(samples_count,horizon_steps,control_dim,temperature,dt,noise_cov)
     # define dynamics
-    #mppi.applyDiscreteDynamics = dynamics
-    #mppi.evaluateCost = cost
+    mppi.applyDiscreteDynamics = dynamics
+    mppi.evaluateCost = cost
 
-    while (main.t<3):
+    while (main.t<20):
         print(" sim t = %.2f"%(main.t))
         # state, ref_control, control limit
-        uu = mppi.control_single(main.x,[0]*horizon_steps,[[-50,50]])
-        main.step(dt,uu[0,0])
+        uu = mppi.control_single(main.x,[[1,3]]*horizon_steps,[[-50,50]]*2)
+        main.step(dt,uu[0,:])
 
     mppi.p.summary()
     main.plot()
