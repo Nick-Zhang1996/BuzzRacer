@@ -1,6 +1,7 @@
 import numpy as np
 from math import sin
 import matplotlib.pyplot as plt
+from timeUtil import execution_timer
 # Model Predictive Path Integral
 
 class MPPI:
@@ -12,6 +13,7 @@ class MPPI:
         self.dt = dt
         # variation of noise added to ref control
         self.noise = noise
+        self.p = execution_timer(True)
 
         return
 
@@ -29,19 +31,27 @@ class MPPI:
 
 
     # given state, apply MPPI and find control
-    def control_single(self,state,ref_control):
+    # state: current plant state
+    # ref_control: reference control, dim (self.T,self.m)
+    # control_limit: min,max for each control element dim self.m*2 (min,max)
+    def control_single(self,state,ref_control,control_limit):
+        p = self.p
+        p.s()
+        p.s("prep")
         ref_control = np.array(ref_control).reshape(-1,self.m)
+        control_limit = np.array(control_limit)
 
         # generate random noise for control sampling
+        # TODO support multiple dimension/covariance matrix for noise generation
         epsilon_vec = np.random.normal(loc=0.0, scale=self.noise, size=(self.K,self.T,self.m))
-        #epsilon_vec = np.random.uniform(low=-30, high=30, size=(self.K,self.T,self.m))
         # assemble control, ref_control is broadcasted along axis 0 (K)
         control_vec = ref_control + epsilon_vec
-        # cap control
-        # NOTE need to make this a setting
-        control_vec = np.clip(control_vec,-10,10)
-        clipped_epsilon_vec = control_vec - ref_control
 
+        # cap control
+        for i in range(self.m):
+            control_vec[:,i] = np.clip(control_vec[:,i],control_limit[i,0],control_limit[i,1])
+
+        clipped_epsilon_vec = control_vec - ref_control
 
         # cost value for each simulation
         S_vec = []
@@ -49,7 +59,9 @@ class MPPI:
         # FIXME for speed
         #control_cost_mtx_inv = np.linalg.inv(np.array([[1,0],[1,0]]))
         control_cost_mtx_inv = np.eye(self.m)
+        p.e("prep")
 
+        p.s("sim")
         # spawn k simulations
         for k in range(self.K):
             S = 0
@@ -61,7 +73,9 @@ class MPPI:
                 S += self.evaluateCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
             # NOTE missing terminal cost
             S_vec.append(S)
+        p.e("sim")
 
+        p.s("post")
         # Calculate statistics of cost function
         S_vec = np.array(S_vec)
         beta = np.min(S_vec)
@@ -70,46 +84,39 @@ class MPPI:
         weights = np.exp(- (S_vec - beta)/self.temperature)
         weights = weights / np.sum(weights)
 
-        '''
-        plt.plot((weights-np.mean(weights))/np.std(weights))
-        plt.plot((S_vec-np.mean(S_vec))/np.std(S_vec))
-        plt.show()
-        '''
-
-        assert np.isclose(1.0,np.sum(weights))
 
         # synthesize control signal
-        old_ref_control = ref_control.copy()
-        '''
         for t in range(self.T):
-            for k in range(self.K):
-                ref_control[t] = ref_control[t] + weights[k] * clipped_epsilon_vec[k,t,:]
-        '''
-        # above has numerical issues
-        for t in range(self.T):
-            ref_control[t] = ref_control[t] + np.sum(weights * clipped_epsilon_vec[:,t,:])
+            ref_control[t] = ref_control[t] + np.sum(weights.reshape(-1,self.m) * clipped_epsilon_vec[:,t,:])
+        p.s("post")
 
-        '''
-        plt.plot(old_ref_control-ref_control)
-        plt.show()
-        '''
 
         # NOTE
         # evaluate performance of synthesized control
+
+        '''
+        print("best cost in sampled traj   %.2f"%(beta))
+        print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
+        print("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
+        print("cost of ref control(0) %.2f"%(self.evalControl(state,old_ref_control)))
+        print("cost of cw control(-1) %.2f"%(self.evalControl(state,[-1]*self.T)))
+        print("cost of ccw control(1) %.2f"%(self.evalControl(state,[1]*self.T)))
+        '''
+
+        #return ref_control[0]
+        p.e()
+        return ref_control, S
+
+    def evalControl(self,state,candidate_control):
+        candidate_control = np.array(candidate_control).reshape(-1,self.m)
         S = 0
         x = state.copy()
         # run each simulation for self.T timesteps
         for t in range(self.T):
-            control = ref_control[t,:]
+            control = candidate_control[t,:]
             x = self.applyDiscreteDynamics(x,control,self.dt)
             S += self.evaluateCost(x)
-
-        print("best cost in sampled traj   %.2f"%(beta))
-        print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
-        print("cost of synthesized control %.2f"%(S))
-
-        #return ref_control[0]
-        return ref_control, S
+        return S
 
     # NOTE inverted pendulum
     def applyDiscreteDynamics(self,state,control,dt):
@@ -126,5 +133,15 @@ class MPPI:
     # NOTE inverted pendulum
     def evaluateCost(self,state):
         x = state
-        return ((x[0]-np.pi + np.pi)%(2*np.pi)-np.pi)**2 + 1*(x[1])**2
+        return ((x[0]-np.pi + np.pi)%(2*np.pi)-np.pi)**2 + 0.1*(x[1])**2
 
+if __name__=="__main__":
+    horizon_steps = 20
+    noise = 0.1
+    dt = 0.02
+    mppi = MPPI(1000,horizon_steps,1,1,dt,noise)
+    print(mppi.evaluateCost([-np.pi+0,0]))
+    print(mppi.evaluateCost([-np.pi+1,0]))
+    print(mppi.evaluateCost([-np.pi+0,1]))
+    print(mppi.evaluateCost([-np.pi+-1,0]))
+    print(mppi.evaluateCost([-np.pi+0,-1]))

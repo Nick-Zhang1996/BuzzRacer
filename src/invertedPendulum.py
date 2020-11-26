@@ -64,20 +64,22 @@ if __name__=="__main__x":
 if __name__=="__main__":
     dt = 0.02
 
-    main = InvertedPendulum(x0=[np.pi,0.1])
+    main = InvertedPendulum(x0=[np.pi/2.0,0.0])
     horizon_steps = 20
-    noise = 3
+    noise = 10
     mppi = MPPI(1000,horizon_steps,1,1,dt,noise)
 
-    while (main.t<4):
+    while (main.t<3):
         print(" sim t = %.2f"%(main.t))
-        uu,_ = mppi.control_single(main.x,[0]*horizon_steps)
-        #plt.plot(uu)
-        #plt.show()
-        #main.step(dt,uu[0])
+        # state, ref_control, control limit
+        uu,_ = mppi.control_single(main.x,[0]*horizon_steps,[[-50,50]])
+        main.step(dt,uu[0])
+        '''
         for u in uu:
             main.step(dt,u)
+        '''
 
+    mppi.p.summary()
     main.plot()
 
 
