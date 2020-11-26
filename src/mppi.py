@@ -5,7 +5,7 @@ from timeUtil import execution_timer
 # Model Predictive Path Integral
 
 class MPPI:
-    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov):
+    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov,cuda=False):
         self.K = samples_count
         self.T = horizon_steps
         self.m = control_dim
@@ -14,6 +14,11 @@ class MPPI:
         # variation of noise added to ref control
         self.noise_cov = noise_cov
         self.p = execution_timer(True)
+        # whether to use cuda
+        self.cuda = cuda
+        if cuda:
+            from pycuda.compiler import SourceModule
+            import pycuda.driver as driver
 
         return
 
