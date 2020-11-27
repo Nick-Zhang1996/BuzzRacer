@@ -7,7 +7,10 @@ mod = SourceModule("""
 __global__ void multiply_them(float *dest, float *a, float *b)
 {
   const int i = threadIdx.x;
+  float x = 1.4;
+  float y = 0.1;
   dest[i] = a[i] * b[i];
+  dest[i] = 0.014;
 }
 """)
 
