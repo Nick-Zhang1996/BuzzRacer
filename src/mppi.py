@@ -2,6 +2,7 @@ import numpy as np
 from math import sin
 import matplotlib.pyplot as plt
 from timeUtil import execution_timer
+from common import *
 # Model Predictive Path Integral
 
 class MPPI:
@@ -47,7 +48,7 @@ class MPPI:
         p = self.p
         p.s()
         p.s("prep")
-        ref_control = np.array(ref_control).reshape(-1,self.m)
+        ref_control = np.array(ref_control).reshape(-1,self.m).astype(np.float32)
         control_limit = np.array(control_limit)
 
         # generate random noise for control sampling
@@ -80,7 +81,9 @@ class MPPI:
             for t in range(self.T):
                 control = control_vec[k,t,:]
                 x = self.applyDiscreteDynamics(x,control,self.dt)
+                # NOTE correct format for cost as defined in paper
                 S += self.evaluateCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
+                #S += self.evaluateCost(x) 
             # NOTE missing terminal cost
             S_vec.append(S)
         p.e("sim")
@@ -96,6 +99,7 @@ class MPPI:
 
 
         # synthesize control signal
+        old_ref_control = ref_control.copy()
         for t in range(self.T):
             ref_control[t] = ref_control[t] + np.sum(weights[:,np.newaxis] * clipped_epsilon_vec[:,t,:])
         p.s("post")
@@ -104,13 +108,16 @@ class MPPI:
         # NOTE
         # evaluate performance of synthesized control
 
+
         '''
         print("best cost in sampled traj   %.2f"%(beta))
+        print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
         print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
-        print("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
-        print("cost of ref control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        print("cost of cw control(-1) %.2f"%(self.evalControl(state,[-1]*self.T)))
-        print("cost of ccw control(1) %.2f"%(self.evalControl(state,[1]*self.T)))
+        print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
+        print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
+        print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
+        print("cost of const control(-1) %.2f"%(self.evalControl(state,[[-1,-1]]*self.T)))
+        print("cost of const control(1) %.2f"%(self.evalControl(state,[[1,1]]*self.T)))
         '''
 
         #return ref_control[0]
