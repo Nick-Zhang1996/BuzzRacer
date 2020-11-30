@@ -8,9 +8,9 @@ __global__ void multiply_them(float *dest, float *a, float *b)
 {
   const int i = threadIdx.x;
   float x = 1.4;
-  float y = 0.1;
+  float y = 0;
   dest[i] = a[i] * b[i];
-  dest[i] = 0.014;
+  dest[i] = y*x;
 }
 """)
 
@@ -24,4 +24,5 @@ multiply_them(
         drv.Out(dest), drv.In(a), drv.In(b),
         block=(400,1,1), grid=(1,1))
 
-print(dest-a*b)
+#print(dest-a*b)
+print(dest)

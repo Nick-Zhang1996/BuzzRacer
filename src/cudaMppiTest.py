@@ -3,9 +3,9 @@ import pycuda.autoinit
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 import numpy as np
-from time import sleep
+from time import sleep,time
 
-sample_count = 10
+sample_count = 1024
 horizon_steps = 20
 control_dim = 2
 state_dim = 4
@@ -15,11 +15,15 @@ code = f.read()
 mod = SourceModule(code)
 
 evaluate_control_sequence = mod.get_function("evaluate_control_sequence")
+print("registers used = %d"%evaluate_control_sequence.num_regs)
+assert evaluate_control_sequence.num_regs * sample_count < 65536
 
 #u1 = np.linspace(0,1,sample_count).astype(np.float32)
 #u2 = np.linspace(1,2,sample_count).astype(np.float32)
 u1 = np.ones([sample_count,horizon_steps,1])
+u1[5:,:,0] = 2
 u2 = 3*np.ones([sample_count,horizon_steps,1])
+u2[5:,:,0] = 6
 control = np.dstack([u1,u2])
 
 # should all be 1,3
@@ -49,20 +53,20 @@ x0 = x0.flatten()
 epsilon = epsilon.flatten()
 '''
 control = control.flatten()
-print(cost.shape)
-print(x0.shape)
-print(control.shape)
-print(epsilon.shape)
+
+
+memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
+print("mem for cuda %d"%(np.sum(memCount)))
+assert np.sum(memCount)<8370061312
+tic = time()
 evaluate_control_sequence( 
         drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),
-        block=(64,1,1), grid=(1,1))
-sleep(1)
+        block=(sample_count,1,1), grid=(1,1))
+tac = time()
+print("cuda(1000) = %.2f s"%(tac-tic))
 
-# should be same 
-'''
 print(cost[0])
-print(cost[5])
-'''
+print(cost[sample_count-1])
 
 # evaluate manually
 def dynamics(state,control,dt):
@@ -100,14 +104,26 @@ def getcost(state):
     x = np.array(state) - np.array([1,0,3,0])
     return x.T @ R @ x
 
-for i in range(sample_count):
-    print(cost[i])
+
+tic = time()
+for k in range(sample_count):
+    s = 0
+    x = x0.copy()
+    for i in range(horizon_steps):
+        x = dynamics(x,[1,3],0.1)
+        s += getcost(x)
+        #print("python step %d cost %.2f"%(i,s))
+tac = time()
+print("1-3python cost %.2f"%(s))
+print("python 1000 %.2f"%(tac-tic))
+
 s = 0
 x = x0.copy()
 for i in range(horizon_steps):
-    x = dynamics(x,[1,3],0.1)
+    x = dynamics(x,[2,6],0.1)
     s += getcost(x)
-print(s)
+    #print("python step %d cost %.2f"%(i,s))
+print("2-6 python cost %.2f"%(s))
 
 
 
