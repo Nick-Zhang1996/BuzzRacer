@@ -1,3 +1,8 @@
+import os
+import sys
+base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
+sys.path.append(base_dir)
+
 from math import sin
 import numpy as np
 import matplotlib.pyplot as plt
@@ -99,7 +104,7 @@ def dynamics(state,control,dt):
 
     return state
 
-def cost(state):
+def cost(state,u):
     R = np.diag([1,0.1,1,0.1])
     R = R**2
     x = np.array(state) - np.array([1,0,3,0])
@@ -107,7 +112,7 @@ def cost(state):
 
 
 if __name__=="__main__":
-    dt = 0.1
+    dt = 0.3
 
     main = dualMass(x0=[0,0,0,0])
 
@@ -127,10 +132,11 @@ if __name__=="__main__":
     while (main.t<20):
         print(" sim t = %.2f"%(main.t))
         # state, ref_control, control limit
-        uu = mppi.control_single(main.x,[[1,3]]*horizon_steps,[[-50,50]]*2)
+        uu = mppi.control_single(main.x,[[-1,2]]*horizon_steps,[[-50,50]]*2)
         main.step(dt,uu[0,:])
+        #main.step(dt,np.array([-1,2]))
 
-    mppi.p.summary()
+    #mppi.p.summary()
     main.plot()
 
 
