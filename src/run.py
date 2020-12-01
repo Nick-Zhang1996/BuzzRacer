@@ -20,6 +20,7 @@ from laptimer import Laptimer
 from advCarSim import advCarSim
 from kinematicSimulator import kinematicSimulator
 from ctrlMpcWrapper import ctrlMpcWrapper
+from ctrlStanleyWrapper import ctrlStanleyWrapper
 
 from enum import Enum, auto
 
@@ -307,7 +308,7 @@ class Main():
             debug_dict['v_target'] =0
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.dynamicMpc):
-            throttle,steering,valid,debug_dict = self.car.ctrlCarDynamicMpc(self.car_state,self.track,reverse=self.reverse)
+            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
             self.debug_dict['x_ref'] = debug_dict['x_ref']
             #self.debug_dict['x_project'] = debug_dict['x_project']
             if not valid:
@@ -461,8 +462,8 @@ class Main():
         if (self.controller == Controller.dynamicMpc):
             # porsche 911
             car = ctrlMpcWrapper(porsche_setting,self.dt)
-        else:
-            car = Car(porsche_setting,self.dt)
+        elif (self.controller == Controller.stanley):
+            car = ctrlStanleyWrapper(porsche_setting,self.dt)
         return car
 
     def resolveLogname(self,):
