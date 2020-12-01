@@ -8,6 +8,12 @@
 #define STATE_DIM 4
 #define TEMPERATURE 1
 #define DT 0.1
+__device__
+float evaluate_cost(float* x, float* u);
+
+__device__
+void forward_dynamics(float* x,float* u);
+
 
 __global__
 void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, float *in_epsilon){
@@ -16,7 +22,7 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
   if (id>=SAMPLE_COUNT){
     return;
   }
-  printf("id = %d\n",id);
+  //printf("id = %d\n",id);
   float x[STATE_DIM];
   // copy to local state
   // TODO error
@@ -26,7 +32,7 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
   //printf("id = %d, x0, %.2f, %.2f, %.2f, %.2f \n",id,x0[0],x0[1],x0[2],x0[3]);
 
   
-  float* u = in_control + id*HORIZON*CONTROL_DIM + i*CONTROL_DIM;
+  float* u = in_control + id*HORIZON*CONTROL_DIM; 
 
   // initialize cost
   //out_cost[id] = 0;
@@ -39,7 +45,7 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
     // evaluate cost, update cost
     cost += evaluate_cost(x,u);
     for (int j=0; j<CONTROL_DIM; j++){
-      cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + i];
+      cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
     }
 
   }
@@ -47,6 +53,8 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
 
 }
 
+// for dual mass system
+/*
 __device__
 float evaluate_cost(float* x, float* u){
     return (x[0]-1)*(x[0]-1)*1.0 + x[1]*x[1]*0.01 + (x[2]-3)*(x[2]-3)*1.0 + x[3]*x[3]*0.01;
@@ -62,9 +70,9 @@ void forward_dynamics(float* x,float* u){
     const float k2 = 1;
     const float c1 = 1.4;
     const float c2 = 1.4;
-    const float dt = 0.1;
 
     const float dt = DT;
+
     float x1 = x[0];
     float dx1 = x[1];
     float x2 = x[2];
@@ -85,6 +93,15 @@ void forward_dynamics(float* x,float* u){
     x[1] = dx1;
     x[2] = x2;
     x[3] = dx2;
-    return
+    return;
+}
+*/
+
+__device__
+float evaluate_cost(float* x, float* u){
+  // find state error
+
 }
 
+__device__
+void forward_dynamics(float* x,float* u);
