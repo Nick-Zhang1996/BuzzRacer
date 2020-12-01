@@ -112,7 +112,14 @@ class MPPI:
                     x = self.applyDiscreteDynamics(x,control,self.dt)
                     # NOTE correct format for cost as defined in paper
                     #S += self.evaluateCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
+                    # FIXME ignoring additional cost
                     S += self.evaluateCost(x,control) 
+                    '''
+                    if (k==0):
+                        print("cpu,step=%d S=%.2f"%(t,S))
+                        print(control)
+                        print(x)
+                    '''
                 # NOTE missing terminal cost
                 S_vec.append(S)
             p.e("cpu sim")
@@ -159,7 +166,7 @@ class MPPI:
         for t in range(self.T):
             control = candidate_control[t,:]
             x = self.applyDiscreteDynamics(x,control,self.dt)
-            S += self.evaluateCost(x)
+            S += self.evaluateCost(x,control)
         return S
 
     '''

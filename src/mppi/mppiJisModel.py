@@ -123,8 +123,6 @@ class Model:
             ref_control = np.vstack([uu[1:,:],uu[-1,:]])
             #ref_control = np.vstack([uu[1:,:],np.zeros([1,self.control_dim])])
             main.step(uu[0,:])
-            print("u")
-            print(uu[0,:])
 
             terminalVal = self.terminalConditionVal()
             main.cost_hist.append(terminalVal)

@@ -31,24 +31,42 @@ void evaluate_control_sequence(float *out_cost, float* x_goal, float *x0, float 
   for (int i=0; i<STATE_DIM; i++){
     x[i] = *(x0 + i);
   }
-  //printf("id = %d, x0, %.2f, %.2f, %.2f, %.2f \n",id,x0[0],x0[1],x0[2],x0[3]);
+
+  // DEBUG
+  /*
+  if (id==0){
+    printf("x0, %.2f, %.2f, %.2f, %.2f \n",x0[0],x0[1],x0[2],x0[3]);
+
+  }
+  */
 
   
   float* u = in_control + id*HORIZON*CONTROL_DIM; 
 
   // initialize cost
-  //out_cost[id] = 0;
   float cost = 0;
   // run simulation
   for (int i=0; i<HORIZON; i++){
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
 
-    // evaluate cost, update cost
+    // evaluate step cost
     cost += evaluate_cost(x_goal,x,u);
+    // FIXME ignoring additional cost
+    /*
     for (int j=0; j<CONTROL_DIM; j++){
       cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
     }
+    */
+    // DEBUG
+    /*
+    if (id==0){
+      printf("step=%d, S= %.3f, u: %.2f, %.2f ",i,cost,u[0],u[1]);
+      printf("x: %.2f, %.2f, %.2f, %.2f \n",id,x[0],x[1],x[2],x[3]);
+    }
+    */
+
+    u += CONTROL_DIM;
 
   }
   out_cost[id] = cost;
