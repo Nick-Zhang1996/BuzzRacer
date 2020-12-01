@@ -63,7 +63,7 @@ evaluate_control_sequence(
         drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),
         block=(sample_count,1,1), grid=(1,1))
 tac = time()
-print("cuda(1000) = %.2f s"%(tac-tic))
+print("cuda(1000) = %.5f s"%(tac-tic))
 
 print(cost[0])
 print(cost[sample_count-1])
@@ -115,7 +115,7 @@ for k in range(sample_count):
         #print("python step %d cost %.2f"%(i,s))
 tac = time()
 print("1-3python cost %.2f"%(s))
-print("python 1000 %.2f"%(tac-tic))
+print("python 1000 %.5f"%(tac-tic))
 
 s = 0
 x = x0.copy()

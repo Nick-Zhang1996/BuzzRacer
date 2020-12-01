@@ -8,15 +8,17 @@
 #define STATE_DIM 4
 #define TEMPERATURE 1
 #define DT 0.1
-__device__
-float evaluate_cost(float* x, float* u);
 
+// evaluate step cost based on target state x_goal,current state x and control u
 __device__
-void forward_dynamics(float* x,float* u);
+float evaluate_cost(float* x_goal, float* x, float* u);
 
+// forward dynamics by one step
+__device__
+void forward_dynamics( float* x, float* u);
 
 __global__
-void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, float *in_epsilon){
+void evaluate_control_sequence(float *out_cost, float* x_goal, float *x0, float *in_control, float *in_epsilon){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -25,7 +27,7 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
   //printf("id = %d\n",id);
   float x[STATE_DIM];
   // copy to local state
-  // TODO error
+  // NOTE possible time saving by copy to local memory
   for (int i=0; i<STATE_DIM; i++){
     x[i] = *(x0 + i);
   }
@@ -43,7 +45,7 @@ void evaluate_control_sequence(float *out_cost, float *x0, float *in_control, fl
     forward_dynamics(x,u);
 
     // evaluate cost, update cost
-    cost += evaluate_cost(x,u);
+    cost += evaluate_cost(x_goal,x,u);
     for (int j=0; j<CONTROL_DIM; j++){
       cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
     }
@@ -97,11 +99,43 @@ void forward_dynamics(float* x,float* u){
 }
 */
 
+// for Ji's decoupled system
 __device__
-float evaluate_cost(float* x, float* u){
+float evaluate_cost(float* x_goal, float* x, float* u){
   // find state error
-
+  float x0,x1,x2,x3;
+  x0 = x_goal[0] - x[0];
+  x1 = x_goal[1] - x[1];
+  x2 = x_goal[2] - x[2];
+  x3 = x_goal[3] - x[3];
+  return x0*x0 + x1*x1 + x2*x2 + x3*x3 + u[0]*u[0] + u[1]*u[1];
 }
 
 __device__
-void forward_dynamics(float* x,float* u);
+void forward_dynamics(float* x,float* u){
+  x[0] += x[2] + 0.5*u[0];
+  x[1] += x[3] + 0.5*u[1];
+  x[2] += u[0];
+  x[3] += u[1];
+  return;
+}
+
+// dummy placeholder for compiler testing
+/*
+int main(void){
+  int blockSize = 1;
+  int numBlocks = 256;
+  int  N = 100;
+  float *out_cost,*x_goal,*x0,*in_control,*in_epsilon;
+   
+  cudaMallocManaged(&out_cost, N*sizeof(float));
+  cudaMallocManaged(&x_goal, N*sizeof(float));
+  cudaMallocManaged(&x0, N*sizeof(float));
+  cudaMallocManaged(&in_control, N*sizeof(float));
+  cudaMallocManaged(&in_epsilon, N*sizeof(float));
+
+  evaluate_control_sequence<<<numBlocks, blockSize>>>(out_cost,x_goal,x0,in_control,in_epsilon);
+  return 0;
+
+}
+*/

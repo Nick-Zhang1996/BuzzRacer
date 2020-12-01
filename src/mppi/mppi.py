@@ -23,15 +23,17 @@ class MPPI:
         self.cuda = cuda
         if cuda:
             print_info("loading cuda module ...")
+            import pycuda.autoinit
+            global drv
+            import pycuda.driver as drv
             from pycuda.compiler import SourceModule
-            import pycuda.driver as driver
             with open("./mppi.cu","r") as f:
                 code = f.read()
             mod = SourceModule(code)
 
             self.cuda_evaluate_control_sequence = mod.get_function("evaluate_control_sequence")
-            print_info("registers used = %d"%evaluate_control_sequence.num_regs)
-            assert evaluate_control_sequence.num_regs * sample_count < 65536
+            print_info("registers used = %d"%self.cuda_evaluate_control_sequence.num_regs)
+            assert self.cuda_evaluate_control_sequence.num_regs * self.K < 65536
             assert self.K<=1024
 
         return
@@ -41,9 +43,11 @@ class MPPI:
     # ref_control: reference control, dim (self.T,self.m)
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
-    def control_single(self,state,ref_control,control_limit,noise_cov=None):
+    def control_single(self,target_state,state,ref_control,control_limit,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
+        if cuda is None:
+            cuda = self.cuda
         p = self.p
         p.s()
         p.s("prep")
@@ -76,20 +80,21 @@ class MPPI:
         control_cost_mtx_inv = np.eye(self.m)
         p.e("prep")
 
-        if (self.cuda):
+        if (cuda):
             # NVIDIA YES !!!
             # CUDA implementation
             p.s("cuda sim")
             cost = np.zeros([self.K]).astype(np.float32)
             epsilon = clipped_epsilon_vec.astype(np.float32)
-            control = control.astype(np.float32)
+            control = control_vec.astype(np.float32)
             x0 = state.copy()
+            x_goal = target_state.astype(np.float32)
             # TODO maybe remove these
             control = control.flatten()
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
             assert np.sum(memCount)<8370061312
-            evaluate_control_sequence( 
-                    drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),
+            self.cuda_evaluate_control_sequence( 
+                    drv.Out(cost),drv.In(x_goal),drv.In(x0),drv.In(control), drv.In(epsilon),
                     block=(self.K,1,1), grid=(1,1))
             S_vec = cost
             p.e("cuda sim")

@@ -80,7 +80,7 @@ class Model:
         return np.linalg.norm(self.x[0:2]-self.x_goal[0:2])
 
     def run(self):
-        mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.dt,self.noise_cov)
+        mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.dt,self.noise_cov,cuda=True)
         mppi.applyDiscreteDynamics = self.calcNextState
         mppi.evaluateCost = self.getCost
 
@@ -90,7 +90,7 @@ class Model:
         for i in range(warm_start_iter):
             print("warm start iter = %d/%d"%(i,warm_start_iter))
             control_limit = [[-1,1]]*2
-            uu = mppi.control_single(self.x,ref_control,control_limit)
+            uu = mppi.control_single(self.x_goal,self.x,ref_control,control_limit)
             ref_control = np.vstack([uu[1:,:],uu[-1,:]])
 
         while (self.t<5.0):
@@ -99,11 +99,10 @@ class Model:
             control_limit = [[-1,1]]*2
             # NOTE start from no control every time
             #ref_control = [[0,0]]*self.horizon_steps
-            uu = mppi.control_single(self.x,ref_control,control_limit)
+            uu = mppi.control_single(self.x_goal,self.x,ref_control,control_limit)
 
-
-            # NOTE run a small simulation, show projected future if uu is faithfully carried out to the end
             '''
+            # NOTE run a small simulation, show projected future if uu is faithfully carried out to the end
             sim_x_hist = []
             sim_x = self.x.copy()
             sim_x_hist.append(sim_x)
@@ -116,8 +115,10 @@ class Model:
             if len(xx)>0:
                 plt.plot(xx[:,0],xx[:,1],'*')
                 plt.plot(projected_xx[:,0],projected_xx[:,1])
+                print_info("cuda")
                 plt.show()
             '''
+
 
             ref_control = np.vstack([uu[1:,:],uu[-1,:]])
             #ref_control = np.vstack([uu[1:,:],np.zeros([1,self.control_dim])])
