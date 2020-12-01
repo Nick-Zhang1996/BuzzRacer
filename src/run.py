@@ -19,6 +19,7 @@ from joystick import Joystick
 from laptimer import Laptimer
 from advCarSim import advCarSim
 from kinematicSimulator import kinematicSimulator
+from ctrlMpcWrapper import ctrlMpcWrapper
 
 from enum import Enum, auto
 
@@ -458,10 +459,10 @@ class Main():
             porsche_setting['max_throttle'] = 1.0
 
         if (self.controller == Controller.dynamicMpc):
-            pass
-
-        # porsche 911
-        car = Car(porsche_setting,self.dt)
+            # porsche 911
+            car = ctrlMpcWrapper(porsche_setting,self.dt)
+        else:
+            car = Car(porsche_setting,self.dt)
         return car
 
     def resolveLogname(self,):
