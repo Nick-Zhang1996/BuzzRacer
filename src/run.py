@@ -21,6 +21,7 @@ from advCarSim import advCarSim
 from kinematicSimulator import kinematicSimulator
 from ctrlMpcWrapper import ctrlMpcWrapper
 from ctrlStanleyWrapper import ctrlStanleyWrapper
+from ctrlMppiWrapper import ctrlMppiWrapper
 
 from enum import Enum, auto
 
@@ -45,9 +46,11 @@ class Controller(Enum):
     stanley = auto()
     purePursuit = auto() # NOT IMPLEMENTED
     joystick = auto()
+    dynamicMpc = auto()
+    mppi = auto()
+
     # no controller, this means out of loop control
     empty = auto()
-    dynamicMpc = auto()
 
 class Main():
     def __init__(self,):
@@ -85,7 +88,8 @@ class Main():
 
         # set control pipeline
         #self.controller = Controller.stanley
-        self.controller = Controller.dynamicMpc
+        #self.controller = Controller.dynamicMpc
+        self.controller = Controller.mppi
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -126,11 +130,20 @@ class Main():
 
         self.initStateUpdate()
 
+        #self.track = self.prepareSkidpad()
+        # or, use RCP track
+        self.track = self.prepareRcpTrack()
+
         if (self.controller == Controller.dynamicMpc):
             if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
                 self.car.initMpcSim(self.simulator)
             elif (self.stateUpdateSource == StateUpdateSource.optitrack):
                 self.car.initMpcReal()
+        elif (self.controller == Controller.mppi):
+            if (self.stateUpdateSource == StateUpdateSource.dynamic_simulator):
+                self.car.init(self.track,self.simulator)
+            elif (self.stateUpdateSource == StateUpdateSource.optitrack):
+                print_error("unimplemented")
             
 
         # log with undetermined format
@@ -144,9 +157,6 @@ class Main():
             # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
             self.full_state_log = []
 
-        #self.track = self.prepareSkidpad()
-        # or, use RCP track
-        self.track = self.prepareRcpTrack()
 
         # verify that a valid track subclass is sued
         if not issubclass(type(self.track),Track):
@@ -235,12 +245,11 @@ class Main():
             # draw the range where solver is seeking answer
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
-            if (self.controller == Controller.dynamicMpc):
-                # draw lookahead points x_ref
-                x_ref = self.debug_dict['x_ref']
-                for coord in x_ref:
-                    x,y = coord
-                    img = self.track.drawPoint(img,(x,y))
+            # draw lookahead points x_ref
+            x_ref = self.debug_dict['x_ref']
+            for coord in x_ref:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
             # draw projected state
             '''
@@ -324,6 +333,11 @@ class Main():
             # just use right side for both ends
             steering = self.joystick.steering*self.car.max_steering_right
             self.v_target = throttle
+        elif (self.controller == Controller.mppi):
+            # TODO debugging...
+            throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
+            self.debug_dict['x_ref'] = debug_dict['x_ref']
+
         elif (self.controller == Controller.empty):
             throttle = 0
             steering = 0
@@ -464,6 +478,8 @@ class Main():
             car = ctrlMpcWrapper(porsche_setting,self.dt)
         elif (self.controller == Controller.stanley):
             car = ctrlStanleyWrapper(porsche_setting,self.dt)
+        elif (self.controller == Controller.mppi):
+            car = ctrlMppiWrapper(porsche_setting,self.dt)
         return car
 
     def resolveLogname(self,):

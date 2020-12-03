@@ -6,6 +6,12 @@ from time import time
 from timeUtil import execution_timer
 from car import Car
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
+from common import *
+
+import os
+import sys
+base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './mppi/')
+sys.path.append(base_dir)
 
 class ctrlMpcWrapper(Car):
     def __init__(self,car_setting,dt):

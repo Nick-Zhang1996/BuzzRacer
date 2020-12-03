@@ -27,12 +27,12 @@ class ctrlMppiWrapper(Car):
         self.track = track
         self.prepareDiscretizedRaceline()
 
-        self.mppi_dt = 0.01
-        self.samples_count = 8
-        self.horizon_steps = 20
+        self.mppi_dt = 0.03
+        self.samples_count = 1024
+        self.horizon_steps = 10
         self.control_dim = 2
         self.temperature = 1.0
-        self.noise_cov = np.diag([radians(30)**2,1.0**2])
+        self.noise_cov = np.diag([(0.1/2)**2,radians(20.0/2)**2])
 
         self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,cuda=False)
 
@@ -57,7 +57,7 @@ class ctrlMppiWrapper(Car):
         # parameter, distance along track
         self.ss = ss
         self.raceline_points = np.array(rr)
-        self.racelien_headings = heading_vec
+        self.raceline_headings = heading_vec
         return
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -100,10 +100,18 @@ class ctrlMppiWrapper(Car):
         self.states = np.array([x,dx,y,dy,heading,omega])
         state = np.array([x,dx,y,dy,heading,omega])
 
-        throttle = np.linspace(-0.1,1.0,300)
-        steering = np.linspace(radians(-10),radians(10),300)
+        '''
+        # some testing to verify mppi model against simulation model
+        #throttle = np.linspace(-0.1,1.0,300)
+        #steering = np.linspace(radians(-10),radians(10),300)
+
+        #throttle = np.random.uniform(-0.1,1.0,300)
+        #steering = np.random.uniform(radians(-10),radians(10),300)
+
+        #throttle = np.random.normal(size=(300,))*0.5
+        #steering = np.random.normal(size=(300,))/2.0*radians(20)
         # simulate car 
-        for i in range(300):
+        for i in range(30):
             self.advSim(self.mppi_dt,None,throttle[i],steering[i])
             #print(i)
             #print(self.states)
@@ -112,7 +120,7 @@ class ctrlMppiWrapper(Car):
         print(self.states)
 
         # simulate with mppi
-        for i in range(300):
+        for i in range(50):
             state = self.applyDiscreteDynamics(state,[throttle[i],steering[i]],self.mppi_dt)
             #print(i)
             #print(x)
@@ -121,9 +129,125 @@ class ctrlMppiWrapper(Car):
         print(state)
         print("error")
         print(self.states-state)
+        '''
+        ref_control = np.zeros([self.horizon_steps,self.control_dim])
+        control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+        uu = self.mppi.control(state.copy(),ref_control,control_limit)
+        control = uu[0]
+        print(control)
+        throttle = control[0]
+        steering = control[1]
+        # DEBUG
+        # simulate where mppi think where the car will end up with
+        debug_dict = {'x_ref':[]}
+        for i in range(self.horizon_steps):
+            state = self.applyDiscreteDynamics(state,uu[i],self.mppi_dt)
+            coord = (state[0],state[2])
+            debug_dict['x_ref'].append(coord)
 
-        #ret =  (throttle,steering,True,debug_dict)
 
+        ret =  (throttle,steering,True,debug_dict)
+        return ret
+
+
+    def evaluateStepCost(self,state,control):
+        heading = state[4]
+        # calculate cost
+        # cost = -reward + penalty
+        #ids0 = self.findClosestIds(x0)
+        ids = self.findClosestIds(state)
+
+        # reward is progress along centerline
+        #cost = - ( self.ss[ids] - self.ss[ids0] )
+
+        # determine lateral offset
+        cost = np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
+        # determine heading offset
+        cost += (self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi
+        # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
+        # 10cm progress equivalent to 0.1 rad error
+        # sounds bout right
+        return cost*10
+
+    def findClosestIds(self,state):
+        x = state[0]
+        y = state[2]
+        dx = x - self.raceline_points[0]
+        dy = y - self.raceline_points[1]
+
+        dist2 = dx*dx + dy*dy
+        idx = np.argmin(dist2)
+        return idx
+
+    def evaluateTerminalCost(self,state,x0):
+        heading = state[4]
+        # calculate cost
+        # cost = -reward + penalty
+        ids0 = self.findClosestIds(x0)
+        ids = self.findClosestIds(state)
+
+        # reward is progress along centerline
+        cost = - ( self.ss[ids] - self.ss[ids0] )
+
+        # determine lateral offset
+        cost += np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
+        # determine heading offset
+        cost += (self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi
+        # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
+        # 10cm progress equivalent to 0.1 rad error
+        # sounds bout right
+
+        return cost*100
+
+    # advance car dynamics
+    def applyDiscreteDynamics(self,state,control,dt):
+        x = state[0]
+        dx = state[1]
+        # left pos(+)
+        y = state[2]
+        dy = state[3]
+        psi = state[4]
+        dpsi = state[5]
+
+        throttle = control[0]
+        # left pos(+)
+        steering = control[1]
+
+        Caf = self.Caf
+        Car = self.Car
+        lf = self.lf
+        lr = self.lr
+        Iz = self.Iz
+        m = self.m
+
+        x += dx * dt
+        y += dy * dt
+        psi += dpsi * dt
+
+        # dx,dy in state are in global frame, yet the dynamics equations are in car frame
+        # convert here
+        #x = x*cos(psi) - y*sin(psi)
+        local_dx = dx*cos(-psi) - dy*sin(-psi)
+        #y = x*sin(-psi) + y*cos(-psi)
+        local_dy = dx*sin(-psi) + dy*cos(-psi)
+
+
+        d_local_dx = throttle*dt
+        d_local_dy = (-(2*Caf+2*Car)/(m*local_dx)*local_dy + (-local_dx - (2*Caf*lf-2*Car*lr)/(m*local_dx)) * dpsi + 2*Caf/m*steering)*dt
+        d_dpsi = (-(2*lf*Caf - 2*lr*Car)/(Iz*local_dx)*local_dy - (2*lf*lf*Caf + 2*lr*lr*Car)/(Iz*local_dx)*dpsi + 2*lf*Caf/Iz*steering)*dt
+
+        local_dx += d_local_dx
+        local_dy += d_local_dy
+        dpsi += d_dpsi
+
+        # convert back to global frame
+        dx = local_dx*cos(psi) - local_dy*sin(psi)
+        dy = local_dx*sin(psi) + local_dy*cos(psi)
+
+
+        return np.array([x,dx,y,dy,psi,dpsi])
+        
+    # DEBUG
     def advSim(self,dt,sim_states,throttle,steering):
         # simulator carries internal state and doesn't really need these
         '''
@@ -180,61 +304,3 @@ class ctrlMppiWrapper(Car):
         omega = self.states[5]
         sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
         return sim_states
-
-    def evaluateStepCost(self,x,control):
-        return 0.0
-
-    def evaluateTerminalCost(self,x):
-        # determine lateral offset
-
-        # determine heading offset
-        return 0
-
-    # advance car dynamics
-    def applyDiscreteDynamics(self,state,control,dt):
-        x = state[0]
-        dx = state[1]
-        # left pos(+)
-        y = state[2]
-        dy = state[3]
-        psi = state[4]
-        dpsi = state[5]
-
-        throttle = control[0]
-        # left pos(+)
-        steering = control[1]
-
-        Caf = self.Caf
-        Car = self.Car
-        lf = self.lf
-        lr = self.lr
-        Iz = self.Iz
-        m = self.m
-
-        x += dx * dt
-        y += dy * dt
-        psi += dpsi * dt
-
-        # dx,dy in state are in global frame, yet the dynamics equations are in car frame
-        # convert here
-        #x = x*cos(psi) - y*sin(psi)
-        local_dx = dx*cos(-psi) - dy*sin(-psi)
-        #y = x*sin(-psi) + y*cos(-psi)
-        local_dy = dx*sin(-psi) + dy*cos(-psi)
-
-
-        d_local_dx = throttle*dt
-        d_local_dy = (-(2*Caf+2*Car)/(m*local_dx)*local_dy + (-local_dx - (2*Caf*lf-2*Car*lr)/(m*local_dx)) * dpsi + 2*Caf/m*steering)*dt
-        d_dpsi = (-(2*lf*Caf - 2*lr*Car)/(Iz*local_dx)*local_dy - (2*lf*lf*Caf + 2*lr*lr*Car)/(Iz*local_dx)*dpsi + 2*lf*Caf/Iz*steering)*dt
-
-        local_dx += d_local_dx
-        local_dy += d_local_dy
-        dpsi += d_dpsi
-
-        # convert back to global frame
-        dx = local_dx*cos(psi) - local_dy*sin(psi)
-        dy = local_dx*sin(psi) + local_dy*cos(psi)
-
-
-        return np.array([x,dx,y,dy,psi,dpsi])
-        
