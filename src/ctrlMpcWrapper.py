@@ -173,7 +173,7 @@ class ctrlMpcWrapper(Car):
         t.e()
         if ( 1.0/(tac-tic) < self.min_freq):
             self.min_freq = 1.0/(tac-tic)
-        print("min freq = %.2f"%(self.min_freq))
+        #print("min freq = %.2f"%(self.min_freq))
 
 
         return ret

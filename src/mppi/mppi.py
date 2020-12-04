@@ -180,12 +180,14 @@ class MPPI:
         p.s()
         p.s("prep ref ctrl")
         ref_control = np.array(ref_control).reshape(-1,self.m).astype(np.float32)
+
         control_limit = np.array(control_limit)
         p.e("prep ref ctrl")
 
         # generate random noise for control sampling
         p.s("prep epsilon")
         epsilon_vec = np.random.multivariate_normal([0.0]*self.m, noise_cov, size=(self.K,self.T))
+
         p.e("prep epsilon")
 
         # assemble control, ref_control is broadcasted along axis 0 (K)
@@ -198,6 +200,7 @@ class MPPI:
 
         # NOTE which is better
         clipped_epsilon_vec = control_vec - ref_control
+
         p.e("prep cap control")
         #clipped_epsilon_vec = epsilon_vec
 
@@ -256,7 +259,7 @@ class MPPI:
         # calculate weights
         weights = np.exp(- (S_vec - beta)/self.temperature)
         weights = weights / np.sum(weights)
-        print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
+        #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 
 
         # synthesize control signal

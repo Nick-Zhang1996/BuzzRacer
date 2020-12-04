@@ -92,8 +92,6 @@ void find_closest_id(float* state, float in_raceline[][3], int* ret_idx, float* 
   }
 
   *ret_idx = idx;
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
-
   *ret_dist = sqrtf(current_min);
   return;
 
@@ -101,12 +99,11 @@ void find_closest_id(float* state, float in_raceline[][3], int* ret_idx, float* 
 
 __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][3]){
-  float heading = state[4];
+  //float heading = state[4];
   int idx;
   float dist;
 
   find_closest_id(state,in_raceline,&idx,&dist);
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
 
   // heading cost
   //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
@@ -158,10 +155,6 @@ void forward_dynamics(float* state,float* u){
   float d_local_dx = throttle*DT;
   float d_local_dy = (-(2*Caf+2*Car)/(Mass*local_dx)*local_dy + (-local_dx - (2*Caf*Lf-2*Car*Lr)/(Mass*local_dx)) * dpsi + 2*Caf/Mass*steering)*DT;
   float d_dpsi = (-(2*Lf*Caf - 2*Lr*Car)/(Iz*local_dx)*local_dy - (2*Lf*Lf*Caf + 2*Lr*Lr*Car)/(Iz*local_dx)*dpsi + 2*Lf*Caf/Iz*steering)*DT;
-
-  float debug = steering;
-
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
 
   local_dx += d_local_dx;
   local_dy += d_local_dy;

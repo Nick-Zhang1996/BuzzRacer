@@ -36,7 +36,7 @@ class ctrlMppiWrapper(Car):
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
-        self.noise_cov = np.diag([(0.1/2)**2,radians(30.0/2)**2])
+        self.noise_cov = np.diag([(0.1/2)**2,radians(40.0/2)**2])
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()

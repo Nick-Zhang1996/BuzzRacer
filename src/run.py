@@ -57,6 +57,10 @@ class Main():
         # state update rate
         self.dt = 0.01
 
+        # noise in simulation
+        self.sim_noise = False
+        self.sim_noise_cov = np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
+
         # CONFIG
         # whether to record control command, car state, etc.
         self.enableLog = False
@@ -67,6 +71,7 @@ class Main():
 
         # run the track in reverse direction
         self.reverse = False
+
 
         # set visual tracking system to be used
         # Indoor Flight Laboratory (MK101/103): vicon
@@ -88,8 +93,8 @@ class Main():
 
         # set control pipeline
         #self.controller = Controller.stanley
-        #self.controller = Controller.dynamicMpc
-        self.controller = Controller.mppi
+        self.controller = Controller.dynamicMpc
+        #self.controller = Controller.mppi
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -315,7 +320,6 @@ class Main():
             if retval:
                 self.laptimer.announce()
                 print(self.laptimer.last_laptime)
-
 
         # apply controller
         if (self.controller == Controller.stanley):
@@ -620,7 +624,7 @@ class Main():
         coord = (0.3*0.565,1.7*0.565)
         x,y = coord
         heading = pi/2
-        self.simulator = advCarSim(x,y,heading)
+        self.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
         self.real_sim_dt = time()-self.simulator.t
 
         self.car.steering = steering = 0
@@ -636,6 +640,7 @@ class Main():
         sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
         #print(self.car_state)
+        print("v = %.2f"%(sim_states['vf']))
         self.new_state_update.set()
 
     def stopAdvSimulation(self):
