@@ -58,8 +58,9 @@ class Main():
         self.dt = 0.01
 
         # noise in simulation
-        self.sim_noise = False
-        self.sim_noise_cov = np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
+        self.sim_noise = True
+        # EXTREME noise
+        self.sim_noise_cov = 10*np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
 
         # CONFIG
         # whether to record control command, car state, etc.
