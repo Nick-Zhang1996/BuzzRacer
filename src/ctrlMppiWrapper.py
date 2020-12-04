@@ -29,12 +29,13 @@ class ctrlMppiWrapper(Car):
 
         self.mppi_dt = 0.03
         self.samples_count = 1024
-        self.horizon_steps = 10
+        self.horizon_steps = 20
         self.control_dim = 2
+        self.state_dim = 6
         self.temperature = 1.0
         self.noise_cov = np.diag([(0.1/2)**2,radians(20.0/2)**2])
 
-        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,cuda=False)
+        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=False,cuda_filename="mppi/mppi.cu")
 
         self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.mppi.evaluateStepCost = self.evaluateStepCost
@@ -58,6 +59,7 @@ class ctrlMppiWrapper(Car):
         self.ss = ss
         self.raceline_points = np.array(rr)
         self.raceline_headings = heading_vec
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings]).T
         return
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -132,19 +134,38 @@ class ctrlMppiWrapper(Car):
         '''
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
         control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
-        uu = self.mppi.control(state.copy(),ref_control,control_limit)
+        print("state")
+        print(state)
+        uu = self.mppi.control(state.copy(),ref_control.copy(),control_limit)
         control = uu[0]
         print(control)
         throttle = control[0]
         steering = control[1]
         # DEBUG
         # simulate where mppi think where the car will end up with
-        debug_dict = {'x_ref':[]}
+        # with synthesized control sequence
+        debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[]}
+        sim_state = state.copy()
         for i in range(self.horizon_steps):
-            state = self.applyDiscreteDynamics(state,uu[i],self.mppi_dt)
-            coord = (state[0],state[2])
+            sim_state = self.applyDiscreteDynamics(sim_state,uu[i],self.mppi_dt)
+            coord = (sim_state[0],sim_state[2])
             debug_dict['x_ref'].append(coord)
 
+        '''
+        # simulate control = -10deg
+        sim_state = state.copy()
+        for i in range(self.horizon_steps):
+            sim_state = self.applyDiscreteDynamics(sim_state,[0.0,-radians(5)],self.mppi_dt)
+            coord = (sim_state[0],sim_state[2])
+            debug_dict['x_ref_r'].append(coord)
+
+        # simulate control = 10deg
+        sim_state = state.copy()
+        for i in range(self.horizon_steps):
+            sim_state = self.applyDiscreteDynamics(sim_state,[0.0,radians(5)],self.mppi_dt)
+            coord = (sim_state[0],sim_state[2])
+            debug_dict['x_ref_l'].append(coord)
+        '''
 
         ret =  (throttle,steering,True,debug_dict)
         return ret
@@ -163,7 +184,7 @@ class ctrlMppiWrapper(Car):
         # determine lateral offset
         cost = np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
         # determine heading offset
-        cost += (self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi
+        cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
@@ -192,12 +213,12 @@ class ctrlMppiWrapper(Car):
         # determine lateral offset
         cost += np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
         # determine heading offset
-        cost += (self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi
+        cost += np.abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
 
-        return cost*100
+        return cost*10
 
     # advance car dynamics
     def applyDiscreteDynamics(self,state,control,dt):

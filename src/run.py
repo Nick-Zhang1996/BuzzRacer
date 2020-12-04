@@ -246,10 +246,23 @@ class Main():
             #img = self.track.drawPointU(img,[self.track.debug['seq']-0.6,self.track.debug['seq']+0.6])
 
             # draw lookahead points x_ref
+            '''
+            x_ref = self.debug_dict['x_ref_l']
+            for coord in x_ref:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y),color=(0,0,0))
+
+            x_ref = self.debug_dict['x_ref_r']
+            for coord in x_ref:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y),color=(0,0,0))
+            '''
+
             x_ref = self.debug_dict['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+
 
             # draw projected state
             '''
@@ -318,8 +331,8 @@ class Main():
             self.v_target = debug_dict['v_target']
         elif (self.controller == Controller.dynamicMpc):
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
-            self.debug_dict['x_ref'] = debug_dict['x_ref']
             #self.debug_dict['x_project'] = debug_dict['x_project']
+            self.debug_dict['x_ref'] = debug_dict['x_ref']
             if not valid:
                 print_warning("ctrlCar invalid retval")
                 exit(1)
@@ -336,7 +349,13 @@ class Main():
         elif (self.controller == Controller.mppi):
             # TODO debugging...
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
+            self.debug_dict['x_ref_l'] = debug_dict['x_ref_l']
+            self.debug_dict['x_ref_r'] = debug_dict['x_ref_r']
             self.debug_dict['x_ref'] = debug_dict['x_ref']
+            print("l")
+            print(debug_dict['x_ref_l'])
+            print("r")
+            print(debug_dict['x_ref_r'])
 
         elif (self.controller == Controller.empty):
             throttle = 0

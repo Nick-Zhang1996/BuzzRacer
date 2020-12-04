@@ -10,7 +10,7 @@ from common import *
 # Model Predictive Path Integral
 
 class MPPI:
-    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov,cuda=False):
+    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
         self.K = samples_count
         self.T = horizon_steps
         self.m = control_dim
@@ -27,7 +27,9 @@ class MPPI:
             global drv
             import pycuda.driver as drv
             from pycuda.compiler import SourceModule
-            with open("./mppi.cu","r") as f:
+            if cuda_filename is None:
+                cuda_filename = "./mppi.cu"
+            with open(cuda_filename,"r") as f:
                 code = f.read()
             mod = SourceModule(code)
 
@@ -35,6 +37,7 @@ class MPPI:
             print_info("registers used = %d"%self.cuda_evaluate_control_sequence.num_regs)
             assert self.cuda_evaluate_control_sequence.num_regs * self.K < 65536
             assert self.K<=1024
+            self.discretized_raceline = discretized_raceline.astype(np.float32)
 
         return
 
@@ -163,6 +166,7 @@ class MPPI:
     # ref_control: reference control, dim (self.T,self.m)
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
+    # specifically for racecar
     def control(self,state,ref_control,control_limit,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
@@ -208,14 +212,14 @@ class MPPI:
             epsilon = clipped_epsilon_vec.astype(np.float32)
             control = control_vec.astype(np.float32)
             x0 = state.copy()
-            # TODO update this
-            x_goal = target_state.astype(np.float32)
             # TODO maybe remove these
             control = control.flatten()
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
             assert np.sum(memCount)<8370061312
+            print("x0")
+            print(x0)
             self.cuda_evaluate_control_sequence( 
-                    drv.Out(cost),drv.In(x_goal),drv.In(x0),drv.In(control), drv.In(epsilon),
+                    drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),drv.In(self.discretized_raceline),
                     block=(self.K,1,1), grid=(1,1))
             S_vec = cost
             p.e("cuda sim")
@@ -272,8 +276,8 @@ class MPPI:
         print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
         #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
         #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        print("cost of const control(-10 deg) %.2f"%(self.evalControl(state,[[0,-radians(10)]]*self.T)))
-        print("cost of const control(10 deg) %.2f"%(self.evalControl(state,[[0,radians(10)]]*self.T)))
+        print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
+        print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
         #return ref_control[0]
         p.e()
