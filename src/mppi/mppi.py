@@ -38,6 +38,7 @@ class MPPI:
             assert self.cuda_evaluate_control_sequence.num_regs * self.K < 65536
             assert self.K<=1024
             self.discretized_raceline = discretized_raceline.astype(np.float32)
+            self.discretized_raceline = self.discretized_raceline.flatten()
 
         return
 
@@ -217,8 +218,8 @@ class MPPI:
             control = control.flatten()
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
             assert np.sum(memCount)<8370061312
-            print("x0")
-            print(x0)
+            #print("x0")
+            #print(x0)
             self.cuda_evaluate_control_sequence( 
                     drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),drv.In(self.discretized_raceline),
                     block=(self.K,1,1), grid=(1,1))
@@ -226,7 +227,7 @@ class MPPI:
             p.e("cuda sim")
         else:
             p.s("cpu sim")
-            print("cpu---")
+            print("\n\n----cpu---")
             # cost value for each simulation
             S_vec = []
             # spawn k simulations
@@ -244,7 +245,7 @@ class MPPI:
                     # FIXME ignoring additional cost
                     S += self.evaluateStepCost(x,control) 
                     if (k==0):
-                        print("cpu,end of step=%d S=%.2f"%(t,S))
+                        print("cpu,end of step=%d cost=%.4f"%(t,S))
                         print("x: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f"%(x[0],x[1],x[2],x[3],x[4],x[5]))
                         print("")
                 S += self.evaluateTerminalCost(x,x0)
@@ -268,7 +269,6 @@ class MPPI:
             for i in range(self.m):
                 ref_control[t,i] = ref_control[t,i] + np.sum(weights * clipped_epsilon_vec[:,t,i])
         p.s("post")
-
 
         # evaluate performance of synthesized control
         print("best cost in sampled traj   %.2f"%(beta))

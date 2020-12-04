@@ -33,11 +33,12 @@ class ctrlMppiWrapper(Car):
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
-        self.noise_cov = np.diag([(0.1/2)**2,radians(20.0/2)**2])
+        self.noise_cov = np.diag([(0.1/2)**2,radians(30.0/2)**2])
+        self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
 
-        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=False,cuda_filename="mppi/mppi_racecar.cu")
+        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
         self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.mppi.evaluateStepCost = self.evaluateStepCost
@@ -134,12 +135,11 @@ class ctrlMppiWrapper(Car):
         print(self.states-state)
         '''
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
-        control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
-        print("state")
-        print(state)
-        uu = self.mppi.control(state.copy(),ref_control.copy(),control_limit)
+        #print("state")
+        #print(state)
+        uu = self.mppi.control(state.copy(),ref_control.copy(),self.control_limit)
         control = uu[0]
-        print(control)
+        #print(control)
         throttle = control[0]
         steering = control[1]
         # DEBUG
@@ -184,8 +184,10 @@ class ctrlMppiWrapper(Car):
 
         # determine lateral offset
         cost = np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
+        #print(cost)
+        #print("id = %d, x = %.3f, xr = %.3f, y = %.3f, yr = %.3f"%(ids, state[0], self.raceline_points[0,ids], state[2], self.raceline_points[1,ids]))
         # determine heading offset
-        cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
+        #cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
@@ -216,7 +218,8 @@ class ctrlMppiWrapper(Car):
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
 
-        return cost*10
+        #return cost*10
+        return 0.0
 
     # advance car dynamics
     def applyDiscreteDynamics(self,state,control,dt):
