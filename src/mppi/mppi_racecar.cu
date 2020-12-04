@@ -1,7 +1,7 @@
 // cuda code for MPPI with dynamic bicycle model
 // IMPORTANT make sure the macro declarations are accurate
 
-#define SAMPLE_COUNT 1024
+#define SAMPLE_COUNT 8192
 #define HORIZON 30
 
 #define CONTROL_DIM 2
@@ -41,7 +41,6 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, flo
   if (id>=SAMPLE_COUNT){
     return;
   }
-  //printf("id = %d\n",id);
   float x[STATE_DIM];
   // copy to local state
   // NOTE possible time saving by copy to local memory
@@ -49,14 +48,6 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, flo
     x[i] = *(x0 + i);
   }
 
-  // DEBUG
-  /*
-  if (id==0){
-    printf("x0, %.3f, %.3f, %.3f, %.3f \n",x0[0],x0[1],x0[2],x0[3]);
-
-  }
-  */
-  
   float* u = in_control + id*HORIZON*CONTROL_DIM; 
 
   // initialize cost
@@ -68,17 +59,10 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, flo
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,in_raceline);
-    // FIXME ignoring additional cost
+    // FIXME ignoring epsilon induced cost
     /*
     for (int j=0; j<CONTROL_DIM; j++){
       cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
-    }
-    */
-    // DEBUG
-    /*
-    if (id==0){
-      printf("step=%d, cost= %.4f \n",i,cost);
-      printf("x: %.3f, %.3f, %.3f, %.3f \n",x[0],x[1],x[2],x[3]);
     }
     */
 
@@ -109,12 +93,6 @@ void find_closest_id(float* state, float in_raceline[][3], int* ret_idx, float* 
 
   *ret_idx = idx;
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  /*
-  if (id==0){
-    //printf("dist2 = %.3f, dist=%.3f",val,sqrtf(current_min));
-    //printf("id = %d, cost= %.4f ",idx,sqrtf(current_min)*0.5);
-  }
-  */
 
   *ret_dist = sqrtf(current_min);
   return;
@@ -129,13 +107,8 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][3]){
 
   find_closest_id(state,in_raceline,&idx,&dist);
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  //DEBUG
-  /*
-  if (id==0){
-    printf("idx = %d, x = %.3f, xr = %.3f, y = %.3f, yr = %.3f",idx, state[0], in_raceline[idx][0], state[2], in_raceline[idx][1]);
-  }
-  */
 
+  // heading cost
   //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
   float cost = dist*0.5;
   return cost*10.0;
@@ -155,6 +128,7 @@ float evaluate_terminal_cost( float* state, float* u,float* x0, float in_racelin
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   //return -10.0*float((idx - idx0 + RACELINE_LEN)%(RACELINE_LEN))*0.01;
+  // NOTE ignoring terminal cost
   return 0.0;
 }
 
@@ -188,14 +162,6 @@ void forward_dynamics(float* state,float* u){
   float debug = steering;
 
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  //DEBUG
-  /*
-  if (id == 0){
-    //printf("%.3f, %.3f: %.3f, %.3f, %.3f, %.3f\n",local_dx,local_dy,d_local_dx,d_local_dy,d_dpsi,debug);
-    printf("T: %.3f, S: %.3f\n",throttle,steering);
-    printf("%.3f, %.3f, %.3f\n",d_local_dx,d_local_dy,d_dpsi);
-  }
-  */
 
   local_dx += d_local_dx;
   local_dy += d_local_dy;
@@ -211,16 +177,11 @@ void forward_dynamics(float* state,float* u){
   state[3] = dy;
   state[4] = psi;
   state[5] = dpsi;
-  /*
-  if (id == 0){
-    printf("x: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n\n",state[0],state[1],state[2],state[3],state[4],state[5]);
-  }
-  */
 
   return;
 }
 
-// dummy placeholder for compiler testing
+// dummy placeholder main() to trick compiler into compiling when testing
 /*
 int main(void){
   int blockSize = 1;

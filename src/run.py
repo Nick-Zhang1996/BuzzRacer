@@ -647,10 +647,10 @@ if __name__ == '__main__':
     experiment = Main()
     experiment.run()
     #experiment.simulator.debug()
-    print("car.py")
-    experiment.car.t.summary()
-    print("RCPTrack.py")
-    experiment.track.t.summary()
+    print("mppi")
+    experiment.car.mppi.p.summary()
+    print("\noverall")
+    experiment.car.p.summary()
     print_info("program complete")
 
 

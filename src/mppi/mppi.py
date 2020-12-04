@@ -1,7 +1,8 @@
 import os
 import sys
 import numpy as np
-from math import sin,radians,degrees
+from time import sleep,time
+from math import sin,radians,degrees,ceil
 import matplotlib.pyplot as plt
 from timeUtil import execution_timer
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
@@ -12,6 +13,8 @@ from common import *
 class MPPI:
     def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
         self.K = samples_count
+
+
         self.T = horizon_steps
         self.m = control_dim
         self.temperature = float(temperature)
@@ -33,12 +36,23 @@ class MPPI:
                 code = f.read()
             mod = SourceModule(code)
 
+            if (self.K < 1024):
+                # if K is small only employ one grid
+                self.cuda_block_size = (self.K,1,1)
+                self.cuda_grid_size = (1,1)
+            else:
+                # employ multiple grid,
+                self.cuda_block_size = (1024,1,1)
+                self.cuda_grid_size = (ceil(self.K/1024.0),1)
+            print("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
+
             self.cuda_evaluate_control_sequence = mod.get_function("evaluate_control_sequence")
-            print_info("registers used = %d"%self.cuda_evaluate_control_sequence.num_regs)
-            assert self.cuda_evaluate_control_sequence.num_regs * self.K < 65536
-            assert self.K<=1024
+            print_info("registers used each kernel= %d"%self.cuda_evaluate_control_sequence.num_regs)
+            assert self.cuda_evaluate_control_sequence.num_regs * self.cuda_block_size[0] < 65536
             self.discretized_raceline = discretized_raceline.astype(np.float32)
             self.discretized_raceline = self.discretized_raceline.flatten()
+
+            sleep(1)
 
         return
 
@@ -47,6 +61,7 @@ class MPPI:
     # ref_control: reference control, dim (self.T,self.m)
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
+    # NOTE not up to date
     def control_goal_state(self,target_state,state,ref_control,control_limit,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
@@ -60,12 +75,6 @@ class MPPI:
 
         # generate random noise for control sampling
         epsilon_vec = np.random.multivariate_normal([0.0]*self.m, noise_cov, size=(self.K,self.T))
-        '''
-        a = epsilon_vec.reshape(-1,2)[:2000,0]
-        b = epsilon_vec.reshape(-1,2)[:2000,1]
-        plt.plot(a,b,'*')
-        plt.show()
-        '''
 
         # assemble control, ref_control is broadcasted along axis 0 (K)
         control_vec = ref_control + epsilon_vec
@@ -79,9 +88,9 @@ class MPPI:
         #clipped_epsilon_vec = epsilon_vec
 
 
-        # NOTE probably doesn't matter
+        # for use in epsilon induced cost
         #control_cost_mtx_inv = np.linalg.inv(noise_cov)
-        control_cost_mtx_inv = np.eye(self.m)
+        #control_cost_mtx_inv = np.eye(self.m)
         p.e("prep")
 
         if (cuda):
@@ -93,7 +102,6 @@ class MPPI:
             control = control_vec.astype(np.float32)
             x0 = state.copy()
             x_goal = target_state.astype(np.float32)
-            # TODO maybe remove these
             control = control.flatten()
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
             assert np.sum(memCount)<8370061312
@@ -114,17 +122,12 @@ class MPPI:
                 for t in range(self.T):
                     control = control_vec[k,t,:]
                     x = self.applyDiscreteDynamics(x,control,self.dt)
-                    # NOTE correct format for cost as defined in paper
+                    # NOTE ignoring additional epsilon induced cost
                     #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
                     # FIXME ignoring additional cost
                     S += self.evaluateStepCost(x,control) 
-                    '''
-                    if (k==0):
-                        print("cpu,step=%d S=%.2f"%(t,S))
-                        print(control)
-                        print(x)
-                    '''
-                # NOTE missing terminal cost
+                # NOTE ignoring terminal cost
+                #S += self.evaluateTerminalCost(x,x0)
                 S_vec.append(S)
             p.e("cpu sim")
 
@@ -175,35 +178,33 @@ class MPPI:
             cuda = self.cuda
         p = self.p
         p.s()
-        p.s("prep")
+        p.s("prep ref ctrl")
         ref_control = np.array(ref_control).reshape(-1,self.m).astype(np.float32)
         control_limit = np.array(control_limit)
+        p.e("prep ref ctrl")
 
         # generate random noise for control sampling
+        p.s("prep epsilon")
         epsilon_vec = np.random.multivariate_normal([0.0]*self.m, noise_cov, size=(self.K,self.T))
-        '''
-        a = epsilon_vec.reshape(-1,2)[:2000,0]
-        b = epsilon_vec.reshape(-1,2)[:2000,1]
-        plt.plot(a,b,'*')
-        plt.show()
-        '''
+        p.e("prep epsilon")
 
         # assemble control, ref_control is broadcasted along axis 0 (K)
         control_vec = ref_control + epsilon_vec
 
         # cap control
+        p.s("prep cap control")
         for i in range(self.m):
             control_vec[:,i] = np.clip(control_vec[:,i],control_limit[i,0],control_limit[i,1])
 
         # NOTE which is better
         clipped_epsilon_vec = control_vec - ref_control
+        p.e("prep cap control")
         #clipped_epsilon_vec = epsilon_vec
 
 
-        # NOTE probably doesn't matter
+        # NOTE for use in epsilon induced cost
         #control_cost_mtx_inv = np.linalg.inv(noise_cov)
-        control_cost_mtx_inv = np.eye(self.m)
-        p.e("prep")
+        #control_cost_mtx_inv = np.eye(self.m)
 
         if (cuda):
             # NVIDIA YES !!!
@@ -216,38 +217,33 @@ class MPPI:
             x0 = x0.astype(np.float32)
             # TODO maybe remove these
             control = control.flatten()
-            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
+            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon.size*epsilon.itemsize
             assert np.sum(memCount)<8370061312
             #print("x0")
             #print(x0)
             self.cuda_evaluate_control_sequence( 
                     drv.Out(cost),drv.In(x0),drv.In(control), drv.In(epsilon),drv.In(self.discretized_raceline),
-                    block=(self.K,1,1), grid=(1,1))
+                    block=self.cuda_block_size, grid=self.cuda_grid_size)
             S_vec = cost
             p.e("cuda sim")
         else:
             p.s("cpu sim")
-            print("\n\n----cpu---")
             # cost value for each simulation
             S_vec = []
             # spawn k simulations
             x0 = state.copy()
             for k in range(self.K):
-            #for k in range(1):
                 S = 0
                 x = state.copy()
                 # run each simulation for self.T timesteps
                 for t in range(self.T):
                     control = control_vec[k,t,:]
                     x = self.applyDiscreteDynamics(x,control,self.dt)
-                    # NOTE correct format for cost as defined in paper
+                    # NOTE ignoring epsilon induced cost
                     #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
                     # FIXME ignoring additional cost
                     S += self.evaluateStepCost(x,control) 
-                    if (k==0):
-                        print("cpu,end of step=%d cost=%.4f"%(t,S))
-                        print("x: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f"%(x[0],x[1],x[2],x[3],x[4],x[5]))
-                        print("")
+
                 S += self.evaluateTerminalCost(x,x0)
                 S_vec.append(S)
             p.e("cpu sim")
@@ -271,9 +267,9 @@ class MPPI:
         p.s("post")
 
         # evaluate performance of synthesized control
-        print("best cost in sampled traj   %.2f"%(beta))
-        print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
-        print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
+        #print("best cost in sampled traj   %.2f"%(beta))
+        #print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
+        #print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
         #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
         #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
         #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
@@ -297,32 +293,3 @@ class MPPI:
         S += self.evaluateTerminalCost(x,x0)
         return S
 
-    '''
-    # NOTE inverted pendulum
-    def applyDiscreteDynamics(self,state,control,dt):
-        m = 1
-        g = 9.81
-        L = 1
-        x = state
-        u = control
-        x[0] += x[1]*dt
-        x[0] = (x[0] + np.pi) % (2*np.pi) - np.pi
-        x[1] += (u - m*g*L*sin(x[0]))*dt
-        return x
-
-    # NOTE inverted pendulum
-    def evaluateStepCost(self,state):
-        x = state
-        return ((x[0]-np.pi + np.pi)%(2*np.pi)-np.pi)**2 + 0.1*(x[1])**2
-    '''
-
-if __name__=="__main__":
-    horizon_steps = 20
-    noise = 0.1
-    dt = 0.02
-    mppi = MPPI(1000,horizon_steps,1,1,dt,noise)
-    print(mppi.evaluateStepCost([-np.pi+0,0]))
-    print(mppi.evaluateStepCost([-np.pi+1,0]))
-    print(mppi.evaluateStepCost([-np.pi+0,1]))
-    print(mppi.evaluateStepCost([-np.pi+-1,0]))
-    print(mppi.evaluateStepCost([-np.pi+0,-1]))

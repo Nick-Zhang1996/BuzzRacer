@@ -21,13 +21,16 @@ class ctrlMppiWrapper(Car):
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
+        self.p = execution_timer(True)
         return
 
     def init(self,track,sim):
         self.track = track
 
+        # NOTE NOTE NOTE
+        # update mppi_racecar.cu whenever you change parameter here
         self.mppi_dt = 0.03
-        self.samples_count = 512
+        self.samples_count = 8192
         self.discretized_raceline_len = 1024
         self.horizon_steps = 30
         self.control_dim = 2
@@ -79,9 +82,11 @@ class ctrlMppiWrapper(Car):
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
     def ctrlCar(self,state,track,v_override=None,reverse=False):
+        p = self.p
+        p.s()
         # get an estimate for current distance along raceline
+        p.s("local traj")
         if self.last_s is None:
             retval = track.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
             if retval is None:
@@ -92,7 +97,9 @@ class ctrlMppiWrapper(Car):
                 # parse return value from localTrajectory
                 (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
                 self.last_s = track.uToS(u0).item()
+        p.e("local traj")
 
+        p.s("prep")
         s0 = self.last_s
         # vehicle state
         # vf: forward positive
@@ -104,47 +111,19 @@ class ctrlMppiWrapper(Car):
         self.states = np.array([x,dx,y,dy,heading,omega])
         state = np.array([x,dx,y,dy,heading,omega])
 
-        '''
-        # some testing to verify mppi model against simulation model
-        #throttle = np.linspace(-0.1,1.0,300)
-        #steering = np.linspace(radians(-10),radians(10),300)
-
-        #throttle = np.random.uniform(-0.1,1.0,300)
-        #steering = np.random.uniform(radians(-10),radians(10),300)
-
-        #throttle = np.random.normal(size=(300,))*0.5
-        #steering = np.random.normal(size=(300,))/2.0*radians(20)
-        # simulate car 
-        for i in range(30):
-            self.advSim(self.mppi_dt,None,throttle[i],steering[i])
-            #print(i)
-            #print(self.states)
-
-        print("adv simulation states")
-        print(self.states)
-
-        # simulate with mppi
-        for i in range(50):
-            state = self.applyDiscreteDynamics(state,[throttle[i],steering[i]],self.mppi_dt)
-            #print(i)
-            #print(x)
-
-        print("mppi prediction")
-        print(state)
-        print("error")
-        print(self.states-state)
-        '''
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
-        #print("state")
-        #print(state)
+        p.e("prep")
+
+        p.s("mppi")
         uu = self.mppi.control(state.copy(),ref_control.copy(),self.control_limit)
         control = uu[0]
-        #print(control)
         throttle = control[0]
         steering = control[1]
+        p.e("mppi")
         # DEBUG
         # simulate where mppi think where the car will end up with
         # with synthesized control sequence
+        p.s("debug")
         debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[]}
         sim_state = state.copy()
         for i in range(self.horizon_steps):
@@ -152,23 +131,9 @@ class ctrlMppiWrapper(Car):
             coord = (sim_state[0],sim_state[2])
             debug_dict['x_ref'].append(coord)
 
-        '''
-        # simulate control = -10deg
-        sim_state = state.copy()
-        for i in range(self.horizon_steps):
-            sim_state = self.applyDiscreteDynamics(sim_state,[0.0,-radians(5)],self.mppi_dt)
-            coord = (sim_state[0],sim_state[2])
-            debug_dict['x_ref_r'].append(coord)
-
-        # simulate control = 10deg
-        sim_state = state.copy()
-        for i in range(self.horizon_steps):
-            sim_state = self.applyDiscreteDynamics(sim_state,[0.0,radians(5)],self.mppi_dt)
-            coord = (sim_state[0],sim_state[2])
-            debug_dict['x_ref_l'].append(coord)
-        '''
-
         ret =  (throttle,steering,True,debug_dict)
+        p.e("debug")
+        p.e()
         return ret
 
 
@@ -184,13 +149,9 @@ class ctrlMppiWrapper(Car):
 
         # determine lateral offset
         cost = np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
-        #print(cost)
-        #print("id = %d, x = %.3f, xr = %.3f, y = %.3f, yr = %.3f"%(ids, state[0], self.raceline_points[0,ids], state[2], self.raceline_points[1,ids]))
-        # determine heading offset
-        #cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
-        # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
-        # 10cm progress equivalent to 0.1 rad error
-        # sounds bout right
+
+        # heading error cost
+        # cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         return cost*10
 
     def findClosestIds(self,state):
@@ -212,6 +173,7 @@ class ctrlMppiWrapper(Car):
 
         # reward is progress along centerline
         cost = - ( self.ss[ids] - self.ss[ids0] )
+        # instead of actual progress length, can we approximate progress with index to self.ss ?
         #cost = -(ids - ids0 + self.discretized_raceline_len)%self.discretized_raceline_len
 
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
@@ -219,6 +181,7 @@ class ctrlMppiWrapper(Car):
         # sounds bout right
 
         #return cost*10
+        # NOTE ignoring terminal cost
         return 0.0
 
     # advance car dynamics
@@ -248,9 +211,7 @@ class ctrlMppiWrapper(Car):
 
         # dx,dy in state are in global frame, yet the dynamics equations are in car frame
         # convert here
-        #x = x*cos(psi) - y*sin(psi)
         local_dx = dx*cos(-psi) - dy*sin(-psi)
-        #y = x*sin(-psi) + y*cos(-psi)
         local_dy = dx*sin(-psi) + dy*cos(-psi)
 
 
@@ -259,8 +220,6 @@ class ctrlMppiWrapper(Car):
         d_dpsi = (-(2*lf*Caf - 2*lr*Car)/(Iz*local_dx)*local_dy - (2*lf*lf*Caf + 2*lr*lr*Car)/(Iz*local_dx)*dpsi + 2*lf*Caf/Iz*steering)*dt
         debug = steering
 
-        #print("T: %.3f, S: %.3f"%(throttle,steering))
-        #print("%.3f, %.3f, %.3f"%(d_local_dx,d_local_dy,d_dpsi))
 
         local_dx += d_local_dx
         local_dy += d_local_dy
@@ -273,60 +232,3 @@ class ctrlMppiWrapper(Car):
 
         return np.array([x,dx,y,dy,psi,dpsi])
         
-    # DEBUG
-    def advSim(self,dt,sim_states,throttle,steering):
-        # simulator carries internal state and doesn't really need these
-        '''
-        x = sim_states['coord'][0]
-        y = sim_states['coord'][1]
-        psi = sim_states['heading']
-        d_psi = sim_states['omega']
-        Vx = sim_states['vf']
-        '''
-
-        #self.t += dt
-        # NOTE page 30 of book vehicle dynamics and control
-        # ref frame vehicle CG, x forward y leftward
-        # this is in car frame, rotate to world frame
-        psi = self.states[4]
-        # change ref frame to car frame
-        # vehicle longitudinal velocity
-        self.Vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
-
-        A = np.array([[0, 1, 0, 0, 0, 0],
-                    [0, 0, 0, 0, 0, 0],
-                    [0, 0, 0, 1, 0, 0],
-                    [0, 0, 0, -(2*self.Caf+2*self.Car)/(self.m*self.Vx), 0, -self.Vx-(2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*self.Vx)],
-                    [0, 0, 0, 0, 0, 1],
-                    [0, 0, 0, -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*self.Vx), 0, -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*self.Vx)]])
-        B = np.array([[0,1,0,0,0,0],[0,0,0,2*self.Caf/self.m,0,2*self.lf*self.Caf/self.Iz]]).T
-
-        u = np.array([throttle,steering])
-        # active roattion matrix of angle(rad)
-        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
-                        [0, cos(angle), 0,-sin(angle),0,0],
-                        [sin(angle),0,cos(angle),0,0,0],
-                        [0,sin(angle),0,cos(angle),0,0],
-                        [0,0,0,0,1,0],
-                        [0,0,0,0,0,1]])
-        self.old_states = self.states.copy()
-        # A and B work in vehicle frame
-        # we use R() to convert state to vehicle frame
-        # before we apply A,B
-        # then we convert state back to track/world frame
-        self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
-        #self.states_hist.append(self.states)
-        #self.local_states_hist.append(R(-psi)@self.states)
-
-        self.throttle = throttle
-        self.steering = steering
-
-        coord = (self.states[0],self.states[2])
-        heading = self.states[4]
-        # longitidunal,velocity forward positive
-        Vx = self.states[1] *cos(heading) + self.states[3] *sin(heading)
-        # lateral, sideway velocity, left positive
-        Vy = -self.states[1] *sin(heading) + self.states[3] *cos(heading)
-        omega = self.states[5]
-        sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
-        return sim_states
