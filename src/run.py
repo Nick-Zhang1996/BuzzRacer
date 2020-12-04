@@ -352,10 +352,6 @@ class Main():
             self.debug_dict['x_ref_l'] = debug_dict['x_ref_l']
             self.debug_dict['x_ref_r'] = debug_dict['x_ref_r']
             self.debug_dict['x_ref'] = debug_dict['x_ref']
-            print("l")
-            print(debug_dict['x_ref_l'])
-            print("r")
-            print(debug_dict['x_ref_r'])
 
         elif (self.controller == Controller.empty):
             throttle = 0

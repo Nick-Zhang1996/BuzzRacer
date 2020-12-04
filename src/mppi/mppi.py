@@ -212,6 +212,7 @@ class MPPI:
             epsilon = clipped_epsilon_vec.astype(np.float32)
             control = control_vec.astype(np.float32)
             x0 = state.copy()
+            x0 = x0.astype(np.float32)
             # TODO maybe remove these
             control = control.flatten()
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
@@ -225,11 +226,13 @@ class MPPI:
             p.e("cuda sim")
         else:
             p.s("cpu sim")
+            print("cpu---")
             # cost value for each simulation
             S_vec = []
             # spawn k simulations
             x0 = state.copy()
             for k in range(self.K):
+            #for k in range(1):
                 S = 0
                 x = state.copy()
                 # run each simulation for self.T timesteps
@@ -240,12 +243,10 @@ class MPPI:
                     #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
                     # FIXME ignoring additional cost
                     S += self.evaluateStepCost(x,control) 
-                    '''
                     if (k==0):
-                        print("cpu,step=%d S=%.2f"%(t,S))
-                        print(control)
-                        print(x)
-                    '''
+                        print("cpu,end of step=%d S=%.2f"%(t,S))
+                        print("x: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f"%(x[0],x[1],x[2],x[3],x[4],x[5]))
+                        print("")
                 S += self.evaluateTerminalCost(x,x0)
                 S_vec.append(S)
             p.e("cpu sim")
@@ -273,11 +274,11 @@ class MPPI:
         print("best cost in sampled traj   %.2f"%(beta))
         print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
         print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
-        print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
+        #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
         #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
         #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
-        print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
+        #print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
+        #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
         #return ref_control[0]
         p.e()

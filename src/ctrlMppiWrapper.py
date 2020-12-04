@@ -25,17 +25,19 @@ class ctrlMppiWrapper(Car):
 
     def init(self,track,sim):
         self.track = track
-        self.prepareDiscretizedRaceline()
 
         self.mppi_dt = 0.03
-        self.samples_count = 1024
-        self.horizon_steps = 20
+        self.samples_count = 512
+        self.discretized_raceline_len = 1024
+        self.horizon_steps = 30
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
         self.noise_cov = np.diag([(0.1/2)**2,radians(20.0/2)**2])
 
-        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=False,cuda_filename="mppi/mppi.cu")
+        self.prepareDiscretizedRaceline()
+
+        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=False,cuda_filename="mppi/mppi_racecar.cu")
 
         self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.mppi.evaluateStepCost = self.evaluateStepCost
@@ -50,8 +52,7 @@ class ctrlMppiWrapper(Car):
         return
 
     def prepareDiscretizedRaceline(self):
-        n_steps = 1000
-        ss = np.linspace(0,self.track.raceline_len_m,n_steps)
+        ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
         heading_vec = np.arctan2(drr[1],drr[0])
@@ -209,11 +210,8 @@ class ctrlMppiWrapper(Car):
 
         # reward is progress along centerline
         cost = - ( self.ss[ids] - self.ss[ids0] )
+        #cost = -(ids - ids0 + self.discretized_raceline_len)%self.discretized_raceline_len
 
-        # determine lateral offset
-        cost += np.sqrt((state[0]-self.raceline_points[0,ids])**2+(state[2]-self.raceline_points[1,ids])**2) * 0.5
-        # determine heading offset
-        cost += np.abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
@@ -256,6 +254,10 @@ class ctrlMppiWrapper(Car):
         d_local_dx = throttle*dt
         d_local_dy = (-(2*Caf+2*Car)/(m*local_dx)*local_dy + (-local_dx - (2*Caf*lf-2*Car*lr)/(m*local_dx)) * dpsi + 2*Caf/m*steering)*dt
         d_dpsi = (-(2*lf*Caf - 2*lr*Car)/(Iz*local_dx)*local_dy - (2*lf*lf*Caf + 2*lr*lr*Car)/(Iz*local_dx)*dpsi + 2*lf*Caf/Iz*steering)*dt
+        debug = steering
+
+        #print("T: %.3f, S: %.3f"%(throttle,steering))
+        #print("%.3f, %.3f, %.3f"%(d_local_dx,d_local_dy,d_dpsi))
 
         local_dx += d_local_dx
         local_dy += d_local_dy
