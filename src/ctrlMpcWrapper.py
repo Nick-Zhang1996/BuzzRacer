@@ -54,6 +54,8 @@ class ctrlMpcWrapper(Car):
         debug_dict = {}
         t.s("get ref point")
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=reverse)
+        debug_dict['crosstrack_error'] = e_cross
+        debug_dict['heading_error'] = e_heading
         t.e("get ref point")
 
         t.s("assemble ref")

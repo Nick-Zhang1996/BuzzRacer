@@ -2,6 +2,7 @@
 // IMPORTANT make sure the macro declarations are accurate
 
 #define SAMPLE_COUNT 8192
+//#define SAMPLE_COUNT 1024
 #define HORIZON 30
 
 #define CONTROL_DIM 2

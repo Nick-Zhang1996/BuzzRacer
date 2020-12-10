@@ -58,7 +58,7 @@ class Main():
         self.dt = 0.01
 
         # noise in simulation
-        self.sim_noise = True
+        self.sim_noise = False
         # EXTREME noise
         self.sim_noise_cov = 10*np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
 
@@ -95,7 +95,7 @@ class Main():
         # set control pipeline
         #self.controller = Controller.stanley
         self.controller = Controller.dynamicMpc
-        #self.controller = Controller.mppi
+        self.controller = Controller.mppi
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -153,7 +153,7 @@ class Main():
             
 
         # log with undetermined format
-        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],}
+        self.debug_dict = {'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],'crosstrack_error':[],'heading_error':[]}
 
         # prepare log
         if (self.enableLog):
@@ -338,6 +338,8 @@ class Main():
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
             #self.debug_dict['x_project'] = debug_dict['x_project']
             self.debug_dict['x_ref'] = debug_dict['x_ref']
+            self.debug_dict['crosstrack_error'].append(debug_dict['crosstrack_error'])
+            self.debug_dict['heading_error'].append(debug_dict['heading_error'])
             if not valid:
                 print_warning("ctrlCar invalid retval")
                 exit(1)
@@ -354,9 +356,12 @@ class Main():
         elif (self.controller == Controller.mppi):
             # TODO debugging...
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
+            print("T = %.2f, S = %.2f"%(throttle,steering))
             self.debug_dict['x_ref_l'] = debug_dict['x_ref_l']
             self.debug_dict['x_ref_r'] = debug_dict['x_ref_r']
             self.debug_dict['x_ref'] = debug_dict['x_ref']
+            self.debug_dict['crosstrack_error'].append(debug_dict['crosstrack_error'])
+            self.debug_dict['heading_error'].append(debug_dict['heading_error'])
 
         elif (self.controller == Controller.empty):
             throttle = 0

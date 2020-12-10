@@ -30,13 +30,13 @@ class ctrlMppiWrapper(Car):
         # NOTE NOTE NOTE
         # update mppi_racecar.cu whenever you change parameter here
         self.mppi_dt = 0.03
-        self.samples_count = 8192
+        self.samples_count = 8192 #8192
         self.discretized_raceline_len = 1024
         self.horizon_steps = 30
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
-        self.noise_cov = np.diag([(0.1/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(1.0/2)**2,radians(40.0/2)**2])
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
@@ -86,6 +86,10 @@ class ctrlMppiWrapper(Car):
         p = self.p
         p.s()
         # get an estimate for current distance along raceline
+        debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[],'crosstrack_error':[],'heading_error':[]}
+        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
+        debug_dict['crosstrack_error'] = e_cross
+        debug_dict['heading_error'] = e_heading
         p.s("local traj")
         if self.last_s is None:
             retval = track.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
@@ -124,7 +128,6 @@ class ctrlMppiWrapper(Car):
         # simulate where mppi think where the car will end up with
         # with synthesized control sequence
         p.s("debug")
-        debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[]}
         sim_state = state.copy()
         for i in range(self.horizon_steps):
             sim_state = self.applyDiscreteDynamics(sim_state,uu[i],self.mppi_dt)
