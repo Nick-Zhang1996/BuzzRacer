@@ -1,13 +1,12 @@
 // cuda code for MPPI with dynamic bicycle model
 // IMPORTANT make sure the macro declarations are accurate
 
-#define SAMPLE_COUNT 8192
-//#define SAMPLE_COUNT 1024
-#define HORIZON 30
+#define SAMPLE_COUNT %(SAMPLE_COUNT)s
+#define HORIZON %(HORIZON)s
 
-#define CONTROL_DIM 2
-#define STATE_DIM 6
-#define RACELINE_LEN 1024
+#define CONTROL_DIM %(CONTROL_DIM)s
+#define STATE_DIM %(STATE_DIM)s
+#define RACELINE_LEN %(RACELINE_LEN)s
 
 #define Caf (5*0.25*0.1667*9.81)
 #define Car (5*0.25*0.1667*9.81)
@@ -17,8 +16,8 @@
 #define Mass (0.1667)
 
 
-#define TEMPERATURE 1
-#define DT 0.03
+#define TEMPERATURE %(TEMPERATURE)s
+#define DT %(DT)s
 
 #define PI 3.141592654f
 
@@ -125,7 +124,7 @@ float evaluate_terminal_cost( float* state, float* u,float* x0, float in_racelin
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -10.0*float((idx - idx0 + RACELINE_LEN)%(RACELINE_LEN))*0.01;
+  //return -10.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
   // NOTE ignoring terminal cost
   return 0.0;
 }

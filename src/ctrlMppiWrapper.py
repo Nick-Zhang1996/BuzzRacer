@@ -41,7 +41,7 @@ class ctrlMppiWrapper(Car):
 
         self.prepareDiscretizedRaceline()
 
-        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
+        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
         self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.mppi.evaluateStepCost = self.evaluateStepCost

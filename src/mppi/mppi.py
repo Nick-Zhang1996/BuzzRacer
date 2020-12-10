@@ -11,12 +11,12 @@ from common import *
 # Model Predictive Path Integral
 
 class MPPI:
-    def __init__(self,samples_count, horizon_steps, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
+    def __init__(self,samples_count, horizon_steps, state_dim, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
         self.K = samples_count
-
 
         self.T = horizon_steps
         self.m = control_dim
+        self.state_dim = state_dim
         self.temperature = float(temperature)
         self.dt = dt
         # variation of noise added to ref control
@@ -34,7 +34,11 @@ class MPPI:
                 cuda_filename = "./mppi.cu"
             with open(cuda_filename,"r") as f:
                 code = f.read()
-            mod = SourceModule(code)
+
+            # prepare constants
+            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt}
+
+            mod = SourceModule(code % cuda_code_macros)
 
             if (self.K < 1024):
                 # if K is small only employ one grid
