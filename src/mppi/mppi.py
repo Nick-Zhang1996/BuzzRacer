@@ -242,7 +242,18 @@ class MPPI:
             S_vec = cost
             p.e("cuda sim")
         else:
-            # FIXME
+            p.s("prep epsilon")
+            self.rand_vals = np.random.multivariate_normal([0.0]*self.m, self.noise_cov, size=(self.K,self.T))
+
+            p.e("prep epsilon")
+            # assemble control, ref_control is broadcasted along axis 0 (K)
+            control_vec = np.zeros([self.K,self.T,self.m])
+            for i in range(self.m):
+                control_vec[:,:,i] = ref_control[:,i]
+                control_vec[:,:,i] += np.clip(self.rand_vals[:,:,i],control_limit[i,0],control_limit[i,1])
+
+            # NOTE which is better
+            clipped_epsilon_vec = control_vec - ref_control
             p.s("cpu sim")
             # cost value for each simulation
             S_vec = []
