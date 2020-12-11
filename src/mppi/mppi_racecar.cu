@@ -30,14 +30,17 @@
 __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][3]);
 __device__
-float evaluate_terminal_cost( float* state, float* u,float* x0, float in_raceline[][3]);
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][3]);
 
 // forward dynamics by one step
 __device__
 void forward_dynamics( float* x, float* u);
 
+extern "C" {
+// in_ref_control: dim horizon*control_dim
+// in_epsilon: dim samples*horizon*control_dim
 __global__
-void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, float* in_epsilon, float in_raceline[][3]){
+void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* in_epsilon, float in_raceline[][3]){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -50,12 +53,15 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, flo
     x[i] = *(x0 + i);
   }
 
-  float* u = in_control + id*HORIZON*CONTROL_DIM; 
-
   // initialize cost
   float cost = 0;
   // run simulation
   for (int i=0; i<HORIZON; i++){
+    float _u[CONTROL_DIM];
+    float* u = _u;
+    for (int j=0; j<CONTROL_DIM; j++){
+      u[j] = in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+    }
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
 
@@ -71,9 +77,11 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_control, flo
     u += CONTROL_DIM;
 
   }
-  cost += evaluate_terminal_cost(x,u,x0,in_raceline);
+  cost += evaluate_terminal_cost(x,x0,in_raceline);
   out_cost[id] = cost;
 
+}
+//extern c
 }
 
 
@@ -114,7 +122,7 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][3]){
 }
 
 __device__
-float evaluate_terminal_cost( float* state, float* u,float* x0, float in_raceline[][3]){
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][3]){
   int idx0,idx;
   float dist;
 

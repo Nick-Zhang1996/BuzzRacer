@@ -31,7 +31,6 @@ cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":1024}
 
 mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
-
 cuda_init_curand_kernel = mod.get_function("init_curand_kernel")
 cuda_generate_random_var = mod.get_function("generate_normal_with_limits")
 

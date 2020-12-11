@@ -87,9 +87,9 @@ class ctrlMppiWrapper(Car):
         p.s()
         # get an estimate for current distance along raceline
         debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[],'crosstrack_error':[],'heading_error':[]}
-        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
-        debug_dict['crosstrack_error'] = e_cross
-        debug_dict['heading_error'] = e_heading
+        #e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
+        #debug_dict['crosstrack_error'] = e_cross
+        #debug_dict['heading_error'] = e_heading
         p.s("local traj")
         if self.last_s is None:
             retval = track.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
@@ -119,7 +119,7 @@ class ctrlMppiWrapper(Car):
         p.e("prep")
 
         p.s("mppi")
-        uu = self.mppi.control(state.copy(),ref_control.copy(),self.control_limit)
+        uu = self.mppi.control(state.copy(),self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
