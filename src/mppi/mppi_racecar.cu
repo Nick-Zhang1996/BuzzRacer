@@ -1,12 +1,14 @@
 // cuda code for MPPI with dynamic bicycle model
 // IMPORTANT make sure the macro declarations are accurate
 
+#include <curand_kernel.h>
 #define SAMPLE_COUNT %(SAMPLE_COUNT)s
 #define HORIZON %(HORIZON)s
 
 #define CONTROL_DIM %(CONTROL_DIM)s
 #define STATE_DIM %(STATE_DIM)s
 #define RACELINE_LEN %(RACELINE_LEN)s
+#define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
 #define Caf (5*0.25*0.1667*9.81)
 #define Car (5*0.25*0.1667*9.81)
@@ -173,6 +175,64 @@ void forward_dynamics(float* state,float* u){
 
   return;
 }
+
+
+__device__ curandState_t* curand_states[CURAND_KERNEL_N];
+
+extern "C" {
+__global__ void init_curand_kernel(int seed){
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  if (id >= SAMPLE_COUNT*HORIZON*CONTROL_DIM) return;
+
+  curandState_t* s = new curandState_t;
+  if (s != 0) {
+    curand_init(seed, id, 0, s);
+  } else {
+    printf("error initializing curand kernel\n");
+  }
+
+  curand_states[id] = s;
+}
+
+// limits: [u0_low,u0_high,u1_low,u1_high...]
+__global__ void generate_normal_with_limits(float *values,float* scales, float* limits){
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  
+  // failsafe, should never be true
+  if (id >= CURAND_KERNEL_N) {return;}
+
+  float _limits[CONTROL_DIM*2];
+  for (int i=0; i<CONTROL_DIM*2; i++){
+    _limits[i] = limits[i];
+  }
+
+  float _scales[CONTROL_DIM*2];
+  for (int i=0; i<CONTROL_DIM*2; i++){
+    _scales[i] = scales[i];
+  }
+
+  curandState_t s = *curand_states[id];
+  int start = id*(SAMPLE_COUNT*HORIZON*CONTROL_DIM)/CURAND_KERNEL_N;
+  int end = min(SAMPLE_COUNT*HORIZON*CONTROL_DIM,(id+1)*(SAMPLE_COUNT*HORIZON*CONTROL_DIM)/CURAND_KERNEL_N);
+  //printf("id %%d, %%d - %%d\n",id, start, end);
+
+  for(int i=start; i < end; i+=CONTROL_DIM ) {
+    for (int j=0; j<CONTROL_DIM; j++){
+      float val = curand_normal(&s) * _scales[j];
+      val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
+      val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
+      values[i+j] = val;
+    }
+    
+  }
+  *curand_states[id] = s;
+}
+
+// extern "C"
+}
+
+
+
 
 // dummy placeholder main() to trick compiler into compiling when testing
 /*
