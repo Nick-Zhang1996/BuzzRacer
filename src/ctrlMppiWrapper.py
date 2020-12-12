@@ -30,18 +30,21 @@ class ctrlMppiWrapper(Car):
         # NOTE NOTE NOTE
         # update mppi_racecar.cu whenever you change parameter here
         self.mppi_dt = 0.03
-        self.samples_count = 8192 #8192
+        self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 30
+        self.horizon_steps = 15
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
+        # default
         self.noise_cov = np.diag([(1.0/2)**2,radians(40.0/2)**2])
-        self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+        # restricting to test terminal cost
+        #self.noise_cov = np.diag([(1.0/2)**2,radians(30.0/2)**2])
+        self.control_limit = np.array([[-2.0,2.0],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
 
-        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=False,cuda_filename="mppi/mppi_racecar.cu")
+        self.mppi = MPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
         self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.mppi.evaluateStepCost = self.evaluateStepCost
@@ -156,6 +159,8 @@ class ctrlMppiWrapper(Car):
         # heading error cost
         # cost += abs((self.raceline_headings[ids] - heading + np.pi) % (2*np.pi) - np.pi)
         return cost*10
+        # FIXME
+        #return 0.0
 
     def findClosestIds(self,state):
         x = state[0]
@@ -175,17 +180,21 @@ class ctrlMppiWrapper(Car):
         ids = self.findClosestIds(state)
 
         # reward is progress along centerline
-        cost = - ( self.ss[ids] - self.ss[ids0] )
+        cost_real = - ( self.ss[ids] - self.ss[ids0] )
+        #print("real = %.4f"%(cost_real))
         # instead of actual progress length, can we approximate progress with index to self.ss ?
-        #cost = -(ids - ids0 + self.discretized_raceline_len)%self.discretized_raceline_len
+        # 0.01 is to roughly convert indices difference into path length difference in meter
+        cost_approx = -((ids - ids0 + self.discretized_raceline_len)%self.discretized_raceline_len)*0.01
+        #print("approx = %.4f"%(cost_approx))
+        #print((cost_approx - cost_real)/cost_real)
 
         # sanity check, 0.5*0.1m offset equivalent to 0.1 rad(5deg) heading error
         # 10cm progress equivalent to 0.1 rad error
         # sounds bout right
 
-        #return cost*10
+        return cost_real*10
         # NOTE ignoring terminal cost
-        return 0.0
+        #return 0.0
 
     # advance car dynamics
     def applyDiscreteDynamics(self,state,control,dt):

@@ -646,7 +646,7 @@ class Main():
         sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
         self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
         #print(self.car_state)
-        print("v = %.2f"%(sim_states['vf']))
+        #print("v = %.2f"%(sim_states['vf']))
         self.new_state_update.set()
 
     def stopAdvSimulation(self):

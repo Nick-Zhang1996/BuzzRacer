@@ -77,7 +77,13 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     u += CONTROL_DIM;
 
   }
-  cost += evaluate_terminal_cost(x,x0,in_raceline);
+  float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
+  if (id==0){
+    //printf("terminal: %%.2f\n",terminal_cost/cost);
+    //printf("terminal: %%.2f\n",terminal_cost);
+  }
+  //cost += evaluate_terminal_cost(x,x0,in_raceline);
+  cost += terminal_cost;
   out_cost[id] = cost;
 
 }
@@ -134,7 +140,7 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][3]){
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -10.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
+  //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
   // NOTE ignoring terminal cost
   return 0.0;
 }
