@@ -32,7 +32,7 @@ class ctrlMppiWrapper(Car):
         self.mppi_dt = 0.03
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 15
+        self.horizon_steps = 30
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0

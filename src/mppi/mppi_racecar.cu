@@ -38,9 +38,9 @@ void forward_dynamics( float* x, float* u);
 
 extern "C" {
 // in_ref_control: dim horizon*control_dim
-// in_epsilon: dim samples*horizon*control_dim
+// in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
 __global__
-void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* in_epsilon, float in_raceline[][3]){
+void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][3]){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -53,6 +53,12 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     x[i] = *(x0 + i);
   }
 
+  float _limits[CONTROL_DIM*2];
+  for (int i=0; i<CONTROL_DIM*2; i++){
+    _limits[i] = limits[i];
+  }
+
+
   // initialize cost
   float cost = 0;
   // run simulation
@@ -60,7 +66,12 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     float _u[CONTROL_DIM];
     float* u = _u;
     for (int j=0; j<CONTROL_DIM; j++){
-      u[j] = in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      float val = in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
+      val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
+      in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val - in_ref_control[i*CONTROL_DIM + j];
+      u[j] = val;
+
     }
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
@@ -209,16 +220,11 @@ __global__ void init_curand_kernel(int seed){
 }
 
 // limits: [u0_low,u0_high,u1_low,u1_high...]
-__global__ void generate_normal_with_limits(float *values,float* scales, float* limits){
+__global__ void generate_random_normal(float *values,float* scales){
   int id = threadIdx.x + blockIdx.x * blockDim.x;
   
   // failsafe, should never be true
   if (id >= CURAND_KERNEL_N) {return;}
-
-  float _limits[CONTROL_DIM*2];
-  for (int i=0; i<CONTROL_DIM*2; i++){
-    _limits[i] = limits[i];
-  }
 
   float _scales[CONTROL_DIM*2];
   for (int i=0; i<CONTROL_DIM*2; i++){
@@ -233,8 +239,6 @@ __global__ void generate_normal_with_limits(float *values,float* scales, float* 
   for(int i=start; i < end; i+=CONTROL_DIM ) {
     for (int j=0; j<CONTROL_DIM; j++){
       float val = curand_normal(&s) * _scales[j];
-      val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
-      val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
       values[i+j] = val;
     }
     

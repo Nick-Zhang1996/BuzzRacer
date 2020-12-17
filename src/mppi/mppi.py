@@ -24,6 +24,8 @@ class MPPI:
         self.p = execution_timer(True)
         # whether to use cuda
         self.cuda = cuda
+
+        self.old_ref_control = np.zeros([self.T,self.m],dtype=np.float32)
         if cuda:
             self.curand_kernel_n = 1024
             print_info("loading cuda module ...")
@@ -54,7 +56,7 @@ class MPPI:
             print("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
 
             self.cuda_init_curand_kernel = mod.get_function("init_curand_kernel")
-            self.cuda_generate_random_var = mod.get_function("generate_normal_with_limits")
+            self.cuda_generate_random_var = mod.get_function("generate_random_normal")
             self.cuda_evaluate_control_sequence = mod.get_function("evaluate_control_sequence")
 
             seed = np.int32(int(time()*10000))
@@ -75,6 +77,137 @@ class MPPI:
             sleep(1)
 
         return
+
+    # given state, apply MPPI and find control
+    # state: current plant state
+    # ref_control: reference control, dim (self.T,self.m)
+    # control_limit: min,max for each control element dim self.m*2 (min,max)
+    # control_cov: covariance matrix for noise added to ref_control
+    # specifically for racecar
+    def control(self,state,control_limit,noise_cov=None,cuda=None):
+        if noise_cov is None:
+            noise_cov = self.noise_cov
+        if cuda is None:
+            cuda = self.cuda
+        p = self.p
+        p.s()
+
+        # NOTE for use in epsilon induced cost
+        #control_cost_mtx_inv = np.linalg.inv(noise_cov)
+        #control_cost_mtx_inv = np.eye(self.m)
+
+        # start from zero 
+        #ref_control = np.zeros([self.T,self.m])
+        #ref_control = self.old_ref_control
+        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+
+        if (cuda):
+            # NVIDIA YES !!!
+            # CUDA implementation
+
+            p.s("prep ref ctrl")
+            # assemble limites
+            #limits = np.array([-1,1,-2,2],dtype=np.float32)
+            control_limit = np.array(control_limit,dtype=np.float32).flatten()
+            device_limits = drv.to_device(control_limit)
+
+            scales = np.array([np.sqrt(noise_cov[0,0]),np.sqrt(noise_cov[1,1])],dtype=np.float32)
+            device_scales = drv.to_device(scales)
+
+            self.cuda_generate_random_var(self.device_rand_vals,device_scales,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+
+            p.e("prep ref ctrl")
+
+            p.s("cuda sim")
+            cost = np.zeros([self.K]).astype(np.float32)
+            # reference control, in standard mppi this should be zero
+            # we leave the entry point in api for possible future modification
+            x0 = state.copy()
+            x0 = x0.astype(np.float32)
+            ref_control = ref_control.astype(np.float32)
+            ref_control = ref_control.flatten()
+            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize
+            assert np.sum(memCount)<8370061312
+            #print("x0")
+            #print(x0)
+            self.cuda_evaluate_control_sequence( 
+                    drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline),
+                    block=self.cuda_block_size, grid=self.cuda_grid_size)
+
+            # NOTE rand_vals is updated to respect control limits
+            self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
+            S_vec = cost
+            p.e("cuda sim")
+        else:
+            p.s("prep epsilon")
+            self.rand_vals = np.random.multivariate_normal([0.0]*self.m, self.noise_cov, size=(self.K,self.T))
+
+            p.e("prep epsilon")
+            # assemble control, ref_control is broadcasted along axis 0 (K)
+            control_vec = np.zeros([self.K,self.T,self.m])
+            for i in range(self.m):
+                control_vec[:,:,i] = ref_control[:,i]
+                control_vec[:,:,i] += np.clip(self.rand_vals[:,:,i],control_limit[i,0],control_limit[i,1])
+
+            # NOTE which is better
+            clipped_epsilon_vec = control_vec - ref_control
+            p.s("cpu sim")
+            # cost value for each simulation
+            S_vec = []
+            # spawn k simulations
+            x0 = state.copy()
+            for k in range(self.K):
+                S = 0
+                x = state.copy()
+                # run each simulation for self.T timesteps
+                for t in range(self.T):
+                    control = control_vec[k,t,:]
+                    x = self.applyDiscreteDynamics(x,control,self.dt)
+                    # NOTE ignoring epsilon induced cost
+                    #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
+                    # FIXME ignoring additional cost
+                    S += self.evaluateStepCost(x,control) 
+
+                terminal_S = self.evaluateTerminalCost(x,x0)
+                #print(np.abs(terminal_S)/(np.abs(S)))
+                S += terminal_S
+
+                S_vec.append(S)
+            p.e("cpu sim")
+
+        p.s("post")
+        # Calculate statistics of cost function
+        S_vec = np.array(S_vec)
+        beta = np.min(S_vec)
+
+        # calculate weights
+        weights = np.exp(- (S_vec - beta)/self.temperature)
+        weights = weights / np.sum(weights)
+        #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
+
+
+        # synthesize control signal
+        self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
+        ref_control = ref_control.reshape([self.T,self.m])
+        for t in range(self.T):
+            for i in range(self.m):
+                ref_control[t,i] = ref_control[t,i] + np.sum(weights * self.rand_vals[:,t,i])
+        self.old_ref_control = ref_control.copy()
+        p.e("post")
+
+        # evaluate performance of synthesized control
+        #print("best cost in sampled traj   %.2f"%(beta))
+        #print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
+        #print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
+        #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
+        #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
+        #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
+        #print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
+        #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
+
+        #return ref_control[0]
+        p.e()
+        return ref_control
 
     # given state, apply MPPI and find control
     # state: current plant state
@@ -180,132 +313,6 @@ class MPPI:
         print("cost of const control(-1) %.2f"%(self.evalControl(state,[[-1,-1]]*self.T)))
         print("cost of const control(1) %.2f"%(self.evalControl(state,[[1,1]]*self.T)))
         '''
-
-        #return ref_control[0]
-        p.e()
-        return ref_control
-
-    # given state, apply MPPI and find control
-    # state: current plant state
-    # ref_control: reference control, dim (self.T,self.m)
-    # control_limit: min,max for each control element dim self.m*2 (min,max)
-    # control_cov: covariance matrix for noise added to ref_control
-    # specifically for racecar
-    def control(self,state,control_limit,noise_cov=None,cuda=None):
-        if noise_cov is None:
-            noise_cov = self.noise_cov
-        if cuda is None:
-            cuda = self.cuda
-        p = self.p
-        p.s()
-
-        # NOTE for use in epsilon induced cost
-        #control_cost_mtx_inv = np.linalg.inv(noise_cov)
-        #control_cost_mtx_inv = np.eye(self.m)
-
-        ref_control = np.zeros([self.T,self.m])
-
-        if (cuda):
-            # NVIDIA YES !!!
-            # CUDA implementation
-
-            p.s("prep ref ctrl")
-            # assemble limites
-            #limits = np.array([-1,1,-2,2],dtype=np.float32)
-            control_limit = np.array(control_limit,dtype=np.float32).flatten()
-            device_limits = drv.to_device(control_limit)
-
-            scales = np.array([np.sqrt(noise_cov[0,0]),np.sqrt(noise_cov[1,1])],dtype=np.float32)
-            device_scales = drv.to_device(scales)
-
-            self.cuda_generate_random_var(self.device_rand_vals,device_scales,device_limits,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-            # in case we need the generated random vals
-            self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
-
-            p.e("prep ref ctrl")
-
-            p.s("cuda sim")
-            cost = np.zeros([self.K]).astype(np.float32)
-            # reference control, in standard mppi this should be zero
-            # we leave the entry point in api for possible future modification
-            x0 = state.copy()
-            x0 = x0.astype(np.float32)
-            ref_control = ref_control.astype(np.float32)
-            ref_control = ref_control.flatten()
-            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize
-            assert np.sum(memCount)<8370061312
-            #print("x0")
-            #print(x0)
-            self.cuda_evaluate_control_sequence( 
-                    drv.Out(cost),drv.In(x0),drv.In(ref_control), self.device_rand_vals,drv.In(self.discretized_raceline),
-                    block=self.cuda_block_size, grid=self.cuda_grid_size)
-            S_vec = cost
-            p.e("cuda sim")
-        else:
-            p.s("prep epsilon")
-            self.rand_vals = np.random.multivariate_normal([0.0]*self.m, self.noise_cov, size=(self.K,self.T))
-
-            p.e("prep epsilon")
-            # assemble control, ref_control is broadcasted along axis 0 (K)
-            control_vec = np.zeros([self.K,self.T,self.m])
-            for i in range(self.m):
-                control_vec[:,:,i] = ref_control[:,i]
-                control_vec[:,:,i] += np.clip(self.rand_vals[:,:,i],control_limit[i,0],control_limit[i,1])
-
-            # NOTE which is better
-            clipped_epsilon_vec = control_vec - ref_control
-            p.s("cpu sim")
-            # cost value for each simulation
-            S_vec = []
-            # spawn k simulations
-            x0 = state.copy()
-            for k in range(self.K):
-                S = 0
-                x = state.copy()
-                # run each simulation for self.T timesteps
-                for t in range(self.T):
-                    control = control_vec[k,t,:]
-                    x = self.applyDiscreteDynamics(x,control,self.dt)
-                    # NOTE ignoring epsilon induced cost
-                    #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
-                    # FIXME ignoring additional cost
-                    S += self.evaluateStepCost(x,control) 
-
-                terminal_S = self.evaluateTerminalCost(x,x0)
-                #print(np.abs(terminal_S)/(np.abs(S)))
-                S += terminal_S
-
-                S_vec.append(S)
-            p.e("cpu sim")
-
-        p.s("post")
-        # Calculate statistics of cost function
-        S_vec = np.array(S_vec)
-        beta = np.min(S_vec)
-
-        # calculate weights
-        weights = np.exp(- (S_vec - beta)/self.temperature)
-        weights = weights / np.sum(weights)
-        #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
-
-
-        # synthesize control signal
-        self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
-        ref_control = ref_control.reshape([self.T,self.m])
-        for t in range(self.T):
-            for i in range(self.m):
-                ref_control[t,i] = ref_control[t,i] + np.sum(weights * self.rand_vals[:,t,i])
-        p.e("post")
-
-        # evaluate performance of synthesized control
-        #print("best cost in sampled traj   %.2f"%(beta))
-        #print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
-        #print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
-        #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
-        #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
-        #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        #print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
-        #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
         #return ref_control[0]
         p.e()
