@@ -63,11 +63,14 @@ class ctrlMppiWrapper(Car):
         rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
         heading_vec = np.arctan2(drr[1],drr[0])
+        vv = self.track.sToV(ss)
+
         # parameter, distance along track
         self.ss = ss
         self.raceline_points = np.array(rr)
         self.raceline_headings = heading_vec
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings]).T
+        self.raceline_velocity = vv
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv]).T
         return
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
