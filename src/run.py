@@ -68,7 +68,7 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = False
+        self.enableLaptimer = True
 
         # run the track in reverse direction
         self.reverse = False
@@ -95,7 +95,7 @@ class Main():
         # set control pipeline
         #self.controller = Controller.stanley
         self.controller = Controller.dynamicMpc
-        self.controller = Controller.mppi
+        #self.controller = Controller.mppi
 
         if (self.controller == Controller.joystick):
             self.joystick = Joystick()
@@ -319,7 +319,7 @@ class Main():
         if (self.enableLaptimer):
             retval = self.laptimer.update((self.car_state[0],self.car_state[1]))
             if retval:
-                self.laptimer.announce()
+                #self.laptimer.announce()
                 print(self.laptimer.last_laptime)
 
         # apply controller
@@ -356,7 +356,7 @@ class Main():
         elif (self.controller == Controller.mppi):
             # TODO debugging...
             throttle,steering,valid,debug_dict = self.car.ctrlCar(self.car_state,self.track,reverse=self.reverse)
-            print("T = %.2f, S = %.2f"%(throttle,steering))
+            #print("T = %.2f, S = %.2f"%(throttle,steering))
             self.debug_dict['x_ref_l'] = debug_dict['x_ref_l']
             self.debug_dict['x_ref_r'] = debug_dict['x_ref_r']
             self.debug_dict['x_ref'] = debug_dict['x_ref']
@@ -368,6 +368,7 @@ class Main():
             steering = 0
             
         
+        #print("V = %.2f"%(self.car_state[3]))
         self.car.steering = steering
         self.car.throttle = throttle
 

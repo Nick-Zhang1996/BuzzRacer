@@ -138,8 +138,8 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][4]){
   // velocity cost
   // current velocity - target velocity at closest ref point
   float dv = sqrtf(state[1]*state[1] + state[3]*state[3]) - in_raceline[idx][3];
-  //float cost = dist + dv*dv;
-  float cost = dist;
+  float cost = dist + 0.1*dv*dv;
+  //float cost = dist;
   return cost*5.0;
 }
 

@@ -32,12 +32,12 @@ class ctrlMppiWrapper(Car):
         self.mppi_dt = 0.03
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 30
+        self.horizon_steps = 20
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
         # default
-        self.noise_cov = np.diag([(1.0/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(2.0/2)**2,radians(40.0/2)**2])
         # restricting to test terminal cost
         #self.noise_cov = np.diag([(1.0/2)**2,radians(30.0/2)**2])
         self.control_limit = np.array([[-2.0,2.0],[-radians(27.1),radians(27.1)]])
