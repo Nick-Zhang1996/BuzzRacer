@@ -81,7 +81,8 @@ class Main():
 
         # a list of Car class object running
         car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,1.7*0.6), start_delay=0.0)
-        car1 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.7*0.6), start_delay=1.0)
+        car1 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
+        #car2 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
         self.cars = [car0, car1]
 
 
