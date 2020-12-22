@@ -6,7 +6,7 @@ import pickle
 from threading import Event,Lock
 from time import sleep,time
 from PIL import Image
-from math import pi,radians,degrees,asin,acos
+from math import pi,radians,degrees,asin,acos,isnan
 
 from common import *
 from vicon import Vicon
@@ -67,7 +67,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
+        self.saveGif = True
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = True
 
@@ -80,12 +80,15 @@ class Main():
         self.track = self.prepareRcpTrack()
 
         # a list of Car class object running
-        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,1.7*0.6), start_delay=0.0)
-        car1 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
+        # the pursuer car
+        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.7*0.6), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
         car0.opponents = [car1]
         car0.initTrackOpponents()
+        car1.opponents = []
+        car1.initTrackOpponents()
         #car2 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
         self.cars = [car0, car1]
 
@@ -219,11 +222,18 @@ class Main():
                 img = self.track.drawCar(img, car.state, car.steering)
 
             # TODO 
+            '''
             if 'opponent' in self.debug_dict[0]:
                 x_ref = self.debug_dict[0]['opponent']
                 for coord in x_ref[0]:
                     x,y = coord
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+            '''
+
+            x_ref = self.debug_dict[0]['x_ref']
+            for coord in x_ref:
+                x,y = coord
+                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
             self.visualization_ts = time()
 
@@ -265,7 +275,7 @@ class Main():
             car.new_state_update.clear()
             # retrieve car state from visual tracking update
             car.updateState(car)
-            print("car %d T: %.2f S: %.2f, y pos %.2f"%(i,car.throttle, car.steering, car.state[1]))
+            #print("car %d T: %.2f S: %.2f, y pos %.2f"%(i,car.throttle, car.steering, car.state[1]))
 
             # force motor freeze if start_delay has not been reached
             if (self.cars[i].stateUpdateSource == StateUpdateSource.dynamic_simulator \
@@ -323,6 +333,8 @@ class Main():
             elif (car.controller == Controller.mppi):
                 # TODO debugging...
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
+                if isnan(steering):
+                    print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
                 self.debug_dict[i] = self.debug_dict[i] | debug_dict
 
@@ -444,7 +456,7 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 0.7}
+                         'max_throttle' : 2.0}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -457,6 +469,9 @@ class Main():
 
         if config_name == "porsche":
             car_setting = porsche_setting
+        elif config_name == "porsche_slow":
+            car_setting = porsche_setting
+            car_setting['max_throttle'] = 1.5
         elif config_name == "lambo":
             car_setting = lambo_setting
         else:
@@ -464,12 +479,12 @@ class Main():
 
         if (state_update_source == StateUpdateSource.simulator):
             car_setting['serial_port'] = None
-            car_setting['max_throttle'] = 1.0
-            print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
+            #car_setting['max_throttle'] = 1.0
+            #print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
         elif (state_update_source == StateUpdateSource.dynamic_simulator):
             car_setting['serial_port'] = None
-            car_setting['max_throttle'] = 1.0
-            print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
+            #car_setting['max_throttle'] = 1.0
+            #print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
 
         # select right controller subclass to instantiate for car
         if (controller == Controller.dynamicMpc):
@@ -671,6 +686,8 @@ class Main():
         # update car
         sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
         car.state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
+        if isnan(sim_states['heading']):
+            print("error")
         #print(car.state)
         #print("v = %.2f"%(sim_states['vf']))
         car.new_state_update.set()

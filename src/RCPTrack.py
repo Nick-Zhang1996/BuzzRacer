@@ -1352,7 +1352,6 @@ class RCPtrack(Track):
 
         s_vec = [s0]
         v_vec = [v0]
-        coord_vec = [local_ctrl_pnt]
         heading_vec = [heading0]
         k_vec = [curvature]
         k_sign_vec = [cross_curvature]
@@ -1383,8 +1382,7 @@ class RCPtrack(Track):
         # find ref coordinates for projection ref points
 
         t.s("coord")
-        coord_k = np.array(splev(s_vec,self.raceline_s)).T
-        coord_vec = np.vstack([coord_vec,coord_k])
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
         t.e("coord")
 
         t.s("K")
@@ -1450,7 +1448,6 @@ class RCPtrack(Track):
 
         s_vec = [s0]
         v_vec = [v0]
-        coord_vec = [local_ctrl_pnt]
 
         for k in range(1,p+1):
             s_k = s_vec[-1] + v_vec[-1] * dt
@@ -1466,8 +1463,7 @@ class RCPtrack(Track):
         # find ref heading for projection ref points
         s_vec = np.array(s_vec)%self.raceline_len_m
         # find ref coordinates for projection ref points
-        coord_k = np.array(splev(s_vec,self.raceline_s)).T
-        coord_vec = np.vstack([coord_vec,coord_k])
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
 
         return coord_vec
 

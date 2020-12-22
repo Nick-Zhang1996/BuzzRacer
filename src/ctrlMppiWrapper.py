@@ -1,7 +1,7 @@
 from car import Car
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import numpy as np
-from time import time
+from time import time,sleep
 from timeUtil import execution_timer
 from mppi import MPPI
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
@@ -37,10 +37,10 @@ class ctrlMppiWrapper(Car):
         self.state_dim = 6
         self.temperature = 1.0
         # default
-        self.noise_cov = np.diag([(2.0/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
         # restricting to test terminal cost
         #self.noise_cov = np.diag([(1.0/2)**2,radians(30.0/2)**2])
-        self.control_limit = np.array([[-2.0,2.0],[-radians(27.1),radians(27.1)]])
+        self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
 
@@ -89,8 +89,6 @@ class ctrlMppiWrapper(Car):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,state,track,v_override=None,reverse=False):
-
-
         p = self.p
         p.s()
         # get an estimate for current distance along raceline
@@ -135,7 +133,7 @@ class ctrlMppiWrapper(Car):
         p.e("prep")
 
         p.s("mppi")
-        uu = self.mppi.control(state.copy(),self.control_limit)
+        uu = self.mppi.control(state.copy(),self.opponent_prediction,self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
