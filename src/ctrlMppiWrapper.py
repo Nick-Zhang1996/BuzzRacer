@@ -89,10 +89,20 @@ class ctrlMppiWrapper(Car):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,state,track,v_override=None,reverse=False):
+
+
         p = self.p
         p.s()
         # get an estimate for current distance along raceline
         debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[],'crosstrack_error':[],'heading_error':[]}
+
+
+        try:
+            self.predictOpponent()
+            debug_dict['opponent'] = self.opponent_prediction
+        except AttributeError:
+            pass
+
         #e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
         #debug_dict['crosstrack_error'] = e_cross
         #debug_dict['heading_error'] = e_heading
@@ -246,4 +256,15 @@ class ctrlMppiWrapper(Car):
 
 
         return np.array([x,dx,y,dy,psi,dpsi])
+
+    # we assume opponent will follow reference trajectory at current speed
+    def initTrackOpponents(self):
+        return
+
+    def predictOpponent(self):
+        self.opponent_prediction = []
+        for opponent in self.opponents:
+            traj = self.track.predictOpponent(opponent.state, self.horizon_steps, self.mppi_dt)
+            self.opponent_prediction.append(traj)
+
         

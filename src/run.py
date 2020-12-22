@@ -82,9 +82,12 @@ class Main():
         # a list of Car class object running
         car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,1.7*0.6), start_delay=0.0)
         car1 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
+
+        # to allow car 0 to track car1, predict its future trajectory etc
+        car0.opponents = [car1]
+        car0.initTrackOpponents()
         #car2 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.0*0.6), start_delay=0.0)
         self.cars = [car0, car1]
-
 
         # real time/sim_time
         # larger value result in slower simulation
@@ -216,19 +219,11 @@ class Main():
                 img = self.track.drawCar(img, car.state, car.steering)
 
             # TODO 
-            x_ref = self.debug_dict[0]['x_ref']
-            for coord in x_ref:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
-
-
-            # draw projected state
-            '''
-            x_project = self.debug_dict['x_project']
-            for coord in x_project:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y))
-            '''
+            if 'opponent' in self.debug_dict[0]:
+                x_ref = self.debug_dict[0]['opponent']
+                for coord in x_ref[0]:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
             self.visualization_ts = time()
 
@@ -237,6 +232,7 @@ class Main():
             if self.saveGif:
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
             '''
+            # hardware resource usage
             ram = psutil.virtual_memory().percent
             cpu = psutil.cpu_percent()
             print("ram = %.2f, cpu = %.2f"%(ram,cpu))
@@ -328,11 +324,7 @@ class Main():
                 # TODO debugging...
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
-                self.debug_dict[i]['x_ref_l'] = debug_dict['x_ref_l']
-                self.debug_dict[i]['x_ref_r'] = debug_dict['x_ref_r']
-                self.debug_dict[i]['x_ref'] = debug_dict['x_ref']
-                self.debug_dict[i]['crosstrack_error'].append(debug_dict['crosstrack_error'])
-                self.debug_dict[i]['heading_error'].append(debug_dict['heading_error'])
+                self.debug_dict[i] = self.debug_dict[i] | debug_dict
 
             elif (car.controller == Controller.empty):
                 throttle = 0
@@ -531,6 +523,8 @@ class Main():
         car.enableLaptimer = self.enableLaptimer
         if car.enableLaptimer:
             car.laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        # so that Car class has access to the track
+        car.track = self.track
         return car
 
     def resolveLogname(self,):

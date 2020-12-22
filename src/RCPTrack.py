@@ -1418,6 +1418,59 @@ class RCPtrack(Track):
         #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         
+    # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
+    # Inputs:
+    # state: opponent vehicle state, same as in self.localTrajectory()
+    # p : lookahead steps
+    # dt : time between each lookahead steps
+
+    # Return:
+    # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
+    # valid : a boolean indicating whether the function was able to find a valid result
+    # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+
+    def predictOpponent(self, state, p, dt, reverse=False):
+        if reverse:
+            print_error("reverse is not implemented")
+        # set wheelbase to 0 to get point closest to vehicle CG
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        if retval is None:
+            return None,None,False
+
+        # parse return value from localTrajectory
+        (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+        if isnan(orientation):
+            return None,None,False
+
+        # calculate s value for projection ref points
+        s0 = self.uToS(u0).item()
+        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+
+        s_vec = [s0]
+        v_vec = [v0]
+        coord_vec = [local_ctrl_pnt]
+
+        for k in range(1,p+1):
+            s_k = s_vec[-1] + v_vec[-1] * dt
+            s_vec.append(s_k)
+            # find ref velocity for projection ref points
+            # TODO adjust ref velocity for current vehicle velocity
+
+            # NOTE force v_k to be current velocity
+            #v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            v_k = v0
+            v_vec.append(v_k)
+
+        # find ref heading for projection ref points
+        s_vec = np.array(s_vec)%self.raceline_len_m
+        # find ref coordinates for projection ref points
+        coord_k = np.array(splev(s_vec,self.raceline_s)).T
+        coord_vec = np.vstack([coord_vec,coord_k])
+
+        return coord_vec
+
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
