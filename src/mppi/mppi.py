@@ -2,7 +2,7 @@ import os
 import sys
 import numpy as np
 from time import sleep,time
-from math import sin,radians,degrees,ceil
+from math import sin,radians,degrees,ceil,isnan
 import matplotlib.pyplot as plt
 from timeUtil import execution_timer
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
@@ -80,17 +80,20 @@ class MPPI:
 
     # given state, apply MPPI and find control
     # state: current plant state
-    # ref_control: reference control, dim (self.T,self.m)
+    # opponents_prediction: predicted positions of opponent(s) list of n opponents, each of dim (steps, 2)
+    # safety_margin: distance to keep from opponent
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
     # specifically for racecar
-    def control(self,state,control_limit,noise_cov=None,cuda=None):
+    def control(self,state,opponents_prediction,control_limit,safety_margin=0.1,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
         if cuda is None:
             cuda = self.cuda
         p = self.p
         p.s()
+        opponent_count = len(opponents_prediction)
+        opponent_count = np.int32(opponent_count)
 
         # NOTE for use in epsilon induced cost
         #control_cost_mtx_inv = np.linalg.inv(noise_cov)
@@ -120,19 +123,32 @@ class MPPI:
 
             p.s("cuda sim")
             cost = np.zeros([self.K]).astype(np.float32)
-            # reference control, in standard mppi this should be zero
             # we leave the entry point in api for possible future modification
             x0 = state.copy()
             x0 = x0.astype(np.float32)
+            # reference control, in standard mppi this should be zero
             ref_control = ref_control.astype(np.float32)
             ref_control = ref_control.flatten()
-            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize
+
+            # opponent position
+            opponents_prediction = np.array(opponents_prediction).astype(np.float32)
+            # shape: opponent_count, prediction_steps, 2(x,y)
+            if opponents_prediction.shape[0] > 0:
+                assert opponents_prediction.shape[1] == self.T+1
+            opponents_prediction = opponents_prediction.flatten()
+
+            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize + opponents_prediction.size*opponents_prediction.itemsize
             assert np.sum(memCount)<8370061312
             #print("x0")
             #print(x0)
-            self.cuda_evaluate_control_sequence( 
-                    drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline),
-                    block=self.cuda_block_size, grid=self.cuda_grid_size)
+            if (opponent_count == 0):
+                self.cuda_evaluate_control_sequence( 
+                        drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline), np.uint64(0),opponent_count,
+                        block=self.cuda_block_size, grid=self.cuda_grid_size)
+            else:
+                self.cuda_evaluate_control_sequence( 
+                        drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline), drv.In(opponents_prediction),opponent_count,
+                        block=self.cuda_block_size, grid=self.cuda_grid_size)
 
             # NOTE rand_vals is updated to respect control limits
             self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
@@ -207,6 +223,8 @@ class MPPI:
 
         #return ref_control[0]
         p.e()
+        if isnan(ref_control[0,1]):
+            print("error")
         return ref_control
 
     # given state, apply MPPI and find control
