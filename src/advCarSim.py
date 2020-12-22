@@ -12,7 +12,7 @@ class advCarSim:
         #self.Car = 5*0.25*self.m*g
         self.Car = self.Caf
         # longitudinal speed
-        self.Vx = 1
+        self.Vx = 1.0
         self.Vy = 0
         # CG to front axle
         self.lf = 0.09-0.036
