@@ -23,6 +23,8 @@ from ctrlMpcWrapper import ctrlMpcWrapper
 from ctrlStanleyWrapper import ctrlStanleyWrapper
 from ctrlMppiWrapper import ctrlMppiWrapper
 
+from timeUtil import execution_timer
+
 from enum import Enum, auto
 
 # for cpu/ram analysis
@@ -55,6 +57,7 @@ class Controller(Enum):
 
 class Main():
     def __init__(self,):
+        self.timer = execution_timer(True)
         # state update rate
         self.dt = 0.01
 
@@ -67,7 +70,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = True
 
@@ -139,8 +142,10 @@ class Main():
 
     # run experiment until user press q in visualization window
     def run(self):
+        t = self.timer
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
+            t.s()
             self.update()
             # x,y,theta are in track frame
             # v_forward in vehicle frame, forward positive
@@ -172,6 +177,7 @@ class Main():
 
             if self.enableLog:
                 self.full_state_log.append(temp_log)
+            t.e()
         # exit point
         print_info("Exiting ...")
         cv2.destroyAllWindows()
@@ -212,7 +218,13 @@ class Main():
         # for simplicity we use the simulation time of the first car
         if (self.cars[0].stateUpdateSource == StateUpdateSource.dynamic_simulator \
                 or self.cars[0].stateUpdateSource == StateUpdateSource.simulator):
-            time_to_reach = self.cars[0].simulator.t*self.real_sim_time_ratio + self.cars[0].real_sim_dt
+            if (self.real_sim_dt is None):
+                self.real_sim_dt = time()
+            time_to_reach = self.cars[0].simulator.t*self.real_sim_time_ratio + self.real_sim_dt
+            print("sim_t = %.3f, time = %.3f, expected= %.3f, delta = %.3f"%(self.cars[0].simulator.t, time()-self.real_sim_dt, self.cars[0].simulator.t*self.real_sim_time_ratio, time_to_reach-time() ))
+            if (time_to_reach-time() < 0):
+                print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))
+
             sleep(max(0,time_to_reach - time()))
 
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
@@ -669,10 +681,10 @@ class Main():
         x,y = init_position
         heading = pi/2
         car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
-        # TODO maybe use one global sim timestamp
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
-        car.real_sim_dt = time()
+        # here we only instantiate the variable, the actual value will be assigned in updateVisualization, since it takes quite a while to initialize the rest of the program
+        self.real_sim_dt = None
 
         car.steering = steering = 0
         car.throttle = throttle = 0
@@ -703,8 +715,12 @@ if __name__ == '__main__':
     #experiment.simulator.debug()
     print("mppi")
     experiment.cars[0].mppi.p.summary()
-    print("\noverall")
+    print("\n controller")
     experiment.cars[0].p.summary()
+
+    print("\n overall")
+    experiment.timer.summary()
+
     print_info("program complete")
 
 
