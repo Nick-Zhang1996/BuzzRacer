@@ -131,6 +131,9 @@ kf_state = np.array(kf_state_vec)
 action_vec = np.array(action_vec)
 #kf_x, kf_y, kf_v, kf_theta, kf_omega = kf_state
 
+# calculate mse of kalman filter velocity estimation
+print("mse v = %.2f"%(np.std(kf_state[:,2]-v)))
+
 # prepare acc vector
 lat_acc, lon_acc, total_acc = getAccCarFrame(x,y,dt)
 
@@ -163,6 +166,7 @@ plt.show()
 '''
 
 # plot acc
+'''
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(t[:-2],lon_acc, label="longitudinal acc ")
@@ -172,12 +176,18 @@ ax.plot(t,throttle, label="throttle")
 #ax.plot(t,np.abs(steering), label="steering")
 ax.legend()
 plt.show()
-
 '''
+
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(t,heading/pi*180,label="raw heading")
-ax.plot(t[:-1],kf_state[:,3]/pi*180+0.01, label="kf")
+ax.plot(t[:-1],kf_state[:,3]/pi*180, label="kf")
 ax.legend()
 plt.show()
-'''
+
+fig = plt.figure()
+ax = fig.gca()
+ax.plot(t[:-1],np.diff(heading)/dt/pi*180,label="raw w")
+ax.plot(t[:-1],kf_state[:,4]/pi*180, label="kf omega")
+ax.legend()
+plt.show()
