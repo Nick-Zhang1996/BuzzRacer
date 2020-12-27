@@ -3,17 +3,20 @@ from threading import Thread,Event
 from math import sin,cos
 import numpy as np
 from time import time
-import pyttsx3
 
 class Laptimer:
-    def __init__(self,finish,orientation):
+    def __init__(self,finish,orientation,voice=False):
         # coordinate
         self.finish = np.array(finish)
         # in rad
         self.orientation = orientation
         self.finish_vec = np.array([cos(orientation),sin(orientation)])
 
-        self.engine = pyttsx3.init()
+        self.voice = voice
+        if (voice):
+            global pyttsx3
+            import pyttsx3
+            self.engine = pyttsx3.init()
 
 
         self.last_coord = np.array([0,0])
@@ -64,6 +67,6 @@ class Laptimer:
 
 
 if __name__ == '__main__':
-    lp = Laptimer((0,0),3)
+    lp = Laptimer((0,0),3,voice=True)
     lp.last_laptime = 9.882424
     lp.announce()

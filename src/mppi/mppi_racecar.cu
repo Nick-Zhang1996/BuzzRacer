@@ -25,27 +25,31 @@
 
 
 
-// evaluate step cost based on target state x_goal,current state x and control u
-// in_raceline is 2d array of size (RACELINE_LEN,3), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian)
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][3]);
+float evaluate_step_cost( float* state, float* u, float in_raceline[][4]);
 __device__
-float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][3]);
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][4]);
+__device__
+float evaluate_collision_cost( float* state, float* opponent_pos);
 
 // forward dynamics by one step
 __device__
 void forward_dynamics( float* x, float* u);
 
 extern "C" {
+// evaluate step cost based on target state x_goal,current state x and control u
 // in_ref_control: dim horizon*control_dim
 // in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
+// in_raceline is 2d array of size (RACELINE_LEN,4), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian), 3:ref velocity
 __global__
-void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][3]){
+void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][4], float opponents_prediction[][HORIZON+1][2],int opponent_count){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
     return;
   }
+
+
   float x[STATE_DIM];
   // copy to local state
   // NOTE possible time saving by copy to local memory
@@ -57,6 +61,17 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
   }
+
+  // DEBUG
+  /*
+  if (id==0 && opponent_count>0){
+    float dx = x[0]-opponents_prediction[0][0][0];
+    float dy = x[2]-opponents_prediction[0][0][1];
+    float opponent_dis = sqrtf(dx*dx + dy*dy);
+    printf("dist = %% .2f \n",opponent_dis);
+    //printf("x = %%.2f, y= %%.2f \n",x[0],x[2]);
+  }
+  */
 
 
   // initialize cost
@@ -78,6 +93,15 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,in_raceline);
+    // cost related to collision avoidance / opponent avoidance
+    // TODO too conservative
+    for (int j=0; j<opponent_count; j++){
+      for (int k=0; k<HORIZON/2; k++){
+      cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
+      }
+    }
+
+
     // FIXME ignoring epsilon induced cost
     /*
     for (int j=0; j<CONTROL_DIM; j++){
@@ -103,7 +127,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
 
 __device__
-void find_closest_id(float* state, float in_raceline[][3], int* ret_idx, float* ret_dist){
+void find_closest_id(float* state, float in_raceline[][4], int* ret_idx, float* ret_dist){
   float x = state[0];
   float y = state[2];
   float val;
@@ -125,7 +149,7 @@ void find_closest_id(float* state, float in_raceline[][3], int* ret_idx, float* 
 }
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][3]){
+float evaluate_step_cost( float* state, float* u, float in_raceline[][4]){
   //float heading = state[4];
   int idx;
   float dist;
@@ -134,12 +158,28 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][3]){
 
   // heading cost
   //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
-  float cost = dist*0.5;
-  return cost*10.0;
+
+  // velocity cost
+  // current velocity - target velocity at closest ref point
+  float dv = sqrtf(state[1]*state[1] + state[3]*state[3]) - in_raceline[idx][3];
+  float cost = dist + 0.1*dv*dv;
+  //float cost = dist;
+  return cost*5.0;
 }
 
 __device__
-float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][3]){
+float evaluate_collision_cost( float* state, float* opponent_pos){
+  //float heading = state[4];
+
+  float dx = state[0]-opponent_pos[0];
+  float dy = state[2]-opponent_pos[1];
+  float cost = 1.0*(0.1 - sqrtf(dx*dx + dy*dy))*5.0;
+
+  return cost>0?cost:0;
+}
+
+__device__
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][4]){
   int idx0,idx;
   float dist;
 

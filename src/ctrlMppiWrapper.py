@@ -1,7 +1,7 @@
 from car import Car
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 import numpy as np
-from time import time
+from time import time,sleep
 from timeUtil import execution_timer
 from mppi import MPPI
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
@@ -32,15 +32,15 @@ class ctrlMppiWrapper(Car):
         self.mppi_dt = 0.03
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 30
+        self.horizon_steps = 20
         self.control_dim = 2
         self.state_dim = 6
         self.temperature = 1.0
         # default
-        self.noise_cov = np.diag([(1.0/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
         # restricting to test terminal cost
         #self.noise_cov = np.diag([(1.0/2)**2,radians(30.0/2)**2])
-        self.control_limit = np.array([[-2.0,2.0],[-radians(27.1),radians(27.1)]])
+        self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
 
@@ -63,11 +63,14 @@ class ctrlMppiWrapper(Car):
         rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
         heading_vec = np.arctan2(drr[1],drr[0])
+        vv = self.track.sToV(ss)
+
         # parameter, distance along track
         self.ss = ss
         self.raceline_points = np.array(rr)
         self.raceline_headings = heading_vec
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings]).T
+        self.raceline_velocity = vv
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv]).T
         return
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -90,6 +93,14 @@ class ctrlMppiWrapper(Car):
         p.s()
         # get an estimate for current distance along raceline
         debug_dict = {'x_ref_r':[],'x_ref_l':[],'x_ref':[],'crosstrack_error':[],'heading_error':[]}
+
+
+        try:
+            self.predictOpponent()
+            debug_dict['opponent'] = self.opponent_prediction
+        except AttributeError:
+            pass
+
         #e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
         #debug_dict['crosstrack_error'] = e_cross
         #debug_dict['heading_error'] = e_heading
@@ -122,7 +133,7 @@ class ctrlMppiWrapper(Car):
         p.e("prep")
 
         p.s("mppi")
-        uu = self.mppi.control(state.copy(),self.control_limit)
+        uu = self.mppi.control(state.copy(),self.opponent_prediction,self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
@@ -243,4 +254,15 @@ class ctrlMppiWrapper(Car):
 
 
         return np.array([x,dx,y,dy,psi,dpsi])
+
+    # we assume opponent will follow reference trajectory at current speed
+    def initTrackOpponents(self):
+        return
+
+    def predictOpponent(self):
+        self.opponent_prediction = []
+        for opponent in self.opponents:
+            traj = self.track.predictOpponent(opponent.state, self.horizon_steps, self.mppi_dt)
+            self.opponent_prediction.append(traj)
+
         
