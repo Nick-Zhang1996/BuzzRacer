@@ -1,7 +1,7 @@
 // cuda code for MPPI
 // IMPORTANT make sure the macro declarations are accurate
 
-#define SAMPLE_COUNT 1024
+#define SAMPLE_COUNT 2048
 #define HORIZON 20
 
 #define CONTROL_DIM 2

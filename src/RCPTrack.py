@@ -1333,8 +1333,8 @@ class RCPtrack(Track):
         _norm = lambda x:np.linalg.norm(x,axis=0)
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
 
-        dr = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=1))
-        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=2))
+        dr = np.array(splev(u0%self.track_length_grid,self.raceline,der=1))
+        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline,der=2))
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
 

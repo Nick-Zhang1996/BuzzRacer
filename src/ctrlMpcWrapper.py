@@ -6,6 +6,12 @@ from time import time
 from timeUtil import execution_timer
 from car import Car
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
+from common import *
+
+import os
+import sys
+base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './mppi/')
+sys.path.append(base_dir)
 
 class ctrlMpcWrapper(Car):
     def __init__(self,car_setting,dt):
@@ -48,6 +54,8 @@ class ctrlMpcWrapper(Car):
         debug_dict = {}
         t.s("get ref point")
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, p, dt, reverse=reverse)
+        debug_dict['crosstrack_error'] = e_cross
+        debug_dict['heading_error'] = e_heading
         t.e("get ref point")
 
         t.s("assemble ref")
@@ -167,7 +175,7 @@ class ctrlMpcWrapper(Car):
         t.e()
         if ( 1.0/(tac-tic) < self.min_freq):
             self.min_freq = 1.0/(tac-tic)
-        print("min freq = %.2f"%(self.min_freq))
+        #print("min freq = %.2f"%(self.min_freq))
 
 
         return ret

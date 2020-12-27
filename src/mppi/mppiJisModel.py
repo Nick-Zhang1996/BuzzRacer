@@ -90,7 +90,7 @@ class Model:
         for i in range(warm_start_iter):
             print("warm start iter = %d/%d"%(i,warm_start_iter))
             control_limit = [[-1,1]]*2
-            uu = mppi.control_single(self.x_goal,self.x,ref_control,control_limit)
+            uu = mppi.control_goal_state(self.x_goal,self.x,ref_control,control_limit)
             ref_control = np.vstack([uu[1:,:],uu[-1,:]])
 
         while (self.t<5.0):
@@ -99,7 +99,7 @@ class Model:
             control_limit = [[-1,1]]*2
             # NOTE start from no control every time
             #ref_control = [[0,0]]*self.horizon_steps
-            uu = mppi.control_single(self.x_goal,self.x,ref_control,control_limit)
+            uu = mppi.control_goal_state(self.x_goal,self.x,ref_control,control_limit)
 
             '''
             # NOTE run a small simulation, show projected future if uu is faithfully carried out to the end
