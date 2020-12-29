@@ -1015,11 +1015,11 @@ class RCPtrack(Track):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         gs = self.resolution
+        pts[:,0] = np.clip(pts[:,0],0,gs*cols)
+        pts[:,1] = np.clip(pts[:,1],0,gs*rows)
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
-            p1 = np.clip(p1,0,gs*rows)
-            p2 = np.clip(p2,0,gs*cols)
             img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=3) 
 
         # plot reference points

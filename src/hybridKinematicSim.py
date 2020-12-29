@@ -1,4 +1,4 @@
-# hybrid simulator with dynamic model
+# hybrid simulator with kinematic base model
 import sys
 import os
 import glob
@@ -19,10 +19,11 @@ from sysidDataloader import CarDataset
 from math import cos,sin
 # rewrite advCarSim.py as pytorch nn module
 
-class hybridSim(nn.Module):
+class hybridKinematicSim(nn.Module):
 
     def __init__(self, dtype, device, history_steps, forward_steps, dt):
-        super(hybridSim,self).__init__()
+        torch.autograd.set_detect_anomaly(True)
+        super(hybridKinematicSim,self).__init__()
         assert dtype == torch.float or dtype == torch.double
         assert history_steps >= 1 and forward_steps >= 1
         assert 1e-3 <= dt <= 2e-2
@@ -36,30 +37,8 @@ class hybridSim(nn.Module):
         self.forward_steps = forward_steps
         self.dt = dt
 
-        self.g = 9.81
-
-        m = 0.1667
-        self.m = self.get_param(m,False)
-
-
-        self.Caf_base = 5*0.25*m*self.g
-        self.Caf_range = (0.5, 1.5)
-        assert (np.isclose(np.mean(self.Caf_range),1))
-        self.Caf_param = self.get_param(0.0,False)
-
-        #self.Car = self.get_param(5*0.25*m*self.g*0.9,True)
-
-
         self.lf = self.get_param(0.09-0.036,False)
         self.lr = self.get_param(0.036,False)
-
-        # approximate as a solid box
-        # TODO normalize a parameter around 0.0
-        #self.Iz_base = m/12.0*(0.1**2+0.1**2)
-        self.Iz_base = 0.000267
-        self.Iz_pow_ratio = (-2.0, 2.0)
-        self.Iz_param = self.get_param(0.0,False)
-        assert (np.isclose(np.mean(self.Iz_pow_ratio),0))
 
         #self.throttle_offset = self.get_param(0.26,True)
         #self.throttle_ratio = self.get_param(7.003,True)
@@ -68,98 +47,111 @@ class hybridSim(nn.Module):
 
         # residual neural network
         # input:
-        # - states (history_steps * self.state_dim+self.action_dim)
+        # - local dynamic states (Vx,Vy,omega, throttle, steering)
+        # NOTE are they on the same order?
         # output:
-        # - residual longitudinal force (scalar)
-        # - residual lateral force (scalar)
-        # - residual torque (scalar)
-        self.fc1 = nn.Linear(history_steps * (self.state_dim+self.action_dim), 16)
-        self.fc2 = nn.Linear(16, 3)
+        # - residual longitudinal acc (scalar)
+        # - residual lateral acc (scalar)
+        # - residual angular acc (scalar)
+        self.fc1 = nn.Linear(history_steps * 5, 32)
+        self.fc2 = nn.Linear(32, 3)
         if dtype == torch.float:
             self.fc1 = self.fc1.float()
             self.fc2 = self.fc2.float()
         elif dtype == torch.double:
             self.fc1 = self.fc1.double()
             self.fc2 = self.fc2.double()
-        #self.residual_bounds = self.get_tensor([5e-3*self.g,5e-3*self.g,5e-3*self.g*20e-2],False)
-        self.residual_bounds = self.get_tensor([50e-3*self.g,50e-3*self.g,50e-3*self.g*20e-2],False)
+        self.residual_bounds = self.get_tensor([5.0,5.0,3.0],False)
 
-    def get_residual_force(self,states):
-        batch_size, history_steps, state_dim = states.size()
-        y1 = torch.tanh(self.fc1(states.view(batch_size, -1)))
+    def get_residual_acc(self,dynamic_states):
+        batch_size, history_steps, state_dim = dynamic_states.size()
+        y1 = torch.tanh(self.fc1(dynamic_states.view(batch_size, -1)))
         y2 = torch.tanh(self.fc2(y1)) * self.residual_bounds.view(1, 3)
-        residual_longitudinal_force = y2[:, 0]
-        residual_lateral_force = y2[:, 1]
+        residual_longitudinal_acc = y2[:, 0]
+        residual_lateral_acc = y2[:, 1]
         residual_torque = y2[:,2]
-        return residual_longitudinal_force,residual_lateral_force,residual_torque
+        return residual_longitudinal_acc,residual_lateral_acc,residual_torque
 
     # predict future car state
     # Input: 
     #  (tensors)
-    #       states: batch_size * history_steps * (states+commands)
+    #       states: batch_size * history_steps * full_state(states+commands)
     #       actions: batch_size * forward_steps * actions(throttle,steering)
     #   concatenated
     # Output:
     #       future_states: forward_steps * (states)
+    # NOTE NOTE an inconsistency here, the model assumes CG of the car to be car frame origin while the data is using center of rear axle
     def forward(self,full_states,actions, enable_rnn):
         assert len(full_states.size()) == 3
         batch_size, history_steps, full_state_dim = full_states.size()
         assert history_steps == self.history_steps
         assert full_state_dim == (self.state_dim + self.action_dim)
 
-        # base simulation, dynamic model
+        # base simulation, kinematic model
 
         for i in range(self.forward_steps):
             latest_state = full_states[:,-1,-(self.state_dim+self.action_dim):-self.action_dim]
             latest_action = full_states[:,-1,-self.action_dim:]
             throttle = latest_action[:,0]
             steering = latest_action[:,1]
-            # change ref frame to car frame
+            # change ref frame to car frame(forward +x, left +y)
             psi = latest_state[:,4]
+            # vehicle forward speed
             Vx = latest_state[:,1]*torch.cos(psi) + latest_state[:,3]*torch.sin(psi)
-            #print("forward")
-            #print(latest_state)
-
-            A = torch.zeros((batch_size,6,6),dtype=self.dtype,requires_grad=False)
-            A[:,0,1] = 1
-            A[:,2,3] = 1
-            A[:,3,3] = -(2*self.Caf()+2*self.Car())/(self.m*Vx)
-            A[:,3,5] = -Vx-(2*self.Caf()*self.lf-2*self.Car()*self.lr)/(self.m*Vx)
-            A[:,4,5] = 1
-            A[:,5,3] = -(2*self.lf*self.Caf()-2*self.lr*self.Car())/(self.Iz()*Vx)
-            A[:,5,5] = -(2*self.lf**2*self.Caf()+2*self.lr**2*self.Car())/(self.Iz()*Vx)
-
-            B = torch.zeros((batch_size,6,2),dtype=self.dtype,requires_grad=False)
-            B[:,1,0] = 1
-            B[:,3,1] = 2*self.Caf()/self.m
-            B[:,5,1] = 2*self.lf*self.Caf()/self.Iz()
-            #print("hybrid sim A")
-            #print(A)
-
             long_acc = self.getLongitudinalAcc(throttle)
-
-            u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
+            #u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
 
             # self.states: x,vx,y,vy,psi,dpsi
-            #self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
             # state derivative in local frame
-            state_der_local = torch.matmul(A,torch.matmul(self.get_R(-psi),latest_state.unsqueeze(2)))+torch.matmul(B,u.unsqueeze(2))
-            history_full_state = full_states[:,-self.history_steps:,:]
+            R = (self.lr+self.lf)/torch.tan(steering)
+            beta = torch.atan(self.lr/R)
+
+            Vx = Vx + long_acc*self.dt
+            Vy = (latest_state[:,1]**2 + latest_state[:,3]**2)**0.5 * torch.sin(beta)
+            omega = Vx/R
 
 
-            # NOTE residual forces/torque probably shouldn't depend on x,y,heading
-            # just the "dynamic" terms
             if enable_rnn:
-                residual_longitudinal_force,residual_lateral_force,residual_torque = self.get_residual_force(history_full_state)
-                state_der_local[:,1,0] += residual_longitudinal_force/self.m
-                state_der_local[:,3,0] += residual_lateral_force/self.m
-                state_der_local[:,5,0] += residual_torque/self.Iz()
+                # assemble input for get_residual_acc
+                # input: batch_size * history_steps * (vx,vy(local), omega, throttle,steering)
+                psi_hist = full_states[:,-self.history_steps:,4]
+                Vx_hist = full_states[:,-self.history_steps:,1]*torch.cos(psi_hist) + full_states[:,-self.history_steps:,3]*torch.sin(psi_hist)
+                Vy_hist = -full_states[:,-self.history_steps:,1]*torch.sin(psi_hist) + full_states[:,-self.history_steps:,3]*torch.cos(psi_hist)
+                omega_hist = full_states[:,-self.history_steps:,5]
+                throttle_hist = full_states[:,-self.history_steps:,6]
+                steering_hist = full_states[:,-self.history_steps:,7]
 
+                '''
+                Vx_hist = Vx_hist.unsqueeze(2)
+                Vy_hist = Vy_hist.unsqueeze(2)
+                omega_hist = omega_hist.unsqueeze(2)
+                throttle_hist = throttle_hist.unsqueeze(2)
+                steering_hist = steering_hist.unsqueeze(2)
+                '''
 
-            predicted_state = latest_state.unsqueeze(2) +  torch.matmul(self.get_R(psi),state_der_local)*self.dt
+                local_dynamic_state_hist = torch.stack([Vx_hist,Vy_hist,omega_hist,throttle_hist,steering_hist],dim=1)
+
+                residual_longitudinal_acc,residual_lateral_acc,residual_angular_acc = self.get_residual_acc(local_dynamic_state_hist.squeeze(1))
+                Vx = Vx + residual_longitudinal_acc * self.dt
+                Vy = Vy + residual_lateral_acc * self.dt
+                omega = omega + residual_angular_acc * self.dt
+
+            # back to global frame
+            Vxg = Vx*torch.cos(psi) - Vy*torch.sin(psi)
+            Vyg = Vx*torch.sin(psi) + Vy*torch.cos(psi)
+
+            # advance model
+            predicted_state = latest_state.clone()
+            # x
+            predicted_state[:,0] = predicted_state[:,0] + Vxg * self.dt
+            predicted_state[:,1] = Vxg
+            predicted_state[:,2] = predicted_state[:,2] + Vyg * self.dt
+            predicted_state[:,3] = Vyg
+            predicted_state[:,4] = predicted_state[:,4] + omega * self.dt
+            predicted_state[:,5] = omega
+
             # angle wrapping
-            predicted_state[:,4,:] = (predicted_state[:,4,:]+np.pi)%(2*np.pi)-np.pi
-    # check if angle wrapping is done correctly
+            predicted_state[:,4] = (predicted_state[:,4]+np.pi)%(2*np.pi)-np.pi
             new_full_state = torch.cat([predicted_state.view(batch_size,1,self.state_dim), actions[:,i,:].view(batch_size,1,self.action_dim)],dim=2)
             full_states = torch.cat([full_states, new_full_state],dim=1)
 
@@ -300,7 +292,7 @@ if __name__ == '__main__':
 
     criterion = nn.MSELoss()
 
-    simulator = hybridSim(dtype, device, history_steps, forward_steps, dt)
+    simulator = hybridKinematicSim(dtype, device, history_steps, forward_steps, dt)
     simulator.to(device)
     optimizer = optim.Adam(simulator.parameters(), lr=1e-3)
 
@@ -315,13 +307,14 @@ if __name__ == '__main__':
         actions = batch[:,-forward_steps:,-simulator.action_dim:]
         full_states = full_states.to(device)
         actions = actions.to(device)
-        predicted_state = simulator(full_states,actions)
+        predicted_state = simulator(full_states,actions,True)
 
         target_states = batch[:,-forward_steps:,:]
 
         loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-        epoch_loss += loss
+        epoch_loss = epoch_loss + loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        print(epoch_loss.detach().item())
 
