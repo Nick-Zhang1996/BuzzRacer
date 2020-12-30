@@ -249,14 +249,14 @@ void forward_dynamics(float* state,float* u){
 // note this model is tuned on actual car data, it may not work well with dynamic simulator
 __device__
 void forward_kinematics(float* state, float* u){
-  float x,dx,y,dy,psi,dpsi;
+  float dx,dy,psi,dpsi;
   float throttle,steering;
 
-  x = state[0];
+  //x = state[0];
   dx = state[1];
-  y = state[2];
+  //y = state[2];
   dy = state[3];
-  //psi = state[4];
+  psi = state[4];
   //dpsi = state[5];
 
   throttle = u[0];
@@ -271,7 +271,7 @@ void forward_kinematics(float* state, float* u){
   //float R = 0.102/tanf(steering);
   //float beta = atanf(0.036/R);
   float beta = atanf(0.036/0.102*tanf(steering));
-  local_dx += (throttle - 0.24) * 7.0 * dt;
+  local_dx += (throttle - 0.24) * 7.0 * DT;
   // avoid negative velocity
   local_dx = local_dx>0.0? local_dx:0.0;
   local_dy =  sqrtf(local_dx*local_dx + local_dy*local_dy) * sinf(beta);
