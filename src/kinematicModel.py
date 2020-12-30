@@ -154,7 +154,7 @@ def step_new(state,control,dt=0.01):
     return (x,vxg,y,vyg,heading,omega )
 
 def run():
-    lookahead_steps = 400
+    lookahead_steps = 100
     for i in range(1,data_len-lookahead_steps-1):
         # prepare states
         # draw car current pos
@@ -169,9 +169,8 @@ def run():
         #show(img)
 
 
+        '''
         # calculate predicted trajectory -- baseline
-        print(i)
-
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
         predicted_states = [state]
@@ -184,8 +183,9 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
+        '''
 
-        # calculate predicted trajectory -- baseline
+        # calculate predicted trajectory -- heuristic
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
         predicted_states = [state]
@@ -196,7 +196,23 @@ def run():
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
+        # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
+
+        # calculate predicted trajectory -- longer time step
+        state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
+        control = (steering[i],throttle[i])
+        predicted_states = [state]
+        speedup = 4
+        for j in range(i+1,i+lookahead_steps,speedup):
+            state = step_new(state,control,dt=0.01*speedup)
+            predicted_states.append(state)
+            control = (steering[j],throttle[j])
+
+        predicted_states = np.array(predicted_states)
+        predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
+        # GREEN
+        img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
         #cv.addWeighted(src1, alpha, src2, beta, 0.0)
 

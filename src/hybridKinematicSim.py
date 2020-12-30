@@ -46,7 +46,7 @@ class hybridKinematicSim(nn.Module):
         self.throttle_ratio = self.get_param(6.98,False)
 
         # heuristic functions
-        self.understeer_coeff = self.get_param(1.5,True)
+        self.understeer_coeff = self.get_param(0.68,True)
 
         # residual neural network
         # input:
@@ -56,8 +56,9 @@ class hybridKinematicSim(nn.Module):
         # - residual longitudinal acc (scalar)
         # - residual lateral acc (scalar)
         # - residual angular acc (scalar)
-        self.fc1 = nn.Linear(history_steps * 5, 32)
-        self.fc2 = nn.Linear(32, 3)
+        hidden_layer_depth = 16
+        self.fc1 = nn.Linear(history_steps * 5, hidden_layer_depth)
+        self.fc2 = nn.Linear(hidden_layer_depth, 3)
         if dtype == torch.float:
             self.fc1 = self.fc1.float()
             self.fc2 = self.fc2.float()

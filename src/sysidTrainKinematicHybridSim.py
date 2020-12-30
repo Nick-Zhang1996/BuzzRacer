@@ -184,13 +184,13 @@ def angle_diff(a,b):
 
 def sysid(log_names):
     epochs = 20
-    batch_size = 512
+    batch_size = 256
     torch.set_num_threads(1)
     dt = 0.01
-    history_steps = 1
+    history_steps = 5
     forward_steps = 5
     learning_rate = 1e-3
-    enable_rnn = False
+    enable_rnn = True
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
@@ -249,10 +249,12 @@ def sysid(log_names):
         test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
 
         #print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
-        print("Train loss = %.6f, Test loss = %.6f "%(train_loss,test_loss))
-        print(error)
-        print(simulator.understeer_coeff.detach().item())
+        print("Epoch %d, Train loss = \033[92m %.6f \033[0m , Test loss =\033[92m %.6f \033[0m "%(epoch_count, train_loss,test_loss))
+        print(error[:5])
+        #print(simulator.understeer_coeff.detach().item())
 
+    torch.save(simulator.state_dict(),"./model.p")
+    print(simulator.state_dict())
 
     # plot loss
     fig = plt.figure()
