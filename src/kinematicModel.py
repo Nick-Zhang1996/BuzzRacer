@@ -94,7 +94,7 @@ def step(state,control,dt=0.01):
     norm = lambda a,b:(a**2+b**2)**0.5
 
     #advance model
-    vx = vx + (throttle - 0.24)*7.0*dt
+    vx = min(0,vx + (throttle - 0.24)*7.0*dt)
     #vx = vx + (throttle)*7.0*dt
     vy = norm(vx,vy)*sin(beta)
     assert vy*steering>0
@@ -130,7 +130,7 @@ def step_new(state,control,dt=0.01):
     norm = lambda a,b:(a**2+b**2)**0.5
 
     #advance model
-    vx = vx + (throttle - 0.24)*7.0*dt
+    vx = min(0,vx + (throttle - 0.24)*7.0*dt)
     #vx = vx + (throttle)*7.0*dt
     vy = norm(vx,vy)*sin(beta)
     assert vy*steering>0

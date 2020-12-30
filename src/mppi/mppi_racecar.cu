@@ -36,6 +36,10 @@ float evaluate_collision_cost( float* state, float* opponent_pos);
 __device__
 void forward_dynamics( float* x, float* u);
 
+// forward kinematics model by one step
+__device__
+void forward_kinematics( float* x, float* u);
+
 extern "C" {
 // evaluate step cost based on target state x_goal,current state x and control u
 // in_ref_control: dim horizon*control_dim
@@ -89,7 +93,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
     }
     // step forward dynamics, update state x in place
-    forward_dynamics(x,u);
+    forward_kinematics(x,u);
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,in_raceline);
@@ -239,6 +243,53 @@ void forward_dynamics(float* state,float* u){
   state[5] = dpsi;
 
   return;
+}
+
+// forward dynamics using kinematic model
+// note this model is tuned on actual car data, it may not work well with dynamic simulator
+__device__
+void forward_kinematics(float* state, float* u){
+  float x,dx,y,dy,psi,dpsi;
+  float throttle,steering;
+
+  x = state[0];
+  dx = state[1];
+  y = state[2];
+  dy = state[3];
+  //psi = state[4];
+  //dpsi = state[5];
+
+  throttle = u[0];
+  steering = u[1];
+
+  // convert to car frame
+  float local_dx = dx*cosf(-psi) - dy*sinf(-psi);
+  float local_dy = dx*sinf(-psi) + dy*cosf(-psi);
+
+  // what if steering -> 0
+  // avoid numerical instability
+  //float R = 0.102/tanf(steering);
+  //float beta = atanf(0.036/R);
+  float beta = atanf(0.036/0.102*tanf(steering));
+  local_dx += (throttle - 0.24) * 7.0 * dt;
+  // avoid negative velocity
+  local_dx = local_dx>0.0? local_dx:0.0;
+  local_dy =  sqrtf(local_dx*local_dx + local_dy*local_dy) * sinf(beta);
+  local_dy += -0.68*local_dx*steering;
+
+  dpsi = local_dx/0.102*tanf(steering);
+
+  // convert back to global frame
+  dx = local_dx*cosf(psi) - local_dy*sinf(psi);
+  dy = local_dx*sinf(psi) + local_dy*cosf(psi);
+
+  state[0] += dx * DT;
+  state[1] = dx;
+  state[2] += dy * DT;
+  state[3] = dy;
+  state[4] += dpsi * DT;
+  state[5] = dpsi;
+
 }
 
 
