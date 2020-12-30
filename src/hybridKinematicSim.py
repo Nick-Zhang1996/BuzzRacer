@@ -45,6 +45,9 @@ class hybridKinematicSim(nn.Module):
         self.throttle_offset = self.get_param(0.24,False)
         self.throttle_ratio = self.get_param(6.98,False)
 
+        # heuristic functions
+        self.understeer_coeff = self.get_param(1.5,True)
+
         # residual neural network
         # input:
         # - local dynamic states (Vx,Vy,omega, throttle, steering)
@@ -135,6 +138,9 @@ class hybridKinematicSim(nn.Module):
                 Vx = Vx + residual_longitudinal_acc * self.dt
                 Vy = Vy + residual_lateral_acc * self.dt
                 omega = omega + residual_angular_acc * self.dt
+
+            # NOTE heuristic function
+            Vy = Vy - self.understeer_coeff * Vx * steering
 
             # back to global frame
             Vxg = Vx*torch.cos(psi) - Vy*torch.sin(psi)

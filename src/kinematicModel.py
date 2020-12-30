@@ -98,6 +98,47 @@ def step(state,control,dt=0.01):
     #vx = vx + (throttle)*7.0*dt
     vy = norm(vx,vy)*sin(beta)
     assert vy*steering>0
+
+
+    # NOTE where to put this
+    omega = vx/R
+
+    # back to global frame
+    vxg = vx*cos(heading)-vy*sin(heading)
+    vyg = vx*sin(heading)+vy*cos(heading)
+
+    # apply updates
+    x += vxg*dt
+    y += vyg*dt
+    heading += omega*dt
+
+    return (x,vxg,y,vyg,heading,omega )
+
+def step_new(state,control,dt=0.01):
+    # constants
+    L = 0.102
+    lr = 0.036
+    # convert to local frame
+    x,vxg,y,vyg,heading,omega = tuple(state)
+    steering,throttle = tuple(control)
+    vx = vxg*cos(heading) + vyg*sin(heading)
+    vy = -vxg*sin(heading) + vyg*cos(heading)
+
+    # some convenience variables
+    R = L/tan(steering)
+    beta = atan(lr/R)
+    norm = lambda a,b:(a**2+b**2)**0.5
+
+    #advance model
+    vx = vx + (throttle - 0.24)*7.0*dt
+    #vx = vx + (throttle)*7.0*dt
+    vy = norm(vx,vy)*sin(beta)
+    assert vy*steering>0
+
+    # NOTE heuristics
+    vy -= 0.68*vx*steering
+
+
     # NOTE where to put this
     omega = vx/R
 
@@ -113,7 +154,7 @@ def step(state,control,dt=0.01):
     return (x,vxg,y,vyg,heading,omega )
 
 def run():
-    lookahead_steps = 40
+    lookahead_steps = 400
     for i in range(1,data_len-lookahead_steps-1):
         # prepare states
         # draw car current pos
@@ -128,7 +169,9 @@ def run():
         #show(img)
 
 
-        # calculate predicted trajectory
+        # calculate predicted trajectory -- baseline
+        print(i)
+
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
         predicted_states = [state]
@@ -139,7 +182,21 @@ def run():
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
-        print(i)
+        # GREEN
+        img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
+
+        # calculate predicted trajectory -- baseline
+        state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
+        control = (steering[i],throttle[i])
+        predicted_states = [state]
+        for j in range(i+1,i+lookahead_steps):
+            state = step_new(state,control)
+            predicted_states.append(state)
+            control = (steering[j],throttle[j])
+
+        predicted_states = np.array(predicted_states)
+        predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
+        img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
 
         #cv.addWeighted(src1, alpha, src2, beta, 0.0)
 
@@ -175,7 +232,6 @@ def run():
         plt.show()
         '''
 
-        img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
         #show(img)
 
         cv2.imshow('validate',img)

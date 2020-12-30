@@ -43,7 +43,7 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
             # change target states
             target_states[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
 
-            loss = criterion(predicted_state, target_states)
+            loss = criterion(predicted_state[:,:,:5], target_states[:,:,:5])
             epoch_loss += loss
 
             # loss is difficult to understand, we now calculate the state difference
@@ -106,9 +106,8 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             target_states_wrapped[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
 
             #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-            loss = criterion(predicted_state, target_states_wrapped)
-            # FIXME
-            #print(loss)
+            #loss = criterion(predicted_state, target_states_wrapped)
+            loss = criterion(predicted_state[:,:,:5], target_states_wrapped[:,:,:5])
 
             latest_state = full_states[:,-1,-(simulator.state_dim+simulator.action_dim):-simulator.action_dim]
             latest_action = full_states[:,-1,-simulator.action_dim:]
@@ -188,10 +187,10 @@ def sysid(log_names):
     batch_size = 512
     torch.set_num_threads(1)
     dt = 0.01
-    history_steps = 5
-    forward_steps = 10
+    history_steps = 1
+    forward_steps = 5
     learning_rate = 1e-3
-    enable_rnn = True
+    enable_rnn = False
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
@@ -252,17 +251,14 @@ def sysid(log_names):
         #print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
         print("Train loss = %.6f, Test loss = %.6f "%(train_loss,test_loss))
         print(error)
+        print(simulator.understeer_coeff.detach().item())
 
 
-    plt.plot(train_loss_history,'r-')
-    plt.plot(test_loss_history,'b.-')
-    plt.show()
-
-    # plot acc
+    # plot loss
     fig = plt.figure()
     ax = fig.gca()
-    ax.plot(train_loss_history, label="train loss")
-    ax.plot(test_loss_history, label="test loss")
+    ax.plot(train_loss_history,'r.-', label="train loss")
+    ax.plot(test_loss_history, 'b.-', label="test loss")
     ax.legend()
     plt.show()
 
