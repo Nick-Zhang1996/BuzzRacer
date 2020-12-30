@@ -45,8 +45,23 @@ class hybridKinematicSim(nn.Module):
         self.throttle_offset = self.get_param(0.24,False)
         self.throttle_ratio = self.get_param(6.98,False)
 
-        # heuristic functions
-        self.understeer_coeff = self.get_param(0.68,True)
+        # heuristic functions to augment model
+        # ut : throttle
+        # us : steering
+        # Vx += ut_coeff_vx * ut + vx_coeff_vx * vx + ut_vx_coeff_vx * ut * vx + vx_1_coeff_vx * 1
+        # Vy += us_coeff_vy * us + vx_us_coeff_vy * vx * us + vy_1_coeff_vy * 1
+        # omega += us_coeff_omega * us + vx_us_coeff_omega * vx * us + vy_1_coeff_omega * 1
+
+        self.ut_coeff_vx = self.get_param(0.01,True)
+        self.vx_coeff_vx = self.get_param(0.01,True)
+        self.ut_vx_coeff_vx = self.get_param(0.01,True)
+        self.vx_1_coeff_vx = self.get_param(0.01,True)
+        self.us_coeff_vy = self.get_param(0.01,True)
+        self.vx_us_coeff_vy = self.get_param(-0.68,True)
+        self.vy_1_coeff_vy = self.get_param(0.01,True)
+        self.us_coeff_omega = self.get_param(0.01,True)
+        self.vx_us_coeff_omega = self.get_param(0.01,True)
+        self.vy_1_coeff_omega = self.get_param(0.01,True)
 
         # residual neural network
         # input:
@@ -66,6 +81,18 @@ class hybridKinematicSim(nn.Module):
             self.fc1 = self.fc1.double()
             self.fc2 = self.fc2.double()
         self.residual_bounds = self.get_tensor([5.0,5.0,3.0],False)
+
+    # heuristic functions to augment model
+    # ut : throttle
+    # us : steering
+    # Vx += ut_coeff_vx * ut + vx_coeff_vx * vx + ut_vx_coeff_vx * ut * vx + vx_1_coeff_vx * 1
+    # Vy += us_coeff_vy * us + vx_us_coeff_vy * vx * us + vy_1_coeff_vy * 1
+    # omega += us_coeff_omega * us + vx_us_coeff_omega * vx * us + vy_1_coeff_omega * 1
+    def get_heuristic_acc(self,vx,vy,omega,ut,us):
+        d_Vx = self.ut_coeff_vx * ut + self.vx_coeff_vx * vx + self.ut_vx_coeff_vx * ut * vx + self.vx_1_coeff_vx * 1
+        d_Vy = self.us_coeff_vy * us + self.vx_us_coeff_vy * vx * us + self.vy_1_coeff_vy * 1
+        d_omega = self.us_coeff_omega * us + self.vx_us_coeff_omega * vx * us + self.vy_1_coeff_omega * 1
+        return d_Vx, d_Vy, d_omega
 
     def get_residual_acc(self,dynamic_states):
         batch_size, history_steps, state_dim = dynamic_states.size()
@@ -141,8 +168,15 @@ class hybridKinematicSim(nn.Module):
                 omega = omega + residual_angular_acc * self.dt
 
             # NOTE heuristic function
-            Vy = Vy - self.understeer_coeff * Vx * steering
+            ut = throttle
+            us = steering
+            d_Vx, d_Vy, d_omega = self.get_heuristic_acc(Vx,Vy,omega,ut,us)
+            Vx = Vx + d_Vx
+            Vy = Vy + d_Vy
+            omega = omega + d_omega
 
+
+                
             # back to global frame
             Vxg = Vx*torch.cos(psi) - Vy*torch.sin(psi)
             Vyg = Vx*torch.sin(psi) + Vy*torch.cos(psi)

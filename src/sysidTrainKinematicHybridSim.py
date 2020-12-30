@@ -187,10 +187,10 @@ def sysid(log_names):
     batch_size = 256
     torch.set_num_threads(1)
     dt = 0.01
-    history_steps = 5
+    history_steps = 1
     forward_steps = 5
     learning_rate = 1e-3
-    enable_rnn = True
+    enable_rnn = False
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
