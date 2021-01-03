@@ -84,7 +84,8 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
         #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
@@ -351,6 +352,8 @@ class Main():
                 car.v_target = throttle
             elif (car.controller == Controller.mppi):
                 # TODO debugging...
+                # (x,y,theta,vforward,vsideway=0,omega)
+                print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
                 if isnan(steering):
                     print("error steering nan")
@@ -552,7 +555,7 @@ class Main():
             if (car.stateUpdateSource == StateUpdateSource.dynamic_simulator):
                 car.init(self.track,car.simulator)
             elif (car.stateUpdateSource == StateUpdateSource.optitrack):
-                print_error("mppi on optitrack is unimplemented")
+                car.init(self.track)
         # NOTE we can turn on/off laptimer for each car individually
         car.enableLaptimer = self.enableLaptimer
         if car.enableLaptimer:
@@ -624,29 +627,27 @@ class Main():
         self.vi.stopUpdateDaemon()
 
 # ---- Optitrack ----
-# NOTE outdated
-    def initOptitrack(self,):
+    def initOptitrack(self,car,unused=None):
         print_info("Initializing Optitrack...")
-        self.vi = Optitrack(wheelbase=self.car.wheelbase)
+        car.vi = Optitrack(wheelbase=car.wheelbase)
         # TODO use acutal optitrack id for car
         # porsche: 2
-        self.car.internal_id = self.vi.getInternalId(2)
-        self.new_state_update = self.vi.newState
+        car.internal_id = car.vi.getInternalId(2)
+        car.new_state_update = car.vi.newState
 
-    def updateOptitrack(self,):
+    def updateOptitrack(self,car):
         # update for eachj car
         # not using kf state for now
-        (x,y,v,theta,omega) = self.vi.getKFstate(self.car.internal_id)
-
+        (x,y,v,theta,omega) = car.vi.getKFstate(car.internal_id)
 
         #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
         # (x,y,theta,vforward,vsideway=0,omega)
-        self.car_state = (x,y,theta,v,0,omega)
+        car.state = (x,y,theta,v,0,omega)
         return
 
-    def stopOptitrack(self,):
+    def stopOptitrack(self,car):
         # the optitrack destructor should handle things properly
-        self.vi.quit()
+        car.vi.quit()
         pass
 
 # ---- Simulation ----
@@ -704,6 +705,7 @@ class Main():
     def updateAdvSimulation(self,car):
         # update car
         sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
+        # (x,y,theta,vforward,vsideway=0,omega)
         car.state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
         if isnan(sim_states['heading']):
             print("error")

@@ -1479,7 +1479,7 @@ class RCPtrack(Track):
         # x_new and y_new are converted to non-dimensional grid unit
         x_new /= self.scale
         y_new /= self.scale
-        if (x_new>cols or y_new>rows):
+        if (x_new>cols or y_new>rows or x_new<0 or y_new<0):
             return None
 
         # convert to visualization coordinate
@@ -1505,7 +1505,7 @@ class RCPtrack(Track):
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
-            print("Can't draw car -- outside track")
+            #print("Can't draw car -- outside track")
             return img
         # draw vehicle, orientation as black arrow
         img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
@@ -1519,7 +1519,7 @@ class RCPtrack(Track):
     def drawPoint(self, img, coord, color = (0,0,0)):
         src = self.m2canvas(coord)
         if src is None:
-            print("Can't draw point -- outside track")
+            #print("Can't draw point -- outside track")
             return img
         img = cv2.circle(img, src, 3, color,-1)
 
