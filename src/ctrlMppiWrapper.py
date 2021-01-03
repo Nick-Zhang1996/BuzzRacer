@@ -152,6 +152,7 @@ class ctrlMppiWrapper(Car):
         throttle = control[0]
         steering = control[1]
         p.e("mppi")
+
         # DEBUG
         # simulate where mppi think where the car will end up with
         # with synthesized control sequence

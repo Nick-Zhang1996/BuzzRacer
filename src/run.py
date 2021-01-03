@@ -68,7 +68,7 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
@@ -340,8 +340,6 @@ class Main():
                 if not valid:
                     print_warning("ctrlCar invalid retval")
                     exit(1)
-                if self.slowdown.isSet():
-                    throttle = 0.0
                 # DEBUG
                 debug_dict['v_target'] = 0
                 car.v_target = debug_dict['v_target']
@@ -353,8 +351,9 @@ class Main():
             elif (car.controller == Controller.mppi):
                 # TODO debugging...
                 # (x,y,theta,vforward,vsideway=0,omega)
-                print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
+                #print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
+                #print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
                 if isnan(steering):
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
@@ -364,6 +363,8 @@ class Main():
                 throttle = 0
                 steering = 0
 
+            if self.slowdown.isSet():
+                throttle = 0.0
             
             #print("V = %.2f"%(car.state[3]))
             car.steering = steering
@@ -478,7 +479,7 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 2.0}
+                         'max_throttle' : 0.55}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -567,7 +568,7 @@ class Main():
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/sim/"
+        logFolder = "../log/jan3/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
