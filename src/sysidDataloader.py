@@ -56,7 +56,6 @@ class CarDataset(Dataset):
         self.full_states_std = np.sqrt(full_states_sq_sum / full_states_cnt - self.full_states_mean ** 2)
 
         # TODO select good data section (no hitting, no reverse etc)
-        # v>0.06m/s
         cropped_data = []
         cropped_data_idx = []
         good_state = False
@@ -85,7 +84,8 @@ class CarDataset(Dataset):
                 vx = segment[i,1]
                 vy = segment[i,3]
                 dot = cos(heading)*vx + sin(heading)*vy
-                good_frame = (abs(segment[i,1])**2+abs(segment[i,3])**2)>0.05**2 and dot>0.0
+                # v>0.06m/s
+                good_frame = (abs(segment[i,1])**2+abs(segment[i,3])**2)>0.1**2 and dot>0.0
                 if good_frame and not good_state:
                     good_state = True
                     frame_begin = i
