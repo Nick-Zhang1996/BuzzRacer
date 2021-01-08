@@ -1,4 +1,4 @@
-# validate kinematic moel
+# visualize model prediction against actual trajectories
 
 import pickle
 import matplotlib.pyplot as plt
@@ -157,7 +157,6 @@ def tireCurve(slip,Cf=0.1):
     global max_slip
     if np.abs(slip) > max_slip:
         max_slip = np.abs(slip)
-        print(max_slip)
 
     # satuation slip angle
     Bf = 10.0
@@ -267,9 +266,16 @@ def run():
 
         # plot actual future trajectory
         actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
-        #print(actual_future_traj)
-        #img_actual_traj = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
         img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+
+        # distance travelled in actual future trajectory
+        cum_distance_actual = 0.0
+        cum_distance_actual_list = []
+        for j in range(i,i+lookahead_steps-1):
+            dist = ((x[j+1] - x[j])**2 + (y[j+1] - y[j])**2)**0.5
+            cum_distance_actual += dist
+            cum_distance_actual_list.append(dist)
+            
         #show(img)
 
 
@@ -305,6 +311,17 @@ def run():
         # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
 
+        # distance travelled in predicted future trajectory
+        cum_distance_predicted = 0.0
+        cum_distance_predicted_list = []
+
+        for j in range(lookahead_steps-1):
+            dist = ((predicted_future_traj[j+1,0] - predicted_future_traj[j,0])**2 + (predicted_future_traj[j+1,1] - predicted_future_traj[j,1])**2)**0.5
+            cum_distance_predicted += dist
+            cum_distance_predicted_list.append(dist)
+
+
+
         '''
         # calculate predicted trajectory -- longer time step
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
@@ -323,6 +340,15 @@ def run():
         '''
 
         #cv.addWeighted(src1, alpha, src2, beta, 0.0)
+
+        if (i % 100 == 0):
+            print("showing distance travelled")
+            fig = plt.figure()
+            ax = fig.gca()
+            ax.plot(cum_distance_predicted_list,label="predicted")
+            ax.plot(cum_distance_actual_list,label="actual")
+            ax.legend()
+            plt.show()
 
         '''
         print("showing x")
