@@ -15,6 +15,8 @@ from RCPTrack import RCPtrack
 import cv2
 from time import sleep
 
+from tire import tireCurve
+
 if (len(sys.argv) != 2):
     filename = "../log/jan3/full_state1.p"
     print_info("using %s"%(filename))
@@ -40,6 +42,12 @@ vx = np.hstack([0,np.diff(x)])/dt
 vy = np.hstack([0,np.diff(y)])/dt
 omega = np.hstack([0,np.diff(heading)])/dt
 
+# local speed
+# forward
+vx_car = vx*np.cos(heading) + vy*np.sin(heading)
+# lateral, left +
+vy_car = -vx*np.sin(heading) + vy*np.cos(heading)
+
 exp_kf_x = data[skip:,6]
 exp_kf_y = data[skip:,7]
 exp_kf_v = data[skip:,8]
@@ -56,6 +64,7 @@ vx = exp_kf_vx
 vy = exp_kf_vy
 heading = exp_kf_theta
 '''
+# NOTE using filtered omega
 omega = exp_kf_omega
 
 data_len = t.shape[0]
@@ -151,27 +160,11 @@ def step_new(state,control,dt=0.01):
 
     return (x,vxg,y,vyg,heading,omega )
 
-max_slip = 0.0
-#get lateral acceleration from slip angle (rad
-def tireCurve(slip,Cf=0.1):
-    global max_slip
-    if np.abs(slip) > max_slip:
-        max_slip = np.abs(slip)
-
-    # satuation slip angle
-    Bf = 10.0
-    # peel-away sharpness, lower Cf = more gental peel away(street tire)
-    Cf = 0.1
-    # no slip tire stiffness
-    # use this to control 1deg = 0.1g
-    Df = 1.0*(180.0/np.pi)/ Bf / Cf
-    retval = Df * np.sin( Cf * np.arctan( Bf * slip ) )
-    return retval
-
 def step_dynamics(state,control,dt=0.01):
     # constants
     lf = 0.09-0.036
     lr = 0.036
+
 
     # convert to local frame
     x,vxg,y,vyg,heading,omega = tuple(state)
@@ -191,22 +184,30 @@ def step_dynamics(state,control,dt=0.01):
     # TODO use more comprehensive model
     forward_acc_r = (throttle - 0.24)*7.0
 
-    vx += (forward_acc_r - lateral_acc_f * sin(steering) + vy*omega) * dt
-    vy += (lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega) * dt
+    #ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
+    ax = forward_acc_r 
+    ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
+
+    vx += ax * dt
+    vy += ay * dt
+
     # leading coeff = m/Iz
-    omega += 0.05*12.0/(0.1**2+0.1**2)*(lateral_acc_f * lf * cos(steering) - lateral_acc_r * lr ) * dt
+    d_omega = 12.0/(0.1**2+0.1**2)*(lateral_acc_f * lf * cos(steering) - lateral_acc_r * lr )
+    omega += d_omega * dt
 
     # back to global frame
     vxg = vx*cos(heading)-vy*sin(heading)
     vyg = vx*sin(heading)+vy*cos(heading)
 
     # apply updates
+    # TODO add 1/2 a t2
     x += vxg*dt
     y += vyg*dt
-    heading += omega*dt
+    heading += omega*dt + 0.5* d_omega * dt * dt
 
     retval = (x,vxg,y,vyg,heading,omega )
-    return retval
+    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":lateral_acc_f, "lateral_acc_r":lateral_acc_r, 'ax':ax}
+    return retval, debug_dict
 
 def test():
     img_track = track.drawTrack()
@@ -252,12 +253,29 @@ def test():
     plt.show()
 
 def run():
+    '''
+    plt.plot(x,y)
+    plt.show()
+
+    plt.plot(vx)
+    plt.plot(vy)
+    plt.show()
+
+    plt.plot(heading)
+    plt.show()
+
+    plt.plot(omega)
+    plt.show()
+    '''
+
+
     img_track = track.drawTrack()
     #img_track = track.drawRaceline(img=img_track)
     cv2.imshow('validate',img_track)
     cv2.waitKey(10)
 
     lookahead_steps = 100
+    debug_dict_hist = {"slip_f":[[]], "slip_r":[[]], "lateral_acc_f":[[]], "lateral_acc_r":[[]],'ax':[[]]}
     for i in range(1,data_len-lookahead_steps-1):
         # prepare states
         # draw car current pos
@@ -275,6 +293,9 @@ def run():
             dist = ((x[j+1] - x[j])**2 + (y[j+1] - y[j])**2)**0.5
             cum_distance_actual += dist
             cum_distance_actual_list.append(dist)
+
+        # velocity in horizon
+        v_actual_hist = (vx[i:i+lookahead_steps]**2 + vy[i:i+lookahead_steps]**2)**0.5
             
         #show(img)
 
@@ -300,11 +321,23 @@ def run():
         control = (steering[i],throttle[i])
         predicted_states = [state]
         print("step = %d"%(i))
+
+        # debug_dict_hist is 2 level nested list
+        # first dim is time step
+        # second is prediction in timestep
+        for key in debug_dict_hist:
+            debug_dict_hist[key].append([])
         for j in range(i+1,i+lookahead_steps):
             #print(state)
-            state = step_dynamics(state,control)
+            state, debug_dict = step_dynamics(state,control)
+            for key in debug_dict:
+                value = debug_dict[key]
+                debug_dict_hist[key][i].append(value)
             predicted_states.append(state)
             control = (steering[j],throttle[j])
+            if (i % 100 ==0 and j<i+3):
+                print(debug_dict['slip_f'])
+                print(actual_slip_f[i])
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
@@ -320,7 +353,25 @@ def run():
             cum_distance_predicted += dist
             cum_distance_predicted_list.append(dist)
 
+        # velocity predicted
+        v_predicted_hist = (predicted_states[:,1]**2 + predicted_states[:,3]**2)**0.5
+        vx_car_predicted_hist = predicted_states[:,1]
 
+        # forward
+        vx_car_predicted_hist = predicted_states[:,1]*np.cos(predicted_states[:,4]) + predicted_states[:,3]*np.sin(predicted_states[:,4])
+        # lateral, left +
+        vy_car_predicted_hist = -predicted_states[:,1]*np.sin(predicted_states[:,4]) + predicted_states[:,3]*np.cos(predicted_states[:,4])
+
+        # heading
+        predicted_heading_hist = predicted_states[:,4]
+
+        # position error predicted vs actual
+        pos_err = ((predicted_future_traj[:,0] - actual_future_traj[:,0])**2 + (predicted_future_traj[:,1] - actual_future_traj[:,1])**2)**0.5
+
+        # actual slip at front tire
+        # NOTE subject to delay etc
+        lf = 0.09-0.036
+        actual_slip_f = -np.arctan((omega*lf + vy_car)/vx_car) + steering
 
         '''
         # calculate predicted trajectory -- longer time step
@@ -340,15 +391,47 @@ def run():
         '''
 
         #cv.addWeighted(src1, alpha, src2, beta, 0.0)
+        #show(img)
+        cv2.imshow('validate',img)
+        k = cv2.waitKey(10) & 0xFF
+        if k == ord('q'):
+            print("halt")
+            break
 
         if (i % 100 == 0):
-            print("showing distance travelled")
-            fig = plt.figure()
-            ax = fig.gca()
-            ax.plot(cum_distance_predicted_list,label="predicted")
-            ax.plot(cum_distance_actual_list,label="actual")
-            ax.legend()
+            print("showing heading")
+            print("showing velocity (total)")
+            print("showing local velocity in car frame")
+
+            wrap = lambda x: np.mod(x + np.pi, 2*np.pi) - np.pi
+            ax0 = plt.subplot(411)
+            ax0.plot(wrap(predicted_heading_hist)/np.pi*180,label="heading predicted")
+            ax0.plot(heading[i:i+lookahead_steps]/np.pi*180,label="actual")
+            ax0.legend()
+
+            ax1 = plt.subplot(412)
+            ax1.plot(v_predicted_hist,label="v predicted")
+            ax1.plot(v_actual_hist,label="actual")
+            ax1.plot(throttle[i:i+lookahead_steps],label="throttle")
+            ax1.plot(steering[i:i+lookahead_steps],label="steering")
+            ax1.plot(debug_dict_hist['ax'][i],label="predicted ax")
+
+            ax1.legend()
+
+            ax2 = plt.subplot(413)
+            ax2.plot(vx_car_predicted_hist,label="car vx predicted")
+            ax2.plot(vx_car[i:i+lookahead_steps],label="car vx actual")
+            ax2.plot(vy_car_predicted_hist,'--',label="car vy predicted")
+            ax2.plot(vy_car[i:i+lookahead_steps],'--',label="car vy actual")
+            ax2.legend()
+
+            ax3 = plt.subplot(414)
+            ax3.plot(debug_dict_hist['slip_f'][i],label="predicted slip front")
+            ax3.plot(actual_slip_f[i:i+lookahead_steps],label="actual slip front")
+            ax3.legend()
+
             plt.show()
+            print("breakpoint")
 
         '''
         print("showing x")
@@ -382,12 +465,6 @@ def run():
         plt.show()
         '''
 
-        #show(img)
-        cv2.imshow('validate',img)
-        k = cv2.waitKey(10) & 0xFF
-        if k == ord('q'):
-            print("halt")
-            break
 
 if __name__=="__main__":
     #test()
