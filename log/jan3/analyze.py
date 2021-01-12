@@ -148,7 +148,9 @@ plt.show()
 
 fig = plt.figure()
 ax = fig.gca()
-ax.plot(throttle, label="throttle")
+ax.plot(exp_kf_omega, label="kf w")
+omega = np.hstack([0,np.diff(heading)])/dt
+ax.plot(omega, label="raw w")
 ax.legend()
 plt.show()
 
@@ -175,17 +177,15 @@ plt.show()
 '''
 
 # plot acc
-'''
 fig = plt.figure()
 ax = fig.gca()
 ax.plot(t[:-2],lon_acc, label="longitudinal acc ")
 ax.plot(t[:-2],lat_acc, label="lateral acc ")
 ax.plot(t[:-2],total_acc, label="acc norm")
 ax.plot(t,throttle, label="throttle")
-#ax.plot(t,np.abs(steering), label="steering")
+ax.plot(t,np.abs(steering), label="steering")
 ax.legend()
 plt.show()
-'''
 
 fig = plt.figure()
 ax = fig.gca()
