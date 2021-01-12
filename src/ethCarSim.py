@@ -78,8 +78,9 @@ class ethCarSim:
         print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
 
         # we call these acc but they are forces normalized by mass
-        lateral_acc_f = tireCurve(slip_f)
-        lateral_acc_r = tireCurve(slip_r)
+        # TODO consider longitudinal load transfer
+        lateral_acc_f = tireCurve(slip_f) * 9.8 * self.lr / (self.lr + self.lf)
+        lateral_acc_r = tireCurve(slip_r) * 9.8 * self.lf / (self.lr + self.lf)
 
         # TODO use more comprehensive model
         forward_acc_r = (throttle - 0.24)*7.0
@@ -144,8 +145,8 @@ class ethCarSim:
 
 if __name__=='__main__':
     sim = ethCarSim(0,0,radians(90))
-    for i in range(130):
-        throttle = 0.24 + 0.3
+    for i in range(400):
+        throttle = 0.24 + 0.5
         steering = radians(10)
         print("step %d"%(i))
         sim.updateCar(0.01,None,throttle,steering)

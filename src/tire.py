@@ -16,6 +16,8 @@ def oldTireCurve(slip):
     retval = Df * np.sin( Cf * np.arctan( Bf * slip ) )
     return retval
 
+# slip: slip angle in rad
+# output: lateral friction coefficient
 def newTireCurve(slip):
     slip = slip/np.pi*180.0
     # pacejktra needs deg
@@ -23,11 +25,11 @@ def newTireCurve(slip):
     C = 1.4
     D = 1.0
     E = -0.2
-    retval = D * np.sin(C * np.arctan(B * slip - np.arctan(B*slip))) * 9.8
+    retval = D * np.sin(C * np.arctan(B * slip - np.arctan(B*slip)))
     return retval
 
-# in : slip angle in rad
-# out: force normalized by m
+# slip: slip angle in rad
+# output: lateral friction coefficient
 def tireCurve(slip):
     slip = slip/np.pi*180.0
     # pacejktra needs deg
@@ -35,7 +37,7 @@ def tireCurve(slip):
     C = 1.4
     D = 1.0
     E = -0.2
-    retval = D * np.sin(C * np.arctan(B * slip)) * 9.8
+    retval = D * np.sin(C * np.arctan(B * slip))
     return retval
 
 '''
