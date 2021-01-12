@@ -179,13 +179,13 @@ def step_dynamics(state,control,dt=0.01):
     slip_f = -np.arctan((omega*lf + vy)/vx) + steering
     slip_r = np.arctan((omega*lr - vy)/vx)
     # we call these acc but they are forces normalized by mass
-    lateral_acc_f = tireCurve(slip_f)
-    lateral_acc_r = tireCurve(slip_r)
+    # TODO consider longitudinal load transfer
+    lateral_acc_f = tireCurve(slip_f) * 9.8 * lr / (lr + lf)
+    lateral_acc_r = tireCurve(slip_r) * 9.8 * lf / (lr + lf)
     # TODO use more comprehensive model
     forward_acc_r = (throttle - 0.24)*7.0
 
-    #ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
-    ax = forward_acc_r 
+    ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
     ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
 
     vx += ax * dt
@@ -414,7 +414,7 @@ def run():
             ax1.plot(v_actual_hist,label="actual")
             ax1.plot(throttle[i:i+lookahead_steps],label="throttle")
             ax1.plot(steering[i:i+lookahead_steps],label="steering")
-            ax1.plot(debug_dict_hist['ax'][i],label="predicted ax")
+            ax1.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
 
             ax1.legend()
 

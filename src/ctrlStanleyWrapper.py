@@ -42,7 +42,7 @@ class ctrlStanleyWrapper(Car):
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         # FIXME
-        #v_target = v_target * 0.5
+        v_target = v_target * 0.7
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
