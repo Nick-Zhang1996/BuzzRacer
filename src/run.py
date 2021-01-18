@@ -73,7 +73,7 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = True
+        self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
