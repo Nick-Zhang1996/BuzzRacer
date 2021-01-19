@@ -75,9 +75,9 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
 
         # run the track in reverse direction
         self.reverse = False
@@ -261,18 +261,19 @@ class Main():
             '''
 
 
-            # plot reference trajectory following some alternative control sequence
-            x_ref_alt = self.debug_dict[0]['x_ref_alt']
-            for samples in x_ref_alt:
-                for coord in samples:
-                    x,y = coord
-                    img = self.track.drawPoint(img,(x,y),color=(255,200,200))
+            if (car.controller == Controller.mppi):
+                # plot reference trajectory following some alternative control sequence
+                x_ref_alt = self.debug_dict[0]['x_ref_alt']
+                for samples in x_ref_alt:
+                    for coord in samples:
+                        x,y = coord
+                        img = self.track.drawPoint(img,(x,y),color=(255,200,200))
 
-            # plot reference trajectory following optimal control sequence
-            x_ref = self.debug_dict[0]['x_ref']
-            for coord in x_ref:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+                # plot reference trajectory following optimal control sequence
+                x_ref = self.debug_dict[0]['x_ref']
+                for coord in x_ref:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
             self.visualization_ts = time()
 
@@ -374,7 +375,7 @@ class Main():
                 # (x,y,theta,vforward,vsideway=0,omega)
                 #print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                #print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
+                print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
                 if isnan(steering):
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
@@ -758,7 +759,7 @@ class Main():
         
         x,y = init_position
         heading = pi/2
-        car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
+        car.simulator = ethCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
         # here we only instantiate the variable, the actual value will be assigned in updateVisualization, since it takes quite a while to initialize the rest of the program
