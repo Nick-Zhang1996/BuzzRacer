@@ -257,20 +257,19 @@ class Main():
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
             '''
 
+
+            # plot reference trajectory following some alternative control sequence
+            x_ref_alt = self.debug_dict[0]['x_ref_alt']
+            for samples in x_ref_alt:
+                for coord in samples:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y),color=(255,100,100))
+
             # plot reference trajectory following optimal control sequence
             x_ref = self.debug_dict[0]['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y),color=(255,0,0))
-
-            # plot reference trajectory following some alternative control sequence
-            '''
-            x_ref_alt = self.debug_dict[0]['x_ref_alt']
-            for samples in x_ref_alt:
-                for coord in samples:
-                    x,y = coord
-                    img = self.track.drawPoint(img,(x,y),color=(100,0,0))
-            '''
 
             self.visualization_ts = time()
 

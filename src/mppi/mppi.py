@@ -153,6 +153,7 @@ class MPPI:
             # NOTE rand_vals is updated to respect control limits
             self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
             S_vec = cost
+
             p.e("cuda sim")
         else:
             p.s("prep epsilon")
@@ -211,6 +212,13 @@ class MPPI:
         self.old_ref_control = ref_control.copy()
         p.e("post")
 
+        p.s("visual")
+        # select the first 100 control
+        sampled_control = ref_control + self.rand_vals[:100,:,:]
+
+
+        p.e("visual")
+
         # evaluate performance of synthesized control
         #print("best cost in sampled traj   %.2f"%(beta))
         #print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
@@ -225,7 +233,9 @@ class MPPI:
         p.e()
         if isnan(ref_control[0,1]):
             print("error")
-        return ref_control
+
+            
+        return ref_control,sampled_control
 
     # given state, apply MPPI and find control
     # state: current plant state

@@ -147,11 +147,12 @@ class ctrlMppiWrapper(Car):
         p.e("prep")
 
         p.s("mppi")
-        uu = self.mppi.control(state.copy(),self.opponent_prediction,self.control_limit)
+        uu, sampled_control = self.mppi.control(state.copy(),self.opponent_prediction,self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
         p.e("mppi")
+
 
         # DEBUG
         # simulate where mppi think where the car will end up with
@@ -165,10 +166,20 @@ class ctrlMppiWrapper(Car):
 
         # DEBUG
         # per ji's request, show 100 sampled trajectory, randomly selected
+        debug_dict['x_ref_alt'] = []
+        for ctrl_seq in sampled_control:
+            sim_state = state.copy()
+            this_x_ref = []
+            for i in range(self.horizon_steps):
+                sim_state = self.applyDiscreteDynamics(sim_state,ctrl_seq[i],self.mppi_dt)
+                coord = (sim_state[0],sim_state[2])
+                this_x_ref.append(coord)
+            debug_dict['x_ref_alt'].append(this_x_ref)
+
+        p.e("debug")
         
 
         ret =  (throttle,steering,True,debug_dict)
-        p.e("debug")
         p.e()
         return ret
 
