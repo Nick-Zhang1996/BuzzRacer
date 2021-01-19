@@ -93,7 +93,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
     }
     // step forward dynamics, update state x in place
-    forward_kinematics(x,u);
+    forward_dynamics(x,u);
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,in_raceline);

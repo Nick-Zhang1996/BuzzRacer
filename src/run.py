@@ -758,7 +758,7 @@ class Main():
         
         x,y = init_position
         heading = pi/2
-        car.simulator = ethCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
+        car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
         # here we only instantiate the variable, the actual value will be assigned in updateVisualization, since it takes quite a while to initialize the rest of the program
