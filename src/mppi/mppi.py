@@ -195,6 +195,8 @@ class MPPI:
         p.s("post")
         # Calculate statistics of cost function
         S_vec = np.array(S_vec)
+        # sometimes we encounter a nan cost in S_vec, this may be due to a model singularity, we overcome this by replacing the nan(s) with the maximum
+        np.nan_to_num(S_vec, copy=False, nan=np.inf)
         beta = np.min(S_vec)
 
         # calculate weights
@@ -206,6 +208,7 @@ class MPPI:
         # synthesize control signal
         self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
         ref_control = ref_control.reshape([self.T,self.m])
+        ref_control_alt = ref_control.copy()
         for t in range(self.T):
             for i in range(self.m):
                 ref_control[t,i] = ref_control[t,i] + np.sum(weights * self.rand_vals[:,t,i])
@@ -213,10 +216,8 @@ class MPPI:
         p.e("post")
 
         p.s("visual")
-        # select the first 100 control
-        sampled_control = ref_control + self.rand_vals[:100,:,:]
-
-
+        # select some controls for visualization
+        sampled_control = ref_control_alt + self.rand_vals[:30,:,:]
         p.e("visual")
 
         # evaluate performance of synthesized control
@@ -232,7 +233,7 @@ class MPPI:
         #return ref_control[0]
         p.e()
         if isnan(ref_control[0,1]):
-            print("error")
+            print("mppi.py: ref error")
 
             
         return ref_control,sampled_control

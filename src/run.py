@@ -75,7 +75,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
+        self.saveGif = True
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = True
 
@@ -156,7 +156,10 @@ class Main():
     def run(self):
         t = self.timer
         print_info("running ... press q to quit")
+        step = 0
         while not self.exit_request.isSet():
+            print(step)
+            step += 1
             t.s()
             self.update()
             # x,y,theta are in track frame
@@ -263,7 +266,7 @@ class Main():
             for samples in x_ref_alt:
                 for coord in samples:
                     x,y = coord
-                    img = self.track.drawPoint(img,(x,y),color=(255,100,100))
+                    img = self.track.drawPoint(img,(x,y),color=(255,200,200))
 
             # plot reference trajectory following optimal control sequence
             x_ref = self.debug_dict[0]['x_ref']
@@ -311,6 +314,7 @@ class Main():
             car.new_state_update.clear()
             # retrieve car state from visual tracking update
             car.updateState(car)
+            print(car.state)
             #print("car %d T: %.2f S: %.2f, y pos %.2f"%(i,car.throttle, car.steering, car.state[1]))
 
             # force motor freeze if start_delay has not been reached
