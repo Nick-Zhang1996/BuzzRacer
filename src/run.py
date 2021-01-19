@@ -75,7 +75,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
+        self.saveGif = True
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = False
 
@@ -262,6 +262,7 @@ class Main():
 
 
             if (car.controller == Controller.mppi):
+                '''
                 # plot reference trajectory following some alternative control sequence
                 x_ref_alt = self.debug_dict[0]['x_ref_alt']
                 for samples in x_ref_alt:
@@ -274,6 +275,14 @@ class Main():
                 for coord in x_ref:
                     x,y = coord
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+                '''
+                # plot reference trajectory following some alternative control sequence
+                x_ref_alt = self.debug_dict[0]['x_ref_alt']
+                for traj in x_ref_alt:
+                    img = self.track.drawPolyline(traj,(255,200,200),img)
+                # plot reference trajectory following optimal control sequence
+                x_ref = self.debug_dict[0]['x_ref']
+                img = self.track.drawPolyline(x_ref,(255,0,0),img)
 
             self.visualization_ts = time()
 
@@ -505,7 +514,7 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 0.55}
+                         'max_throttle' : 2.0} # for real experiment set to 0.55
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
