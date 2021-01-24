@@ -49,6 +49,11 @@ class KalmanFilter():
 
         self.R = np.diag([self.var_xy,self.var_xy,self.var_theta])
         self.R = np.matrix(self.R)
+        # process noise
+        # x,y, v, heading, omega
+        # NOTE for 100Hz update
+        self.Q = np.diag([0.005, 0.005, 6, 0.00005, 0.01])
+
         self.last_steering = 0
         return
 
@@ -135,9 +140,6 @@ class KalmanFilter():
         self.last_steering = steering
 
         # update covariance matrix
-        # x,y, v, heading, omega
-        # NOTE for 100Hz update
-        self.Q = np.diag([0.005, 0.005, 6, 0.00005, 0.01])
 
         self.P = self.F @ self.P @ self.F.T + self.B @ self.action_cov_mtx @ self.B.T + self.Q
         #self.P = self.F @ self.P @ self.F.T + self.Q

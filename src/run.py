@@ -590,7 +590,7 @@ class Main():
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/jan3/"
+        logFolder = "../log/ethsim/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
