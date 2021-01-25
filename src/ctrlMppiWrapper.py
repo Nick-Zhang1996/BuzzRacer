@@ -163,6 +163,10 @@ class ctrlMppiWrapper(Car):
             coord = (sim_state[0],sim_state[2])
             debug_dict['x_ref'].append(coord)
 
+        # DEBUG
+        # per ji's request, show 100 sampled trajectory, randomly selected
+        
+
         ret =  (throttle,steering,True,debug_dict)
         p.e("debug")
         p.e()

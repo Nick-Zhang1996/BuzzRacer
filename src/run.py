@@ -89,9 +89,9 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        #car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
         #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
@@ -257,11 +257,19 @@ class Main():
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
             '''
 
-            '''
+            # plot reference trajectory following optimal control sequence
             x_ref = self.debug_dict[0]['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+
+            # plot reference trajectory following some alternative control sequence
+            '''
+            x_ref_alt = self.debug_dict[0]['x_ref_alt']
+            for samples in x_ref_alt:
+                for coord in samples:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y),color=(100,0,0))
             '''
 
             self.visualization_ts = time()
@@ -367,6 +375,7 @@ class Main():
                 if isnan(steering):
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
+                # note: this style of debug dict is updated in whole at every step
                 self.debug_dict[i] = self.debug_dict[i] | debug_dict
 
             elif (car.controller == Controller.empty):
