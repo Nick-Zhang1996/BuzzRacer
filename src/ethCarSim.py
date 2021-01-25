@@ -17,7 +17,7 @@ class ethCarSim:
         self.lf = 0.09-0.036
         self.lr = 0.036
         # approximate as a solid box
-        self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
+        self.Iz = self.m/12.0*(0.1**2+0.1**2)
 
         self.x = x
         self.y = y
@@ -69,13 +69,14 @@ class ethCarSim:
         # vehicle longitudinal velocity
         self.Vx = vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
         self.Vy = vy = -self.states[1]*sin(psi) + self.states[3]*cos(psi)
-        print("vx = %5.2f, vy = %5.2f"%(vx,vy))
 
         # TODO handle vx->0
         # for small velocity, use kinematic model 
         slip_f = -np.arctan((omega*self.lf + vy)/vx) + steering
         slip_r = np.arctan((omega*self.lr - vy)/vx)
+        print("vx = %5.2f, vy = %5.2f"%(vx,vy))
         print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
+        print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
 
         # we call these acc but they are forces normalized by mass
         # TODO consider longitudinal load transfer
@@ -95,6 +96,7 @@ class ethCarSim:
 
         # leading coeff = m/Iz
         d_omega = self.m/self.Iz*(lateral_acc_f * self.lf * cos(steering) - lateral_acc_r * self.lr )
+        print("d_omega %.2f"%(d_omega))
         omega += d_omega * dt
 
         # back to global frame

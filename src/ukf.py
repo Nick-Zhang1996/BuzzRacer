@@ -5,7 +5,11 @@ import matplotlib.pyplot as plt
 from scipy.linalg import sqrtm,norm
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
-from math import radians
+from math import radians,degrees
+from common import *
+
+#DEBUG
+from ethCarSim import ethCarSim
 
 class UKF:
     def __init__(self,):
@@ -30,12 +34,12 @@ class UKF:
         Dr = 1.0
         C = 1.4
         D = 1.0
-        B = 0.714
+        B = 0.714/np.pi*180.0
 
         Cm1 = 7.0
         Cm2 = 0.0
-        Cr = 0.24
-        Cd = 0
+        Cr = 0.24*7.0
+        Cd = 0.0
 
         Iz = self.m/12.0*(0.1**2+0.1**2)
         
@@ -44,13 +48,16 @@ class UKF:
         self.initSigmaPoints()
         
         # added to cov matrix at each step
-        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 3**2]+[1e-3**2]*self.param_n)
-        self.observation_noise_cov = np.diag([0.02**2, 0.05**2, radians(2)**2])
+        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[1e-7**2]*self.param_n)
+        #self.observation_noise_cov = np.diag([0.02**2, 0.05**2, radians(2)**2])
+        # give more weight to observation
+        #self.observation_noise_cov = np.diag([0.002**2, 0.002**2, radians(0.2)**2])
+        self.observation_noise_cov = np.diag([1e-5**2, 1e-5**2, radians(1e-2)**2])
 
 
     def initState(self,x,vxg,y,vyg,psi,omega):
         # state: x,vxg,y,vyg, psi, omega
-        self.dynamic_state = np.array([0,0,0,0,0,0])
+        self.dynamic_state = np.array([0,0,0,0,0,0],dtype=np.float)
         self.dynamic_state[0] = x
         self.dynamic_state[1] = vxg
         self.dynamic_state[2] = y
@@ -64,7 +71,7 @@ class UKF:
 
         # 3 sigma
         self.state_3sigma = [0.1, 0.5, 0.1, 0.5,0.5, 10.0]
-        self.param_3sigma = [1e-3**0.5]*self.param_n
+        self.param_3sigma = [1e-3**2]*self.param_n
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
@@ -142,7 +149,9 @@ class UKF:
         sigma_x = self.generateSigmaPoints(var,P)
         post_sigma_x = fun(sigma_x, *args)
         # calc x_mean
-        x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
+        # FIXME FIXME
+        #x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
+        x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
         x_cov = self.w_c_0 * (post_sigma_x[:,0] - x_mean).reshape(-1,1) * (post_sigma_x[:,0] - x_mean)
         for i in range(1,2*self.L+1):
             x_cov = x_cov + self.w_i * (post_sigma_x[:,i] - x_mean).reshape(-1,1) * (post_sigma_x[:,i] - x_mean)
@@ -208,9 +217,23 @@ class UKF:
         throttle, steering = control
         Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz = param
 
+        # DEBUG check against original model
+        debug = False
+        if debug:
+            eth = ethCarSim(0.0,0.0,0.0)
+            eth.states[0] = x[0]
+            eth.states[1] = vxg[0]
+            eth.states[2] = y[0]
+            eth.states[3] = vyg[0]
+            eth.states[4] = psi[0]
+            eth.states[5] = omega[0]
+            eth.updateCar(0.01,None,throttle,steering)
+
         # convert to local frame
         vx = vxg * np.cos(psi) + vyg * np.sin(psi)
         vy = -vxg * np.sin(psi) + vyg * np.cos(psi)
+        if np.min(vx) < 0.05:
+            print_warning("low longitudinal speed")
 
         # tire model
         slip_f = - np.arctan( (omega * self.lf + vy)/vx ) + steering
@@ -221,17 +244,32 @@ class UKF:
         Fry = Dr * np.sin( C * np.arctan(B*slip_r)) * 9.8 * self.lf / (self.lr + self.lf) * self.m
 
         # motor model
-        Frx = ( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx
+        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*self.m
+
+        # DEBUG
+        if debug:
+            print("ukf")
+            print("vx %.2f, vy %.2f"%(vx[0],vy[0]))
+            print("slip f = %.2f, slip r = %.2f"%(degrees(slip_f[0]),degrees(slip_r[0])))
+            f_coeff_f = Df * np.sin( C * np.arctan(B*slip_f))
+            f_coeff_r = Dr * np.sin( C * np.arctan(B*slip_r))
+            print("f_coeff_f = %5.2f, f_coeff_r = %5.2f"%(f_coeff_f[0],f_coeff_r[0]))
+
+            print("acc_f %.2f, acc_r %.2f"%(Ffy[0]/self.m, Fry[0]/self.m))
+            print("forward %.2f"%(Frx[0]/self.m))
 
         # Dynamics
         d_vx = 1.0/self.m * (Frx - Ffy * np.sin( steering ) + self.m * vy * omega)
-        d_vy = 1.0/self.m * (Fry - Ffy * np.cos( steering ) - self.m * vx * omega)
+        d_vy = 1.0/self.m * (Fry + Ffy * np.cos( steering ) - self.m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * self.lf * np.cos( steering ) - Fry * self.lr)
+
+        if debug:
+            print("d_omega %.2f"%(d_omega[0]))
 
         # discretization
         vx = vx + d_vx * dt
         vy = vy + d_vy * dt
-        omega = omega + d_omega * dt
+        omega = omega + d_omega * dt 
 
         # convert back to global frame
         vxg = vx * np.cos(psi) - vy * np.sin(psi)
@@ -240,11 +278,26 @@ class UKF:
         # update x,y,psi
         x = x + vxg * dt
         y = y + vyg * dt
-        psi = psi + omega * dt
+        psi = psi + omega * dt + 0.5 * d_omega * dt * dt
 
         new_state = (x, vxg, y, vyg, psi, omega)
-        new_param = (Df, Dr, C, B, Cm1, Cm2, Cr, Cr, Iz)
+
+        # DEBUG
+        ukf_predict = np.array(new_state)[:,0]
+
+        if debug:
+            print("eth predict")
+            print(np.array(eth.states))
+
+            print("ukf predict")
+            print(ukf_predict)
+
+            print("diff")
+            print(np.array(eth.states) - ukf_predict)
+
+        new_param = (Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz)
         new_joint_state = np.vstack([new_state, new_param])
+
 
         return new_joint_state
 

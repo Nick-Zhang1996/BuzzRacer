@@ -94,6 +94,7 @@ def run():
     sim_t = t[0]
     log = {'state':[], 'cov':[]}
     for i in range(x.shape[0]-1):
+        #print(x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (throttle[i], steering[i])
         ukf.state, ukf.state_cov = ukf.predict(ukf.state, ukf.state_cov, control, t[i+1]-t[i])
         measurement = (x[i+1], y[i+1], heading[i+1])
@@ -150,8 +151,65 @@ def run():
     ax2.legend()
     plt.show()
 
+def testPredict():
+    img_track = track.drawTrack()
+    #img_track = track.drawRaceline(img=img_track)
+    cv2.imshow('validate',img_track)
+    cv2.waitKey(10)
+
+    lookahead_steps = 100
+    for i in range(1,data_len-lookahead_steps-1):
+        # prepare states
+        # draw car current pos
+        car_state = (x[i],y[i],heading[i],0,0,0)
+        img = track.drawCar(img_track.copy(), car_state, steering[i])
+
+        # plot actual future trajectory
+        actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
+        img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+
+        # calculate predicted trajectory -- using predict() in ukf
+        state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
+        control = (throttle[i],steering[i])
+        predicted_states = []
+        #print("step = %d"%(i))
+        ukf = UKF()
+        ukf.initState(x[i], vx[i], y[i], vy[i], heading[i], omega[i])
+        predicted_states.append(ukf.state)
+        for j in range(i+1,i+lookahead_steps):
+            #print(ukf.state_cov[0,0])
+            #ukf.state, ukf.state_cov = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
+            #print(ukf.state[:ukf.state_n])
+            ukf.state, _ = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
+            predicted_states.append(ukf.state)
+
+            control = (throttle[j],steering[j])
+
+        predicted_states = np.array(predicted_states)
+        xx = predicted_states[:,0]
+        yy = predicted_states[:,2]
+        vv = (predicted_states[:,1]**2 + predicted_states[:,3]**2)**0.5
+        vv_real = (vx[i:i+lookahead_steps]**2 + vy[i:i+lookahead_steps]**2)**0.5
+
+        debug = False
+        if debug:
+            plt.plot(vv)
+            plt.plot(vv_real,'--')
+            plt.show()
+
+        predicted_future_traj = np.vstack([xx,yy]).T
+        img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
+
+        cv2.imshow('validate',img)
+        k = cv2.waitKey(10) & 0xFF
+        if k == ord('q'):
+            print("halt")
+            break
+
+
 
 
 
 if __name__=="__main__":
-    run()
+    #run()
+    testPredict()
