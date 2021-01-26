@@ -206,10 +206,6 @@ def testPredict():
             print("halt")
             break
 
-
-
-
-
 if __name__=="__main__":
-    #run()
-    testPredict()
+    run()
+    #testPredict()

@@ -71,12 +71,14 @@ class UKF:
 
         # 3 sigma
         self.state_3sigma = [0.1, 0.5, 0.1, 0.5,0.5, 10.0]
-        self.param_3sigma = [1e-3**2]*self.param_n
+        #self.state_3sigma = [0.1, 0.1, 0.1, 0.1,0.1, 1.0]
+        self.param_3sigma = [1e-3]*self.param_n
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
         # scaling terms
-        alfa = 1e-3
+        # NOTE unconventional alfa, usually 1e-3
+        alfa = 1.0
         beta = 0
         k = 0
         self.L = L = self.state_n + self.param_n
@@ -150,8 +152,8 @@ class UKF:
         post_sigma_x = fun(sigma_x, *args)
         # calc x_mean
         # FIXME FIXME
-        #x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
-        x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
+        x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
+        #x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
         x_cov = self.w_c_0 * (post_sigma_x[:,0] - x_mean).reshape(-1,1) * (post_sigma_x[:,0] - x_mean)
         for i in range(1,2*self.L+1):
             x_cov = x_cov + self.w_i * (post_sigma_x[:,i] - x_mean).reshape(-1,1) * (post_sigma_x[:,i] - x_mean)
@@ -400,8 +402,56 @@ class UKF:
         ax.legend()
         plt.show()
 
+    def sqr(self,x):
+        return x**2
+
+    def testSqr(self):
+        self.state_n = 1
+        self.param_n = 0
+        self.initSigmaPoints()
+        # mean for test state
+        # state: (x,y)
+        state = np.array([0.0],dtype=np.float)
+        # cov for test state
+        state_P = np.identity(1)
+        state_P[0,0] = 2
+
+        #Monte Carlo method to get true output variance and mean
+        mc_samples = np.random.multivariate_normal(state, state_P, size=(10000,)).T
+
+        mc_outputs = self.sqr(mc_samples)
+        mc_mean = np.mean(mc_outputs,axis=1)
+        mc_cov = np.cov(mc_outputs)
+
+        print("mc mean")
+        print(mc_mean)
+        print("mc cov")
+        print(mc_cov)
+
+        #Unscented transform to simulate variance and mean
+        u_mean, u_cov = self.unscentedTrans(state,state_P,self.sqr)
+        print("unscented mean")
+        print(u_mean)
+        print("unscented cov")
+        print(u_cov)
+
+        # plot
+        fig = plt.figure()
+        ax = fig.gca()
+        #ax.plot(mc_samples, '*',label="mc samples")
+        #ax.plot(mc_outputs, '*',label="mc ouputs")
+        ax.plot(mc_mean[0],mc_mean[1], '+',label="mc mean")
+        ax.plot(u_mean[0],u_mean[1], '+',label="unscented mean")
+
+        self.confidence_ellipse(mc_mean, mc_cov, ax, edgecolor='red')
+        self.confidence_ellipse(u_mean, u_cov, ax, edgecolor='blue')
+
+        ax.legend()
+        plt.show()
+
 
 if __name__ =="__main__":
     ukf = UKF()
     #ukf.testCartesianToPolar()
+    ukf.testSqr()
 
