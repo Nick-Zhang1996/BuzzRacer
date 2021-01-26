@@ -157,12 +157,16 @@ def run():
 
     # params
     ax2 = plt.subplot(515)
-    ax2.plot(state_hist[:,6]/np.mean(state_hist[:,6]),label="param")
-    ax2.plot(state_hist[:,7]/np.mean(state_hist[:,7]),label="param")
-    ax2.plot(state_hist[:,8]/np.mean(state_hist[:,8]),label="param")
-    ax2.plot(state_hist[:,9]/np.mean(state_hist[:,9]),label="param")
-    ax2.plot(state_hist[:,10]/np.mean(state_hist[:,10]),label="param")
-    ax2.legend()
+    ax2.plot(state_hist[:,6]/true_param[0],label="param")
+    ax2.plot(state_hist[:,7]/true_param[1],label="param")
+    ax2.plot(state_hist[:,8]/true_param[2],label="param")
+    ax2.plot(state_hist[:,9]/true_param[3],label="param")
+    ax2.plot(state_hist[:,10]/true_param[4],label="param")
+    ax2.plot(state_hist[:,11]/true_param[5],label="param")
+    ax2.plot(state_hist[:,12]/true_param[6],label="param")
+    ax2.plot(state_hist[:,13]/true_param[7],label="param")
+    ax2.plot(state_hist[:,14]/true_param[8],label="param")
+    #ax2.legend()
     plt.show()
 
 def testPredict():

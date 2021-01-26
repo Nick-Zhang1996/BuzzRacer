@@ -48,7 +48,7 @@ class UKF:
         self.initSigmaPoints()
         
         # added to cov matrix at each step
-        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[1e-2**2]*self.param_n)
+        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[1e-3**2]*self.param_n)
         #self.observation_noise_cov = np.diag([0.02**2, 0.05**2, radians(2)**2])
         # give more weight to observation
         #self.observation_noise_cov = np.diag([0.002**2, 0.002**2, radians(0.2)**2])
@@ -72,7 +72,7 @@ class UKF:
         # 3 sigma
         self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
         #self.state_3sigma = [0.1, 0.1, 0.1, 0.1,0.1, 1.0]
-        self.param_3sigma = [1e-5]*self.param_n
+        self.param_3sigma = [1e-3]*self.param_n
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
