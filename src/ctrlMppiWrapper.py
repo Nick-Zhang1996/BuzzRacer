@@ -31,7 +31,7 @@ class ctrlMppiWrapper(Car):
         # NOTE NOTE NOTE
         # update mppi_racecar.cu whenever you change parameter here
         self.mppi_dt = 0.03
-        self.samples_count = 1024*4
+        self.samples_count = 1024*8
         self.discretized_raceline_len = 1024
         self.horizon_steps = 20
         self.control_dim = 2

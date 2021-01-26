@@ -279,7 +279,7 @@ class Main():
                 # plot reference trajectory following some alternative control sequence
                 x_ref_alt = self.debug_dict[0]['x_ref_alt']
                 for traj in x_ref_alt:
-                    img = self.track.drawPolyline(traj,(255,200,200),img)
+                    img = self.track.drawPolyline(traj,(255,150,150),img,1)
                 # plot reference trajectory following optimal control sequence
                 x_ref = self.debug_dict[0]['x_ref']
                 img = self.track.drawPolyline(x_ref,(255,0,0),img)
