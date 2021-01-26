@@ -41,18 +41,18 @@ class UKF:
         Cr = 0.24*7.0
         Cd = 0.0
 
-        Iz = self.m/12.0*(0.1**2+0.1**2)
+        Iz = 10*self.m/12.0*(0.1**2+0.1**2)
         
         self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
 
         self.initSigmaPoints()
         
         # added to cov matrix at each step
-        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[1e-7**2]*self.param_n)
+        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[1e-2**2]*self.param_n)
         #self.observation_noise_cov = np.diag([0.02**2, 0.05**2, radians(2)**2])
         # give more weight to observation
         #self.observation_noise_cov = np.diag([0.002**2, 0.002**2, radians(0.2)**2])
-        self.observation_noise_cov = np.diag([1e-5**2, 1e-5**2, radians(1e-2)**2])
+        self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(1)**2])
 
 
     def initState(self,x,vxg,y,vyg,psi,omega):
@@ -70,9 +70,9 @@ class UKF:
         # cov matrix
 
         # 3 sigma
-        self.state_3sigma = [0.1, 0.5, 0.1, 0.5,0.5, 10.0]
+        self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
         #self.state_3sigma = [0.1, 0.1, 0.1, 0.1,0.1, 1.0]
-        self.param_3sigma = [1e-3]*self.param_n
+        self.param_3sigma = [1e-5]*self.param_n
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
@@ -235,7 +235,8 @@ class UKF:
         vx = vxg * np.cos(psi) + vyg * np.sin(psi)
         vy = -vxg * np.sin(psi) + vyg * np.cos(psi)
         if np.min(vx) < 0.05:
-            print_warning("low longitudinal speed")
+            pass
+            #print_warning("low longitudinal speed")
 
         # tire model
         slip_f = - np.arctan( (omega * self.lf + vy)/vx ) + steering

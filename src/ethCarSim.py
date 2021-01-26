@@ -17,7 +17,7 @@ class ethCarSim:
         self.lf = 0.09-0.036
         self.lr = 0.036
         # approximate as a solid box
-        self.Iz = self.m/12.0*(0.1**2+0.1**2)
+        self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
 
         self.x = x
         self.y = y

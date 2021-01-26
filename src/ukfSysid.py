@@ -26,6 +26,7 @@ with open(filename, 'rb') as f:
     data = pickle.load(f)
 data = np.array(data)
 data = data.squeeze(1)
+data = data[:-100,:]
 
 skip = 200
 t = data[skip:,0]
@@ -88,9 +89,16 @@ def run():
     global x,vx,y,vy,heading,omega,t
     ukf = UKF()
     ukf.initState(x[0],vx[0],y[0],vy[0],heading[0],omega[0])
-    print("initial")
+    print("true")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
     print(ukf.state[-ukf.param_n:])
+    true_param = ukf.state[-ukf.param_n:].copy()
+
+    print("initial")
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
+    ukf.state[-ukf.param_n:] = ukf.state[-ukf.param_n:] * (np.random.rand(ukf.param_n)+0.5)
+    print(ukf.state[-ukf.param_n:])
+    init_param = ukf.state[-ukf.param_n:].copy()
     sim_t = t[0]
     log = {'state':[], 'cov':[]}
     for i in range(x.shape[0]-1):
@@ -107,6 +115,12 @@ def run():
     print("final")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
     print(ukf.state[-ukf.param_n:])
+    final_param = ukf.state[-ukf.param_n:].copy()
+
+    print("initial:")
+    print(init_param/true_param)
+    print("final:")
+    print(final_param/true_param)
     # plot
     state_hist = np.array(log['state'])
     cov_hist = np.array(log['cov'])
@@ -143,11 +157,11 @@ def run():
 
     # params
     ax2 = plt.subplot(515)
-    ax2.plot(state_hist[:,6],label="param")
-    ax2.plot(state_hist[:,7],label="param")
-    ax2.plot(state_hist[:,8],label="param")
-    ax2.plot(state_hist[:,9],label="param")
-    ax2.plot(state_hist[:,10],label="param")
+    ax2.plot(state_hist[:,6]/np.mean(state_hist[:,6]),label="param")
+    ax2.plot(state_hist[:,7]/np.mean(state_hist[:,7]),label="param")
+    ax2.plot(state_hist[:,8]/np.mean(state_hist[:,8]),label="param")
+    ax2.plot(state_hist[:,9]/np.mean(state_hist[:,9]),label="param")
+    ax2.plot(state_hist[:,10]/np.mean(state_hist[:,10]),label="param")
     ax2.legend()
     plt.show()
 
