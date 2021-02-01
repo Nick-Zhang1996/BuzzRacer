@@ -70,7 +70,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = True
 
@@ -84,18 +84,17 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
-        car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
+        #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
-        car0.opponents = [car1,car2]
-        car0.initTrackOpponents()
-        car1.opponents = []
-        car1.initTrackOpponents()
-        car2.opponents = []
-        car2.initTrackOpponents()
-        self.cars = [car0, car1,car2]
+        #car0.opponents = [car1,car2]
+        car0.opponents = []
+        #car1.opponents = []
+        #car2.opponents = []
+        self.cars = [car0]
 
         # real time/sim_time
         # larger value result in slower simulation
@@ -162,10 +161,6 @@ class Main():
                 self.debug_dict[i]['target_v'].append(car.v_target)
                 self.debug_dict[i]['actual_v'].append(v_forward)
                 self.debug_dict[i]['throttle'].append(car.throttle)
-                p,i,d = car.throttle_pid.getDebug()
-                self.debug_dict[i]['p'].append(p)
-                self.debug_dict[i]['i'].append(i)
-                self.debug_dict[i]['d'].append(d)
 
                 if car.stateUpdateSource == StateUpdateSource.optitrack \
                         or car.stateUpdateSource == StateUpdateSource.vicon:
@@ -244,10 +239,12 @@ class Main():
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
             '''
 
+            '''
             x_ref = self.debug_dict[0]['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+            '''
 
             self.visualization_ts = time()
 
@@ -315,7 +312,7 @@ class Main():
 
             # apply controller
             if (car.controller == Controller.stanley):
-                throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=car.reverse)
+                throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
                 if not valid:
                     print_warning("ctrlCar invalid retval")
                     exit(1)
@@ -326,7 +323,7 @@ class Main():
                 debug_dict['v_target'] = 0
                 car.v_target = debug_dict['v_target']
             elif (car.controller == Controller.dynamicMpc):
-                throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=car.reverse)
+                throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
                 #self.debug_dict[i]['x_project'] = debug_dict['x_project']
                 self.debug_dict[i]['x_ref'] = debug_dict['x_ref']
                 self.debug_dict[i]['crosstrack_error'].append(debug_dict['crosstrack_error'])
