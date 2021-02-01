@@ -24,7 +24,8 @@ class ctrlMppiWrapper(Car):
         self.p = execution_timer(True)
         return
 
-    def init(self,track,sim):
+    # if running on real platform, set sim to None so that default values for car dimension/properties will be used
+    def init(self,track,sim=None):
         self.track = track
 
         # NOTE NOTE NOTE
@@ -50,12 +51,25 @@ class ctrlMppiWrapper(Car):
         self.mppi.evaluateStepCost = self.evaluateStepCost
         self.mppi.evaluateTerminalCost = self.evaluateTerminalCost
 
-        self.Caf = sim.Caf
-        self.Car = sim.Car
-        self.lf = sim.lf
-        self.lr = sim.lr
-        self.Iz = sim.Iz
-        self.m = sim.m
+        if (sim is None):
+            g = 9.81
+            self.m = 0.1667
+            self.Caf = 5*0.25*self.m*g
+            #self.Car = 5*0.25*self.m*g
+            self.Car = self.Caf
+            # longitudinal speed
+            # CG to front axle
+            self.lf = 0.09-0.036
+            self.lr = 0.036
+            # approximate as a solid box
+            self.Iz = self.m/12.0*(0.1**2+0.1**2)
+        else:
+            self.Caf = sim.Caf
+            self.Car = sim.Car
+            self.lf = sim.lf
+            self.lr = sim.lr
+            self.Iz = sim.Iz
+            self.m = sim.m
         return
 
     def prepareDiscretizedRaceline(self):
@@ -138,6 +152,7 @@ class ctrlMppiWrapper(Car):
         throttle = control[0]
         steering = control[1]
         p.e("mppi")
+
         # DEBUG
         # simulate where mppi think where the car will end up with
         # with synthesized control sequence
@@ -147,6 +162,10 @@ class ctrlMppiWrapper(Car):
             sim_state = self.applyDiscreteDynamics(sim_state,uu[i],self.mppi_dt)
             coord = (sim_state[0],sim_state[2])
             debug_dict['x_ref'].append(coord)
+
+        # DEBUG
+        # per ji's request, show 100 sampled trajectory, randomly selected
+        
 
         ret =  (throttle,steering,True,debug_dict)
         p.e("debug")

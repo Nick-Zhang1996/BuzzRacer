@@ -1,3 +1,4 @@
+# train hybrid simulator with kinematic base model
 import glob
 from copy import deepcopy
 import numpy as np
@@ -8,7 +9,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-from hybridSim import hybridSim
+# hybrid simulator with kinematic base model
+from hybridKinematicSim import hybridKinematicSim
 from sysidDataloader import CarDataset
 from advCarSim import advCarSim
 
@@ -41,7 +43,7 @@ def test(test_data_loader,history_steps,forward_steps,simulator,device,criterion
             # change target states
             target_states[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
 
-            loss = criterion(predicted_state, target_states)
+            loss = criterion(predicted_state[:,:,:5], target_states[:,:,:5])
             epoch_loss += loss
 
             # loss is difficult to understand, we now calculate the state difference
@@ -104,9 +106,8 @@ def train(train_data_loader,history_steps,forward_steps,simulator,device,criteri
             target_states_wrapped[:,:,4] = (target_states[:,:,4] - predicted_state[:,:,4] + np.pi)%(2*np.pi) - np.pi + predicted_state[:,:,4]
 
             #loss = criterion((predicted_state - full_states_mean) / full_states_std, (target_states - full_states_mean) / full_states_std)
-            loss = criterion(predicted_state, target_states_wrapped)
-            # FIXME
-            #print(loss)
+            #loss = criterion(predicted_state, target_states_wrapped)
+            loss = criterion(predicted_state[:,:,:5], target_states_wrapped[:,:,:5])
 
             latest_state = full_states[:,-1,-(simulator.state_dim+simulator.action_dim):-simulator.action_dim]
             latest_action = full_states[:,-1,-simulator.action_dim:]
@@ -186,10 +187,10 @@ def sysid(log_names):
     batch_size = 256
     torch.set_num_threads(1)
     dt = 0.01
-    history_steps = 5
-    forward_steps = 3
-    learning_rate = 1e-5
-    enable_rnn = True
+    history_steps = 1
+    forward_steps = 5
+    learning_rate = 1e-3
+    enable_rnn = False
 
     dataset = CarDataset(log_names,dt,history_steps,forward_steps)
 
@@ -216,7 +217,7 @@ def sysid(log_names):
 
     criterion = nn.MSELoss()
 
-    simulator = hybridSim(dtype, device, history_steps, forward_steps, dt)
+    simulator = hybridKinematicSim(dtype, device, history_steps, forward_steps, dt)
     '''
     # FIXME debug
     for name, param in simulator.named_parameters():
@@ -232,21 +233,10 @@ def sysid(log_names):
     full_states_mean = torch.tensor(dataset.full_states_mean, dtype=dtype, device=device, requires_grad=False).view(1, simulator.state_dim+simulator.action_dim)
     full_states_std = torch.tensor(dataset.full_states_std, dtype=dtype, device=device, requires_grad=False).view(1, simulator.state_dim+simulator.action_dim)
 
-    param_history = []
     train_loss_history = []
     test_loss_history = []
     train_err_history = []
     test_err_history = []
-    print("-------- initial values -------")
-    print("mass = %.3f"%(simulator.m.detach().item()))
-    print("Caf = %.3f"%(simulator.Caf().detach().item()))
-    print("Car = %.3f"%(simulator.Car().detach().item()))
-    print("lf = %.3f"%(simulator.lf.detach().item()))
-    print("lr = %.3f"%(simulator.lr.detach().item()))
-    print("Iz = %.6f"%(simulator.Iz().detach().item()))
-    print("throttle offset = %.4f"%(simulator.throttle_offset.detach().item()))
-    print("throttle ratio = %.4f"%(simulator.throttle_ratio.detach().item()))
-    print("-------- -------------- -------")
 
     test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
     print("initial test cost %.5f (err = %.5f)"%(test_loss,-1))
@@ -259,60 +249,18 @@ def sysid(log_names):
         test_loss,error = test(test_data_loader,history_steps,forward_steps,simulator,device,criterion,optimizer,test_loss_history,test_err_history,enable_rnn)
 
         #print("Train loss = %.6f, Test loss = %.6f (err=%.5f)"%(train_loss,test_loss,error))
-        print("Train loss = %.6f, Test loss = %.6f "%(train_loss,test_loss))
-        print(error)
+        print("Epoch %d, Train loss = \033[92m %.6f \033[0m , Test loss =\033[92m %.6f \033[0m "%(epoch_count, train_loss,test_loss))
+        print(error[:5])
+        #print(simulator.understeer_coeff.detach().item())
 
-        # log parameter update history
-        mass = simulator.m.detach().item()
-        Caf = simulator.Caf().detach().item()
-        Car = simulator.Car().detach().item()
-        lf = simulator.lf.detach().item()
-        lr = simulator.lr.detach().item()
-        Iz = simulator.Iz().detach().item()
-        param_history.append([mass,Caf,Car,lf,lr,Iz])
+    torch.save(simulator.state_dict(),"./model.p")
+    print(simulator.state_dict())
 
-
-    print("-------- trained values -------")
-    print("mass = %.3f"%(simulator.m.detach().item()))
-    print("Caf = %.3f"%(simulator.Caf().detach().item()))
-    print("Car = %.3f"%(simulator.Car().detach().item()))
-    print("lf = %.3f"%(simulator.lf.detach().item()))
-    print("lr = %.3f"%(simulator.lr.detach().item()))
-    print("Iz = %.6f"%(simulator.Iz().detach().item()))
-    print("throttle offset = %.4f"%(simulator.throttle_offset.detach().item()))
-    print("throttle ratio = %.4f"%(simulator.throttle_ratio.detach().item()))
-    print("-------- -------------- -------")
-
-    param_history = np.array(param_history)
-    '''
-    print("mass")
-    plt.plot(param_history[:,0])
-    plt.show()
-
-    print("Ca")
-    plt.plot(param_history[:,1])
-    plt.plot(param_history[:,2])
-    plt.show()
-
-    print("l")
-    plt.plot(param_history[:,3])
-    plt.plot(param_history[:,4])
-    plt.show()
-    
-    print("Iz")
-    plt.plot(param_history[:,5])
-    plt.show()
-    '''
-
-    plt.plot(train_loss_history,'r-')
-    plt.plot(test_loss_history,'b.-')
-    plt.show()
-
-    # plot acc
+    # plot loss
     fig = plt.figure()
     ax = fig.gca()
-    ax.plot(train_loss_history, label="train loss")
-    ax.plot(test_loss_history, label="test loss")
+    ax.plot(train_loss_history,'r.-', label="train loss")
+    ax.plot(test_loss_history, 'b.-', label="test loss")
     ax.legend()
     plt.show()
 

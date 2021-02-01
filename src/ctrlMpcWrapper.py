@@ -19,6 +19,22 @@ class ctrlMpcWrapper(Car):
         self.t = execution_timer(True)
         self.freq = []
         self.min_freq = 999
+        self.dt = dt
+        self.prediction_steps = 30
+
+        g = 9.81
+        self.m = 0.1667
+        self.Caf = 5*0.25*self.m*g
+        #self.Car = 5*0.25*self.m*g
+        self.Car = self.Caf
+        # longitudinal speed
+        self.Vx = 1.0
+        self.Vy = 0
+        # CG to front axle
+        self.lf = 0.09-0.036
+        self.lr = 0.036
+        # approximate as a solid box
+        self.Iz = self.m/12.0*(0.1**2+0.1**2)
         return
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
