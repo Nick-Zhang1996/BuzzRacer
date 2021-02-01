@@ -979,6 +979,67 @@ class RCPtrack(Track):
 
         return img
 
+    # draw a polynomial line defined in track space
+    # points: a list of coordinates in format (x,y)
+    def drawPolyline(self,points,lineColor=(0,0,255), img=None):
+
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        # this gives smoother result, but difficult to relate u to actual grid
+        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
+
+        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        # x_new and y_new are in non-dimensional grid unit
+        u_new = np.linspace(0,self.track_length_grid,1000)
+        points = np.array(points)
+        x_new = points[:,0]
+        y_new = points[:,1]
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        y_new /= self.scale
+        y_new *= self.resolution
+        y_new = self.resolution*rows - y_new
+
+        if img is None:
+            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
+
+        pts = np.vstack([x_new,y_new]).T
+        # for polylines, pts = pts.reshape((-1,1,2))
+        pts = pts.reshape((-1,2))
+        pts = pts.astype(np.int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        gs = self.resolution
+        pts[:,0] = np.clip(pts[:,0],0,gs*cols)
+        pts[:,1] = np.clip(pts[:,1],0,gs*rows)
+        for i in range(len(points)-1):
+            p1 = np.array(pts[i])
+            p2 = np.array(pts[i+1])
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=3) 
+
+        # plot reference points
+        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        '''
+        if not (points is None):
+            for point in points:
+                x = point[0]
+                y = point[1]
+                x /= self.scale
+                x *= self.resolution
+                y /= self.scale
+                y *= self.resolution
+                y = self.resolution*rows - y
+                
+                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        '''
+
+        return img
+
     # draw ONE arrow, unit: meter, coord sys: dimensioned
     # source: source of arrow, in meter
     # orientation, radians from x axis, ccw positive
@@ -1272,8 +1333,8 @@ class RCPtrack(Track):
         _norm = lambda x:np.linalg.norm(x,axis=0)
         # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
 
-        dr = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=1))
-        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline_s,der=2))
+        dr = np.array(splev(u0%self.track_length_grid,self.raceline,der=1))
+        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline,der=2))
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
 
@@ -1291,7 +1352,6 @@ class RCPtrack(Track):
 
         s_vec = [s0]
         v_vec = [v0]
-        coord_vec = [local_ctrl_pnt]
         heading_vec = [heading0]
         k_vec = [curvature]
         k_sign_vec = [cross_curvature]
@@ -1322,8 +1382,7 @@ class RCPtrack(Track):
         # find ref coordinates for projection ref points
 
         t.s("coord")
-        coord_k = np.array(splev(s_vec,self.raceline_s)).T
-        coord_vec = np.vstack([coord_vec,coord_k])
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
         t.e("coord")
 
         t.s("K")
@@ -1357,6 +1416,57 @@ class RCPtrack(Track):
         #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         
+    # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
+    # Inputs:
+    # state: opponent vehicle state, same as in self.localTrajectory()
+    # p : lookahead steps
+    # dt : time between each lookahead steps
+
+    # Return:
+    # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
+    # valid : a boolean indicating whether the function was able to find a valid result
+    # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+
+    def predictOpponent(self, state, p, dt, reverse=False):
+        if reverse:
+            print_error("reverse is not implemented")
+        # set wheelbase to 0 to get point closest to vehicle CG
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        if retval is None:
+            return None,None,False
+
+        # parse return value from localTrajectory
+        (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+        if isnan(orientation):
+            return None,None,False
+
+        # calculate s value for projection ref points
+        s0 = self.uToS(u0).item()
+        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+
+        s_vec = [s0]
+        v_vec = [v0]
+
+        for k in range(1,p+1):
+            s_k = s_vec[-1] + v_vec[-1] * dt
+            s_vec.append(s_k)
+            # find ref velocity for projection ref points
+            # TODO adjust ref velocity for current vehicle velocity
+
+            # NOTE force v_k to be current velocity
+            #v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            v_k = v0
+            v_vec.append(v_k)
+
+        # find ref heading for projection ref points
+        s_vec = np.array(s_vec)%self.raceline_len_m
+        # find ref coordinates for projection ref points
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
+
+        return coord_vec
+
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):
@@ -1369,7 +1479,7 @@ class RCPtrack(Track):
         # x_new and y_new are converted to non-dimensional grid unit
         x_new /= self.scale
         y_new /= self.scale
-        if (x_new>cols or y_new>rows):
+        if (x_new>cols or y_new>rows or x_new<0 or y_new<0):
             return None
 
         # convert to visualization coordinate
@@ -1395,7 +1505,7 @@ class RCPtrack(Track):
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
-            print("Can't draw car -- outside track")
+            #print("Can't draw car -- outside track")
             return img
         # draw vehicle, orientation as black arrow
         img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
@@ -1409,7 +1519,7 @@ class RCPtrack(Track):
     def drawPoint(self, img, coord, color = (0,0,0)):
         src = self.m2canvas(coord)
         if src is None:
-            print("Can't draw point -- outside track")
+            #print("Can't draw point -- outside track")
             return img
         img = cv2.circle(img, src, 3, color,-1)
 

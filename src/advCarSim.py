@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 # advanced dynamic simulator of mini z
 class advCarSim:
-    def __init__(self,x,y,heading):
+    def __init__(self,x,y,heading,noise=False,noise_cov=None):
         # front tire cornering stiffness
         g = 9.81
         self.m = 0.1667
@@ -12,7 +12,7 @@ class advCarSim:
         #self.Car = 5*0.25*self.m*g
         self.Car = self.Caf
         # longitudinal speed
-        self.Vx = 1
+        self.Vx = 1.0
         self.Vy = 0
         # CG to front axle
         self.lf = 0.09-0.036
@@ -28,6 +28,15 @@ class advCarSim:
         self.d_y = self.Vx*sin(self.psi)+self.Vy*cos(self.psi)
         self.d_psi = 0
         self.states = np.array([self.x,self.d_x,self.y,self.d_y,self.psi,self.d_psi])
+
+        self.state_dim = 6
+        self.control_dim = 2
+        
+        self.noise = noise
+        if noise:
+            self.noise_cov = noise_cov
+            assert np.array(noise_cov).shape == (6,6)
+
         self.states_hist = []
         self.local_states_hist = []
         self.norm = []
@@ -80,7 +89,11 @@ class advCarSim:
         # we use R() to convert state to vehicle frame
         # before we apply A,B
         # then we convert state back to track/world frame
-        self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
+        if (self.noise):
+            plant_noise = np.random.multivariate_normal([0.0]*self.state_dim, self.noise_cov, size=1).flatten()
+            self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u + plant_noise)*dt
+        else:
+            self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
         self.states_hist.append(self.states)
         self.local_states_hist.append(R(-psi)@self.states)
 
