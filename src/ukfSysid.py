@@ -37,7 +37,7 @@ heading = data[skip:,3]
 steering = data[skip:,4]
 throttle = data[skip:,5]
 
-# add some noise
+# NOTE add some noise
 x = x+np.random.normal(0.0,2e-3,size=x.shape)
 y = y+np.random.normal(0.0,2e-3,size=x.shape)
 heading = heading+np.random.normal(0.0,radians(0.5),size=x.shape)
@@ -101,9 +101,12 @@ def run():
 
     print("initial")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
-    # add noise to initial parameter
-    #ukf.state[-ukf.param_n:] = ukf.state[-ukf.param_n:] * (np.random.rand(ukf.param_n)+0.5)
+    # NOTE add noise to initial parameter
+    # uniform, * 0.5-1.5
+    # keep Iz ground truth
+    ukf.state[-ukf.param_n:-1] = ukf.state[-ukf.param_n:-1] * (np.random.rand(ukf.param_n-1)+0.5)
     print(ukf.state[-ukf.param_n:])
+
     init_param = ukf.state[-ukf.param_n:].copy()
     sim_t = t[0]
     log = {'state':[], 'cov':[]}

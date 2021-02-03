@@ -58,7 +58,12 @@ class UKF:
         # 3
         # use noisy simulation
         # NOTE this does not multiply with dt, so we multiply by dt2
-        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0]+[0e-5**2]*self.param_n)*(0.01**2)
+        #self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [0e-3**2]*(self.param_n) )*(0.01**2)
+
+        # 4
+        # start tuning cov for parameter
+        # 1e-1 - 1e-3 **2 seem to be good
+        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [1.0**2]*(self.param_n-1) + [0e-5])*(0.01**2)
 
 
         # 1
@@ -67,6 +72,9 @@ class UKF:
         #self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(0.1)**2])
 
         # 3 also #2*1e5 to maintain ratio in #2 ->that's really larger lets use use old
+        #self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
+        
+        # 4
         self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
 
 
@@ -96,11 +104,15 @@ class UKF:
         self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
 
 
+
         # 1
         #self.param_3sigma = [2e-3]*self.param_n
 
         # 2
-        self.param_3sigma = [0e-5]*self.param_n
+        #self.param_3sigma = [0e-5]*self.param_n
+
+        # 4 add some cov so we're not waiting as long for cov on param to go high
+        self.param_3sigma = [1e-2]*(self.param_n-1) + [0]
 
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
