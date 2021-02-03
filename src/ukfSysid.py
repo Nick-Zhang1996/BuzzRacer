@@ -17,7 +17,7 @@ from time import sleep
 from ukf import UKF
 
 if (len(sys.argv) != 2):
-    filename = "../log/ethsim/full_state1.p"
+    filename = "../log/ethsim/full_state2.p"
     print_info("using %s"%(filename))
     #print_error("Specify a log to load")
 else:
@@ -37,6 +37,11 @@ heading = data[skip:,3]
 steering = data[skip:,4]
 throttle = data[skip:,5]
 
+# add some noise
+x = x+np.random.normal(0.0,2e-3,size=x.shape)
+y = y+np.random.normal(0.0,2e-3,size=x.shape)
+heading = heading+np.random.normal(0.0,radians(0.5),size=x.shape)
+
 dt = 0.01
 vx = np.hstack([0,np.diff(data[:,1])])/dt
 vy = np.hstack([0,np.diff(data[:,2])])/dt
@@ -53,6 +58,7 @@ vx_car = vx*np.cos(heading) + vy*np.sin(heading)
 # lateral, left +
 vy_car = -vx*np.sin(heading) + vy*np.cos(heading)
 
+'''
 exp_kf_x = data[skip:,6]
 exp_kf_y = data[skip:,7]
 exp_kf_v = data[skip:,8]
@@ -61,7 +67,6 @@ exp_kf_vy = exp_kf_v *np.sin(exp_kf_v)
 exp_kf_theta = data[skip:,9]
 exp_kf_omega = data[skip:,10]
 
-'''
 # use kalman filter results
 x = exp_kf_x
 y = exp_kf_y
@@ -96,7 +101,8 @@ def run():
 
     print("initial")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
-    ukf.state[-ukf.param_n:] = ukf.state[-ukf.param_n:] * (np.random.rand(ukf.param_n)+0.5)
+    # add noise to initial parameter
+    #ukf.state[-ukf.param_n:] = ukf.state[-ukf.param_n:] * (np.random.rand(ukf.param_n)+0.5)
     print(ukf.state[-ukf.param_n:])
     init_param = ukf.state[-ukf.param_n:].copy()
     sim_t = t[0]
@@ -127,31 +133,31 @@ def run():
 
     # x, y, basic
     ax0 = plt.subplot(511)
-    ax0.plot(state_hist[:,0],label="ukf x")
     ax0.plot(x,'--',label="measure x")
-    ax0.plot(state_hist[:,2],label="ukf y")
     ax0.plot(y,'--',label="measure y")
+    ax0.plot(state_hist[:,2],label="ukf y")
+    ax0.plot(state_hist[:,0],label="ukf x")
     ax0.legend()
 
     # vx,vy
     ax1 = plt.subplot(512)
-    ax1.plot(state_hist[:,1],label="ukf vx")
     ax1.plot(vx,'--',label="measure vx")
-    ax1.plot(state_hist[:,3],label="ukf vy")
     ax1.plot(vy,'--',label="measure vy")
+    ax1.plot(state_hist[:,1],label="ukf vx")
+    ax1.plot(state_hist[:,3],label="ukf vy")
     ax1.set_ylim([-3, 3])
     ax1.legend()
 
     # heading
     ax2 = plt.subplot(513)
-    ax2.plot(state_hist[:,4],label="ukf psi")
     ax2.plot(heading,'--',label="measure psi")
+    ax2.plot(state_hist[:,4],label="ukf psi")
     ax2.legend()
 
     # omega
     ax2 = plt.subplot(514)
-    ax2.plot(state_hist[:,5],label="ukf w")
     ax2.plot(omega,'--',label="measure w")
+    ax2.plot(state_hist[:,5],label="ukf w")
     ax2.set_ylim([-5,5])
     ax2.legend()
 

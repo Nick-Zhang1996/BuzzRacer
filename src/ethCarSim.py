@@ -32,9 +32,13 @@ class ethCarSim:
         self.control_dim = 2
         
         self.noise = noise
+        
         if noise:
+            self.noise=True
             self.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6,6)
+        else:
+            self.noise=False
 
         self.states_hist = []
         self.local_states_hist = []
@@ -59,6 +63,8 @@ class ethCarSim:
         '''
 
         self.t += dt
+        if (self.noise):
+            process_noise_car = np.random.multivariate_normal([0.0]*self.state_dim, self.noise_cov, size=None, check_valid='warn', tol=1e-8)
 
 
         x = self.states[0]
@@ -91,13 +97,20 @@ class ethCarSim:
         ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
         ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
 
-        vx += ax * dt
-        vy += ay * dt
+        if (self.noise):
+            vx += (ax + process_noise_car[1]) * dt
+            vy += (ay + process_noise_car[3]) * dt
+        else:
+            vx += ax * dt
+            vy += ay * dt
 
         # leading coeff = m/Iz
         d_omega = self.m/self.Iz*(lateral_acc_f * self.lf * cos(steering) - lateral_acc_r * self.lr )
         print("d_omega %.2f"%(d_omega))
-        omega += d_omega * dt
+        if (self.noise):
+            omega += (d_omega + process_noise_car[5]) * dt
+        else:
+            omega += d_omega * dt
 
         # back to global frame
         vxg = vx*cos(heading)-vy*sin(heading)
@@ -105,9 +118,14 @@ class ethCarSim:
 
         # apply updates
         # TODO add 1/2 a t2
-        x += vxg*dt
-        y += vyg*dt
-        heading += omega*dt + 0.5* d_omega * dt * dt
+        if (self.noise):
+            x += (vxg + process_noise_car[0])*dt
+            y += (vyg + process_noise_car[2])*dt
+            heading += (omega + process_noise_car[4])*dt + 0.5* d_omega * dt * dt
+        else:
+            x += vxg*dt
+            y += vyg*dt
+            heading += omega*dt + 0.5* d_omega * dt * dt
 
         self.states = (x,vxg,y,vyg,heading,omega )
 
@@ -121,6 +139,7 @@ class ethCarSim:
 
         sim_states = {'coord':coord,'heading':heading,'vf':vx,'vs':vy,'omega':omega}
         return sim_states
+
     def debug(self):
         data = np.array(self.states_hist)
         data_local = np.array(self.local_states_hist)

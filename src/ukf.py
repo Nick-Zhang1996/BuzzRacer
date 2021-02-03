@@ -48,11 +48,26 @@ class UKF:
         self.initSigmaPoints()
         
         # added to cov matrix at each step
-        self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[2e-3**2]*self.param_n)
-        #self.observation_noise_cov = np.diag([0.02**2, 0.05**2, radians(2)**2])
-        # give more weight to observation
-        #self.observation_noise_cov = np.diag([0.002**2, 0.002**2, radians(0.2)**2])
-        self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(1)**2])
+        # 1 reasonable tracking of v, underestimating at peaks
+        #self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[2e-3**2]*self.param_n)
+
+        # 2
+        # use ground truth parameter, no noise, tune v
+        #self.process_noise_cov = np.diag([(1e-4)**2, (1e-4)**2, (1e-4)**2, (1e-4)**2, radians(0.02)**2, 0.01**2]+[0e-5**2]*self.param_n)
+
+        # 3
+        # use noisy simulation
+        # NOTE this does not multiply with dt, so we multiply by dt2
+        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0]+[0e-5**2]*self.param_n)*(0.01**2)
+
+
+        # 1
+        #self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(1)**2])
+        # 2
+        #self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(0.1)**2])
+
+        # 3 also #2*1e5 to maintain ratio in #2 ->that's really larger lets use use old
+        self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
 
 
     def initState(self,x,vxg,y,vyg,psi,omega):
@@ -70,15 +85,29 @@ class UKF:
         # cov matrix
 
         # 3 sigma
+
+        # 1
+        #self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
+
+        # 2
+        #self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
+
+        # 3
         self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
-        #self.state_3sigma = [0.1, 0.1, 0.1, 0.1,0.1, 1.0]
-        self.param_3sigma = [2e-3]*self.param_n
+
+
+        # 1
+        #self.param_3sigma = [2e-3]*self.param_n
+
+        # 2
+        self.param_3sigma = [0e-5]*self.param_n
+
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
         # scaling terms
         # NOTE unconventional alfa, usually 1e-3
-        alfa = 1.0
+        alfa = 1.0e-2
         beta = 0
         k = 0
         self.L = L = self.state_n + self.param_n
