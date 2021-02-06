@@ -398,6 +398,7 @@ def run():
             print("halt")
             break
 
+        '''
         if (i % 100 == 0):
             print("showing heading")
             print("showing velocity (total)")
@@ -432,6 +433,7 @@ def run():
 
             plt.show()
             print("breakpoint")
+        '''
 
         '''
         print("showing x")

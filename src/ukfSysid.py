@@ -30,12 +30,12 @@ data = data.squeeze(1)
 data = data[:-100,:]
 
 # wrap heading so there's no discontinuity
-plt.plot(data[:,3])
+#plt.plot(data[:,3])
 d_heading = np.diff(data[:,3])
 d_heading = (d_heading + np.pi) % (2 * np.pi) - np.pi
 data[1:,3] = data[0,3] + np.cumsum(d_heading)
-plt.plot(data[:,3])
-plt.show()
+#plt.plot(data[:,3])
+#plt.show()
 
 
 skip = 200
@@ -103,10 +103,11 @@ def show(img):
     plt.show()
     return
 
-def run():
+def run_ukf():
     global x,vx,y,vy,heading,omega,t
     ukf = UKF()
     ukf.initState(x[0],vx[0],y[0],vy[0],heading[0],omega[0])
+    '''
     print("true")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
     print(ukf.state[-ukf.param_n:])
@@ -114,11 +115,29 @@ def run():
 
     print("initial")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
+    '''
+    print("initial param")
+    initial_param = ukf.state[-ukf.param_n:].copy()
+    Df_ratio, Dr_ratio, C_ratio, B_ratio, Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio = initial_param
+
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (value)")
+
+    print("Df = %.5f"%(ukf.Df*Df_ratio))
+    print("Dr = %.5f"%(ukf.Dr*Dr_ratio))
+    print("C = %.5f"%(ukf.C*C_ratio))
+    print("B = %.5f"%(ukf.B*B_ratio))
+    print("Cm1 = %.5f"%(ukf.Cm1*Cm1_ratio))
+    print("Cm2 = %.5f"%(ukf.Cm2*Cm2_ratio))
+    print("Cr = %.5f"%(ukf.Cr*Cr_ratio))
+    print("Cd = %.5f"%(ukf.Cd*Cd_ratio))
+    print("Iz = %.5f"%(ukf.Iz*Iz_ratio))
+
+
     # NOTE add noise to initial parameter
     # uniform, * 0.5-1.5
     # keep Iz ground truth
     #ukf.state[-ukf.param_n:-1] = ukf.state[-ukf.param_n:-1] * (np.random.rand(ukf.param_n-1)+0.5)
-    print(ukf.state[-ukf.param_n:])
+    #print(ukf.state[-ukf.param_n:])
 
     init_param = ukf.state[-ukf.param_n:].copy()
     sim_t = t[0]
@@ -138,6 +157,22 @@ def run():
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
     print(ukf.state[-ukf.param_n:])
     final_param = ukf.state[-ukf.param_n:].copy()
+    Df_ratio, Dr_ratio, C_ratio, B_ratio, Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio = final_param
+
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (value)")
+
+    print("Df = %.5f"%(ukf.Df*Df_ratio))
+    print("Dr = %.5f"%(ukf.Dr*Dr_ratio))
+    print("C = %.5f"%(ukf.C*C_ratio))
+    print("B = %.5f"%(ukf.B*B_ratio))
+    print("Cm1 = %.5f"%(ukf.Cm1*Cm1_ratio))
+    print("Cm2 = %.5f"%(ukf.Cm2*Cm2_ratio))
+    print("Cr = %.5f"%(ukf.Cr*Cr_ratio))
+    print("Cd = %.5f"%(ukf.Cd*Cd_ratio))
+    print("Iz = %.5f"%(ukf.Iz*Iz_ratio))
+
+
+
     state_cov = [ukf.state_cov[i,i] for i in range(ukf.state.shape[0])]
     print("state_cov")
     print(state_cov)
@@ -178,56 +213,75 @@ def run():
 
     # params
     ax2 = plt.subplot(515)
-    ax2.plot(state_hist[:,6]/true_param[0],label="param")
-    ax2.plot(state_hist[:,7]/true_param[1],label="param")
-    ax2.plot(state_hist[:,8]/true_param[2],label="param")
-    ax2.plot(state_hist[:,9]/true_param[3],label="param")
-    ax2.plot(state_hist[:,10]/true_param[4],label="param")
-    ax2.plot(state_hist[:,11]/true_param[5],label="param")
-    ax2.plot(state_hist[:,12]/true_param[6],label="param")
-    ax2.plot(state_hist[:,13]/true_param[7],label="param")
-    ax2.plot(state_hist[:,14]/true_param[8],label="param")
+    ax2.plot(state_hist[:,6]/initial_param[0],label="param")
+    ax2.plot(state_hist[:,7]/initial_param[1],label="param")
+    ax2.plot(state_hist[:,8]/initial_param[2],label="param")
+    ax2.plot(state_hist[:,9]/initial_param[3],label="param")
+    ax2.plot(state_hist[:,10]/initial_param[4],label="param")
+    ax2.plot(state_hist[:,11]/initial_param[5],label="param")
+    ax2.plot(state_hist[:,12]/initial_param[6],label="param")
+    ax2.plot(state_hist[:,13]/initial_param[7],label="param")
+    ax2.plot(state_hist[:,14]/initial_param[8],label="param")
     #ax2.legend()
     plt.show()
+    return ukf
 
-def testPredict():
-    img_track = track.drawTrack()
-    #img_track = track.drawRaceline(img=img_track)
-    cv2.imshow('validate',img_track)
-    cv2.waitKey(10)
+def testPredict(ukf,show=False):
+    # record ukf param
+    ukf_param = ukf.state[-ukf.param_n:].copy()
+
+    if (show):
+        img_track = track.drawTrack()
+        #img_track = track.drawRaceline(img=img_track)
+        cv2.imshow('validate',img_track)
+        cv2.waitKey(10)
 
     lookahead_steps = 100
-    for i in range(1,data_len-lookahead_steps-1):
+    state_diff_vec = []
+    for i in range(100,data_len-lookahead_steps-1-200):
         # prepare states
         # draw car current pos
         car_state = (x[i],y[i],heading[i],0,0,0)
-        img = track.drawCar(img_track.copy(), car_state, steering[i])
+        if (show):
+            img = track.drawCar(img_track.copy(), car_state, steering[i])
 
         # plot actual future trajectory
         actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
-        img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+        if (show):
+            img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
 
-        # calculate predicted trajectory -- using predict() in ukf
+        # calculate predicted trajectory 
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (throttle[i],steering[i])
         predicted_states = []
         #print("step = %d"%(i))
-        ukf = UKF()
-        ukf.initState(x[i], vx[i], y[i], vy[i], heading[i], omega[i])
-        predicted_states.append(ukf.state)
+        #ukf.initState(x[i], vx[i], y[i], vy[i], heading[i], omega[i])
+        #predicted_states.append(ukf.state)
+        # NOTE check dimension, should be col vector
+        joint_state = np.hstack([state, ukf_param]).reshape(-1,1)
         for j in range(i+1,i+lookahead_steps):
             #print(ukf.state_cov[0,0])
             #ukf.state, ukf.state_cov = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
             #print(ukf.state[:ukf.state_n])
-            ukf.state, _ = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
-            predicted_states.append(ukf.state)
+            #ukf.state, _ = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
+
+            joint_state = ukf.advanceModel(joint_state,control,dt=0.01)
+
+            predicted_states.append(joint_state)
 
             control = (throttle[j],steering[j])
 
         predicted_states = np.array(predicted_states)
+
         xx = predicted_states[:,0]
         yy = predicted_states[:,2]
+        hh = predicted_states[:,4]
         vv = (predicted_states[:,1]**2 + predicted_states[:,3]**2)**0.5
+
+
+        xx_real = x[i:i+lookahead_steps]
+        yy_real = y[i:i+lookahead_steps]
+        hh_real = heading[i:i+lookahead_steps]
         vv_real = (vx[i:i+lookahead_steps]**2 + vy[i:i+lookahead_steps]**2)**0.5
 
         debug = False
@@ -236,15 +290,36 @@ def testPredict():
             plt.plot(vv_real,'--')
             plt.show()
 
-        predicted_future_traj = np.vstack([xx,yy]).T
-        img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
+        predicted_future_traj = np.hstack([xx,yy])
+        if (show):
+            img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
 
-        cv2.imshow('validate',img)
-        k = cv2.waitKey(10) & 0xFF
-        if k == ord('q'):
-            print("halt")
-            break
+            cv2.imshow('validate',img)
+            k = cv2.waitKey(10) & 0xFF
+            if k == ord('q'):
+                print("halt")
+                break
+
+        # calculate difference between actual and predicted traj
+        pos_diff = ((xx_real - xx)**2 + (yy_real - yy)**2)**0.5
+        vel_diff = vv - vv_real
+        heading_diff = hh_real - hh
+
+        pos_diff = np.mean(np.abs(pos_diff))
+        vel_diff = np.mean(np.abs(vel_diff))
+        heading_diff = np.mean(np.abs(heading_diff))
+
+        state_diff = (pos_diff,  vel_diff, heading_diff)
+        state_diff_vec.append(state_diff)
+    # sim finish
+    state_diff_vec = np.array(state_diff_vec)
+    print("state diff, avg")
+    state_diff_mean = np.mean(np.abs(state_diff_vec),axis=0)
+    print("pos %.2f"%(state_diff_mean[0]))
+    print("vel %.2f"%(state_diff_mean[1]))
+    print("heading %.2f (deg)"%(degrees(state_diff_mean[2])))
+
 
 if __name__=="__main__":
-    run()
-    #testPredict()
+    ukf = run_ukf()
+    testPredict(ukf,show=True)
