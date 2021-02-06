@@ -17,7 +17,8 @@ from time import sleep
 from ukf import UKF
 
 if (len(sys.argv) != 2):
-    filename = "../log/ethsim/full_state4.p"
+    #filename = "../log/ethsim/full_state4.p"
+    filename = "../log/jan3/full_state1.p"
     print_info("using %s"%(filename))
     #print_error("Specify a log to load")
 else:
@@ -28,28 +29,40 @@ data = np.array(data)
 data = data.squeeze(1)
 data = data[:-100,:]
 
+# wrap heading so there's no discontinuity
+plt.plot(data[:,3])
+d_heading = np.diff(data[:,3])
+d_heading = (d_heading + np.pi) % (2 * np.pi) - np.pi
+data[1:,3] = data[0,3] + np.cumsum(d_heading)
+plt.plot(data[:,3])
+plt.show()
+
+
 skip = 200
-t = data[skip:,0]
+end = -500
+t = data[skip:end,0]
 t = t-t[0]
-x = data[skip:,1]
-y = data[skip:,2]
-heading = data[skip:,3]
-steering = data[skip:,4]
-throttle = data[skip:,5]
+x = data[skip:end,1]
+y = data[skip:end,2]
+heading = data[skip:end,3]
+steering = data[skip:end,4]
+throttle = data[skip:end,5]
 
 # NOTE add some noise
+'''
 x = x+np.random.normal(0.0,2e-3,size=x.shape)
 y = y+np.random.normal(0.0,2e-3,size=x.shape)
 heading = heading+np.random.normal(0.0,radians(0.5),size=x.shape)
+'''
 
 dt = 0.01
 vx = np.hstack([0,np.diff(data[:,1])])/dt
 vy = np.hstack([0,np.diff(data[:,2])])/dt
-vx = vx[skip:]
-vy = vy[skip:]
+vx = vx[skip:end]
+vy = vy[skip:end]
 
 omega = np.hstack([0,np.diff(data[:,3])])/dt
-omega = omega[skip:]
+omega = omega[skip:end]
 
 
 # local speed
@@ -95,16 +108,16 @@ def run():
     ukf = UKF()
     ukf.initState(x[0],vx[0],y[0],vy[0],heading[0],omega[0])
     print("true")
-    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
     print(ukf.state[-ukf.param_n:])
     true_param = ukf.state[-ukf.param_n:].copy()
 
     print("initial")
-    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
     # NOTE add noise to initial parameter
     # uniform, * 0.5-1.5
     # keep Iz ground truth
-    ukf.state[-ukf.param_n:-1] = ukf.state[-ukf.param_n:-1] * (np.random.rand(ukf.param_n-1)+0.5)
+    #ukf.state[-ukf.param_n:-1] = ukf.state[-ukf.param_n:-1] * (np.random.rand(ukf.param_n-1)+0.5)
     print(ukf.state[-ukf.param_n:])
 
     init_param = ukf.state[-ukf.param_n:].copy()
@@ -122,14 +135,13 @@ def run():
 
     # print final parameters
     print("final")
-    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz")
+    print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
     print(ukf.state[-ukf.param_n:])
     final_param = ukf.state[-ukf.param_n:].copy()
+    state_cov = [ukf.state_cov[i,i] for i in range(ukf.state.shape[0])]
+    print("state_cov")
+    print(state_cov)
 
-    print("initial:")
-    print(init_param/true_param)
-    print("final:")
-    print(final_param/true_param)
     # plot
     state_hist = np.array(log['state'])
     cov_hist = np.array(log['cov'])

@@ -30,20 +30,24 @@ class UKF:
         # initial values
         #Df, Dr, C, B, Cm1, Cm2, Cr, Cd = param
         # tire param
-        Df = 1.0
-        Dr = 1.0
-        C = 1.4
-        D = 1.0
-        B = 0.714/np.pi*180.0
+        self.Df = 1.0
+        self.Dr = 1.0
+        self.C = 1.4
+        self.D = 1.0
+        self.B = 0.714/np.pi*180.0
 
-        Cm1 = 7.0
-        Cm2 = 0.3
-        Cr = 0.24*7.0
-        Cd = 0.05
+        self.Cm1 = 7.0
+        self.Cm2 = 0.3
+        self.Cr = 0.24*7.0
+        #self.Cd = 0.05
+        self.Cd = 0.0
 
-        Iz = 10*self.m/12.0*(0.1**2+0.1**2)
+        self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
         
-        self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
+        # not actual param value, but ratio between estimated param and initial param
+        # order of param
+        #self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
+        self.param = np.array([1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0])
 
         self.initSigmaPoints()
         
@@ -63,7 +67,7 @@ class UKF:
         # 4
         # start tuning cov for parameter
         # 1e-1 - 1e-3 **2 seem to be good
-        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [1.0**2]*(self.param_n-1) + [0e-5])*(0.01**2)
+        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [0.5**2]*(self.param_n-2) + [0.0]*2)*(0.01**2)
 
 
         # 1
@@ -112,7 +116,8 @@ class UKF:
         #self.param_3sigma = [0e-5]*self.param_n
 
         # 4 add some cov so we're not waiting as long for cov on param to go high
-        self.param_3sigma = [1e-2]*(self.param_n-1) + [0]
+        #self.param_3sigma = [1e-2]*(self.param_n-1) + [0]
+        self.param_3sigma = [1e-2]*(self.param_n-2) + [0]*2
 
         self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
@@ -192,7 +197,6 @@ class UKF:
         sigma_x = self.generateSigmaPoints(var,P)
         post_sigma_x = fun(sigma_x, *args)
         # calc x_mean
-        # FIXME FIXME
         x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
         #x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
         x_cov = self.w_c_0 * (post_sigma_x[:,0] - x_mean).reshape(-1,1) * (post_sigma_x[:,0] - x_mean)
@@ -258,7 +262,7 @@ class UKF:
         '''
 
         throttle, steering = control
-        Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz = param
+        Df_ratio, Dr_ratio, C_ratio, B_ratio, Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio = param
 
         # DEBUG check against original model
         debug = False
@@ -284,19 +288,19 @@ class UKF:
         slip_r = np.arctan( (omega * self.lr - vy)/vx )
 
         # TODO add load transfer
-        Ffy = Df * np.sin( C * np.arctan(B*slip_f)) * 9.8 * self.lr / (self.lr + self.lf) * self.m
-        Fry = Dr * np.sin( C * np.arctan(B*slip_r)) * 9.8 * self.lf / (self.lr + self.lf) * self.m
+        Ffy = self.Df*Df_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_f)) * 9.8 * self.lr / (self.lr + self.lf) * self.m
+        Fry = self.Dr*Dr_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_r)) * 9.8 * self.lf / (self.lr + self.lf) * self.m
 
         # motor model
-        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*self.m
+        Frx = (( self.Cm1*Cm1_ratio - self.Cm2*Cm2_ratio * vx) * throttle - self.Cr*Cr_ratio - self.Cd*Cd_ratio * vx * vx)*self.m
 
         # DEBUG
         if debug:
             print("ukf")
             print("vx %.2f, vy %.2f"%(vx[0],vy[0]))
             print("slip f = %.2f, slip r = %.2f"%(degrees(slip_f[0]),degrees(slip_r[0])))
-            f_coeff_f = Df * np.sin( C * np.arctan(B*slip_f))
-            f_coeff_r = Dr * np.sin( C * np.arctan(B*slip_r))
+            f_coeff_f = self.Df*self.Df_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_f))
+            f_coeff_r = self.Dr*self.Dr_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_r))
             print("f_coeff_f = %5.2f, f_coeff_r = %5.2f"%(f_coeff_f[0],f_coeff_r[0]))
 
             print("acc_f %.2f, acc_r %.2f"%(Ffy[0]/self.m, Fry[0]/self.m))
@@ -305,7 +309,7 @@ class UKF:
         # Dynamics
         d_vx = 1.0/self.m * (Frx - Ffy * np.sin( steering ) + self.m * vy * omega)
         d_vy = 1.0/self.m * (Fry + Ffy * np.cos( steering ) - self.m * vx * omega)
-        d_omega = 1.0/Iz * (Ffy * self.lf * np.cos( steering ) - Fry * self.lr)
+        d_omega = 1.0/self.Iz*Iz_ratio * (Ffy * self.lf * np.cos( steering ) - Fry * self.lr)
 
         if debug:
             print("d_omega %.2f"%(d_omega[0]))
@@ -339,7 +343,7 @@ class UKF:
             print("diff")
             print(np.array(eth.states) - ukf_predict)
 
-        new_param = (Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz)
+        new_param = (Df_ratio, Dr_ratio, C_ratio, B_ratio, Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio)
         new_joint_state = np.vstack([new_state, new_param])
 
 
