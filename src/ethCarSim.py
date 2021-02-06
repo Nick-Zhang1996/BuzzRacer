@@ -19,6 +19,11 @@ class ethCarSim:
         # approximate as a solid box
         self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
 
+        self.Cm1 = 7.0
+        self.Cm2 = 0.3
+        self.Cr = 0.24*7.0
+        self.Cd = 0.05
+
         self.x = x
         self.y = y
         self.psi = heading
@@ -90,7 +95,9 @@ class ethCarSim:
         lateral_acc_r = tireCurve(slip_r) * 9.8 * self.lf / (self.lr + self.lf)
 
         # TODO use more comprehensive model
-        forward_acc_r = (throttle - 0.24)*7.0
+        #forward_acc_r = (throttle - 0.24)*7.0
+
+        forward_acc_r = (( self.Cm1 - self.Cm2 * vx) * throttle - self.Cr - self.Cd * vx * vx)
 
         print("acc_f = %5.2f, acc_r = %5.2f, forward = %5.2f"%(lateral_acc_f,lateral_acc_r,forward_acc_r))
 

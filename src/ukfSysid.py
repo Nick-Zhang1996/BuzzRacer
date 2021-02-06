@@ -17,7 +17,7 @@ from time import sleep
 from ukf import UKF
 
 if (len(sys.argv) != 2):
-    filename = "../log/ethsim/full_state2.p"
+    filename = "../log/ethsim/full_state4.p"
     print_info("using %s"%(filename))
     #print_error("Specify a log to load")
 else:
