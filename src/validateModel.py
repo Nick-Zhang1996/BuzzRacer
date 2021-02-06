@@ -28,7 +28,7 @@ with open(filename, 'rb') as f:
 data = np.array(data)
 data = data.squeeze(1)
 
-skip = 200
+skip = 1
 t = data[skip:,0]
 t = t-t[0]
 x = data[skip:,1]
@@ -119,7 +119,7 @@ def step(state,control,dt=0.01):
     y += vyg*dt
     heading += omega*dt
 
-    return (x,vxg,y,vyg,heading,omega )
+    return (x,vxg,y,vyg,heading,omega ),{}
 
 def step_new(state,control,dt=0.01):
     # constants
@@ -158,14 +158,12 @@ def step_new(state,control,dt=0.01):
     y += vyg*dt
     heading += omega*dt
 
-    return (x,vxg,y,vyg,heading,omega )
+    return (x,vxg,y,vyg,heading,omega ),{}
 
 def step_dynamics(state,control,dt=0.01):
     # constants
     lf = 0.09-0.036
     lr = 0.036
-
-
     # convert to local frame
     x,vxg,y,vyg,heading,omega = tuple(state)
     steering,throttle = tuple(control)
@@ -207,6 +205,83 @@ def step_dynamics(state,control,dt=0.01):
 
     retval = (x,vxg,y,vyg,heading,omega )
     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":lateral_acc_f, "lateral_acc_r":lateral_acc_r, 'ax':ax}
+    return retval, debug_dict
+
+def step_ukf(state,control,dt=0.01):
+    # constants
+    lf = 0.09-0.036
+    lr = 0.036
+    L = 0.09
+
+    Df = 3.93731
+    Dr = 6.23597
+    C = 2.80646
+    B = 0.51943
+    Cm1 = 6.03154
+    Cm2 = 0.96769
+    Cr = -0.20375
+    Cd = 0.00000
+    Iz = 0.00278
+    m = 0.1667
+
+
+
+    # convert to local frame
+    x,vxg,y,vyg,heading,omega = tuple(state)
+    steering,throttle = tuple(control)
+    # forward
+    vx = vxg*cos(heading) + vyg*sin(heading)
+    # lateral, left +
+    vy = -vxg*sin(heading) + vyg*cos(heading)
+
+    # for small velocity, use kinematic model 
+    if (vx<0.05):
+        beta = atan(lr/L*tan(steering))
+        norm = lambda a,b:(a**2+b**2)**0.5
+        # motor model
+        d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+        vx = vx + d_vx * dt
+        vy = norm(vx,vy)*sin(beta)
+        d_omega = 0.0
+        omega = vx/L*tan(steering)
+
+        slip_f = 0
+        slip_r = 0
+        Ffy = 0
+        Fry = 0
+
+    else:
+        slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+        slip_r = np.arctan((omega*lr - vy)/vx)
+
+        Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+        Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+        # motor model
+        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+
+        # Dynamics
+        d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+        d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+        # discretization
+        vx = vx + d_vx * dt
+        vy = vy + d_vy * dt
+        omega = omega + d_omega * dt 
+
+    # back to global frame
+    vxg = vx*cos(heading)-vy*sin(heading)
+    vyg = vx*sin(heading)+vy*cos(heading)
+
+    # apply updates
+    # TODO add 1/2 a t2
+    x += vxg*dt
+    y += vyg*dt
+    heading += omega*dt + 0.5* d_omega * dt * dt
+
+    retval = (x,vxg,y,vyg,heading,omega )
+    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
     return retval, debug_dict
 
 def test():
@@ -329,7 +404,7 @@ def run():
             debug_dict_hist[key].append([])
         for j in range(i+1,i+lookahead_steps):
             #print(state)
-            state, debug_dict = step_dynamics(state,control)
+            state, debug_dict = step_ukf(state,control)
             for key in debug_dict:
                 value = debug_dict[key]
                 debug_dict_hist[key][i].append(value)
