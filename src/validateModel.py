@@ -235,22 +235,20 @@ def step_ukf(state,control,dt=0.01):
     vy = -vxg*sin(heading) + vyg*cos(heading)
 
     # for small velocity, use kinematic model 
-    if (vx<5.0):
+    if (vx<0.05):
+        beta = atan(lr/L*tan(steering))
+        norm = lambda a,b:(a**2+b**2)**0.5
         # motor model
         d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
         vx = vx + d_vx * dt
-
-        beta = atan(lr/L*tan(steering))
-        omega = vx/L*sin(beta)
-
-        vxg += vx * cos(heading + beta)
-        vyg += vx * sin(heading + beta)
-
+        vy = norm(vx,vy)*sin(beta)
         d_omega = 0.0
-        slip_f = 0.0
-        slip_r = 0.0
-        Ffy = 0.0
-        Fry = 0.0
+        omega = vx/L*tan(steering)
+
+        slip_f = 0
+        slip_r = 0
+        Ffy = 0
+        Fry = 0
 
     else:
         slip_f = -np.arctan((omega*lf + vy)/vx) + steering
@@ -272,15 +270,15 @@ def step_ukf(state,control,dt=0.01):
         vy = vy + d_vy * dt
         omega = omega + d_omega * dt 
 
-        # back to global frame
-        vxg = vx*cos(heading)-vy*sin(heading)
-        vyg = vx*sin(heading)+vy*cos(heading)
+    # back to global frame
+    vxg = vx*cos(heading)-vy*sin(heading)
+    vyg = vx*sin(heading)+vy*cos(heading)
 
-        # apply updates
-        # TODO add 1/2 a t2
-        x += vxg*dt
-        y += vyg*dt
-        heading += omega*dt + 0.5* d_omega * dt * dt
+    # apply updates
+    # TODO add 1/2 a t2
+    x += vxg*dt
+    y += vyg*dt
+    heading += omega*dt + 0.5* d_omega * dt * dt
 
     retval = (x,vxg,y,vyg,heading,omega )
     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
