@@ -1,37 +1,35 @@
 # using model in eth paper
 import numpy as np
-from math import sin,cos,tan,radians,degrees,pi
+from math import sin,cos,tan,radians,degrees,pi,atan
 import matplotlib.pyplot as plt
 from tire import tireCurve
 
 # advanced dynamic simulator of mini z
 class ethCarSim:
     def __init__(self,x,y,heading,noise=False,noise_cov=None):
-        # front tire cornering stiffness
-        g = 9.81
-        self.m = 0.1667
-        # longitudinal speed
-        self.Vx = 1.0
-        self.Vy = 0
-        # CG to front axle
+
+        # dimension
         self.lf = 0.09-0.036
         self.lr = 0.036
-        # approximate as a solid box
-        self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
+        self.L = 0.09
+        # basic properties
+        self.Iz = 0.00278
+        self.m = 0.1667
 
-        self.Cm1 = 7.0
-        self.Cm2 = 0.3
-        self.Cr = 0.24*7.0
-        self.Cd = 0.05
+        # tire model
+        self.Df = 3.93731
+        self.Dr = 6.23597
+        self.C = 2.80646
+        self.B = 0.51943
 
-        self.x = x
-        self.y = y
-        self.psi = heading
+        # motor/longitudinal model
+        self.Cm1 = 6.03154
+        self.Cm2 = 0.96769
+        self.Cr = -0.20375
+        self.Cd = 0.00000
 
-        self.d_x = self.Vx*cos(self.psi)-self.Vy*sin(self.psi)
-        self.d_y = self.Vx*sin(self.psi)+self.Vy*cos(self.psi)
-        self.d_psi = 0
-        self.states = np.array([self.x,self.d_x,self.y,self.d_y,self.psi,self.d_psi])
+        # x,vx(global frame),y,vy,heading.omega(angular velocity)
+        self.states = np.array([x,0,y,0,heading,0])
 
         self.state_dim = 6
         self.control_dim = 2
@@ -55,17 +53,25 @@ class ethCarSim:
 
 
     # update vehicle state
-    # NOTE vx != 0
     # NOTE using car frame origined at CG with x pointing forward, y leftward
+    # sim_states is no longer used but kept to maintain the same API
+    # should be changed in next update
     def updateCar(self,dt,sim_states,throttle,steering):
         # simulator carries internal state and doesn't really need these
-        '''
-        x = sim_states['coord'][0]
-        y = sim_states['coord'][1]
-        psi = sim_states['heading']
-        d_psi = sim_states['omega']
-        Vx = sim_states['vf']
-        '''
+        lf = self.lf
+        lr = self.lr
+        L = self.L
+
+        Df = self.Df
+        Dr = self.Dr
+        B = self.B
+        C = self.C
+        Cm1 = self.Cm1
+        Cm2 = self.Cm2
+        Cr = self.Cr
+        Cd = self.Cd
+        Iz = self.Iz
+        m = self.m
 
         self.t += dt
         if (self.noise):
@@ -77,62 +83,71 @@ class ethCarSim:
         psi = heading = self.states[4]
         omega = self.states[5]
         # change ref frame to car frame
+
         # vehicle longitudinal velocity
         self.Vx = vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
         self.Vy = vy = -self.states[1]*sin(psi) + self.states[3]*cos(psi)
 
-        # TODO handle vx->0
-        # for small velocity, use kinematic model 
-        slip_f = -np.arctan((omega*self.lf + vy)/vx) + steering
-        slip_r = np.arctan((omega*self.lr - vy)/vx)
-        print("vx = %5.2f, vy = %5.2f"%(vx,vy))
-        print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
-        print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
+        # for small longitudinal velocity use kinematic model
+        if (vx<0.05):
+            beta = atan(lr/L*tan(steering))
+            norm = lambda a,b:(a**2+b**2)**0.5
+            # motor model
+            d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+            vx = vx + d_vx * dt
+            vy = norm(vx,vy)*sin(beta)
+            d_omega = 0.0
+            omega = vx/L*tan(steering)
 
-        # we call these acc but they are forces normalized by mass
-        # TODO consider longitudinal load transfer
-        lateral_acc_f = tireCurve(slip_f) * 9.8 * self.lr / (self.lr + self.lf)
-        lateral_acc_r = tireCurve(slip_r) * 9.8 * self.lf / (self.lr + self.lf)
+            slip_f = 0
+            slip_r = 0
+            Ffy = 0
+            Fry = 0
 
-        # TODO use more comprehensive model
-        #forward_acc_r = (throttle - 0.24)*7.0
-
-        forward_acc_r = (( self.Cm1 - self.Cm2 * vx) * throttle - self.Cr - self.Cd * vx * vx)
-
-        print("acc_f = %5.2f, acc_r = %5.2f, forward = %5.2f"%(lateral_acc_f,lateral_acc_r,forward_acc_r))
-
-        ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
-        ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
-
-        if (self.noise):
-            vx += (ax + process_noise_car[1]) * dt
-            vy += (ay + process_noise_car[3]) * dt
         else:
-            vx += ax * dt
-            vy += ay * dt
+            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+            slip_r = np.arctan((omega*lr - vy)/vx)
 
-        # leading coeff = m/Iz
-        d_omega = self.m/self.Iz*(lateral_acc_f * self.lf * cos(steering) - lateral_acc_r * self.lr )
-        print("d_omega %.2f"%(d_omega))
+            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+            # motor model
+            Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+
+            # Dynamics
+            d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+            d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+            # discretization
+            vx = vx + d_vx * dt
+            vy = vy + d_vy * dt
+            omega = omega + d_omega * dt 
+
+            '''
+            print("vx = %5.2f, vy = %5.2f"%(vx,vy))
+            print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
+            print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
+            '''
+
+        # add noise if need be
         if (self.noise):
-            omega += (d_omega + process_noise_car[5]) * dt
-        else:
-            omega += d_omega * dt
+            vx += process_noise_car[1] * dt
+            vy += process_noise_car[3] * dt
+            omega += process_noise_car[5] * dt
+
+            x +=  process_noise_car[0] * dt
+            y +=  process_noise_car[2] * dt
+            heading += process_noise_car[4] * dt
 
         # back to global frame
         vxg = vx*cos(heading)-vy*sin(heading)
         vyg = vx*sin(heading)+vy*cos(heading)
 
-        # apply updates
-        # TODO add 1/2 a t2
-        if (self.noise):
-            x += (vxg + process_noise_car[0])*dt
-            y += (vyg + process_noise_car[2])*dt
-            heading += (omega + process_noise_car[4])*dt + 0.5* d_omega * dt * dt
-        else:
-            x += vxg*dt
-            y += vyg*dt
-            heading += omega*dt + 0.5* d_omega * dt * dt
+        # update x,y, heading
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt + 0.5* d_omega * dt * dt
 
         self.states = (x,vxg,y,vyg,heading,omega )
 
