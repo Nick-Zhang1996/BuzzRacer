@@ -44,6 +44,8 @@ class ctrlMppiWrapper(Car):
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         self.prepareDiscretizedRaceline()
+        # describe track boundary as offset from raceline
+        self.createBoundary()
 
         self.mppi = MPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
@@ -95,6 +97,10 @@ class ctrlMppiWrapper(Car):
         self.raceline_velocity = vv
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv]).T
         return
+
+    def createBoundary(self):
+        return
+
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
