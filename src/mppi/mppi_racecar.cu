@@ -188,7 +188,7 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[2]-opponent_pos[1];
-  float cost = 1.0*(0.1 - sqrtf(dx*dx + dy*dy))*5.0;
+  float cost = 1.0*(0.15 - sqrtf(dx*dx + dy*dy))*5.0;
 
   return cost>0?cost:0;
 }
