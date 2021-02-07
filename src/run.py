@@ -258,12 +258,11 @@ class Main():
             '''
 
             # plot reference trajectory following optimal control sequence
-            '''
-            x_ref = self.debug_dict[0]['x_ref']
-            for coord in x_ref:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
-            '''
+            if (car.controller == Controller.mppi):
+                x_ref = self.debug_dict[0]['x_ref']
+                for coord in x_ref:
+                    x,y = coord
+                    img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
             # plot reference trajectory following some alternative control sequence
             '''

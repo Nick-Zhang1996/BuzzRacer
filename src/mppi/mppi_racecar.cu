@@ -171,8 +171,12 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][4]){
   //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
 
   // velocity cost
-  // current velocity - target velocity at closest ref point
-  float dv = sqrtf(state[1]*state[1] + state[3]*state[3]) - in_raceline[idx][3];
+  // current FORWARD velocity - target velocity at closest ref point
+
+  // forward vel
+  float vx = state[1]*cosf(state[4]) + state[3]*sinf(state[4]);
+
+  float dv = vx - in_raceline[idx][3];
   float cost = dist + 0.1*dv*dv;
   //float cost = dist;
   return cost*5.0;
