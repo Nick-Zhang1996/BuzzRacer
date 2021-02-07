@@ -67,9 +67,9 @@ class Main():
         self.dt = 0.01
 
         # noise in simulation
-        self.sim_noise = False
-        # EXTREME noise
-        self.sim_noise_cov = 10*np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
+        self.sim_noise = True
+        # noise
+        self.sim_noise_cov = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])
 
         # CONFIG
         # whether to record control command, car state, etc.
@@ -77,7 +77,7 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
 
         # run the track in reverse direction
         self.reverse = False
@@ -89,7 +89,7 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
@@ -258,10 +258,12 @@ class Main():
             '''
 
             # plot reference trajectory following optimal control sequence
+            '''
             x_ref = self.debug_dict[0]['x_ref']
             for coord in x_ref:
                 x,y = coord
                 img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+            '''
 
             # plot reference trajectory following some alternative control sequence
             '''

@@ -36,7 +36,6 @@ def tireCurve(slip):
     B = 0.714
     C = 1.4
     D = 1.0
-    E = -0.2
     retval = D * np.sin(C * np.arctan(B * slip))
     return retval
 

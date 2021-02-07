@@ -52,24 +52,33 @@ class ctrlMppiWrapper(Car):
         self.mppi.evaluateTerminalCost = self.evaluateTerminalCost
 
         if (sim is None):
-            g = 9.81
-            self.m = 0.1667
-            self.Caf = 5*0.25*self.m*g
-            #self.Car = 5*0.25*self.m*g
-            self.Car = self.Caf
-            # longitudinal speed
-            # CG to front axle
             self.lf = 0.09-0.036
             self.lr = 0.036
-            # approximate as a solid box
-            self.Iz = self.m/12.0*(0.1**2+0.1**2)
+            self.L = 0.09
+            self.Df = 3.93731
+            self.Dr = 6.23597
+            self.C = 2.80646
+            self.B = 0.51943
+            self.Cm1 = 6.03154
+            self.Cm2 = 0.96769
+            self.Cr = -0.20375
+            self.Cd = 0.00000
+            self.Iz = 0.00278
+            self.m = 0.1667
         else:
-            self.Caf = sim.Caf
-            self.Car = sim.Car
-            self.lf = sim.lf
-            self.lr = sim.lr
-            self.Iz = sim.Iz
-            self.m = sim.m
+            self.lf = sim.lf 
+            self.lr = sim.lr 
+            self.L = sim.L 
+            self.Df = sim.Df 
+            self.Dr = sim.Dr 
+            self.C = sim.C 
+            self.B = sim.B 
+            self.Cm1 = sim.Cm1 
+            self.Cm2 = sim.Cm2 
+            self.Cr = sim.Cr 
+            self.Cd = sim.Cd 
+            self.Iz = sim.Iz 
+            self.m = sim.m 
         return
 
     def prepareDiscretizedRaceline(self):
@@ -227,52 +236,90 @@ class ctrlMppiWrapper(Car):
         #return 0.0
 
     # advance car dynamics
+    # for use in visualization
     def applyDiscreteDynamics(self,state,control,dt):
         x = state[0]
-        dx = state[1]
+        vxg = state[1]
         # left pos(+)
         y = state[2]
-        dy = state[3]
-        psi = state[4]
-        dpsi = state[5]
+        vyg = state[3]
+        heading = state[4]
+        omega = state[5]
 
         throttle = control[0]
         # left pos(+)
         steering = control[1]
 
-        Caf = self.Caf
-        Car = self.Car
         lf = self.lf
         lr = self.lr
+        L = self.L
+
+        Df = self.Df
+        Dr = self.Dr
+        B = self.B
+        C = self.C
+        Cm1 = self.Cm1
+        Cm2 = self.Cm2
+        Cr = self.Cr
+        Cd = self.Cd
         Iz = self.Iz
         m = self.m
 
-        x += dx * dt
-        y += dy * dt
-        psi += dpsi * dt
 
-        # dx,dy in state are in global frame, yet the dynamics equations are in car frame
-        # convert here
-        local_dx = dx*cos(-psi) - dy*sin(-psi)
-        local_dy = dx*sin(-psi) + dy*cos(-psi)
+        # forward
+        vx = vxg*cos(heading) + vyg*sin(heading)
+        # lateral, left +
+        vy = -vxg*sin(heading) + vyg*cos(heading)
 
+        # for small velocity, use kinematic model 
+        if (vx<0.05):
+            beta = atan(lr/L*tan(steering))
+            norm = lambda a,b:(a**2+b**2)**0.5
+            # motor model
+            d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+            vx = vx + d_vx * dt
+            vy = norm(vx,vy)*sin(beta)
+            d_omega = 0.0
+            omega = vx/L*tan(steering)
 
-        d_local_dx = throttle*dt
-        d_local_dy = (-(2*Caf+2*Car)/(m*local_dx)*local_dy + (-local_dx - (2*Caf*lf-2*Car*lr)/(m*local_dx)) * dpsi + 2*Caf/m*steering)*dt
-        d_dpsi = (-(2*lf*Caf - 2*lr*Car)/(Iz*local_dx)*local_dy - (2*lf*lf*Caf + 2*lr*lr*Car)/(Iz*local_dx)*dpsi + 2*lf*Caf/Iz*steering)*dt
-        debug = steering
+            slip_f = 0
+            slip_r = 0
+            Ffy = 0
+            Fry = 0
 
+        else:
+            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+            slip_r = np.arctan((omega*lr - vy)/vx)
 
-        local_dx += d_local_dx
-        local_dy += d_local_dy
-        dpsi += d_dpsi
+            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
 
-        # convert back to global frame
-        dx = local_dx*cos(psi) - local_dy*sin(psi)
-        dy = local_dx*sin(psi) + local_dy*cos(psi)
+            # motor model
+            Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
 
+            # Dynamics
+            d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+            d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 
-        return np.array([x,dx,y,dy,psi,dpsi])
+            # discretization
+            vx = vx + d_vx * dt
+            vy = vy + d_vy * dt
+            omega = omega + d_omega * dt 
+
+        # back to global frame
+        vxg = vx*cos(heading)-vy*sin(heading)
+        vyg = vx*sin(heading)+vy*cos(heading)
+
+        # apply updates
+        # TODO add 1/2 a t2
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt + 0.5* d_omega * dt * dt
+
+        retval = (x,vxg,y,vyg,heading,omega )
+        return np.array(retval)
+
 
     # we assume opponent will follow reference trajectory at current speed
     def initTrackOpponents(self):
