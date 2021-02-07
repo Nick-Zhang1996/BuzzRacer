@@ -234,7 +234,7 @@ void forward_dynamics(float* state,float* u){
   if (vx<0.05){
     float beta = atanf(PARAM_LR/PARAM_L*tanf(steering));
     // motor model
-    d_vx = (( PARAM_CM1 - PARAM_CM2 * vx) * throttle - PARAM_CR = PARAM_CD * vx*vx);
+    d_vx = (( PARAM_CM1 - PARAM_CM2 * vx) * throttle - PARAM_CR - PARAM_CD * vx*vx);
     vx = vx + d_vx * DT;
     vy = sqrtf(vx*vx + vy*vy) * sinf(beta);
     d_omega = 0.0;

@@ -1,5 +1,5 @@
 from car import Car
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi,atan
 import numpy as np
 from time import time,sleep
 from timeUtil import execution_timer
