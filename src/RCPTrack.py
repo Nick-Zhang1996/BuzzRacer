@@ -812,27 +812,51 @@ class RCPtrack(Track):
             if grid_type == 'WE':
                 # track section is staight, arranged horizontally
                 # remaining space on top (negative means coord outside track
-                wl = y_local - deadzone
-                wr = 1 - deadzone - y_local
+                grid_down = y_local - deadzone
+                grid_up = 1 - deadzone - y_local
                 if (heading > -np.pi/2 and heading < np.pi/2):
-                    wl = wl / cos(heading)
-                    wr = wr / cos(heading)
+                    left = grid_up / cos(heading)
+                    right = grid_down / cos(heading)
                 else:
-                    wl = wr / cos(heading)
-                    wr = wl / cos(heading)
+                    left = - grid_down / cos(heading)
+                    right = - grid_up / cos(heading)
+
             if grid_type == 'NS':
                 # track section is staight, arranged vertically
                 # remaining space on left (negative means coord outside track
-                wl = x_local - deadzone
-                wr = 1 - deadzone - x_local
+                grid_left= x_local - deadzone
+                grid_right = 1 - deadzone - x_local
                 if (heading > 0 and heading < np.pi):
-                    wl = wl/ cos(heading - np.pi/2)
-                    wr = wr/ cos(heading - np.pi/2)
+                    left = grid_left/ sin(heading)
+                    right = grid_right/ sin(heading)
                 else:
-                    wl = wr/ cos(heading - np.pi/2)
-                    wr = wl/ cos(heading - np.pi/2)
+                    left = - grid_right/ sin(heading)
+                    right = - grid_left/ sin(heading)
                     # TODO
         elif grid_type in turns:
+            step_size = 0.01
+
+            # find left boundary
+            left = 0.0
+            flag_in_limit = True
+            while (flag_in_limit):
+                left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+                flag_in_limit = self.checkTrackBoundary(left_point) > 0
+                left += step_size
+
+            # find right boundary
+            right = 0.0
+            flag_in_limit = True
+            while (flag_in_limit):
+                right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+                flag_in_limit = self.checkTrackBoundary(right_point) > 0
+                right += step_size
+
+            # convert metric unit to dimensionless unit
+            left /= self.scale
+            right /= self.scale
+
+            '''
             if grid_type == 'SE':
                 apex = (1,0)
             if grid_type == 'SW':
@@ -842,40 +866,43 @@ class RCPtrack(Track):
             if grid_type == 'NW':
                 apex = (0,1)
             radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
-            wl = 1-deadzone-radius
-            wr = radius - deadzone
+            grid_out = 1-deadzone-radius
+            grid_in = radius - deadzone
+
+
 
             if grid_type == 'SE':
                 if (heading > -0.25*np.pi and heading < 0.75*np.pi):
-                    wl = wl/ sin(heading - 0.25*np.pi)
-                    wr = wr/ sin(heading - 0.25*np.pi)
+                    left = 0.1
+                    right = 0.1
                 else:
-                    wl = wr/ sin(heading - 0.25*np.pi)
-                    wr = wl/ sin(heading - 0.25*np.pi)
+                    left = 0.1
+                    right = 0.1
             if grid_type == 'SW':
                 if (heading > -0.75*np.pi and heading < 0.25*np.pi):
-                    wl = wl/ cos(heading + 0.75*np.pi)
-                    wr = wr/ cos(heading + 0.75*np.pi)
+                    left = 0.1
+                    right = 0.1
                 else:
-                    wl = wr/ cos(heading + 0.75*np.pi)
-                    wr = wl/ cos(heading + 0.75*np.pi)
+                    left = 0.1
+                    right = 0.1
             if grid_type == 'NE':
                 if (heading > 0.25*np.pi and heading < 1.25*np.pi):
-                    wl = wl/ cos(heading - 0.25*np.pi)
-                    wr = wr/ cos(heading - 0.25*np.pi)
+                    left = 0.1
+                    right = 0.1
                 else:
-                    wl = wr/ cos(heading - 0.25*np.pi)
-                    wr = wl/ cos(heading - 0.25*np.pi)
+                    left = 0.1
+                    right = 0.1
             if grid_type == 'NW':
                 if (heading > 0.35*np.pi and heading < -0.25*np.pi):
-                    wl = wl/ cos(heading - 0.75*np.pi)
-                    wr = wr/ cos(heading - 0.75*np.pi)
+                    left = 0.1
+                    right = 0.1
                 else:
-                    wl = wr/ cos(heading - 0.75*np.pi)
-                    wr = wl/ cos(heading - 0.75*np.pi)
+                    left = 0.1
+                    right = 0.1
+            '''
 
 
-        return (wl*self.scale,wr*self.scale)
+        return (left*self.scale,right*self.scale)
 
     # distance between start and end of path, 
     # must be sufficiently close

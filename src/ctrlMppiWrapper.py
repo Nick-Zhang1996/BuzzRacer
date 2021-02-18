@@ -3,7 +3,6 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import numpy as np
 from time import time,sleep
 from timeUtil import execution_timer
-from mppi import MPPI
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
 
@@ -13,6 +12,7 @@ import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './mppi/')
 sys.path.append(base_dir)
+from mppi import MPPI
 
 class ctrlMppiWrapper(Car):
     def __init__(self,car_setting,dt):
@@ -109,15 +109,18 @@ class ctrlMppiWrapper(Car):
             coord = self.raceline_points[:,i]
             heading = self.raceline_headings[i]
 
-
-
             left, right = self.track.preciseTrackBoundary(coord,heading)
             print(left,right)
-            left_boundary.append(left)
-            right_boundary.append(right)
+
+            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+
+            left_boundary.append(left_point)
+            right_boundary.append(right_point)
 
             # DEBUG
             # calculate left/right boundary
+            '''
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
             img = self.track.drawTrack()
@@ -128,18 +131,17 @@ class ctrlMppiWrapper(Car):
             plt.imshow(img)
             plt.show()
 
-
-
-
             breakpoint()
             left, right = self.track.preciseTrackBoundary(coord,heading)
+            '''
 
         if (show):
             img = self.track.drawTrack()
             img = self.track.drawRaceline(img = img)
-            points = np.vstack([left_boundary,right_boundary])
-            breakpoint()
-            img = self.track.drawPolyline(points,lineColor=(0,255,0),img=img)
+            img = self.track.drawPolyline(left_boundary,lineColor=(0,255,0),img=img)
+            img = self.track.drawPolyline(right_boundary,lineColor=(0,0,255),img=img)
+
+
             plt.imshow(img)
             plt.show()
         return
