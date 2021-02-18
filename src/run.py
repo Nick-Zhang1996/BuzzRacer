@@ -67,9 +67,9 @@ class Main():
         self.dt = 0.01
 
         # noise in simulation
-        self.sim_noise = False
-        # EXTREME noise
-        self.sim_noise_cov = 10*np.diag([0.1,0.1,0.1,0.1,0.1,0.1])
+        self.sim_noise = True
+        # noise
+        self.sim_noise_cov = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])
 
         # CONFIG
         # whether to record control command, car state, etc.
@@ -77,7 +77,7 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
 
         # run the track in reverse direction
         self.reverse = False
@@ -89,22 +89,30 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        #car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        car0 = self.prepareCar("porsche", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
-        #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.mppi,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        # the escaping car
+        car1 = self.prepareCar("porsche_slow", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
+        #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
-        #car0.opponents = [car1,car2]
-        car0.opponents = []
-        #car1.opponents = []
-        #car2.opponents = []
-        self.cars = [car0]
+        car0.opponents = [car1]
+        '''
+        car0.initTrackOpponents()
+        car1.opponents = []
+        car1.initTrackOpponents()
+        car2.opponents = []
+        car2.initTrackOpponents()
+        '''
+        self.cars = [car0,car1]
+        for i in range(len(self.cars)):
+            self.cars[i].id = i
 
         # real time/sim_time
         # larger value result in slower simulation
         # NOTE ignored in real experiments
-        self.real_sim_time_ratio = 1.0
+        self.real_sim_time_ratio = 2.0
         for car in self.cars:
             if car.stateUpdateSource != StateUpdateSource.simulator and car.stateUpdateSource != StateUpdateSource.dynamic_simulator and car.stateUpdateSource != StateUpdateSource.eth_simulator:
                 print_warning("real_sim_time ratio override to 1.0 when running on physical platforms")
@@ -238,6 +246,13 @@ class Main():
             for car in self.cars:
                 img = self.track.drawCar(img, car.state, car.steering)
 
+                # plot reference trajectory following optimal control sequence
+                if (car.controller == Controller.mppi):
+                    x_ref = self.debug_dict[car.id]['x_ref']
+                    for coord in x_ref:
+                        x,y = coord
+                        img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+
             # TODO 
             '''
             if 'opponent' in self.debug_dict[0]:
@@ -245,13 +260,6 @@ class Main():
                 for coord in x_ref[0]:
                     x,y = coord
                     img = self.track.drawPoint(img,(x,y),color=(255,0,0))
-            '''
-
-            '''
-            x_ref = self.debug_dict[0]['x_ref']
-            for coord in x_ref:
-                x,y = coord
-                img = self.track.drawPoint(img,(x,y),color=(255,0,0))
             '''
 
             # plot reference trajectory following some alternative control sequence

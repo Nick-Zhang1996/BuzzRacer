@@ -786,6 +786,97 @@ class RCPtrack(Track):
             wr = radius - deadzone
         return min(wl,wr)
 
+    # given coordinate and heading, calculate precise boundary to left and right
+    # return a vector (dist_to_left, dist_to_right)
+    def preciseTrackBoundary(self,coord,heading):
+        heading = (heading + np.pi)%(2*np.pi) - np.pi
+        # figure out which grid the coord is in
+        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+
+        # e.g. 'WE','SE'
+        grid_type = self.track[nondim[0]][nondim[1]]
+
+        # change ref frame to tile local ref frame
+        x_local = coord[0]/self.scale - nondim[0]
+        y_local = coord[1]/self.scale - nondim[1]
+
+        # find the distance to track sides
+        # boundary/wall width / grid side length
+        deadzone = 0.087
+        straights = ['WE','NS']
+        turns = ['SE','SW','NE','NW']
+        if grid_type in straights:
+            if grid_type == 'WE':
+                # track section is staight, arranged horizontally
+                # remaining space on top (negative means coord outside track
+                wl = y_local - deadzone
+                wr = 1 - deadzone - y_local
+                if (heading > -np.pi/2 and heading < np.pi/2):
+                    wl = wl / cos(heading)
+                    wr = wr / cos(heading)
+                else:
+                    wl = wr / cos(heading)
+                    wr = wl / cos(heading)
+            if grid_type == 'NS':
+                # track section is staight, arranged vertically
+                # remaining space on left (negative means coord outside track
+                wl = x_local - deadzone
+                wr = 1 - deadzone - x_local
+                if (heading > 0 and heading < np.pi):
+                    wl = wl/ cos(heading - np.pi/2)
+                    wr = wr/ cos(heading - np.pi/2)
+                else:
+                    wl = wr/ cos(heading - np.pi/2)
+                    wr = wl/ cos(heading - np.pi/2)
+                    # TODO
+        elif grid_type in turns:
+            if grid_type == 'SE':
+                apex = (1,0)
+            if grid_type == 'SW':
+                apex = (0,0)
+            if grid_type == 'NE':
+                apex = (1,1)
+            if grid_type == 'NW':
+                apex = (0,1)
+            radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
+            wl = 1-deadzone-radius
+            wr = radius - deadzone
+
+            if grid_type == 'SE':
+                if (heading > -0.25*np.pi and heading < 0.75*np.pi):
+                    wl = wl/ sin(heading - 0.25*np.pi)
+                    wr = wr/ sin(heading - 0.25*np.pi)
+                else:
+                    wl = wr/ sin(heading - 0.25*np.pi)
+                    wr = wl/ sin(heading - 0.25*np.pi)
+            if grid_type == 'SW':
+                if (heading > -0.75*np.pi and heading < 0.25*np.pi):
+                    wl = wl/ cos(heading + 0.75*np.pi)
+                    wr = wr/ cos(heading + 0.75*np.pi)
+                else:
+                    wl = wr/ cos(heading + 0.75*np.pi)
+                    wr = wl/ cos(heading + 0.75*np.pi)
+            if grid_type == 'NE':
+                if (heading > 0.25*np.pi and heading < 1.25*np.pi):
+                    wl = wl/ cos(heading - 0.25*np.pi)
+                    wr = wr/ cos(heading - 0.25*np.pi)
+                else:
+                    wl = wr/ cos(heading - 0.25*np.pi)
+                    wr = wl/ cos(heading - 0.25*np.pi)
+            if grid_type == 'NW':
+                if (heading > 0.35*np.pi and heading < -0.25*np.pi):
+                    wl = wl/ cos(heading - 0.75*np.pi)
+                    wr = wr/ cos(heading - 0.75*np.pi)
+                else:
+                    wl = wr/ cos(heading - 0.75*np.pi)
+                    wr = wl/ cos(heading - 0.75*np.pi)
+
+
+        return (wl*self.scale,wr*self.scale)
+
     # distance between start and end of path, 
     # must be sufficiently close
     def pathGap(self,):
