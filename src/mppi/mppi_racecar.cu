@@ -39,10 +39,13 @@
 #define RACELINE_LEFT_BOUNDARY 4
 #define RACELINE_RIGHT_BOUNDARY 5
 
+// one discretization step is around 1cm
+#define RACELINE_SEARCH_RANGE 10
+
 
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM]);
+float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u);
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]);
 __device__
@@ -50,7 +53,7 @@ float evaluate_collision_cost( float* state, float* opponent_pos);
 
 // cost for going off track
 __device__
-float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM]);
+float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate);
 
 // forward dynamics by one step
 __device__
@@ -100,10 +103,15 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
   // initialize cost
   float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_u = -1;
   // run simulation
+  // loop over time horizon
   for (int i=0; i<HORIZON; i++){
     float _u[CONTROL_DIM];
     float* u = _u;
+
+    // apply constrain on control input
     for (int j=0; j<CONTROL_DIM; j++){
       float val = in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
       val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
@@ -116,7 +124,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     forward_dynamics(x,u);
 
     // evaluate step cost
-    cost += evaluate_step_cost(x,u,in_raceline);
+    cost += evaluate_step_cost(x,u,in_raceline,&last_u);
     // cost related to collision avoidance / opponent avoidance
     // TODO too conservative
     for (int j=0; j<opponent_count; j++){
@@ -125,8 +133,9 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
       }
     }
 
-    for (int k=0; k<HORIZON/2; k++){
-      cost += evaluate_boundary_cost(x,x0,in_raceline);
+    int u_estimate = -1;
+    for (int k=0; k<HORIZON; k++){
+      cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
     }
 
     // FIXME ignoring epsilon induced cost
@@ -153,15 +162,28 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 }
 
 
+// find closest id in the index range (guess - range, guess + range)
+// if guess is -1 then the entire spectrum will be searched
 __device__
-void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int* ret_idx, float* ret_dist){
+void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess, int range, int* ret_idx, float* ret_dist){
   float x = state[0];
   float y = state[2];
   float val;
 
   int idx = 0;
   float current_min = 1e6;
-  for (int i=0;i<RACELINE_LEN;i++){
+
+  int start, end;
+  if (guess == -1){
+    start = 0;
+    end = RACELINE_LEN;
+  } else {
+    start = guess - range;
+    end = guess + range;
+  }
+
+  for (int k=start;k<end;k++){
+    int i = (k + RACELINE_LEN) %% RACELINE_LEN;
     val = (x-in_raceline[i][0])*(x-in_raceline[i][0]) + (y-in_raceline[i][1])*(y-in_raceline[i][1]);
     if (val < current_min){
       idx = i;
@@ -176,12 +198,14 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int* ret_i
 }
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM]){
+float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u){
   //float heading = state[4];
   int idx;
   float dist;
 
-  find_closest_id(state,in_raceline,&idx,&dist);
+  find_closest_id(state,in_raceline,*last_u,RACELINE_SEARCH_RANGE, &idx,&dist);
+  // update estimate of closest index on raceline
+  *last_u = idx;
 
   // heading cost
   //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
@@ -204,20 +228,20 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[2]-opponent_pos[1];
-  float cost = 1.0*(0.15 - sqrtf(dx*dx + dy*dy));
+  float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
 
   return cost>0?cost:0;
 }
 
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
-  int idx0,idx;
-  float dist;
+  //int idx0,idx;
+  //float dist;
 
   // we don't need distance info for initial state, 
   //dist is put in as a dummy variable, it is immediately overritten
-  find_closest_id(x0,in_raceline,&idx0,&dist);
-  find_closest_id(state,in_raceline,&idx,&dist);
+  //find_closest_id(x0,in_raceline,-1,0,&idx0,&dist);
+  //find_closest_id(state,in_raceline,-1,0,&idx,&dist);
 
   // wrapping
   // *0.01: convert index difference into length difference
@@ -228,12 +252,16 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
 }
 
 // NOTE potential improvement by reusing idx result from other functions
+// u_estimate is the estimate of index on raceline that's closest to state
 __device__
-float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM]){
+float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate){
   int idx;
   float dist;
 
-  find_closest_id(state,in_raceline,&idx,&dist);
+  // performance barrier FIXME
+  find_closest_id(state,in_raceline,*u_estimate, RACELINE_SEARCH_RANGE, &idx,&dist);
+  *u_estimate = idx;
+  
   float tangent_angle = in_raceline[idx][4];
   float raceline_to_point_angle = atan2f(in_raceline[idx][1] - state[2], in_raceline[idx][0] - state[0]) ;
   float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;

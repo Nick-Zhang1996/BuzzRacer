@@ -500,7 +500,7 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 0.55}
+                         'max_throttle' : 1.0}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -515,7 +515,7 @@ class Main():
             car_setting = porsche_setting
         elif config_name == "porsche_slow":
             car_setting = porsche_setting
-            car_setting['max_throttle'] = 1.5
+            car_setting['max_throttle'] = 0.3
         elif config_name == "lambo":
             car_setting = lambo_setting
         else:
