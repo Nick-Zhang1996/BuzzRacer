@@ -236,15 +236,15 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
   find_closest_id(state,in_raceline,&idx,&dist);
   float tangent_angle = in_raceline[idx][4];
   float raceline_to_point_angle = atan2f(in_raceline[idx][1] - state[2], in_raceline[idx][0] - state[0]) ;
-  float angle_diff = (raceline_to_point_angle - tangent_angle + PI) % (2*PI) - PI;
+  float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
 
   float cost;
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist < in_raceline[idx][4])? 0.5:0.0;
+    cost = (dist > in_raceline[idx][4])? 0.1:0.0;
   } else {
-    cost = (dist < in_raceline[idx][5])? 0.5:0.0;
+    cost = (dist > in_raceline[idx][5])? 0.1:0.0;
   }
 
   return cost;

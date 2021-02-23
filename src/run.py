@@ -67,7 +67,7 @@ class Main():
         self.dt = 0.01
 
         # noise in simulation
-        self.sim_noise = True
+        self.sim_noise = False
         # noise
         self.sim_noise_cov = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])
 
@@ -112,7 +112,7 @@ class Main():
         # real time/sim_time
         # larger value result in slower simulation
         # NOTE ignored in real experiments
-        self.real_sim_time_ratio = 2.0
+        self.real_sim_time_ratio = 1.0
         for car in self.cars:
             if car.stateUpdateSource != StateUpdateSource.simulator and car.stateUpdateSource != StateUpdateSource.dynamic_simulator and car.stateUpdateSource != StateUpdateSource.eth_simulator:
                 print_warning("real_sim_time ratio override to 1.0 when running on physical platforms")

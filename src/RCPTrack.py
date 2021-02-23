@@ -626,8 +626,11 @@ class RCPtrack(Track):
         if filename is None:
             filename = "raceline.p"
 
-        with open(filename, 'rb') as f:
-            save = pickle.load(f)
+        try:
+            with open(filename, 'rb') as f:
+                save = pickle.load(f)
+        except FileNotFoundError:
+            print_error("can't find "+filename+", run qpSmooth.py first")
 
         # restore save data
         self.grid_sequence = save['grid_sequence']
