@@ -37,7 +37,7 @@ class ctrlMppiWrapper(Car):
         self.horizon_steps = 20
         self.control_dim = 2
         self.state_dim = 6
-        self.temperature = 1.0
+        self.temperature = 0.2
         # default
         self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
         # restricting to test terminal cost

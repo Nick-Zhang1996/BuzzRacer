@@ -30,14 +30,27 @@
 
 #define PI 3.141592654f
 
+#define RACELINE_DIM 6
+
+#define RACELINE_X 0
+#define RACELINE_Y 1
+#define RACELINE_HEADING 2
+#define RACELINE_V 3
+#define RACELINE_LEFT_BOUNDARY 4
+#define RACELINE_RIGHT_BOUNDARY 5
+
 
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][4]);
+float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM]);
 __device__
-float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][4]);
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]);
 __device__
 float evaluate_collision_cost( float* state, float* opponent_pos);
+
+// cost for going off track
+__device__
+float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM]);
 
 // forward dynamics by one step
 __device__
@@ -53,7 +66,7 @@ extern "C" {
 // in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
 // in_raceline is 2d array of size (RACELINE_LEN,4), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian), 3:ref velocity
 __global__
-void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][4], float opponents_prediction[][HORIZON+1][2],int opponent_count){
+void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][RACELINE_DIM], float opponents_prediction[][HORIZON+1][2],int opponent_count){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -112,6 +125,9 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
       }
     }
 
+    for (int k=0; k<HORIZON/2; k++){
+      cost += evaluate_boundary_cost(x,x0,in_raceline);
+    }
 
     // FIXME ignoring epsilon induced cost
     /*
@@ -138,7 +154,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
 
 
 __device__
-void find_closest_id(float* state, float in_raceline[][4], int* ret_idx, float* ret_dist){
+void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int* ret_idx, float* ret_dist){
   float x = state[0];
   float y = state[2];
   float val;
@@ -160,7 +176,7 @@ void find_closest_id(float* state, float in_raceline[][4], int* ret_idx, float* 
 }
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][4]){
+float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM]){
   //float heading = state[4];
   int idx;
   float dist;
@@ -179,7 +195,7 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][4]){
   float dv = vx - in_raceline[idx][3];
   float cost = dist + 0.1*dv*dv;
   //float cost = dist;
-  return cost*5.0;
+  return cost;
 }
 
 __device__
@@ -188,13 +204,13 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[2]-opponent_pos[1];
-  float cost = 1.0*(0.15 - sqrtf(dx*dx + dy*dy))*5.0;
+  float cost = 1.0*(0.15 - sqrtf(dx*dx + dy*dy));
 
   return cost>0?cost:0;
 }
 
 __device__
-float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][4]){
+float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
   int idx0,idx;
   float dist;
 
@@ -209,6 +225,29 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][4]){
   //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
   // NOTE ignoring terminal cost
   return 0.0;
+}
+
+// NOTE potential improvement by reusing idx result from other functions
+__device__
+float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM]){
+  int idx;
+  float dist;
+
+  find_closest_id(state,in_raceline,&idx,&dist);
+  float tangent_angle = in_raceline[idx][4];
+  float raceline_to_point_angle = atan2f(in_raceline[idx][1] - state[2], in_raceline[idx][0] - state[0]) ;
+  float angle_diff = (raceline_to_point_angle - tangent_angle + PI) % (2*PI) - PI;
+
+  float cost;
+
+  if (angle_diff > 0.0){
+    // point is to left of raceline
+    cost = (dist < in_raceline[idx][4])? 0.5:0.0;
+  } else {
+    cost = (dist < in_raceline[idx][5])? 0.5:0.0;
+  }
+
+  return cost;
 }
 
 // new dynamics
