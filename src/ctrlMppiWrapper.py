@@ -44,9 +44,8 @@ class ctrlMppiWrapper(Car):
         #self.noise_cov = np.diag([(1.0/2)**2,radians(30.0/2)**2])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
+        # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
-        # describe track boundary as offset from raceline
-        self.createBoundary(show=True)
 
         self.mppi = MPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
@@ -96,7 +95,10 @@ class ctrlMppiWrapper(Car):
         self.raceline_points = np.array(rr)
         self.raceline_headings = heading_vec
         self.raceline_velocity = vv
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv]).T
+
+        # describe track boundary as offset from raceline
+        self.createBoundary()
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
         return
 
     def createBoundary(self,show=False):
@@ -104,19 +106,26 @@ class ctrlMppiWrapper(Car):
         # to record the left and right track boundary as an offset to the discretized raceline
         left_boundary = []
         right_boundary = []
+
+        left_boundary_points = []
+        right_boundary_points = []
+
         for i in range(self.discretized_raceline_len):
             # find normal direction
             coord = self.raceline_points[:,i]
             heading = self.raceline_headings[i]
 
             left, right = self.track.preciseTrackBoundary(coord,heading)
-            print(left,right)
+            left_boundary.append(left)
+            right_boundary.append(right)
 
+            # debug boundary points
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
 
-            left_boundary.append(left_point)
-            right_boundary.append(right_point)
+            left_boundary_points.append(left_point)
+            right_boundary_points.append(right_point)
+
 
             # DEBUG
             # calculate left/right boundary
@@ -130,20 +139,20 @@ class ctrlMppiWrapper(Car):
             img = self.track.drawPoint(img,right_point,color=(0,0,0))
             plt.imshow(img)
             plt.show()
-
-            breakpoint()
-            left, right = self.track.preciseTrackBoundary(coord,heading)
             '''
+
+
+        self.raceline_left_boundary = left_boundary
+        self.raceline_right_boundary = right_boundary
 
         if (show):
             img = self.track.drawTrack()
             img = self.track.drawRaceline(img = img)
-            img = self.track.drawPolyline(left_boundary,lineColor=(0,255,0),img=img)
-            img = self.track.drawPolyline(right_boundary,lineColor=(0,0,255),img=img)
-
-
+            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
+            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
             plt.imshow(img)
             plt.show()
+            return img
         return
 
 
@@ -223,9 +232,6 @@ class ctrlMppiWrapper(Car):
             coord = (sim_state[0],sim_state[2])
             debug_dict['x_ref'].append(coord)
 
-        # DEBUG
-        # per ji's request, show 100 sampled trajectory, randomly selected
-        
 
         ret =  (throttle,steering,True,debug_dict)
         p.e("debug")
