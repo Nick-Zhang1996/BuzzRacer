@@ -128,7 +128,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     // cost related to collision avoidance / opponent avoidance
     // TODO too conservative
     for (int j=0; j<opponent_count; j++){
-      for (int k=0; k<HORIZON/2; k++){
+      for (int k=0; k<HORIZON; k++){
       cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
       }
     }
@@ -219,6 +219,10 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   float dv = vx - in_raceline[idx][3];
   float cost = dist + 0.1*dv*dv;
   //float cost = dist;
+  // additional penalty on negative velocity 
+  if (vx < 0){
+    cost += 0.1;
+  }
   return cost;
 }
 
@@ -228,9 +232,11 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[2]-opponent_pos[1];
-  float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
+  //float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
+  float cost = (0.1-sqrtf(dx*dx + dy*dy)) > 0? 0.4:0;
 
-  return cost>0?cost:0;
+
+  return cost;
 }
 
 __device__
@@ -270,9 +276,9 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist > in_raceline[idx][4])? 0.1:0.0;
+    cost = (dist +0.05> in_raceline[idx][4])? 0.3:0.0;
   } else {
-    cost = (dist > in_raceline[idx][5])? 0.1:0.0;
+    cost = (dist +0.05> in_raceline[idx][5])? 0.3:0.0;
   }
 
   return cost;

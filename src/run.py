@@ -386,7 +386,8 @@ class Main():
             
             #print("V = %.2f"%(car.state[3]))
             car.steering = steering
-            car.throttle = throttle
+            # FIXME this may affect model prediction
+            car.throttle = min(throttle, car.max_throttle)
 
             if (car.vehiclePlatform == VehiclePlatform.offboard):
                 car.actuate(steering,throttle)
@@ -515,7 +516,7 @@ class Main():
             car_setting = porsche_setting
         elif config_name == "porsche_slow":
             car_setting = porsche_setting
-            car_setting['max_throttle'] = 0.3
+            car_setting['max_throttle'] = 0.7
         elif config_name == "lambo":
             car_setting = lambo_setting
         else:

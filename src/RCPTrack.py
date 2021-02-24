@@ -1563,7 +1563,10 @@ class RCPtrack(Track):
 
         # calculate s value for projection ref points
         s0 = self.uToS(u0).item()
-        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        # use optimal velocity
+        #v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        # use actual velocity
+        v0 = state[3]
 
         _norm = lambda x:np.linalg.norm(x,axis=0)
 
@@ -1576,8 +1579,8 @@ class RCPtrack(Track):
             # find ref velocity for projection ref points
             # TODO adjust ref velocity for current vehicle velocity
 
-            # NOTE force v_k to be current velocity
             #v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            # NOTE assume constant velocity
             v_k = v0
             v_vec.append(v_k)
 
