@@ -233,7 +233,7 @@ if __name__ == '__main__':
         print("rx: %0.2f, ry: %0.2f, rz: %0.2f"%(degrees(rx),degrees(ry),degrees(rz)))
         #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         print("\n")
-        sleep(0.2)
+        sleep(0.05)
 
     input("press enter to stop\n")
     op.quit()

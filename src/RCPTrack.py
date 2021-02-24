@@ -1250,7 +1250,7 @@ class RCPtrack(Track):
                     break
 
             if seq == -1:
-                print("error, coord not on track")
+                print("error, coord not on track, x = %.2f, y=%.2f"%(coord[0],coord[1]))
                 return None
 
             # the grid that contains the coord
