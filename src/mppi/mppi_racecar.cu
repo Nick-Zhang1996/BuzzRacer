@@ -133,10 +133,12 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
       }
     }
 
+    /*
     int u_estimate = -1;
     for (int k=0; k<HORIZON; k++){
       cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
     }
+    */
 
     // FIXME ignoring epsilon induced cost
     /*

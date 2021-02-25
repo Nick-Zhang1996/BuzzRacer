@@ -64,6 +64,7 @@ class Car:
         #NOTE if using a different vicon frequency, it needs to be reflected here
         self.decay_factor = exp(-1.0/50/tc)
         self.serial_port = car_setting['serial_port']
+        self.optitrack_id = car_setting['optitrack_streaming_id']
         self.car_interface = None
         if not (self.serial_port is None):
             try:

@@ -1240,6 +1240,8 @@ class RCPtrack(Track):
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
         fun = lambda u: dist_2(splev(u%self.track_length_grid,self.raceline),coord)
         # last_u is the seq found last time, which should be a good estimate of where to start
+        # disable this functionality since it doesn't handle multiple cars
+        self.last_u = None
         if self.last_u is None:
             # the seq here starts from origin
             seq = -1

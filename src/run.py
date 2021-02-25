@@ -77,7 +77,7 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = False
+        self.enableLaptimer = True
 
         # run the track in reverse direction
         self.reverse = False
@@ -91,13 +91,13 @@ class Main():
         # the pursuer car
         #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car1 = self.prepareCar("lambo", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
         #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
-        car0.opponents = []
+        car0.opponents = [car1]
         '''
         car0.initTrackOpponents()
         car1.opponents = []
@@ -105,7 +105,7 @@ class Main():
         car2.opponents = []
         car2.initTrackOpponents()
         '''
-        self.cars = [car0]
+        self.cars = [car0,car1]
         for i in range(len(self.cars)):
             self.cars[i].id = i
 
@@ -501,7 +501,8 @@ class Main():
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'max_throttle' : 0.55}
+                         'optitrack_streaming_id' : 2,
+                         'max_throttle' : 0.7}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -509,6 +510,7 @@ class Main():
                          'max_steer_angle_right':asin(2*98e-3/0.47),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
+                         'optitrack_streaming_id' : 15,
                          'max_throttle' : 0.5}
 
 
@@ -664,7 +666,7 @@ class Main():
         car.vi = Optitrack(wheelbase=car.wheelbase)
         # TODO use acutal optitrack id for car
         # porsche: 2
-        car.internal_id = car.vi.getInternalId(2)
+        car.internal_id = car.vi.getInternalId(car.optitrack_id)
         car.new_state_update = car.vi.newState
 
     def updateOptitrack(self,car):
