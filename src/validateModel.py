@@ -16,6 +16,11 @@ import cv2
 from time import sleep
 
 from tire import tireCurve
+from PIL import Image
+
+
+saveGif = False
+gifs = []
 
 if (len(sys.argv) != 2):
     filename = "../log/jan3/full_state1.p"
@@ -78,6 +83,8 @@ track = RCPtrack()
 track.load()
 
 
+
+
 def show(img):
     plt.imshow(img)
     plt.show()
@@ -85,7 +92,7 @@ def show(img):
 
 #state: x,vx(global),y,vy,heading,omega
 #control: steering(rad),throttle(raw unit -1 ~ 1)
-def step(state,control,dt=0.01):
+def step_kinematic(state,control,dt=0.01):
     # constants
     L = 0.102
     lr = 0.036
@@ -121,7 +128,8 @@ def step(state,control,dt=0.01):
 
     return (x,vxg,y,vyg,heading,omega ),{}
 
-def step_new(state,control,dt=0.01):
+# old, kinematic model with correction
+def step_kinematic_heuristic(state,control,dt=0.01):
     # constants
     L = 0.102
     lr = 0.036
@@ -160,6 +168,7 @@ def step_new(state,control,dt=0.01):
 
     return (x,vxg,y,vyg,heading,omega ),{}
 
+# dynamic model with heuristically selected parameters
 def step_dynamics(state,control,dt=0.01):
     # constants
     lf = 0.09-0.036
@@ -207,6 +216,7 @@ def step_dynamics(state,control,dt=0.01):
     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":lateral_acc_f, "lateral_acc_r":lateral_acc_r, 'ax':ax}
     return retval, debug_dict
 
+# model with parameter from ukf
 def step_ukf(state,control,dt=0.01):
     # constants
     lf = 0.09-0.036
@@ -328,6 +338,9 @@ def test():
     plt.show()
 
 def run():
+    step_fun = step_ukf
+    step_fun = step_kinematic_heuristic
+    step_fun = step_kinematic
     '''
     plt.plot(x,y)
     plt.show()
@@ -404,15 +417,18 @@ def run():
             debug_dict_hist[key].append([])
         for j in range(i+1,i+lookahead_steps):
             #print(state)
-            state, debug_dict = step_ukf(state,control)
+            state, debug_dict = step_fun(state,control)
+
             for key in debug_dict:
                 value = debug_dict[key]
                 debug_dict_hist[key][i].append(value)
             predicted_states.append(state)
             control = (steering[j],throttle[j])
+            '''
             if (i % 100 ==0 and j<i+3):
                 print(debug_dict['slip_f'])
                 print(actual_slip_f[i])
+            '''
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
@@ -467,13 +483,31 @@ def run():
 
         #cv.addWeighted(src1, alpha, src2, beta, 0.0)
         #show(img)
+
+        # add text
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (50, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        # Using cv2.putText() method
+        img = cv2.putText(img, step_fun.__name__[5:], org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
         cv2.imshow('validate',img)
         k = cv2.waitKey(10) & 0xFF
+        if saveGif:
+            gifs.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
         if k == ord('q'):
-            print("halt")
+            print("stopping")
             break
 
         '''
+        # periodic debugging plots
         if (i % 100 == 0):
             print("showing heading")
             print("showing velocity (total)")
@@ -546,3 +580,6 @@ def run():
 if __name__=="__main__":
     #test()
     run()
+    print("saving gif... be patient")
+    gif_filename = "validate_model.gif"
+    gifs[0].save(fp=gif_filename,format='GIF',append_images=gifs,save_all=True,duration = 20,loop=0)
