@@ -122,23 +122,22 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     }
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
+    //forward_kinematics(x,u);
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,in_raceline,&last_u);
     // cost related to collision avoidance / opponent avoidance
     // TODO too conservative
     for (int j=0; j<opponent_count; j++){
-      for (int k=0; k<HORIZON; k++){
+      for (int k=0; k<HORIZON/2; k++){
       cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
       }
     }
 
-    /*
     int u_estimate = -1;
     for (int k=0; k<HORIZON; k++){
       cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
     }
-    */
 
     // FIXME ignoring epsilon induced cost
     /*
@@ -235,7 +234,7 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
   float dx = state[0]-opponent_pos[0];
   float dy = state[2]-opponent_pos[1];
   //float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
-  float cost = (0.1-sqrtf(dx*dx + dy*dy)) > 0? 0.4:0;
+  float cost = (0.15-sqrtf(dx*dx + dy*dy)) > 0? 0.4:0;
 
 
   return cost;
@@ -396,6 +395,7 @@ void forward_kinematics(float* state, float* u){
   // avoid negative velocity
   local_dx = local_dx>0.0? local_dx:0.0;
   local_dy =  sqrtf(local_dx*local_dx + local_dy*local_dy) * sinf(beta);
+  // heuristic correction for tire drift
   local_dy += -0.68*local_dx*steering;
 
   dpsi = local_dx/0.102*tanf(steering);
