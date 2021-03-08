@@ -304,9 +304,11 @@ def step_ukf_linear(state,control,dt=0.01):
     C = 2.80646
     B = 0.51943
     '''
-    Cm1 = 6.03154
+    #Cm1 = 6.03154
     Cm2 = 0.96769
-    Cr = -0.20375
+    #Cr = -0.20375
+    Cm1 = 9.23154
+    Cr = 0.0
     Cd = 0.00000
     #Iz = 0.00278
     m = 0.1667
@@ -423,6 +425,7 @@ def test():
 
 def run():
     step_fun = step_ukf_linear
+    step_fun2 = step_ukf
     #step_fun = step_kinematic_heuristic
     #step_fun = step_kinematic
     '''
@@ -619,17 +622,18 @@ def run():
             ax1 = plt.subplot(412)
             ax1.plot(v_predicted_hist,label="v predicted")
             ax1.plot(v_actual_hist,label="actual")
-            #ax1.plot(throttle[i:i+lookahead_steps],label="throttle")
             #ax1.plot(steering[i:i+lookahead_steps],label="steering")
-            #ax1.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
 
             ax1.legend()
 
             ax2 = plt.subplot(413)
             ax2.plot(vx_car_predicted_hist,label="car vx predicted")
             ax2.plot(vx_car[i:i+lookahead_steps],label="car vx actual")
-            ax2.plot(vy_car_predicted_hist,'--',label="car vy predicted")
-            ax2.plot(vy_car[i:i+lookahead_steps],'--',label="car vy actual")
+            #ax2.plot(vy_car_predicted_hist,'--',label="car vy predicted")
+            #ax2.plot(vy_car[i:i+lookahead_steps],'--',label="car vy actual")
+
+            ax2.plot(throttle[i:i+lookahead_steps],label="throttle")
+            ax2.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
             ax2.legend()
 
             ax3 = plt.subplot(414)
