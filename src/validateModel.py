@@ -82,9 +82,6 @@ full_state_vec = []
 track = RCPtrack()
 track.load()
 
-
-
-
 def show(img):
     plt.imshow(img)
     plt.show()
@@ -294,8 +291,95 @@ def step_ukf(state,control,dt=0.01):
     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
     return retval, debug_dict
 
+# model with parameter from ukf
+def step_ukf_linear(state,control,dt=0.01):
+    # constants
+    lf = 0.09-0.036
+    lr = 0.036
+    L = 0.09
+
+    '''
+    Df = 3.93731
+    Dr = 6.23597
+    C = 2.80646
+    B = 0.51943
+    '''
+    Cm1 = 6.03154
+    Cm2 = 0.96769
+    Cr = -0.20375
+    Cd = 0.00000
+    #Iz = 0.00278
+    m = 0.1667
+    Iz = m*(0.1**2+0.1**2)/12.0 * 6.0
+    K = 5.0
+
+
+
+    # convert to local frame
+    x,vxg,y,vyg,heading,omega = tuple(state)
+    steering,throttle = tuple(control)
+    # forward
+    vx = vxg*cos(heading) + vyg*sin(heading)
+    # lateral, left +
+    vy = -vxg*sin(heading) + vyg*cos(heading)
+
+    # for small velocity, use kinematic model 
+    if (vx<0.05):
+        beta = atan(lr/L*tan(steering))
+        norm = lambda a,b:(a**2+b**2)**0.5
+        # motor model
+        d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+        vx = vx + d_vx * dt
+        vy = norm(vx,vy)*sin(beta)
+        d_omega = 0.0
+        omega = vx/L*tan(steering)
+
+        slip_f = 0
+        slip_r = 0
+        Ffy = 0
+        Fry = 0
+
+    else:
+        slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+        slip_r = np.arctan((omega*lr - vy)/vx)
+
+        # tire model -- pacejka model
+        #Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+        #Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+        Ffy = K * slip_f * 9.8 * lr / (lr + lf) * m
+        Fry = K * slip_r * 9.8 * lf / (lr + lf) * m
+
+        # motor model
+        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+
+        # Dynamics
+        d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+        d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+        # discretization
+        vx = vx + d_vx * dt
+        vy = vy + d_vy * dt
+        omega = omega + d_omega * dt 
+
+    # back to global frame
+    vxg = vx*cos(heading)-vy*sin(heading)
+    vyg = vx*sin(heading)+vy*cos(heading)
+
+    # apply updates
+    # TODO add 1/2 a t2
+    x += vxg*dt
+    y += vyg*dt
+    heading += omega*dt + 0.5* d_omega * dt * dt
+
+    retval = (x,vxg,y,vyg,heading,omega )
+    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
+    return retval, debug_dict
+
 def test():
     img_track = track.drawTrack()
+    img_track = track.drawRaceline(img=img_track)
     #img_track = track.drawRaceline(img=img_track)
     cv2.imshow('validate',img_track)
     cv2.waitKey(10)
@@ -338,9 +422,9 @@ def test():
     plt.show()
 
 def run():
-    step_fun = step_ukf
-    step_fun = step_kinematic_heuristic
-    step_fun = step_kinematic
+    step_fun = step_ukf_linear
+    #step_fun = step_kinematic_heuristic
+    #step_fun = step_kinematic
     '''
     plt.plot(x,y)
     plt.show()
@@ -358,7 +442,7 @@ def run():
 
 
     img_track = track.drawTrack()
-    #img_track = track.drawRaceline(img=img_track)
+    img_track = track.drawRaceline(img=img_track)
     cv2.imshow('validate',img_track)
     cv2.waitKey(10)
 
@@ -404,7 +488,6 @@ def run():
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
         '''
 
-        # calculate predicted trajectory -- heuristic
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
         predicted_states = [state]
@@ -415,9 +498,24 @@ def run():
         # second is prediction in timestep
         for key in debug_dict_hist:
             debug_dict_hist[key].append([])
+
+        # make prediction from current state
         for j in range(i+1,i+lookahead_steps):
             #print(state)
             state, debug_dict = step_fun(state,control)
+
+            '''
+            # NOTE use ground truth in velocity
+            # calculate actual velocity in world frame
+            # using ground truth in longitudinal vel, estimated value in lateral vel
+            vx_car_truth = vx_car[j]
+            vy_car_predicted = -state[1]*np.sin(state[4]) + state[3]*np.cos(state[4])
+
+            _vxg = vx_car_truth*cos(state[4])-vy_car_predicted*sin(state[4])
+            _vyg = vx_car_truth*sin(state[4])+vy_car_predicted*cos(state[4])
+
+            state = (state[0], _vxg, state[2], _vyg, state[4], state[5])
+            '''
 
             for key in debug_dict:
                 value = debug_dict[key]
@@ -506,7 +604,6 @@ def run():
             print("stopping")
             break
 
-        '''
         # periodic debugging plots
         if (i % 100 == 0):
             print("showing heading")
@@ -522,9 +619,9 @@ def run():
             ax1 = plt.subplot(412)
             ax1.plot(v_predicted_hist,label="v predicted")
             ax1.plot(v_actual_hist,label="actual")
-            ax1.plot(throttle[i:i+lookahead_steps],label="throttle")
-            ax1.plot(steering[i:i+lookahead_steps],label="steering")
-            ax1.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
+            #ax1.plot(throttle[i:i+lookahead_steps],label="throttle")
+            #ax1.plot(steering[i:i+lookahead_steps],label="steering")
+            #ax1.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
 
             ax1.legend()
 
@@ -541,8 +638,7 @@ def run():
             ax3.legend()
 
             plt.show()
-            print("breakpoint")
-        '''
+            #print("breakpoint")
 
         '''
         print("showing x")
@@ -580,6 +676,7 @@ def run():
 if __name__=="__main__":
     #test()
     run()
-    print("saving gif... be patient")
-    gif_filename = "validate_model.gif"
-    gifs[0].save(fp=gif_filename,format='GIF',append_images=gifs,save_all=True,duration = 20,loop=0)
+    if saveGif:
+        print("saving gif... be patient")
+        gif_filename = "validate_model.gif"
+        gifs[0].save(fp=gif_filename,format='GIF',append_images=gifs,save_all=True,duration = 20,loop=0)
