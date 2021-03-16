@@ -41,7 +41,9 @@ class MPPI:
             # prepare constants
             cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt}
             # add curand related config
-            cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
+            # new feature for Python 3.9
+            #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
+            cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
 
             mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 

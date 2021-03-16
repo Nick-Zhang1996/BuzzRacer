@@ -89,7 +89,7 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car1 = self.prepareCar("lambo", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
@@ -375,7 +375,9 @@ class Main():
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
                 # note: this style of debug dict is updated in whole at every step
-                self.debug_dict[i] = self.debug_dict[i] | debug_dict
+                # this syntax requires Python 3.9
+                #self.debug_dict[i] = self.debug_dict[i] | debug_dict
+                self.debug_dict[i].update(debug_dict)
 
             elif (car.controller == Controller.empty):
                 throttle = 0
