@@ -350,6 +350,7 @@ class LinearizeDynamics():
         print(x1)
         '''
 
+        '''
         # test A matrix
         tAA = np.zeros((self.n*self.N, self.n))
         tAA[:self.n,:] = A0
@@ -369,11 +370,25 @@ class LinearizeDynamics():
         tdd[self.n:2*self.n,:] = A1 @ d0.reshape((-1,1)) + d1.reshape((-1,1))
 
         #assert np.linalg.norm(tdd-dd) < 1e-5
+        '''
         
         print("diff")
         print(np.linalg.norm(XX-xx_truth))
         print(XX[-self.n:])
         print(xx_truth[-self.n:])
+
+        # plot true and linearized traj
+        img_track = self.track.drawTrack()
+        img_track = self.track.drawRaceline(img=img_track)
+        car_state = (x0[0],x0[2],x0[4],0,0,0)
+        img = track.drawCar(img_track.copy(), car_state, steering)
+
+        actual_future_traj  = self.ref_traj[i+1:i+1+self.N,(0,2)]
+        #actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
+        img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+        plt.imshow(img)
+        plt.show()
+        
 
 
 if __name__ == '__main__':
