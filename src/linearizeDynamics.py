@@ -330,7 +330,7 @@ class LinearizeDynamics():
 
         # compare with actual result
         # X = AA x0 + BB u + C d + D noise
-        i = start
+        i = start + 2
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -372,6 +372,8 @@ class LinearizeDynamics():
         
         print("diff")
         print(np.linalg.norm(XX-xx_truth))
+        print(XX[-self.n:])
+        print(xx_truth[-self.n:])
 
 
 if __name__ == '__main__':
