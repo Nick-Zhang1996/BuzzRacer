@@ -20,7 +20,29 @@ class LinearizeDynamics():
         self.l = self.n
         self.m = 2
         self.N = horizon
+        self.setupModel()
         return 
+
+    def setupModel(self):
+        # dimension
+        self.lf = 0.09-0.036
+        self.lr = 0.036
+        self.L = 0.09
+        # basic properties
+        self.Iz = 0.00278
+        self.mass = 0.1667
+
+        # tire model
+        self.Df = 3.93731
+        self.Dr = 6.23597
+        self.C = 2.80646
+        self.B = 0.51943
+
+        # motor/longitudinal model
+        self.Cm1 = 6.03154
+        self.Cm2 = 0.96769
+        self.Cr = -0.20375
+        self.Cd = 0.00000
 
     # read a log
     # use trajectory of second lap as reference trajectory
@@ -101,6 +123,138 @@ class LinearizeDynamics():
     def testGetRefTraj(self):
         self.getRefTraj("../log/ethsim/full_state1.p")
         return
+
+    def update_dynamics(self,states,controls,dt):
+        lf = self.lf
+        lr = self.lr
+        L = self.L
+
+        Df = self.Df
+        Dr = self.Dr
+        B = self.B
+        C = self.C
+        Cm1 = self.Cm1
+        Cm2 = self.Cm2
+        Cr = self.Cr
+        Cd = self.Cd
+        Iz = self.Iz
+        m = self.mass
+
+
+        x = states[0,:]
+        y = states[2,:]
+        psi = heading = states[4,:]
+        omega = states[5,:]
+        throttle = controls[0,:]
+        steering = controls[1,:]
+
+        d_omega = np.zeros([states.shape[1]])
+        d_vx = np.zeros([states.shape[1]])
+        d_vy = np.zeros([states.shape[1]])
+        slip_f = np.zeros([states.shape[1]])
+        slip_r = np.zeros([states.shape[1]])
+        Ffy = np.zeros([states.shape[1]])
+        Fry = np.zeros([states.shape[1]])
+        Ffx = np.zeros([states.shape[1]])
+        Frx = np.zeros([states.shape[1]])
+
+        # change ref frame to car frame
+        # vehicle longitudinal velocity
+        Vx = vx = states[1,:]*np.cos(psi) + states[3,:]*np.sin(psi)
+        Vy = vy = -states[1,:]*np.sin(psi) + states[3,:]*np.cos(psi)
+
+        # for small longitudinal velocity use kinematic model
+        mask = vx < 0.05
+        # kinematic model
+        beta_mask = np.arctan(lr/L*np.tan(steering[mask]))
+        norm = lambda a,b:(a**2+b**2)**0.5
+        # motor model
+        d_vx[mask] = (( Cm1 - Cm2 * vx[mask]) * throttle[mask] - Cr - Cd * vx[mask] * vx[mask])
+        vx[mask] = vx[mask] + d_vx[mask] * dt
+        vy[mask] = norm(vx[mask],vy[mask])*np.sin(beta_mask)
+        omega[mask] = vx[mask]/L*np.tan(steering[mask])
+
+
+        # Dynamic model
+        slip_f[~mask] = -np.arctan((omega[~mask]*lf + vy[~mask])/vx[~mask]) + steering[~mask]
+        slip_r[~mask] = np.arctan((omega[~mask]*lr - vy[~mask])/vx[~mask])
+
+        Ffy[~mask] = Df * np.sin( C * np.arctan(B *slip_f[~mask])) * 9.8 * lr / (lr + lf) * m
+        Fry[~mask] = Dr * np.sin( C * np.arctan(B *slip_r[~mask])) * 9.8 * lf / (lr + lf) * m
+
+        # motor model
+        Frx[~mask] = (( Cm1 - Cm2 * vx[~mask]) * throttle[~mask] - Cr - Cd * vx[~mask] * vx[~mask])*m
+
+        # Dynamics
+        d_vx[~mask] = 1.0/m * (Frx[~mask] - Ffy[~mask] * np.sin( steering[~mask] ) + m * vy[~mask] * omega[~mask])
+        d_vy[~mask] = 1.0/m * (Fry[~mask] + Ffy[~mask] * np.cos( steering[~mask] ) - m * vx[~mask] * omega[~mask])
+        d_omega[~mask] = 1.0/Iz * (Ffy[~mask] * lf * np.cos( steering[~mask] ) - Fry[~mask] * lr)
+
+        # discretization
+        vx = vx + d_vx * dt
+        vy = vy + d_vy * dt
+        omega = omega + d_omega * dt 
+
+        '''
+        print("vx = %5.2f, vy = %5.2f"%(vx,vy))
+        print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
+        print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
+        '''
+
+        # back to global frame
+        vxg = vx*np.cos(heading)-vy*np.sin(heading)
+        vyg = vx*np.sin(heading)+vy*np.cos(heading)
+
+        # update x,y, heading
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt + 0.5* d_omega * dt * dt
+
+        states = np.vstack((x,vxg,y,vyg,heading,omega))
+        return states
+
+    
+    def jacob_linearize(self, states, controls):
+        nx = self.n
+        nu = self.m
+        nN = self.N
+        dt = 0.01
+
+        delta_x = np.array([0.01,0.01,0.01,0.01,0.01,0.1])
+        delta_u = np.array([0.01, 0.01])
+        delta_x_flat = np.tile(delta_x, (1, nN))
+        delta_u_flat = np.tile(delta_u, (1, nN))
+        delta_x_final = np.multiply(np.tile(np.eye(nx), (1, nN)), delta_x_flat)
+        delta_u_final = np.multiply(np.tile(np.eye(nu), (1, nN)), delta_u_flat)
+        xx = np.tile(states, (nx, 1)).reshape((nx, nx*nN), order='F')
+        # print(delta_x_final, xx)
+        ux = np.tile(controls, (nx, 1)).reshape((nu, nx*nN), order='F')
+        x_plus = xx + delta_x_final
+        # print(x_plus, ux)
+        x_minus = xx - delta_x_final
+        fx_plus = self.update_dynamics(x_plus, ux, dt)
+        # print(fx_plus)
+        fx_minus = self.update_dynamics(x_minus, ux, dt)
+        A = (fx_plus - fx_minus) / (2 * delta_x_flat)
+
+        xu = np.tile(states, (nu, 1)).reshape((nx, nu*nN), order='F')
+        uu = np.tile(controls, (nu, 1)).reshape((nu, nu*nN), order='F')
+        u_plus = uu + delta_u_final
+        # print(xu)
+        u_minus = uu - delta_u_final
+        fu_plus = self.update_dynamics(xu, u_plus, dt)
+        # print(fu_plus)
+        fu_minus = self.update_dynamics(xu, u_minus, dt)
+        B = (fu_plus - fu_minus) / (2 * delta_u_flat)
+
+        state_row = np.zeros((nx*nN, nN))
+        input_row = np.zeros((nu*nN, nN))
+        for ii in range(nN):
+            state_row[ii*nx:ii*nx + nx, ii] = states[:, ii]
+            input_row[ii*nu:ii*nu+nu, ii] = controls[:, ii]
+        d = self.update_dynamics(states, controls, dt) - np.dot(A, state_row) - np.dot(B, input_row)
+
+        return A, B, d
 
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
@@ -403,10 +557,105 @@ class LinearizeDynamics():
         plt.imshow(img)
         plt.show()
         
+    def testBigMatricesJacob(self):
+        # get ref traj
+        #self.generateTestRefTraj()
+        self.getRefTraj("../log/ethsim/full_state1.p",show=False)
+
+        # linearize dynamics around ref traj
+        As = []
+        Bs = []
+        ds = []
+        Ds = []
+
+        D = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])*self.dt
+        # random starting point
+        start = 100
+        As,Bs,ds = self.jacob_linearize(self.ref_traj[start:start+self.N,:].T,self.ref_ctrl[start:start+self.N,:].T)
+
+        # propagate big matrices dynamics
+        AA, BB, dd, DD = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+
+        # compare with actual result
+        # X = AA x0 + BB u + C d + D noise
+        # start: ref traj, base of linearization
+        # test a traj that's slightly offsetted
+        i = start + 1
+        #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
+        #u0 = (throttle[i],steering[i])
+        x0 = self.ref_traj[i,:]
+        u0 = self.ref_ctrl[i:i+1,:].flatten()
+        uu = self.ref_ctrl[i:i+self.N,:].flatten()
+        # actually need + DD @ w
+        XX = AA @ x0 + BB @ uu + dd.flatten()
+
+        xx_truth = self.ref_traj[i+1:i+1+self.N,:].flatten()
+        x1 = A0 @ x0 + B0 @ u0 + d0
+        print("x0")
+        print(x0)
+        print("ref x0")
+        print(self.ref_traj[start,:])
+        print("diff")
+        print(x0-self.ref_traj[start,:])
+
+
+        '''
+        print("xx_truth")
+        print(xx_truth.reshape((self.N,-1))[:3,:])
+        print("x1")
+        print(x1)
+        '''
+
+        '''
+        # test A matrix
+        tAA = np.zeros((self.n*self.N, self.n))
+        tAA[:self.n,:] = A0
+        tAA[self.n:2*self.n,:] = A1 @ A0
+        #assert np.linalg.norm(tAA-AA) < 1e-5
+
+        # test B matrix
+        tBB = np.zeros((self.n*self.N, self.m*self.N))
+        tBB[:self.n,:self.m] = B0
+        tBB[self.n:2*self.n,:self.m] = A1 @ B0
+        tBB[self.n:2*self.n,self.m:2*self.m] = B1
+        #assert np.linalg.norm(tBB-BB) < 1e-5
+
+        # test vector d
+        tdd = np.zeros((self.n*self.N,1))
+        tdd[:self.n,:] = d0.reshape((-1,1))
+        tdd[self.n:2*self.n,:] = A1 @ d0.reshape((-1,1)) + d1.reshape((-1,1))
+
+        #assert np.linalg.norm(tdd-dd) < 1e-5
+        '''
+        
+        print("truth vs prediction diff")
+        print(np.linalg.norm(XX-xx_truth))
+        print("diff by item")
+        print(XX[-self.n:]-xx_truth[-self.n:])
+        print("pred xf")
+        print(XX[-self.n:])
+        print("truth xf")
+        print(xx_truth[-self.n:])
+
+        # plot true and linearized traj
+        img_track = self.track.drawTrack()
+        img_track = self.track.drawRaceline(img=img_track)
+        car_state = (x0[0],x0[2],x0[4],0,0,0)
+        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
+
+        actual_future_traj  = self.ref_traj[i+1:i+1+self.N,(0,2)]
+        img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+
+        predicted_states = XX.reshape((-1,self.n))
+        predicted_future_traj  = predicted_states[:,(0,2)]
+        img = self.track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img.copy())
+        plt.imshow(img)
+        plt.show()
 
 
 if __name__ == '__main__':
     main = LinearizeDynamics(20)
     #main.testGetRefTraj()
     #main.testLinearize()
-    main.testBigMatrices()
+    #main.testBigMatrices()
+    main.testBigMatricesJacob()
