@@ -42,8 +42,8 @@ class LinearizeDynamics():
         heading = data[:,3]
         # calculate speed from pos, to use as no-bias but noise reference
         dt = 0.01
-        dx = np.diff(x)
-        dy = np.diff(y)
+        dx = np.diff(x) / dt
+        dy = np.diff(y) / dt
         dheading = np.diff(heading)
         steering = data[:,4]
         throttle = data[:,5]
@@ -95,8 +95,6 @@ class LinearizeDynamics():
         if show:
             plt.plot(x[i:f],y[i:f])
             plt.show()
-        print(start_index)
-        print(end_index)
 
         return
 
@@ -111,7 +109,7 @@ class LinearizeDynamics():
         nominal_ctrl = np.array(nominal_ctrl)
         epsilon = 1e-3
 
-        # A = df/dx * dt
+        # A = df/dx
         A = np.zeros((self.n,self.n),dtype=np.float)
         # find A
         for i in range(self.n):
@@ -131,7 +129,7 @@ class LinearizeDynamics():
 
             A[:,i] += (x_post_r - x_post_l) / (2*epsilon)
 
-        # B = df/du * dt
+        # B = df/du
         B = np.zeros((self.n,self.m),dtype=np.float)
         # find A
         for i in range(self.m):
@@ -288,7 +286,8 @@ class LinearizeDynamics():
 
     def testBigMatrices(self):
         # get ref traj
-        self.generateTestRefTraj()
+        #self.generateTestRefTraj()
+        self.getRefTraj("../log/ethsim/full_state1.p",show=False)
 
         # linearize dynamics around ref traj
         As = []
@@ -330,7 +329,9 @@ class LinearizeDynamics():
 
         # compare with actual result
         # X = AA x0 + BB u + C d + D noise
-        i = start + 2
+        # start: ref traj, base of linearization
+        # test a traj that's slightly offsetted
+        i = start + 1
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -341,11 +342,17 @@ class LinearizeDynamics():
 
         xx_truth = self.ref_traj[i+1:i+1+self.N,:].flatten()
         x1 = A0 @ x0 + B0 @ u0 + d0
-        '''
         print("x0")
         print(x0)
+        print("ref x0")
+        print(self.ref_traj[start,:])
+        print("diff")
+        print(x0-self.ref_traj[start,:])
+
+
+        '''
         print("xx_truth")
-        print(xx_truth.reshape((self.N,-1)))
+        print(xx_truth.reshape((self.N,-1))[:3,:])
         print("x1")
         print(x1)
         '''
@@ -372,20 +379,27 @@ class LinearizeDynamics():
         #assert np.linalg.norm(tdd-dd) < 1e-5
         '''
         
-        print("diff")
+        print("truth vs prediction diff")
         print(np.linalg.norm(XX-xx_truth))
+        print("diff by item")
+        print(XX[-self.n:]-xx_truth[-self.n:])
+        print("pred xf")
         print(XX[-self.n:])
+        print("truth xf")
         print(xx_truth[-self.n:])
 
         # plot true and linearized traj
         img_track = self.track.drawTrack()
         img_track = self.track.drawRaceline(img=img_track)
         car_state = (x0[0],x0[2],x0[4],0,0,0)
-        img = track.drawCar(img_track.copy(), car_state, steering)
+        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
 
         actual_future_traj  = self.ref_traj[i+1:i+1+self.N,(0,2)]
-        #actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
-        img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+        img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+
+        predicted_states = XX.reshape((-1,self.n))
+        predicted_future_traj  = predicted_states[:,(0,2)]
+        img = self.track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img.copy())
         plt.imshow(img)
         plt.show()
         
