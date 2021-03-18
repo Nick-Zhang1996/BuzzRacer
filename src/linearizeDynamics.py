@@ -140,6 +140,9 @@ class LinearizeDynamics():
         Iz = self.Iz
         m = self.mass
 
+        states = states.reshape((self.n,-1))
+        controls = controls.reshape((self.m,-1))
+
 
         x = states[0,:]
         y = states[2,:]
@@ -254,6 +257,10 @@ class LinearizeDynamics():
             input_row[ii*nu:ii*nu+nu, ii] = controls[:, ii]
         d = self.update_dynamics(states, controls, dt) - np.dot(A, state_row) - np.dot(B, input_row)
 
+        A = A.reshape((self.n, self.n, self.N), order='F')
+        B = B.reshape((self.n, self.m, self.N), order='F')
+        d = d.reshape((self.n, 1, self.N), order='F')
+
         return A, B, d
 
     # differentiate dynamics around nominal state and control
@@ -261,7 +268,7 @@ class LinearizeDynamics():
     def linearize(self, nominal_state, nominal_ctrl):
         nominal_state = np.array(nominal_state)
         nominal_ctrl = np.array(nominal_ctrl)
-        epsilon = 1e-3
+        epsilon = 1e-2
 
         # A = df/dx
         A = np.zeros((self.n,self.n),dtype=np.float)
@@ -270,46 +277,66 @@ class LinearizeDynamics():
             # d x / d x_i, ith row in A
             x_l = nominal_state.copy()
             x_l[i] -= epsilon
+
+
+            '''
             self.sim.states = np.array(x_l)
             self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
             x_post_l = np.array(self.sim.states)
+            '''
+            x_post_l = self.update_dynamics(x_l, nominal_ctrl, self.dt)
 
 
             x_r = nominal_state.copy()
             x_r[i] += epsilon
+            '''
             self.sim.states = np.array(x_r)
             self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
             x_post_r = np.array(self.sim.states)
+            '''
+            x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
-            A[:,i] += (x_post_r - x_post_l) / (2*epsilon)
+            A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
 
         # B = df/du
         B = np.zeros((self.n,self.m),dtype=np.float)
-        # find A
+        # find B
         for i in range(self.m):
             # d x / d u_i, ith row in B
             x0 = nominal_state.copy()
 
             u_l = nominal_ctrl.copy()
             u_l[i] -= epsilon
+            '''
+            self.sim.states = np.array(x0)
             self.sim.updateCar(self.dt,None,*u_l)
             x_post_l = np.array(self.sim.states)
+            '''
+            x_post_l = self.update_dynamics(x0, u_l, self.dt)
 
-            x0 = nominal_state.copy()
             u_r = nominal_ctrl.copy()
             u_r[i] += epsilon
+            '''
+            self.sim.states = np.array(x0)
             self.sim.updateCar(self.dt,None,*u_r)
             x_post_r = np.array(self.sim.states)
+            '''
+            x_post_r = self.update_dynamics(x0, u_r, self.dt)
 
-            B[:,i] += (x_post_r - x_post_l) / (2*epsilon)
+            B[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
 
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
+        '''
         self.sim.states = np.array(x0.copy())
         self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
         x_post = np.array(self.sim.states)
+        '''
+        x_post = self.update_dynamics(x0, u0, self.dt)
+
+
         # d = x_k+1 - Ak*x_k - Bk*u_k
-        d = x_post - A @ x0 - B @ u0
+        d = x_post.flatten() - A @ x0 - B @ u0
 
         return A,B,d
 
@@ -485,7 +512,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 1
+        i = start + 2
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -495,6 +522,7 @@ class LinearizeDynamics():
         XX = AA @ x0 + BB @ uu + dd.flatten()
 
         xx_truth = self.ref_traj[i+1:i+1+self.N,:].flatten()
+        '''
         x1 = A0 @ x0 + B0 @ u0 + d0
         print("x0")
         print(x0)
@@ -504,14 +532,12 @@ class LinearizeDynamics():
         print(x0-self.ref_traj[start,:])
 
 
-        '''
         print("xx_truth")
         print(xx_truth.reshape((self.N,-1))[:3,:])
         print("x1")
         print(x1)
         '''
 
-        '''
         # test A matrix
         tAA = np.zeros((self.n*self.N, self.n))
         tAA[:self.n,:] = A0
@@ -531,8 +557,8 @@ class LinearizeDynamics():
         tdd[self.n:2*self.n,:] = A1 @ d0.reshape((-1,1)) + d1.reshape((-1,1))
 
         #assert np.linalg.norm(tdd-dd) < 1e-5
-        '''
         
+        '''
         print("truth vs prediction diff")
         print(np.linalg.norm(XX-xx_truth))
         print("diff by item")
@@ -541,6 +567,7 @@ class LinearizeDynamics():
         print(XX[-self.n:])
         print("truth xf")
         print(xx_truth[-self.n:])
+        '''
 
         # plot true and linearized traj
         img_track = self.track.drawTrack()
@@ -556,6 +583,9 @@ class LinearizeDynamics():
         img = self.track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img.copy())
         plt.imshow(img)
         plt.show()
+
+        return AA, BB, dd,B0,B1,d0,d1 
+
         
     def testBigMatricesJacob(self):
         # get ref traj
@@ -573,6 +603,9 @@ class LinearizeDynamics():
         start = 100
         As,Bs,ds = self.jacob_linearize(self.ref_traj[start:start+self.N,:].T,self.ref_ctrl[start:start+self.N,:].T)
 
+        D = np.zeros((self.n, self.l))
+        Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
+
         # propagate big matrices dynamics
         AA, BB, dd, DD = self.form_long_matrices_LTV(As, Bs, ds, Ds)
 
@@ -580,7 +613,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 1
+        i = start + 2
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -590,7 +623,15 @@ class LinearizeDynamics():
         XX = AA @ x0 + BB @ uu + dd.flatten()
 
         xx_truth = self.ref_traj[i+1:i+1+self.N,:].flatten()
-        x1 = A0 @ x0 + B0 @ u0 + d0
+
+        A0 = As[:,:,0]
+        A1 = As[:,:,1]
+        B0 = Bs[:,:,0]
+        B1 = Bs[:,:,1]
+        d0 = ds[:,:,0]
+        d1 = ds[:,:,1]
+        x1 = A0 @ x0.reshape((-1,1)) + B0 @ u0.reshape((-1,1)) + d0
+        '''
         print("x0")
         print(x0)
         print("ref x0")
@@ -598,15 +639,14 @@ class LinearizeDynamics():
         print("diff")
         print(x0-self.ref_traj[start,:])
 
-
-        '''
+        # compare one step prediction
         print("xx_truth")
         print(xx_truth.reshape((self.N,-1))[:3,:])
         print("x1")
         print(x1)
         '''
 
-        '''
+
         # test A matrix
         tAA = np.zeros((self.n*self.N, self.n))
         tAA[:self.n,:] = A0
@@ -624,10 +664,9 @@ class LinearizeDynamics():
         tdd = np.zeros((self.n*self.N,1))
         tdd[:self.n,:] = d0.reshape((-1,1))
         tdd[self.n:2*self.n,:] = A1 @ d0.reshape((-1,1)) + d1.reshape((-1,1))
-
         #assert np.linalg.norm(tdd-dd) < 1e-5
-        '''
         
+        '''
         print("truth vs prediction diff")
         print(np.linalg.norm(XX-xx_truth))
         print("diff by item")
@@ -636,6 +675,7 @@ class LinearizeDynamics():
         print(XX[-self.n:])
         print("truth xf")
         print(xx_truth[-self.n:])
+        '''
 
         # plot true and linearized traj
         img_track = self.track.drawTrack()
@@ -651,11 +691,26 @@ class LinearizeDynamics():
         img = self.track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img.copy())
         plt.imshow(img)
         plt.show()
+        return AA, BB, dd,B0,B1,d0,d1 
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(20)
+    main = LinearizeDynamics(2)
     #main.testGetRefTraj()
     #main.testLinearize()
-    #main.testBigMatrices()
-    main.testBigMatricesJacob()
+    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
+    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
+
+    print("A")
+    print(np.linalg.norm(jAA-AA))
+    print("B")
+    print(np.linalg.norm(jBB-BB))
+    print("d")
+    print(np.linalg.norm(jdd-dd))
+
+    print(np.linalg.norm(jB0-B0))
+    print(np.linalg.norm(jB1-B1))
+
+    print(B0)
+    print(jB0)
+
