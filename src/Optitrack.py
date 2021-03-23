@@ -222,7 +222,7 @@ if __name__ == '__main__':
     #for i in range(op.obj_count):
     while True:
         #op_id = op.getOptitrackId(i)
-        op_id = 15
+        op_id = 2
         i = op.getInternalId(op_id)
         x2d,y2d,theta2d = op.getState2d(i)
         x,y,z,rx,ry,rz = op.getState(i)

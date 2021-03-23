@@ -10,7 +10,7 @@ from RCPTrack import RCPtrack
 from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
-from cs_solver import CSSolver
+#from cs_solver import CSSolver
 
 class LinearizeDynamics():
     def __init__(self,horizon):
