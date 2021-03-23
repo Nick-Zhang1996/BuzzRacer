@@ -24,7 +24,7 @@ class LinearizeDynamics():
         self.setupModel()
         u_min = np.array((-1,-radians(25)))
         u_max = np.array((1,radians(25)))
-        self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
+        #self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
         return 
 
     def setupModel(self):
@@ -290,7 +290,6 @@ class LinearizeDynamics():
             '''
             x_post_l = self.update_dynamics(x_l, nominal_ctrl, self.dt)
 
-
             x_r = nominal_state.copy()
             x_r[i] += epsilon
             '''
@@ -301,6 +300,13 @@ class LinearizeDynamics():
             x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
             A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
+            '''
+            print("perturbing x%d"%(i))
+            print(A[:,i])
+            breakpoint()
+            print("")
+            '''
+
 
         # B = df/du
         B = np.zeros((self.n,self.m),dtype=np.float)
@@ -516,7 +522,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start 
+        i = start
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -526,7 +532,6 @@ class LinearizeDynamics():
         XX = AA @ x0 + BB @ uu + dd.flatten()
 
         xx_truth = self.ref_traj[i+1:i+1+self.N,:].flatten()
-        '''
         x1 = A0 @ x0 + B0 @ u0 + d0
         print("x0")
         print(x0)
@@ -540,7 +545,8 @@ class LinearizeDynamics():
         print(xx_truth.reshape((self.N,-1))[:3,:])
         print("x1")
         print(x1)
-        '''
+
+        print(A0)
 
         # test A matrix
         tAA = np.zeros((self.n*self.N, self.n))
@@ -616,7 +622,7 @@ class LinearizeDynamics():
         # compare with actual result
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
-        # test a traj that's slightly offsetted
+        # test a traj that's slightly offsetted 
         i = start
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
@@ -763,9 +769,9 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(10)
+    main = LinearizeDynamics(40)
     #main.testGetRefTraj()
     #main.testLinearize()
-    #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
-    #AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
-    main.testK()
+    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
+    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
+    #main.testK()
