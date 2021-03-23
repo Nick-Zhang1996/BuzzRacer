@@ -73,7 +73,7 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = True
+        self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
@@ -89,8 +89,8 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car1 = self.prepareCar("lambo", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
@@ -393,6 +393,7 @@ class Main():
 
             if (car.vehiclePlatform == VehiclePlatform.offboard):
                 car.actuate(steering,throttle)
+                print(car.steering, car.throttle)
                 # TODO implement throttle model
                 # do not use EKF for now
                 #car.vi.updateAction(car.steering, car.getExpectedAcc())

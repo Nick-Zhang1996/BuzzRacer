@@ -10,7 +10,7 @@ from RCPTrack import RCPtrack
 from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
-from cs_solver import CSSolver
+#from cs_solver import CSSolver
 
 class LinearizeDynamics():
     def __init__(self,horizon):
@@ -24,7 +24,7 @@ class LinearizeDynamics():
         self.setupModel()
         u_min = np.array((-1,-radians(25)))
         u_max = np.array((1,radians(25)))
-        self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
+        #self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
         return 
 
     def setupModel(self):
@@ -516,7 +516,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 2
+        i = start 
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -617,7 +617,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 2
+        i = start 
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -762,6 +762,6 @@ if __name__ == '__main__':
     main = LinearizeDynamics(5)
     #main.testGetRefTraj()
     #main.testLinearize()
-    #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
-    #AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
-    main.testK()
+    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
+    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
+    #main.testK()
