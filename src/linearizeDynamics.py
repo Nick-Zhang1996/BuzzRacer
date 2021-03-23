@@ -516,7 +516,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 2
+        i = start 
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -617,7 +617,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start + 2
+        i = start
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -726,7 +726,11 @@ class LinearizeDynamics():
         # propagate big matrices dynamics
         AA, BB, dd, DD = self.form_long_matrices_LTV(As, Bs, ds, Ds)
         sigma_0 = np.zeros((self.n, self.n))
-        sigma_N_inv = np.zeros((self.n, self.n))
+        #sigma_N_inv = np.zeros((self.n, self.n))
+        sigma_N_inv = np.eye(self.n)
+
+
+
         Q = np.zeros((self.n, self.n))
         # x
         Q[0, 0] = 1
@@ -759,7 +763,7 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(5)
+    main = LinearizeDynamics(10)
     #main.testGetRefTraj()
     #main.testLinearize()
     #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()

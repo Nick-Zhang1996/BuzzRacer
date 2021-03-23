@@ -103,15 +103,15 @@ class CSSolver:
             I = Matrix.eye(n*N)
 
             # convert to linear objective with quadratic cone constraints
-            #u = Expr.mul(mu_0_T_A_T_Q_bar_B, V)
+            u = Expr.mul(mu_0_T_A_T_Q_bar_B, V)
             # coordinate shift, check to make sure T = *2
-            #q = Expr.mul(neg_x_0_T_Q_B, V)
-            #r = Expr.mul(d_T_Q_B, V)
+            q = Expr.mul(neg_x_0_T_Q_B, V)
+            r = Expr.mul(d_T_Q_B, V)
             # v = Expr.mul(vec_T_sigma_y_Q_bar_B, Expr.flatten(K))
             if not mean_only:
-                #M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
-                #M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
-                #M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
+                M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
+                M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
+                M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
 
                 M.constraint(Expr.vstack(0.5, y1, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half)))), Domain.inRotatedQCone())
                 # check BKD multiplicaion, or maybe with I? Something seems wrong here b/c sparsity pattern is invalid
@@ -138,13 +138,11 @@ class CSSolver:
 
             # terminal mean constraint
             mu_N = np.zeros((n, 1))
-            # TODO
-            #mu_N = np.array([7.5, 2., 2.5, 100., 100., 0.5, 1.0, 1000.]).reshape((8, 1))
-            mu_N = np.array([[1,1,1,1,1,1]]).reshape((n, 1))
+            mu_N = np.array([7.5, 2., 2.5, 100., 100., 0.5, 1.0, 1000.]).reshape((8, 1))
             mu_N = Matrix.dense(mu_N)
-            #e_n = np.zeros((n, n))
-            #e_n[4, 4] = 1
-            #e_n[6, 6] = 1
+            e_n = np.zeros((n, n))
+            e_n[4, 4] = 1
+            e_n[6, 6] = 1
             e_n = np.eye(n)
             E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
             E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
@@ -167,8 +165,6 @@ class CSSolver:
             # chance constraint
             for ii in range(N):
                 alpha = np.zeros((n, 1))
-                # TODO
-                #alpha[6, 0] = 1
                 alpha[6, 0] = 1
                 alpha_T = Matrix.sparse(alpha.T)
                 alpha = Matrix.sparse(alpha)
@@ -219,9 +215,9 @@ class CSSolver:
             # M.dispose()
 
     def populate_params(self, A, B, d, D, mu_0, sigma_0, sigma_N_inv, Q_bar, R_bar, u_0, x_target, K=None):
-        n = self.n
-        m = self.m
-        l = self.l
+        n = 8
+        m = 2
+        l = 8
         N = self.N
 
         # A = np.tile(np.eye(n), (N, 1))
