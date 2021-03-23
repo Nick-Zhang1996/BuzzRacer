@@ -10,6 +10,7 @@ from RCPTrack import RCPtrack
 from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
+from cs_solver import CSSolver
 
 class LinearizeDynamics():
     def __init__(self,horizon):
@@ -21,6 +22,9 @@ class LinearizeDynamics():
         self.m = 2
         self.N = horizon
         self.setupModel()
+        u_min = np.array((-1,-radians(25)))
+        u_max = np.array((1,radians(25)))
+        self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
         return 
 
     def setupModel(self):
@@ -693,24 +697,71 @@ class LinearizeDynamics():
         plt.show()
         return AA, BB, dd,B0,B1,d0,d1 
 
+    def testK(self):
+        self.getRefTraj("../log/ethsim/full_state1.p",show=False)
+
+        # linearize dynamics around ref traj
+        As = []
+        Bs = []
+        ds = []
+        Ds = []
+
+        D = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])*self.dt
+        # random starting point
+        start = 100
+        for i in range(start,start+self.N):
+            A,B,d = self.linearize(self.ref_traj[i,:],self.ref_ctrl[i,:])
+
+            As.append(A)
+            Bs.append(B)
+            ds.append(d)
+            Ds.append(D)
+
+        # make big matrices
+        As = np.dstack(As)
+        Bs = np.dstack(Bs)
+        ds = np.dstack(ds).reshape((self.n,1,self.N))
+        Ds = np.dstack(Ds)
+
+        # propagate big matrices dynamics
+        AA, BB, dd, DD = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+        sigma_0 = np.zeros((self.n, self.n))
+        sigma_N_inv = np.zeros((self.n, self.n))
+        Q = np.zeros((self.n, self.n))
+        # x
+        Q[0, 0] = 1
+        # vx
+        Q[1, 1] = 1
+        # y
+        Q[2, 2] = 1
+        # vy
+        Q[3, 3] = 1
+        # psi
+        Q[4, 4] = 1
+        # omega
+        Q[5, 5] = 1
+
+        Q_bar = np.kron(np.eye(self.N, dtype=int), Q)
+        R = np.zeros((self.m, self.m))
+        # throttle
+        R[0, 0] = 1  
+        # steering
+        R[1, 1] = 1 
+        R_bar = np.kron(np.eye(self.N, dtype=int), R)
+
+        mu_0 = self.ref_traj[i,:]
+        u_0 = self.ref_ctrl[i:i+1,:].flatten()
+        x_target = np.tile(np.array([0, 0, 0, 0, 0, 0]).reshape((-1, 1)), (self.N, 1)) 
+
+        self.solver.populate_params( AA, BB, dd, DD, mu_0, sigma_0, sigma_N_inv, Q_bar, R_bar, u_0, x_target, K=None)
+        v,k = self.solver.solve()
+        return
+
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(2)
+    main = LinearizeDynamics(5)
     #main.testGetRefTraj()
     #main.testLinearize()
-    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
-    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
-
-    print("A")
-    print(np.linalg.norm(jAA-AA))
-    print("B")
-    print(np.linalg.norm(jBB-BB))
-    print("d")
-    print(np.linalg.norm(jdd-dd))
-
-    print(np.linalg.norm(jB0-B0))
-    print(np.linalg.norm(jB1-B1))
-
-    print(B0)
-    print(jB0)
-
+    #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
+    #AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
+    main.testK()
