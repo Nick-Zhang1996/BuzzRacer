@@ -427,8 +427,7 @@ def run_simple_controller():
     solver = CSSolver(n, m, l, N, u_min, u_max, mean_only=False, lti_k=True)
     solve_process = DummyProcess(target=solver.solve)
     try:
-        #for ii in range(int(sim_length/1)):
-        for ii in range(1):
+        for ii in range(int(sim_length/1)):
             t0 = time.time()
             A, B, d = ar.linearize_dynamics(xs, us)
             if B[4, 1] < 0:
@@ -477,7 +476,10 @@ def run_simple_controller():
             try:
                 V, K = solver.solve()
                 K = K.reshape((m*N, n*N))
+                print("K")
+                print(K)
             except RuntimeError:
+                print("RuntimeError")
                 V = np.tile(np.array([0, -1]).reshape((-1, 1)), (N, 1)).flatten()
                 K = np.zeros((m*N, n*N))
             # ks[:, :, ii] = K[:, :]
@@ -487,10 +489,10 @@ def run_simple_controller():
             us = V.reshape((m, N), order='F')
             us[:, 0] = V[:m]
             t = 0
-            print("xs")
+            '''
             print(xs[:, 0])
-            print("us")
             print(us[:, 0])
+            '''
             X_bar = np.dot(A, xs[:, 0]) + np.dot(B, V) + d.flatten()
             y = np.zeros((n, 1)).flatten()
             for jj in range(1):
@@ -522,7 +524,7 @@ def run_simple_controller():
             # print(X.reshape((10, 8)))
             #     solver.time()
             print(time.time() - t0)
-        #plot(states, controls, sim_length)
+        plot(states, controls, sim_length)
         # np.savez('Ks_lti_20N_7mps.npz', ks=ks, ss=ss)
     finally:
         solver.M.dispose()
