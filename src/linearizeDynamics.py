@@ -222,20 +222,22 @@ class LinearizeDynamics():
 
     
     def jacob_linearize(self, states, controls):
+        states = states.copy()
+        controls = controls.copy()
         nx = self.n
         nu = self.m
         nN = self.N
         dt = 0.01
 
-        delta_x = np.array([0.01,0.01,0.01,0.01,0.01,0.1])
+        delta_x = np.array([0.01,0.01,0.01,0.01,0.01,0.01])
         delta_u = np.array([0.01, 0.01])
         delta_x_flat = np.tile(delta_x, (1, nN))
         delta_u_flat = np.tile(delta_u, (1, nN))
         delta_x_final = np.multiply(np.tile(np.eye(nx), (1, nN)), delta_x_flat)
         delta_u_final = np.multiply(np.tile(np.eye(nu), (1, nN)), delta_u_flat)
-        xx = np.tile(states, (nx, 1)).reshape((nx, nx*nN), order='F')
+        xx = np.tile(states.copy(), (nx, 1)).reshape((nx, nx*nN), order='F')
         # print(delta_x_final, xx)
-        ux = np.tile(controls, (nx, 1)).reshape((nu, nx*nN), order='F')
+        ux = np.tile(controls.copy(), (nx, 1)).reshape((nu, nx*nN), order='F')
         x_plus = xx + delta_x_final
         # print(x_plus, ux)
         x_minus = xx - delta_x_final
@@ -244,8 +246,8 @@ class LinearizeDynamics():
         fx_minus = self.update_dynamics(x_minus, ux, dt)
         A = (fx_plus - fx_minus) / (2 * delta_x_flat)
 
-        xu = np.tile(states, (nu, 1)).reshape((nx, nu*nN), order='F')
-        uu = np.tile(controls, (nu, 1)).reshape((nu, nu*nN), order='F')
+        xu = np.tile(states.copy(), (nu, 1)).reshape((nx, nu*nN), order='F')
+        uu = np.tile(controls.copy(), (nu, 1)).reshape((nu, nu*nN), order='F')
         u_plus = uu + delta_u_final
         # print(xu)
         u_minus = uu - delta_u_final
@@ -257,9 +259,9 @@ class LinearizeDynamics():
         state_row = np.zeros((nx*nN, nN))
         input_row = np.zeros((nu*nN, nN))
         for ii in range(nN):
-            state_row[ii*nx:ii*nx + nx, ii] = states[:, ii]
-            input_row[ii*nu:ii*nu+nu, ii] = controls[:, ii]
-        d = self.update_dynamics(states, controls, dt) - np.dot(A, state_row) - np.dot(B, input_row)
+            state_row[ii*nx:ii*nx + nx, ii] = states.copy()[:, ii]
+            input_row[ii*nu:ii*nu+nu, ii] = controls.copy()[:, ii]
+        d = self.update_dynamics(states.copy(), controls.copy(), dt) - np.dot(A, state_row) - np.dot(B, input_row)
 
         A = A.reshape((self.n, self.n, self.N), order='F')
         B = B.reshape((self.n, self.m, self.N), order='F')
@@ -270,8 +272,8 @@ class LinearizeDynamics():
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
     def linearize(self, nominal_state, nominal_ctrl):
-        nominal_state = np.array(nominal_state)
-        nominal_ctrl = np.array(nominal_ctrl)
+        nominal_state = np.array(nominal_state).copy()
+        nominal_ctrl = np.array(nominal_ctrl).copy()
         epsilon = 1e-2
 
         # A = df/dx
@@ -282,21 +284,10 @@ class LinearizeDynamics():
             x_l = nominal_state.copy()
             x_l[i] -= epsilon
 
-
-            '''
-            self.sim.states = np.array(x_l)
-            self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-            x_post_l = np.array(self.sim.states)
-            '''
             x_post_l = self.update_dynamics(x_l, nominal_ctrl, self.dt)
 
             x_r = nominal_state.copy()
             x_r[i] += epsilon
-            '''
-            self.sim.states = np.array(x_r)
-            self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-            x_post_r = np.array(self.sim.states)
-            '''
             x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
             A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
@@ -314,24 +305,16 @@ class LinearizeDynamics():
         for i in range(self.m):
             # d x / d u_i, ith row in B
             x0 = nominal_state.copy()
-
             u_l = nominal_ctrl.copy()
             u_l[i] -= epsilon
-            '''
-            self.sim.states = np.array(x0)
-            self.sim.updateCar(self.dt,None,*u_l)
-            x_post_l = np.array(self.sim.states)
-            '''
             x_post_l = self.update_dynamics(x0, u_l, self.dt)
+            x_post_l = x_post_l.copy()
 
+            x0 = nominal_state.copy()
             u_r = nominal_ctrl.copy()
             u_r[i] += epsilon
-            '''
-            self.sim.states = np.array(x0)
-            self.sim.updateCar(self.dt,None,*u_r)
-            x_post_r = np.array(self.sim.states)
-            '''
             x_post_r = self.update_dynamics(x0, u_r, self.dt)
+            x_post_r = x_post_r.copy()
 
             B[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
 
@@ -346,6 +329,8 @@ class LinearizeDynamics():
 
 
         # d = x_k+1 - Ak*x_k - Bk*u_k
+        x0 = nominal_state.copy()
+        u0 = nominal_ctrl.copy()
         d = x_post.flatten() - A @ x0 - B @ u0
 
         return A,B,d
@@ -475,7 +460,7 @@ class LinearizeDynamics():
         return
 
 
-    def testBigMatrices(self):
+    def testBigMatrices(self,offset = 0):
         # get ref traj
         #self.generateTestRefTraj()
         self.getRefTraj("../log/ethsim/full_state1.p",show=False)
@@ -486,7 +471,6 @@ class LinearizeDynamics():
         ds = []
         Ds = []
 
-        D = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])*self.dt
         # random starting point
         start = 100
         for i in range(start,start+self.N):
@@ -507,13 +491,15 @@ class LinearizeDynamics():
             As.append(A)
             Bs.append(B)
             ds.append(d)
-            Ds.append(D)
+            #Ds.append(D)
 
         # make big matrices
         As = np.dstack(As)
         Bs = np.dstack(Bs)
         ds = np.dstack(ds).reshape((self.n,1,self.N))
-        Ds = np.dstack(Ds)
+        D = np.zeros((self.n, self.l))
+        Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
+        #Ds = np.dstack(Ds)
 
         # propagate big matrices dynamics
         AA, BB, dd, DD = self.form_long_matrices_LTV(As, Bs, ds, Ds)
@@ -522,7 +508,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted
-        i = start
+        i = start + offset
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -544,9 +530,9 @@ class LinearizeDynamics():
         print("xx_truth")
         print(xx_truth.reshape((self.N,-1))[:3,:])
         print("x1")
-        print(x1)
 
-        print(A0)
+        xx = XX.reshape((self.N,self.n))
+        print(xx[:4,:])
 
         # test A matrix
         tAA = np.zeros((self.n*self.N, self.n))
@@ -597,7 +583,7 @@ class LinearizeDynamics():
         return AA, BB, dd,B0,B1,d0,d1 
 
         
-    def testBigMatricesJacob(self):
+    def testBigMatricesJacob(self, offset = 0):
         # get ref traj
         #self.generateTestRefTraj()
         self.getRefTraj("../log/ethsim/full_state1.p",show=False)
@@ -623,7 +609,7 @@ class LinearizeDynamics():
         # X = AA x0 + BB u + C d + D noise
         # start: ref traj, base of linearization
         # test a traj that's slightly offsetted 
-        i = start
+        i = start + offset
         #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
         #u0 = (throttle[i],steering[i])
         x0 = self.ref_traj[i,:]
@@ -769,9 +755,10 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(40)
+    main = LinearizeDynamics(50)
     #main.testGetRefTraj()
     #main.testLinearize()
-    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob()
-    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices()
+    offset = 5
+    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob(offset)
+    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices(offset)
     #main.testK()
