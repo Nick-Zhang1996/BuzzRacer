@@ -139,11 +139,16 @@ class CSSolver:
 
             # terminal mean constraint
             mu_N = np.zeros((n, 1))
+            # TODO
             mu_N = np.array([7.5, 2., 2.5, 100., 100., 0.5, 1.0, 1000.]).reshape((8, 1))
+            #mu_N = np.array([1,1,1,1,1,1]).reshape((n, 1))
             mu_N = Matrix.dense(mu_N)
+
+            '''
             e_n = np.zeros((n, n))
             e_n[4, 4] = 1
             e_n[6, 6] = 1
+            '''
             e_n = np.eye(n)
             E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
             E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
@@ -166,7 +171,9 @@ class CSSolver:
             # chance constraint
             for ii in range(N):
                 alpha = np.zeros((n, 1))
+                # TODO
                 alpha[6, 0] = 1
+
                 alpha_T = Matrix.sparse(alpha.T)
                 alpha = Matrix.sparse(alpha)
                 beta = 2
