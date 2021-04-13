@@ -572,6 +572,7 @@ class LinearizeDynamics():
         img = self.track.drawCar(img_track.copy(), car_state, u0[1])
 
         actual_future_traj  = self.ref_traj[i+1:i+1+self.N,(0,2)]
+        #actual_future_traj  = self.ref_traj[start+1:start+1+self.N,(0,2)]
         img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
 
         predicted_states = XX.reshape((-1,self.n))

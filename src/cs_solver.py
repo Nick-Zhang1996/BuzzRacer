@@ -110,14 +110,16 @@ class CSSolver:
             # v = Expr.mul(vec_T_sigma_y_Q_bar_B, Expr.flatten(K))
             if not mean_only:
                 M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
+                #M.objective(ObjectiveSense.Minimize, Expr.add([ w, x, y1, y2, z1, z2]))
+                # TODO: removing following line cause system failure
                 M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
                 M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
 
-                M.constraint(Expr.vstack(0.5, y1, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half)))), Domain.inRotatedQCone())
+                #M.constraint(Expr.vstack(0.5, y1, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half)))), Domain.inRotatedQCone())
                 # check BKD multiplicaion, or maybe with I? Something seems wrong here b/c sparsity pattern is invalid
-                M.constraint(Expr.vstack(0.5, y2, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), D)))), Domain.inRotatedQCone())
-                M.constraint(Expr.vstack(0.5, z1, Expr.flatten(Expr.mul(R_bar_half, Expr.mul(K, A_sigma_0_half)))), Domain.inRotatedQCone())
-                M.constraint(Expr.vstack(0.5, z2, Expr.flatten(Expr.mul(R_bar_half, Expr.mul(K, D)))), Domain.inRotatedQCone())
+                #M.constraint(Expr.vstack(0.5, y2, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), D)))), Domain.inRotatedQCone())
+                #M.constraint(Expr.vstack(0.5, z1, Expr.flatten(Expr.mul(R_bar_half, Expr.mul(K, A_sigma_0_half)))), Domain.inRotatedQCone())
+                #M.constraint(Expr.vstack(0.5, z2, Expr.flatten(Expr.mul(R_bar_half, Expr.mul(K, D)))), Domain.inRotatedQCone())
             else:
                 M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x]))
                 M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
