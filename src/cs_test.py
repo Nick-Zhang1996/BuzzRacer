@@ -8,6 +8,9 @@ import throttle_model
 from multiprocessing import Process
 from multiprocessing.dummy import DummyProcess
 
+#from cs_solver import CSSolver
+from cs_solver_covariance_only import CSSolver
+
 
 class Model:
     def __init__(self, N):
@@ -530,7 +533,6 @@ def run_simple_controller():
         solver.M.dispose()
 
 
-from cs_solver import CSSolver
 if __name__ == '__main__':
     # u_min = np.array([-0.9, 0.1])
     # u_max = np.array([0.9, 0.9])

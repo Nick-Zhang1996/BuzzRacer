@@ -11,6 +11,7 @@ from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
 #from cs_solver import CSSolver
+from cs_solver_covariance_only import CSSolver
 
 class LinearizeDynamics():
     def __init__(self,horizon):
@@ -24,8 +25,72 @@ class LinearizeDynamics():
         self.setupModel()
         u_min = np.array((-1,-radians(25)))
         u_max = np.array((1,radians(25)))
-        #self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
+        self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
+        self.getRefTraj("../log/ethsim/full_state1.p",show=False)
         return 
+
+
+    def covarianceControl(self,state,control):
+
+        #start = index for closest ref point to car
+        x = state[0]
+        y = state[2]
+        xx = self.ref_traj[:,0]
+        yy = self.ref_traj[:,2]
+        dist_sqr = (xx-x)**2 + (yy-y)**2
+        start = ref_traj_index = np.argmin(dist_sqr)
+        
+        # linearize dynamics around ref traj
+        As = []
+        Bs = []
+        ds = []
+        Ds = []
+        for i in range(start,start+self.N):
+            A,B,d = self.linearize(self.ref_traj[i,:],self.ref_ctrl[i,:])
+            As.append(A)
+            Bs.append(B)
+            ds.append(d)
+            #Ds.append(D)
+
+        # make big matrices
+        As = np.dstack(As)
+        Bs = np.dstack(Bs)
+        ds = np.dstack(ds).reshape((self.n,1,self.N))
+        D = np.zeros((self.n, self.l))
+        # TODO figure this out
+        Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
+        #Ds = np.dstack(Ds)
+
+        # propagate big matrices dynamics
+        A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+
+        n = self.n
+        m = self.m
+        N = self.N
+        sigma_0 = np.zeros((n, n))
+        sigma_N_inv = sigma_0
+        # TODO tune me
+        Q = np.eye(n)
+        Q_bar = np.kron(np.eye(N, dtype=int), Q)
+        R = np.eye(m)
+        R_bar = np.kron(np.eye(N, dtype=int), R)
+
+        x0 = np.array(state)
+        u0 = np.array(control)
+        # doesn't matter
+        x_target = np.tile(np.zeros(n).reshape((-1, 1)), (N, 1))
+        self.solver.populate_params(A, B, d, D, x0, sigma_0, sigma_N_inv, Q_bar, R_bar, u0, x_target)
+        try:
+            # V is not needed
+            V, K = self.solver.solve()
+            K = K.reshape((m*N, n*N))
+            print("K")
+            print(K)
+        except RuntimeError:
+            print_warning("CS solver failed")
+            #V = np.tile(np.array([0, -1]).reshape((-1, 1)), (N, 1)).flatten()
+            K = np.zeros((m*N, n*N))
+        return K
 
     def setupModel(self):
         # dimension
@@ -756,10 +821,16 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(50)
+    main = LinearizeDynamics(20)
     #main.testGetRefTraj()
     #main.testLinearize()
     offset = 5
-    jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob(offset)
+    #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob(offset)
     AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices(offset)
-    #main.testK()
+
+    # test CS solver
+    # get x0 and control
+    i = 100
+    x0 = main.ref_traj[i,:]
+    u0 = main.ref_ctrl[i,:]
+    main.covarianceControl(x0,u0)
