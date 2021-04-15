@@ -103,15 +103,16 @@ class CSSolver:
             I = Matrix.eye(n*N)
 
             # convert to linear objective with quadratic cone constraints
-            u = Expr.mul(mu_0_T_A_T_Q_bar_B, V)
+            # u = Expr.mul(mu_0_T_A_T_Q_bar_B, V)
             # coordinate shift, check to make sure T = *2
-            q = Expr.mul(neg_x_0_T_Q_B, V)
-            r = Expr.mul(d_T_Q_B, V)
-            # v = Expr.mul(vec_T_sigma_y_Q_bar_B, Expr.flatten(K))
+            # q = Expr.mul(neg_x_0_T_Q_B, V)
+            # r = Expr.mul(d_T_Q_B, V)
+
             if not mean_only:
-                M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
-                M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
-                M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
+                # M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
+                M.objective(ObjectiveSense.Minimize, Expr.add([y1, y2, z1, z2]))
+                # M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
+                # M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
 
                 M.constraint(Expr.vstack(0.5, y1, Expr.flatten(Expr.mul(Q_bar_half, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half)))), Domain.inRotatedQCone())
                 # check BKD multiplicaion, or maybe with I? Something seems wrong here b/c sparsity pattern is invalid
@@ -137,54 +138,50 @@ class CSSolver:
             # M.constraint(K.slice([0, 0], [m, n]), Domain.equalsTo(K.slice([m, n], [2*m, 2*n])))
 
             # terminal mean constraint
-            mu_N = np.zeros((n, 1))
-            mu_N = np.array([7.5, 2., 2.5, 100., 100., 0.5, 1.0, 1000.]).reshape((8, 1))
-            mu_N = Matrix.dense(mu_N)
-            e_n = np.zeros((n, n))
-            e_n[4, 4] = 1
-            e_n[6, 6] = 1
+            # mu_N = np.zeros((n, 1))
+            # mu_N = np.array([7.5, 2., 2.5, 100., 100., 0.5, 1.0, 1000.]).reshape((8, 1))
+            # mu_N = Matrix.dense(mu_N)
+            # e_n = np.zeros((n, n))
+            # e_n[4, 4] = 1
+            # e_n[6, 6] = 1
+            # e_n = np.eye(n)
+            # E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
+            # E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
+            # M.constraint(Expr.mul(E_N, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)), Domain.lessThan(mu_N))
+            # e_n = -1 * e_n
+            # E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
+            # E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
+            # M.constraint(Expr.mul(E_N, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)), Domain.lessThan(mu_N))
+
+            # terminal covariance constraint
             e_n = np.eye(n)
             E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
-            E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
-            M.constraint(Expr.mul(E_N, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)), Domain.lessThan(mu_N))
-            e_n = -1 * e_n
-            E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
-            E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
-            M.constraint(Expr.mul(E_N, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)), Domain.lessThan(mu_N))
-            # terminal covariance constraint
-            # sigma_0_part = M.variable()
-            # M.constraint(Expr.vstack(sigma_0_part, Expr.flatten(
-            #     Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half))))),
-            #              Domain.inQCone())
-            # D_part = M.variable()
-            # M.constraint(Expr.vstack(D_part, Expr.flatten(
-            #     Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), D))))), Domain.inQCone())
-            # cov_part = M.variable()
-            # M.constraint(Expr.vstack(cov_part, sigma_0_part, D_part), Domain.inQCone())
+            M.constraint(Expr.flatten(Expr.mul(E_N, Expr.mul(Expr.add(I, Expr.mul(B, K)), D))), Domain.inQCone())
 
             # chance constraint
-            for ii in range(N):
-                alpha = np.zeros((n, 1))
-                alpha[6, 0] = 1
-                alpha_T = Matrix.sparse(alpha.T)
-                alpha = Matrix.sparse(alpha)
-                beta = 2
-                inv_prob = scipy.stats.norm.ppf(0.95)
-                e_k = np.eye(n)
-                E_k = Matrix.sparse(np.hstack((np.zeros((n, (ii) * n)), e_k, np.zeros((n, (N - ii - 1) * n)))))
-                mean_part = Expr.mul(alpha_T, Expr.mul(E_k, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)))
-                # if not mean_only:
-                sigma_0_part = M.variable()
-                M.constraint(Expr.vstack(sigma_0_part, Expr.flatten(Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half))))), Domain.inQCone())
-                D_part = M.variable()
-                M.constraint(Expr.vstack(D_part, Expr.flatten(Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), D)))).slice(0, (ii+1)*l)), Domain.inQCone())
-                cov_part = M.variable()
-                M.constraint(Expr.vstack(cov_part, sigma_0_part, D_part), Domain.inQCone())
-                M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.inRange(-beta, beta))
-                # M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.greaterThan(-beta))
-                # else:
-                #     M.constraint(Expr.add(mean_part, cov_part * inv_prob), Domain.lessThan(beta))
-                # M.constraint(mean_part, Domain.lessThan(beta))
+            # for ii in range(N):
+            #     alpha = np.zeros((n, 1))
+            #     alpha[6, 0] = 1
+            #     alpha_T = Matrix.sparse(alpha.T)
+            #     alpha = Matrix.sparse(alpha)
+            #     beta = 2
+            #     inv_prob = scipy.stats.norm.ppf(0.95)
+            #     e_k = np.eye(n)
+            #     E_k = Matrix.sparse(np.hstack((np.zeros((n, (ii) * n)), e_k, np.zeros((n, (N - ii - 1) * n)))))
+            #     mean_part = Expr.mul(alpha_T, Expr.mul(E_k, Expr.add(Expr.add(A_mu_0, Expr.mul(B, V)), d)))
+            #     # if not mean_only:
+            #     sigma_0_part = M.variable()
+            #     M.constraint(Expr.vstack(sigma_0_part, Expr.flatten(Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half))))), Domain.inQCone())
+            #     D_part = M.variable()
+            #     M.constraint(Expr.vstack(D_part, Expr.flatten(Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), D)))).slice(0, (ii+1)*l)), Domain.inQCone())
+            #     cov_part = M.variable()
+            #     M.constraint(Expr.vstack(cov_part, sigma_0_part, D_part), Domain.inQCone())
+            #     M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.inRange(-beta, beta))
+
+                ## M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.greaterThan(-beta))
+                ## else:
+                ##     M.constraint(Expr.add(mean_part, cov_part * inv_prob), Domain.lessThan(beta))
+                ## M.constraint(mean_part, Domain.lessThan(beta))
 
             # M.setLogHandler(sys.stdout)
 
@@ -276,9 +273,9 @@ class CSSolver:
         # print(self.u_0.getValue())
         # self.M.solve()
         t0 = time.time()
-        self.M.solve()
         print((time.time() - t0))
         try:
+            self.M.solve()
             if self.mean_only:
                 K_level = np.zeros((self.m*self.N, self.n*self.N))
             else:
@@ -289,7 +286,7 @@ class CSSolver:
             levels = (self.V.level(), K_level)
             # print(levels)
             return levels
-        except SolutionError:
+        except:
             raise RuntimeError
 
     def time(self):

@@ -56,10 +56,11 @@ class LinearizeDynamics():
         As = np.dstack(As)
         Bs = np.dstack(Bs)
         ds = np.dstack(ds).reshape((self.n,1,self.N))
-        D = np.zeros((self.n, self.l))
+        # D = np.zeros((self.n, self.l))
+        D = np.ones((self.n, self.l))
         # TODO figure this out
         Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
-        #Ds = np.dstack(Ds)
+        # Ds = np.dstack(Ds)
 
         # propagate big matrices dynamics
         A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
