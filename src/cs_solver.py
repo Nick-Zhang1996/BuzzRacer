@@ -20,7 +20,6 @@ class CSSolver:
             umin = np.tile(u_min.reshape((-1, 1)), (N, 1)).flatten()
 
             V = M.variable("V", m*N, Domain.inRange(umin, umax))
-
             k = None
             if not mean_only:
                 if lti_k:
@@ -108,7 +107,7 @@ class CSSolver:
             # coordinate shift, check to make sure T = *2
             # q = Expr.mul(neg_x_0_T_Q_B, V)
             # r = Expr.mul(d_T_Q_B, V)
-            # v = Expr.mul(vec_T_sigma_y_Q_bar_B, Expr.flatten(K))
+
             if not mean_only:
                 # M.objective(ObjectiveSense.Minimize, Expr.add([q, r, u, w, x, y1, y2, z1, z2]))
                 M.objective(ObjectiveSense.Minimize, Expr.add([y1, y2, z1, z2]))
@@ -125,16 +124,16 @@ class CSSolver:
                 M.constraint(Expr.vstack(0.5, w, Expr.mul(Q_bar_half_B, V)), Domain.inRotatedQCone())
                 M.constraint(Expr.vstack(0.5, x, Expr.mul(R_bar_half, V)), Domain.inRotatedQCone())
 
-            # M.constraint(Expr.sub(V.slice(2, N*m), V.slice(0, N*m-2)), Domain.inRange(-0.2, 0.2))
-            # u_oo = np.array([[0.0], [0.5]])
-            # # u_o = Matrix.dense(u_oo)
-            # self.u_o = M.parameter()
-            # self.u_o.setValue(0.3)
-            # self.u_s = M.parameter()
-            # u_0.setValue(0.5)
-            # # print(u_0.getValue())
-            # M.constraint(Expr.sub(self.u_o, V.index(1)), Domain.inRange(-0.2, 0.2))
-            # M.constraint(Expr.sub(self.u_s, V.index(0)), Domain.inRange(-0.2, 0.2))
+            M.constraint(Expr.sub(V.slice(2, N*m), V.slice(0, N*m-2)), Domain.inRange(-0.2, 0.2))
+            u_oo = np.array([[0.0], [0.5]])
+            # u_o = Matrix.dense(u_oo)
+            self.u_o = M.parameter()
+            self.u_o.setValue(0.3)
+            self.u_s = M.parameter()
+            u_0.setValue(0.5)
+            # print(u_0.getValue())
+            M.constraint(Expr.sub(self.u_o, V.index(1)), Domain.inRange(-0.2, 0.2))
+            M.constraint(Expr.sub(self.u_s, V.index(0)), Domain.inRange(-0.2, 0.2))
 
             # M.constraint(K.slice([0, 0], [m, n]), Domain.equalsTo(K.slice([m, n], [2*m, 2*n])))
 
@@ -157,23 +156,7 @@ class CSSolver:
             # terminal covariance constraint
             e_n = np.eye(n)
             E_N = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), e_n)))
-            E_N_T = Matrix.sparse(np.hstack((np.zeros((n, (N - 1) * n)), np.eye(n))).T)
-            Sigma_f_negative_1_2 = M.parameter([n, n])
-            M.constraint(Expr.vstack(0.5, 1, Expr.mul(Expr.mul(Expr.mul(D, Expr.transpose(Expr.add(I, Expr.mul(B, K)))), E_N_T), Sigma_f_negative_1_2)), Domain.inRotatedQCone())
-
-            # M.constraint(Expr.vstack(x1, x2, Expr.flatten(Expr.mul(E_N, Expr.mul(Expr.add(I, Expr.mul(B, K)), D)))),
-            #              Domain.inRotatedQCone())
-
-            # sigma_0_part = M.variable()
-            # M.constraint(Expr.vstack(sigma_0_part, Expr.flatten(
-            #     Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), A_sigma_0_half))))),
-            #              Domain.inQCone())
-            # D_part = M.variable()
-            # M.constraint(Expr.vstack(D_part, Expr.flatten(
-            #     Expr.mul(alpha_T, Expr.mul(E_k, Expr.mul(Expr.add(I, Expr.mul(B, K)), D))))), Domain.inQCone())
-            # cov_part = M.variable()
-            # M.constraint(Expr.vstack(cov_part, sigma_0_part, D_part), Domain.inQCone())
-
+            M.constraint(Expr.flatten(Expr.mul(E_N, Expr.mul(Expr.add(I, Expr.mul(B, K)), D))), Domain.inQCone())
 
             # chance constraint
             # for ii in range(N):
@@ -194,6 +177,7 @@ class CSSolver:
             #     cov_part = M.variable()
             #     M.constraint(Expr.vstack(cov_part, sigma_0_part, D_part), Domain.inQCone())
             #     M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.inRange(-beta, beta))
+
                 ## M.constraint(Expr.add(mean_part, Expr.mul(cov_part, inv_prob)), Domain.greaterThan(-beta))
                 ## else:
                 ##     M.constraint(Expr.add(mean_part, cov_part * inv_prob), Domain.lessThan(beta))
@@ -222,16 +206,15 @@ class CSSolver:
             self.u_0 = u_0
             self.mean_only = mean_only
             self.lti_k = lti_k
-            self.Sigma_f_negative_1_2 = Sigma_f_negative_1_2 # terminal covariance
 
         finally:
             pass
             # M.dispose()
 
-    def populate_params(self, A, B, d, D, mu_0, sigma_0, sigma_N_inv, Q_bar, R_bar, u_0, x_target, Sigma_f_negative_1_2, K=None): # TODO: call populate_params with Sigma_f_negative_1_2 in test scripts
-        n = self.n
-        m = self.m
-        l = self.l
+    def populate_params(self, A, B, d, D, mu_0, sigma_0, sigma_N_inv, Q_bar, R_bar, u_0, x_target, K=None):
+        n = 8
+        m = 2
+        l = 8
         N = self.N
 
         # A = np.tile(np.eye(n), (N, 1))
@@ -247,7 +230,6 @@ class CSSolver:
         # R_bar = np.eye(m*N)
         x_0 = x_target.copy()
 
-        self.Sigma_f_negative_1_2.setValue(Sigma_f_negative_1_2)
         self.mu_0_T_A_T_Q_bar_B.setValue(2*np.dot(np.dot(np.dot(mu_0.T, A.T), Q_bar), B))
         temp = 2*np.dot(sigma_y, np.dot(Q_bar, B)).reshape((-1, 1)).T
         self.vec_T_sigma_y_Q_bar_B.setValue(temp)
@@ -291,9 +273,9 @@ class CSSolver:
         # print(self.u_0.getValue())
         # self.M.solve()
         t0 = time.time()
-        self.M.solve()
         print((time.time() - t0))
         try:
+            self.M.solve()
             if self.mean_only:
                 K_level = np.zeros((self.m*self.N, self.n*self.N))
             else:
@@ -304,7 +286,7 @@ class CSSolver:
             levels = (self.V.level(), K_level)
             # print(levels)
             return levels
-        except SolutionError:
+        except:
             raise RuntimeError
 
     def time(self):
