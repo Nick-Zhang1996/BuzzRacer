@@ -10,8 +10,8 @@ from RCPTrack import RCPtrack
 from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
-#from cs_solver import CSSolver
-from cs_solver_covariance_only import CSSolver
+from cs_solver import CSSolver
+#from cs_solver_covariance_only import CSSolver
 
 class LinearizeDynamics():
     def __init__(self,horizon):
@@ -80,7 +80,11 @@ class LinearizeDynamics():
         u0 = np.array(control)
         # doesn't matter
         x_target = np.tile(np.zeros(n).reshape((-1, 1)), (N, 1))
-        self.solver.populate_params(A, B, d, D, x0, sigma_0, sigma_N_inv, Q_bar, R_bar, u0, x_target)
+        # terminal mean constrain
+        sigma_f = np.diag([0.1]*n)
+        sigma_f_1_2 = np.linalg.cholesky(sigma_f)
+        sigma_f_neg_1_2 = np.linalg.inv(sigma_f_1_2)
+        self.solver.populate_params(A, B, d, D, x0, sigma_0, sigma_N_inv, Q_bar, R_bar, u0, x_target, sigma_f_neg_1_2)
         try:
             # V is not needed
             V, K = self.solver.solve()
@@ -638,6 +642,7 @@ class LinearizeDynamics():
         img = self.track.drawCar(img_track.copy(), car_state, u0[1])
 
         actual_future_traj  = self.ref_traj[i+1:i+1+self.N,(0,2)]
+        #actual_future_traj  = self.ref_traj[start+1:start+1+self.N,(0,2)]
         img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
 
         predicted_states = XX.reshape((-1,self.n))
