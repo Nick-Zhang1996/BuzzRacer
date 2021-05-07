@@ -11,6 +11,9 @@ from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
 from cs_solver import CSSolver #from cs_solver_covariance_only import CSSolver
+import cvxpy as cp
+from cvxpy.atoms.affine.trace import trace 
+from cvxpy.atoms.affine.transpose import transpose
 
 class LinearizeDynamics():
     def __init__(self,horizon):
@@ -29,6 +32,97 @@ class LinearizeDynamics():
         return 
 
 
+    def covarianceControl_cvxpy(self,state,control):
+
+        #start = index for closest ref point to car
+        x = state[0]
+        y = state[2]
+        xx = self.ref_traj[:,0]
+        yy = self.ref_traj[:,2]
+        dist_sqr = (xx-x)**2 + (yy-y)**2
+        start = ref_traj_index = np.argmin(dist_sqr)
+        
+        # linearize dynamics around ref traj
+        As = []
+        Bs = []
+        ds = []
+        Ds = []
+        for i in range(start,start+self.N):
+            A,B,d = self.linearize(self.ref_traj[i,:],self.ref_ctrl[i,:])
+            As.append(A)
+            Bs.append(B)
+            ds.append(d)
+            #Ds.append(D)
+
+        # make big matrices
+        As = np.dstack(As)
+        Bs = np.dstack(Bs)
+        ds = np.dstack(ds).reshape((self.n,1,self.N))
+        # D = np.zeros((self.n, self.l))
+        D = np.ones((self.n, self.l))
+        # TODO figure this out
+        Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
+        # Ds = np.dstack(Ds)
+
+        # propagate big matrices dynamics
+        A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+
+        n = self.n
+        m = self.m
+        N = self.N
+        sigma_0 = np.zeros((n, n))
+
+        sigma_N_inv = np.eye(n)
+
+        # TODO tune me
+        Q = np.eye(n)
+        Q_bar = np.kron(np.eye(N, dtype=int), Q)
+        R = np.eye(m)
+        R_bar = np.kron(np.eye(N, dtype=int), R)
+
+        # FIXME
+        R_bar_sqrt = R_bar
+        Q_bar_sqrt = Q_bar
+
+        x0 = np.array(state)
+        u0 = np.array(control)
+        # doesn't matter
+        x_target = np.tile(np.zeros(n).reshape((-1, 1)), (N, 1))
+        # terminal mean constrain
+        sigma_f = np.diag([10]*n)
+        sigma_f_1_2 = np.linalg.cholesky(sigma_f)
+        sigma_f_neg_1_2 = np.linalg.inv(sigma_f_1_2)
+
+        # setup cvxpy
+        I = np.eye(n*N)
+        E_N = np.zeros((n,n*N))
+        E_N[:,n*(N-1):] = np.eye(n)
+        #K = cp.Variable((m*N, n*N))
+        Ks = [cp.Variable((m,n)) for i in range(N)]
+        K = cp.hstack([Ks[0], np.zeros((m,(N-1)*n))])
+        for i in range(1,N):
+            line = cp.hstack([ np.zeros((m,(N-1)*i)), Ks[i], np.zeros((m,(N-1)*(n-i))) ])
+            K = cp.vstack([K, line])
+
+        #objective = cp.Minimize(cp.cumsum(cp.diag( (cp.quad_form(I+B@K, Q_bar) + cp.quad_form(K, R_bar)) @ cp.quad_form(D,np.eye(n*N)))))
+        objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
+
+        #constraints = [cp.quad_form(E_N @ (I+B@K)@D, np.eye(n*N)) <= sigma_f]
+        #constraints = [E_N @ (I+B@K)@D@D.T@(I+B@K).T@E_N.T <= sigma_f]
+        # NOTE missing a few 1/2
+        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@D@D.T], [ D@D.T@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        prob = cp.Problem(objective, constraints)
+
+        print("Optimal value", prob.solve())
+        print("Optimal var")
+        #print(K.value) # A numpy ndarray.
+        for i in range(N):
+            print(Ks[i].value)
+
+
+
+
+        return K
     def covarianceControl(self,state,control):
 
         #start = index for closest ref point to car
@@ -824,17 +918,18 @@ class LinearizeDynamics():
         return
 
 
+
 if __name__ == '__main__':
-    main = LinearizeDynamics(20)
+    main = LinearizeDynamics(3)
     #main.testGetRefTraj()
     #main.testLinearize()
     offset = 5
     #jAA,jBB,jdd,jB0,jB1,jd0,jd1 = main.testBigMatricesJacob(offset)
-    AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices(offset)
+    #AA,BB,dd,B0,B1,d0,d1 = main.testBigMatrices(offset)
 
     # test CS solver
     # get x0 and control
     i = 100
     x0 = main.ref_traj[i,:]
     u0 = main.ref_ctrl[i,:]
-    main.covarianceControl(x0,u0)
+    main.covarianceControl_cvxpy(x0,u0)
