@@ -61,6 +61,7 @@ class LinearizeDynamics():
         As = np.dstack(As)
         Bs = np.dstack(Bs)
         ds = np.dstack(ds).reshape((self.n,1,self.N))
+
         # D = np.zeros((self.n, self.l))
         D = np.ones((self.n, self.l))
         # TODO figure this out
