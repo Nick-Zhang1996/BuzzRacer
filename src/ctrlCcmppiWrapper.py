@@ -5,6 +5,7 @@ from time import time,sleep
 from timeUtil import execution_timer
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
+from linearizeDynamics import LinearizeDynamics
 
 from common import *
 
@@ -81,6 +82,10 @@ class ctrlMppiWrapper(Car):
             self.Cd = sim.Cd 
             self.Iz = sim.Iz 
             self.m = sim.m 
+
+
+        # cc mppi related
+    main = LinearizeDynamics(self.horizon_steps)
         return
 
     def prepareDiscretizedRaceline(self):

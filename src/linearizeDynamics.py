@@ -33,6 +33,9 @@ class LinearizeDynamics():
 
 
     def covarianceControl_cvxpy(self,state,control):
+        n = self.n
+        m = self.m
+        N = self.N
 
         #start = index for closest ref point to car
         x = state[0]
@@ -66,16 +69,15 @@ class LinearizeDynamics():
 
         # propagate big matrices dynamics
         A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+        # transform to Ji's format
+        #A = np.vstack([np.eye(n), A])
+        #B = np.vstack([np.zeros((n, m*N)), B])
+        #D = np.vstack([np.zeros((n, n*N)), D])
 
-        n = self.n
-        m = self.m
-        N = self.N
-        sigma_0 = np.zeros((n, n))
-
-        sigma_N_inv = np.eye(n)
 
         # TODO tune me
         Q = np.eye(n)
+        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
         Q_bar = np.kron(np.eye(N, dtype=int), Q)
         R = np.eye(m)
         R_bar = np.kron(np.eye(N, dtype=int), R)
@@ -89,20 +91,25 @@ class LinearizeDynamics():
         # doesn't matter
         x_target = np.tile(np.zeros(n).reshape((-1, 1)), (N, 1))
         # terminal mean constrain
-        sigma_f = np.diag([10]*n)
-        sigma_f_1_2 = np.linalg.cholesky(sigma_f)
-        sigma_f_neg_1_2 = np.linalg.inv(sigma_f_1_2)
+        sigma_f = np.diag([1e6]*n)
 
         # setup cvxpy
-        I = np.eye(n*N)
-        E_N = np.zeros((n,n*N))
+        #I = np.eye(n*(N+1))
+        I = np.eye(n*(N))
+        #E_N = np.zeros((n,n*(N+1)))
+        #E_N[:,n*(N):] = np.eye(n)
+        E_N = np.zeros((n,n*(N)))
         E_N[:,n*(N-1):] = np.eye(n)
-        #K = cp.Variable((m*N, n*N))
         Ks = [cp.Variable((m,n)) for i in range(N)]
+        #K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
         K = cp.hstack([Ks[0], np.zeros((m,(N-1)*n))])
-        for i in range(1,N):
-            line = cp.hstack([ np.zeros((m,(N-1)*i)), Ks[i], np.zeros((m,(N-1)*(n-i))) ])
+        #for i in range(1,N):
+        for i in range(1,N-1):
+            #line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
+            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-1-i)*n)) ])
             K = cp.vstack([K, line])
+        line = cp.hstack([ np.zeros((m,(N-1)*n)), Ks[i]])
+        K = cp.vstack([K, line])
 
         #objective = cp.Minimize(cp.cumsum(cp.diag( (cp.quad_form(I+B@K, Q_bar) + cp.quad_form(K, R_bar)) @ cp.quad_form(D,np.eye(n*N)))))
         objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
@@ -111,6 +118,7 @@ class LinearizeDynamics():
         #constraints = [E_N @ (I+B@K)@D@D.T@(I+B@K).T@E_N.T <= sigma_f]
         # NOTE missing a few 1/2
         constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@D@D.T], [ D@D.T@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        #constraints = []
         prob = cp.Problem(objective, constraints)
 
         print("Optimal value", prob.solve())
@@ -920,7 +928,7 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(3)
+    main = LinearizeDynamics(20)
     #main.testGetRefTraj()
     #main.testLinearize()
     offset = 5
@@ -932,4 +940,6 @@ if __name__ == '__main__':
     i = 100
     x0 = main.ref_traj[i,:]
     u0 = main.ref_ctrl[i,:]
+    t0 = time()
     main.covarianceControl_cvxpy(x0,u0)
+    print(time()-t0)
