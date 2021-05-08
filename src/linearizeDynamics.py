@@ -37,15 +37,18 @@ class LinearizeDynamics():
         m = self.m
         N = self.N
 
-        #start = index for closest ref point to car
         x = state[0]
         y = state[2]
+
+        # find where the car is in reference to reference trajectory
         xx = self.ref_traj[:,0]
         yy = self.ref_traj[:,2]
         dist_sqr = (xx-x)**2 + (yy-y)**2
+        # start : index of closest ref point to car
         start = ref_traj_index = np.argmin(dist_sqr)
         
         # linearize dynamics around ref traj
+        # As = [A0..A(N-1)]
         As = []
         Bs = []
         ds = []
@@ -55,83 +58,93 @@ class LinearizeDynamics():
             As.append(A)
             Bs.append(B)
             ds.append(d)
-            #Ds.append(D)
 
-        # make big matrices
+        # assemble big matrices for batch dynamics
         As = np.dstack(As)
         Bs = np.dstack(Bs)
         ds = np.dstack(ds).reshape((self.n,1,self.N))
-
-        # D = np.zeros((self.n, self.l))
-        D = np.ones((self.n, self.l))
-        # TODO figure this out
+        # TODO figure out right D
+        # TODO verify this is spread in control noise
+        D = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])
+        #D = np.ones((self.n,self.l))
         Ds = np.tile(D.reshape((self.n, self.l, 1)), (1, 1, self.N))
-        # Ds = np.dstack(Ds)
-
-        # propagate big matrices dynamics
-        A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
-        # transform to Ji's format
-        #A = np.vstack([np.eye(n), A])
-        #B = np.vstack([np.zeros((n, m*N)), B])
-        #D = np.vstack([np.zeros((n, n*N)), D])
-
+        #A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
+        Sigma_epsilon = 1.0
+        A, B, d, D = self.make_batch_dynamics(As, Bs, ds, Ds, Sigma_epsilon)
 
         # TODO tune me
+        # cost matrix 
         Q = np.eye(n)
-        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        Q_bar = np.kron(np.eye(N, dtype=int), Q)
+        Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
         R = np.eye(m)
         R_bar = np.kron(np.eye(N, dtype=int), R)
 
-        # FIXME
+        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
         R_bar_sqrt = R_bar
         Q_bar_sqrt = Q_bar
 
-        x0 = np.array(state)
-        u0 = np.array(control)
-        # doesn't matter
-        x_target = np.tile(np.zeros(n).reshape((-1, 1)), (N, 1))
         # terminal mean constrain
+        # TODO tune me
         sigma_f = np.diag([1e6]*n)
 
         # setup cvxpy
-        #I = np.eye(n*(N+1))
-        I = np.eye(n*(N))
-        #E_N = np.zeros((n,n*(N+1)))
-        #E_N[:,n*(N):] = np.eye(n)
-        E_N = np.zeros((n,n*(N)))
-        E_N[:,n*(N-1):] = np.eye(n)
-        Ks = [cp.Variable((m,n)) for i in range(N)]
-        #K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
-        K = cp.hstack([Ks[0], np.zeros((m,(N-1)*n))])
-        #for i in range(1,N):
-        for i in range(1,N-1):
-            #line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-1-i)*n)) ])
-            K = cp.vstack([K, line])
-        line = cp.hstack([ np.zeros((m,(N-1)*n)), Ks[i]])
-        K = cp.vstack([K, line])
+        I = np.eye(n*(N+1))
+        E_N = np.zeros((n,n*(N+1)))
+        E_N[:,n*(N):] = np.eye(n)
 
-        #objective = cp.Minimize(cp.cumsum(cp.diag( (cp.quad_form(I+B@K, Q_bar) + cp.quad_form(K, R_bar)) @ cp.quad_form(D,np.eye(n*N)))))
+        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
+        Ks = [cp.Variable((m,n)) for i in range(N)]
+        # K dim: mN x n(N+1)
+        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
+        for i in range(1,N):
+            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
+            K = cp.vstack([K, line])
+
         objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
 
-        #constraints = [cp.quad_form(E_N @ (I+B@K)@D, np.eye(n*N)) <= sigma_f]
-        #constraints = [E_N @ (I+B@K)@D@D.T@(I+B@K).T@E_N.T <= sigma_f]
-        # NOTE missing a few 1/2
-        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@D@D.T], [ D@D.T@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        # TODO verify with Ji
+        sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
+        #sigma_y_sqrt = D@D.T
+        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
         #constraints = []
         prob = cp.Problem(objective, constraints)
 
-        print("Optimal value", prob.solve())
-        print("Optimal var")
-        #print(K.value) # A numpy ndarray.
+        print("Optimal J = ", prob.solve())
+        print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
 
-
-
-
         return K
+
+    def nearest_spd_cholesky(self,A):
+        # print(np.linalg.eigvals(A))
+        B = (A + A.T)/2
+        U, Sigma, V = np.linalg.svd(B)
+        H = np.dot(np.dot(V.T, np.diag(Sigma)), V)
+        Ahat = (B+H)/2
+        Ahat = (Ahat + Ahat.T)/2
+        p = 1
+        k = 0
+        spacing = np.spacing(np.linalg.norm(A))
+        I = np.eye(A.shape[0])
+        while p != 0:
+            k += 1
+            try:
+                R = np.linalg.cholesky(Ahat)
+                p = 0
+            except np.linalg.LinAlgError:
+                eig = np.linalg.eigvals(Ahat)
+                # print(eig)
+                mineig = np.min(np.real(eig))
+                print(mineig)
+                Ahat = Ahat + I * (-mineig * k**2 + spacing)
+        #print(np.linalg.norm(Ahat - A))
+        R_old = R.copy()
+        R[np.abs(R) < 1e-5] = 1e-5
+        np.tril(R)
+        #print(np.linalg.norm(R - R_old))
+        return R
+
     def covarianceControl(self,state,control):
 
         #start = index for closest ref point to car
@@ -560,6 +573,51 @@ class LinearizeDynamics():
         print("diff")
         print(x_a_post_guess - x_a_post_truth)
 
+    # form long matrices, following ji's paper on ccmppi
+    def make_batch_dynamics(self, As, Bs, ds, Ds,Sigma_epsilon):
+        n = self.n
+        l = self.l
+        m = self.m
+        N = self.N
+        # A: (N+1)n x n
+        I = np.eye(n)
+        A = [I]
+        # row 1 to row N+1
+        # i -> row i+1
+        for i in range(N):
+            A.append(As[:,:,i] @ A[-1])
+        A = np.vstack(A)
+
+        # B (N+1)n x Nm
+        row0 = np.zeros((n,m*N))
+        B = [row0]
+        # row 1 to row N
+        for i in range(1,N+1):
+            row_i = B[-1].copy()
+            row_i = As[:,:,i-1] @ row_i
+            row_i[:,(i-1)*m:i*m] = Bs[:,:,i-1]
+            B.append(row_i)
+        B = np.vstack(B)
+
+        # C: n(N+1) x nN
+        row0 = np.zeros((n, n*N))
+        C = [row0]
+        for i in range(1,N+1):
+            row_i = C[-1].copy()
+            row_i = As[:,:,i-1] @ row_i
+            row_i[:,(i-1)*n:i*n] = np.eye(n)
+            C.append(row_i)
+        C = np.vstack(C)
+
+        # d
+        d = ds.reshape((-1,1))
+
+        # take Sigma_epsilon to be 1
+        # since D can be used to control effect of gaussian noise on control
+        # D (N+1)n x n
+        D = B.copy() * Sigma_epsilon
+        return A,B,d,D
+
     # stolen from jacob's cs_model.py
     def form_long_matrices_LTV(self, A, B, d, D):
         nx = self.n
@@ -929,7 +987,7 @@ class LinearizeDynamics():
 
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(20)
+    main = LinearizeDynamics(5)
     #main.testGetRefTraj()
     #main.testLinearize()
     offset = 5
@@ -942,5 +1000,8 @@ if __name__ == '__main__':
     x0 = main.ref_traj[i,:]
     u0 = main.ref_ctrl[i,:]
     t0 = time()
+
+    print("covariance control : ")
     main.covarianceControl_cvxpy(x0,u0)
+    print("time elapsed:")
     print(time()-t0)
