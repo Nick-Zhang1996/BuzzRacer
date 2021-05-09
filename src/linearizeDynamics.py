@@ -123,17 +123,17 @@ class LinearizeDynamics():
         # double integrator is LTI
         # As = [A0..A(N-1)]
         # assemble big matrices for batch dynamics
-        G = [[0,1,0,0], [0,0,0,0], [0,0,1,0], [0,0,0,0]]
+        G = [[1,dt,0,0], [0,1,0,0], [0,0,1,dt], [0,0,0,1]]
         G = np.array(G)
         As = np.repeat(G[:,:,np.newaxis], N, axis=2)
-        H = [[dt**2/2, 0], [dt, 0], [0, dt**2/2], [0, dt]]
+        H = [[(dt**2)/2.0, 0], [dt, 0], [0, (dt**2)/2.0], [0, dt]]
         H = np.array(H)
         Bs = np.repeat(H[:,:,np.newaxis], N, axis=2)
 
         ds = np.zeros((n,1))
         ds = np.repeat(ds[:,:,np.newaxis], N, axis=2)
 
-        Sigma_epsilon = 5.0
+        Sigma_epsilon = 50.0
         A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, Sigma_epsilon)
 
         # cost matrix 
@@ -149,7 +149,7 @@ class LinearizeDynamics():
 
         # terminal mean constrain
         # TODO tune me
-        sigma_f = np.diag([1e6]*n)
+        sigma_f = np.diag([1]*n)
 
         # setup cvxpy
         I = np.eye(n*(N+1))
