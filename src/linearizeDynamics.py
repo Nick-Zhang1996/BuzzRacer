@@ -119,15 +119,15 @@ class LinearizeDynamics():
         n = self.n = 4
         m = self.m = 2
         l = self.l = self.m
-        N = self.N = 100
+        N = self.N = 10
 
         # double integrator is LTI
         # As = [A0..A(N-1)]
         # assemble big matrices for batch dynamics
-        G = [[1,dt,0,0], [0,1,0,0], [0,0,1,dt], [0,0,0,1]]
+        G = [[1,0,0.2,0], [0,1,0,0.2], [0,0,1,0], [0,0,0,1]]
         G = np.array(G)
         As = np.repeat(G[:,:,np.newaxis], N, axis=2)
-        H = [[(dt**2)/2.0, 0], [dt, 0], [0, (dt**2)/2.0], [0, dt]]
+        H = [[0, 0], [0, 0], [1, 0], [0, 1]]
         H = np.array(H)
         Bs = np.repeat(H[:,:,np.newaxis], N, axis=2)
 
@@ -140,9 +140,10 @@ class LinearizeDynamics():
         # test G,H dynamics
         # x+ = G x + H u
         x0 = np.array([0.0,0.0,0.0,0.0])
-        u = np.array([1.0,0.5])
+        u = np.array([0, 1])
+        print("Debug: ", H @ u)
         states = [x0]
-        sim_steps = 100
+        sim_steps = self.N
         x_i = x0
         for i in range(sim_steps):
             x_i = G @ x_i + H @ u
@@ -150,31 +151,30 @@ class LinearizeDynamics():
         states = np.array(states)
         print("step-by-step dynamics")
         plt.subplot(2,1,1)
-        plt.plot(states[:,0])
-        plt.plot(states[:,2])
+        plt.plot(states[:,0], states[:,2])
         plt.title("position x,y")
         plt.subplot(2,1,2)
-        plt.plot(states[:,1])
-        plt.plot(states[:,3])
+        plt.plot(states[:,1], states[:,3])
         plt.title("velocity x,y")
         plt.show()
+        old_states = states
 
         # test batch dynamics
         # x = A x0 + B u + d (d is zero in this system)
-        uu = np.array([1.0,0.5]*self.N)
+        uu = np.array([u[0],u[1]]*self.N)
         xx = A @ x0 + B @ uu
         states = xx.reshape([N+1,4])
 
+
         print("batch dynamics")
         plt.subplot(2,1,1)
-        plt.plot(states[:,0])
-        plt.plot(states[:,2])
+        plt.plot(states[:,0], states[:,2])
         plt.title("position x,y")
         plt.subplot(2,1,2)
-        plt.plot(states[:,1])
-        plt.plot(states[:,3])
+        plt.plot(states[:,1], states[:,3])
         plt.title("velocity x,y")
         plt.show()
+
 
 
 
