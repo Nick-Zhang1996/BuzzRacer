@@ -15,6 +15,7 @@ import cvxpy as cp
 from cvxpy.atoms.affine.trace import trace 
 from cvxpy.atoms.affine.transpose import transpose
 
+
 class LinearizeDynamics():
     def __init__(self,horizon):
         self.dt = 0.01
@@ -109,6 +110,73 @@ class LinearizeDynamics():
             print(Ks[i].value)
 
         return K
+
+
+    def testSimpleDynamics(self):
+        print("testSimpleDynamics (2d double integrator)")
+        # dynamics: 2D double integrator
+        dt = self.dt
+        n = self.n = 4
+        m = self.m = 2
+        l = self.l = self.m
+        N = self.N = 100
+
+        # double integrator is LTI
+        # As = [A0..A(N-1)]
+        # assemble big matrices for batch dynamics
+        G = [[1,dt,0,0], [0,1,0,0], [0,0,1,dt], [0,0,0,1]]
+        G = np.array(G)
+        As = np.repeat(G[:,:,np.newaxis], N, axis=2)
+        H = [[(dt**2)/2.0, 0], [dt, 0], [0, (dt**2)/2.0], [0, dt]]
+        H = np.array(H)
+        Bs = np.repeat(H[:,:,np.newaxis], N, axis=2)
+
+        ds = np.zeros((n,1))
+        ds = np.repeat(ds[:,:,np.newaxis], N, axis=2)
+
+        Sigma_epsilon = 50.0
+        A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, Sigma_epsilon)
+
+        # test G,H dynamics
+        # x+ = G x + H u
+        x0 = np.array([0.0,0.0,0.0,0.0])
+        u = np.array([1.0,0.5])
+        states = [x0]
+        sim_steps = 100
+        x_i = x0
+        for i in range(sim_steps):
+            x_i = G @ x_i + H @ u
+            states.append(x_i.flatten())
+        states = np.array(states)
+        print("step-by-step dynamics")
+        plt.subplot(2,1,1)
+        plt.plot(states[:,0])
+        plt.plot(states[:,2])
+        plt.title("position x,y")
+        plt.subplot(2,1,2)
+        plt.plot(states[:,1])
+        plt.plot(states[:,3])
+        plt.title("velocity x,y")
+        plt.show()
+
+        # test batch dynamics
+        # x = A x0 + B u + d (d is zero in this system)
+        uu = np.array([1.0,0.5]*self.N)
+        xx = A @ x0 + B @ uu
+        states = xx.reshape([N+1,4])
+
+        print("batch dynamics")
+        plt.subplot(2,1,1)
+        plt.plot(states[:,0])
+        plt.plot(states[:,2])
+        plt.title("position x,y")
+        plt.subplot(2,1,2)
+        plt.plot(states[:,1])
+        plt.plot(states[:,3])
+        plt.title("velocity x,y")
+        plt.show()
+
+
 
     # test cc on a simple dynamics
     # warning: this function is standalone and will mess up other functions' paremeters
@@ -986,7 +1054,7 @@ class LinearizeDynamics():
         return
 
 if __name__ == '__main__':
-    main = LinearizeDynamics(20)
+    main = LinearizeDynamics(3)
 
     # test CS solver on dynamic bicycle model
     # get x0 and control
@@ -1003,5 +1071,6 @@ if __name__ == '__main__':
     '''
 
     # test CS solver on double integrator
-    main.simpleDynamicsCovarianceControl()
+    #main.simpleDynamicsCovarianceControl()
+    main.testSimpleDynamics()
 
