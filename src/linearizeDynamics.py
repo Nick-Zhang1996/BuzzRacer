@@ -141,21 +141,21 @@ class LinearizeDynamics():
         # x+ = G x + H u
         x0 = np.array([0.0,0.0,0.0,0.0])
         u = np.array([0, 1])
-        print("Debug: ", H @ u)
         states = [x0]
         sim_steps = self.N
         x_i = x0
         for i in range(sim_steps):
+            print(x_i)
             x_i = G @ x_i + H @ u
             states.append(x_i.flatten())
         states = np.array(states)
         print("step-by-step dynamics")
         plt.subplot(2,1,1)
-        plt.plot(states[:,0], states[:,2])
-        plt.title("position x,y")
+        plt.plot(states[:,0], states[:,1])
+        plt.title("position trajectory")
         plt.subplot(2,1,2)
-        plt.plot(states[:,1], states[:,3])
-        plt.title("velocity x,y")
+        plt.plot(states[:,2], states[:,3])
+        plt.title("velocity trajectory")
         plt.show()
         old_states = states
 
@@ -168,12 +168,60 @@ class LinearizeDynamics():
 
         print("batch dynamics")
         plt.subplot(2,1,1)
-        plt.plot(states[:,0], states[:,2])
+        plt.plot(states[:,0], states[:,1])
         plt.title("position x,y")
         plt.subplot(2,1,2)
-        plt.plot(states[:,1], states[:,3])
+        plt.plot(states[:,2], states[:,3])
         plt.title("velocity x,y")
         plt.show()
+
+        #Test CCMPPI
+
+        # cost matrix
+        # TODO tune me
+        Q = np.eye(n)
+        Q_bar = np.kron(np.eye(N + 1, dtype=int), Q)
+        R = np.eye(m)
+        R_bar = np.kron(np.eye(N, dtype=int), R)
+
+        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
+        R_bar_sqrt = R_bar
+        Q_bar_sqrt = Q_bar
+
+        # terminal mean constrain
+        # TODO tune me
+        sigma_f = np.diag([1] * n)
+
+        # setup cvxpy
+        I = np.eye(n * (N + 1))
+        E_N = np.zeros((n, n * (N + 1)))
+        E_N[:, n * (N):] = np.eye(n)
+
+        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
+        Ks = [cp.Variable((m, n)) for i in range(N)]
+        # K dim: mN x n(N+1)
+        K = cp.hstack([Ks[0], np.zeros((m, (N) * n))])
+        for i in range(1, N):
+            line = cp.hstack([np.zeros((m, n * i)), Ks[i], np.zeros((m, (N - i) * n))])
+            K = cp.vstack([K, line])
+
+        objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B @ K) @ D)))
+
+        # TODO verify with Ji
+        sigma_y_sqrt = self.nearest_spd_cholesky(D @ D.T)
+        # sigma_y_sqrt = D@D.T
+        constraints = [
+            cp.bmat([[sigma_f, E_N @ (I + B @ K) @ sigma_y_sqrt], [sigma_y_sqrt @ (I + B @ K).T @ E_N.T, I]]) >= 0]
+        # constraints = []
+        prob = cp.Problem(objective, constraints)
+
+        print("Optimal J = ", prob.solve())
+        print("Optimal Ks: ")
+        print("note value<1e-5 are displayed as 0")
+        for i in range(N):
+            simple_K = Ks[i].value.copy()
+            simple_K[abs(simple_K) < 1e-5] = 0
+            print(simple_K)
 
 
 
