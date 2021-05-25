@@ -134,19 +134,20 @@ class LinearizeDynamics():
         ds = np.zeros((n,1))
         ds = np.repeat(ds[:,:,np.newaxis], N, axis=2)
 
-        Sigma_epsilon = 50.0
+        Sigma_epsilon = np.diag([1.0,1.0])
         A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, Sigma_epsilon)
 
         # test G,H dynamics
         # x+ = G x + H u
         x0 = np.array([0.0,0.0,0.0,0.0])
-        u = np.array([0, 1])
+        v = np.array([0, 1])
         states = [x0]
         sim_steps = self.N
+        '''
         x_i = x0
         for i in range(sim_steps):
-            print(x_i)
-            x_i = G @ x_i + H @ u
+            #print(x_i)
+            x_i = G @ x_i + H @ v
             states.append(x_i.flatten())
         states = np.array(states)
         print("step-by-step dynamics")
@@ -161,7 +162,7 @@ class LinearizeDynamics():
 
         # test batch dynamics
         # x = A x0 + B u + d (d is zero in this system)
-        uu = np.array([u[0],u[1]]*self.N)
+        uu = np.array([v[0],v[1]]*self.N)
         xx = A @ x0 + B @ uu
         states = xx.reshape([N+1,4])
 
@@ -174,8 +175,31 @@ class LinearizeDynamics():
         plt.plot(states[:,2], states[:,3])
         plt.title("velocity x,y")
         plt.show()
+        '''
 
         #Test CCMPPI
+        print("test ccmppi")
+        print("without K")
+        rollout = 100
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0, 0.0]
+                cov = Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+
+                x_i = G @ x_i + H @ (v+epsilon)
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,1)
+        for i in range(states_vec.shape[0]):
+            # position?
+            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
+        plt.title("without K")
 
         # cost matrix
         # TODO tune me
@@ -222,6 +246,31 @@ class LinearizeDynamics():
             simple_K = Ks[i].value.copy()
             simple_K[abs(simple_K) < 1e-5] = 0
             print(simple_K)
+
+        print("with K")
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            y_i = np.zeros(n)
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0, 0.0]
+                cov = Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+
+                # TODO test me
+                x_i = G @ x_i + H @ (v+epsilon + Ks[i].value.copy() @ y_i)
+                y_i = G @ y_i + H @ epsilon
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,2)
+        for i in range(states_vec.shape[0]):
+            # position?
+            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
+        plt.title("with K")
+        plt.show()
 
 
 
@@ -696,6 +745,7 @@ class LinearizeDynamics():
         l = self.l
         m = self.m
         N = self.N
+        assert (Sigma_epsilon.shape == (m,m))
         # A: (N+1)n x n
         I = np.eye(n)
         A = [I]
@@ -717,6 +767,7 @@ class LinearizeDynamics():
         B = np.vstack(B)
 
         # C: n(N+1) x nN
+        '''
         row0 = np.zeros((n, n*N))
         C = [row0]
         for i in range(1,N+1):
@@ -725,6 +776,7 @@ class LinearizeDynamics():
             row_i[:,(i-1)*n:i*n] = np.eye(n)
             C.append(row_i)
         C = np.vstack(C)
+        '''
 
         # d
         d = ds.reshape((-1,1))
@@ -732,7 +784,18 @@ class LinearizeDynamics():
         # take Sigma_epsilon to be 1
         # since D can be used to control effect of gaussian noise on control
         # D (N+1)n x n
-        D = B.copy() * Sigma_epsilon
+        # for scalar Sigma_epsilon
+        #D = B.copy() * Sigma_epsilon
+
+        row0 = np.zeros((n,m*N))
+        D = [row0]
+        # row 1 to row N
+        for i in range(1,N+1):
+            row_i = D[-1].copy() 
+            row_i = As[:,:,i-1] @ row_i
+            row_i[:,(i-1)*m:i*m] = Bs[:,:,i-1] @ Sigma_epsilon
+            D.append(row_i)
+        D = np.vstack(D)
         return A,B,d,D
 
     # stolen from jacob's cs_model.py
