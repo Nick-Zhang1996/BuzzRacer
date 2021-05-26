@@ -109,6 +109,7 @@ class advCarSim:
         omega = self.states[5]
         sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
         return sim_states
+
     def debug(self):
         data = np.array(self.states_hist)
         data_local = np.array(self.local_states_hist)

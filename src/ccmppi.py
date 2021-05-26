@@ -26,9 +26,8 @@ class CCMPPI():
         self.m = 1
         self.l = self.n
 
-        self.dt = 0.01
+        self.dt = 0.1
         self.Sigma_epsilon = np.array([[1.0]])
-
 
         # set up parameters for the model
         self.setupParam()
@@ -65,7 +64,36 @@ class CCMPPI():
         self.track = fulltrack
         return 
 
+    def nearest_spd_cholesky(self,A):
+        # print(np.linalg.eigvals(A))
+        B = (A + A.T)/2
+        U, Sigma, V = np.linalg.svd(B)
+        H = np.dot(np.dot(V.T, np.diag(Sigma)), V)
+        Ahat = (B+H)/2
+        Ahat = (Ahat + Ahat.T)/2
+        p = 1
+        k = 0
+        spacing = np.spacing(np.linalg.norm(A))
+        I = np.eye(A.shape[0])
+        while p != 0:
+            k += 1
+            try:
+                R = np.linalg.cholesky(Ahat)
+                p = 0
+            except np.linalg.LinAlgError:
+                eig = np.linalg.eigvals(Ahat)
+                # print(eig)
+                mineig = np.min(np.real(eig))
+                #print(mineig)
+                Ahat = Ahat + I * (-mineig * k**2 + spacing)
+        #print(np.linalg.norm(Ahat - A))
+        R_old = R.copy()
+        R[np.abs(R) < 1e-5] = 1e-5
+        np.tril(R)
+        #print(np.linalg.norm(R - R_old))
+        return R
 
+    # NOTE this gives discretized dynamics
     def calcDynamics(self, v_ref, dpsi_dt_ref):
         lf = self.lf
         lr = self.lr
@@ -90,10 +118,10 @@ class CCMPPI():
             D = B @ self.Sigma_epsilon
             d = np.array([0, -(2*Caf*lf-2*Car*lr)/(mass*V) - V, 0, -(2*lf**2*Caf+2*lr**2*Car)/(Iz*V)]) * dpsi_dt_ref[i]
 
-            As.append(A)
-            Bs.append(B)
-            Ds.append(D)
-            ds.append(d)
+            As.append(A * self.dt)
+            Bs.append(B * self.dt)
+            Ds.append(D * self.dt)
+            ds.append(d * self.dt)
         return As,Bs,Ds,ds
 
     # form long matrices, following ji's paper on ccmppi
@@ -162,6 +190,11 @@ class CCMPPI():
     #   state: (x,y,heading,v_forward,v_sideway,omega)
     # return: N? K matrices
     def cc(self, state):
+        n = self.n
+        N = self.N
+        m = self.m
+        l = self.l
+
         e_cross, e_heading, v_ref, k_ref, coord_ref, valid = self.track.getRefPoint(state, self.N-1, self.dt, reverse=False)
         # reference angular velocity dpsi_dt = Vx * K
         dpsi_dt_ref = v_ref * k_ref
