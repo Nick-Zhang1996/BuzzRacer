@@ -272,6 +272,12 @@ class LinearizeDynamics():
         plt.title("with K")
         plt.show()
 
+    def covarianceControlDynamicBicycle(self):
+        # 1) get reference trajectory from current position
+        #    velocity, desired angular rates
+        # 2) assemble A,B,D, d matrices
+        # 3) apply cc controller to get K
+
 
 
 
@@ -347,35 +353,6 @@ class LinearizeDynamics():
             print(simple_K)
 
         return K
-
-    def nearest_spd_cholesky(self,A):
-        # print(np.linalg.eigvals(A))
-        B = (A + A.T)/2
-        U, Sigma, V = np.linalg.svd(B)
-        H = np.dot(np.dot(V.T, np.diag(Sigma)), V)
-        Ahat = (B+H)/2
-        Ahat = (Ahat + Ahat.T)/2
-        p = 1
-        k = 0
-        spacing = np.spacing(np.linalg.norm(A))
-        I = np.eye(A.shape[0])
-        while p != 0:
-            k += 1
-            try:
-                R = np.linalg.cholesky(Ahat)
-                p = 0
-            except np.linalg.LinAlgError:
-                eig = np.linalg.eigvals(Ahat)
-                # print(eig)
-                mineig = np.min(np.real(eig))
-                #print(mineig)
-                Ahat = Ahat + I * (-mineig * k**2 + spacing)
-        #print(np.linalg.norm(Ahat - A))
-        R_old = R.copy()
-        R[np.abs(R) < 1e-5] = 1e-5
-        np.tril(R)
-        #print(np.linalg.norm(R - R_old))
-        return R
 
 
     def setupModel(self):
