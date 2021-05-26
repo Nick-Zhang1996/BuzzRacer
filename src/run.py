@@ -73,11 +73,11 @@ class Main():
 
         # CONFIG
         # whether to record control command, car state, etc.
-        self.enableLog = False
+        self.enableLog = True
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
+        self.enableLaptimer = False
 
         # run the track in reverse direction
         self.reverse = False
@@ -607,7 +607,7 @@ class Main():
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/ethsim/"
+        logFolder = "../log/ref_traj/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
