@@ -29,7 +29,7 @@ class LinearizeDynamics():
         u_min = np.array((-1,-radians(25)))
         u_max = np.array((1,radians(25)))
         self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
-        self.getRefTraj("../log/ethsim/full_state1.p",show=False)
+        self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
         return 
 
 
@@ -787,13 +787,14 @@ class LinearizeDynamics():
         # for scalar Sigma_epsilon
         #D = B.copy() * Sigma_epsilon
 
+        Sigma_epsilon_half = self.nearest_spd_cholesky(Sigma_epsilon)
         row0 = np.zeros((n,m*N))
         D = [row0]
         # row 1 to row N
         for i in range(1,N+1):
             row_i = D[-1].copy() 
             row_i = As[:,:,i-1] @ row_i
-            row_i[:,(i-1)*m:i*m] = Bs[:,:,i-1] @ Sigma_epsilon
+            row_i[:,(i-1)*m:i*m] = Bs[:,:,i-1] @ Sigma_epsilon_half
             D.append(row_i)
         D = np.vstack(D)
         return A,B,d,D
