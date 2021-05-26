@@ -35,14 +35,14 @@ from enum import Enum, auto
 class StateUpdateSource(Enum):
     vicon = auto()
     optitrack = auto()
-    simulator = auto()
+    kinematic_simulator = auto()
     dynamic_simulator = auto()
     eth_simulator = auto()
 
 class VehiclePlatform(Enum):
     offboard = auto()
     onboard = auto() # NOT IMPLEMENTED
-    simulator = auto()
+    kinematic_simulator = auto()
     # no controller, this means out of loop control
     empty = auto()
     dynamic_simulator = auto()
@@ -89,9 +89,9 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
+        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        #car1 = self.prepareCar("lambo", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
         #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
@@ -114,7 +114,7 @@ class Main():
         # NOTE ignored in real experiments
         self.real_sim_time_ratio = 1.0
         for car in self.cars:
-            if car.stateUpdateSource != StateUpdateSource.simulator and car.stateUpdateSource != StateUpdateSource.dynamic_simulator and car.stateUpdateSource != StateUpdateSource.eth_simulator:
+            if car.stateUpdateSource != StateUpdateSource.kinematic_simulator and car.stateUpdateSource != StateUpdateSource.dynamic_simulator and car.stateUpdateSource != StateUpdateSource.eth_simulator:
                 print_warning("real_sim_time ratio override to 1.0 when running on physical platforms")
                 self.real_sim_time_ratio = 1.0
                 break
@@ -229,7 +229,7 @@ class Main():
         # however, since we cannot update visualization at sim_dt, we need to keep track of how much time has passed in simulation and match visualization accordingly
         # for simplicity we use the simulation time of the first car
         if (self.cars[0].stateUpdateSource == StateUpdateSource.dynamic_simulator \
-                or self.cars[0].stateUpdateSource == StateUpdateSource.simulator \
+                or self.cars[0].stateUpdateSource == StateUpdateSource.kinematic_simulator\
                 or self.cars[0].stateUpdateSource == StateUpdateSource.eth_simulator):
             if (self.real_sim_dt is None):
                 self.real_sim_dt = time()
@@ -241,7 +241,10 @@ class Main():
             sleep(max(0,time_to_reach - time()))
 
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
-        if (time()-self.visualization_ts>0.02 or self.cars[0].stateUpdateSource == StateUpdateSource.simulator):
+        if (time()-self.visualization_ts>0.02 \
+                or self.cars[0].stateUpdateSource == StateUpdateSource.dynamic_simulator \
+                or self.cars[0].stateUpdateSource == StateUpdateSource.kinematic_simulator\
+                or self.cars[0].stateUpdateSource == StateUpdateSource.eth_simulator):
             img = self.img_track.copy()
             for car in self.cars:
                 img = self.track.drawCar(img, car.state, car.steering)
@@ -315,7 +318,7 @@ class Main():
 
             # force motor freeze if start_delay has not been reached
             if (self.cars[i].stateUpdateSource == StateUpdateSource.dynamic_simulator \
-                    or self.cars[i].stateUpdateSource == StateUpdateSource.simulator \
+                    or self.cars[i].stateUpdateSource == StateUpdateSource.kinematic_simulator \
                     or self.cars[i].stateUpdateSource == StateUpdateSource.eth_simulator):
                 if (car.simulator.t < car.start_delay):
                     car.steering = 0
@@ -397,7 +400,7 @@ class Main():
                 # TODO implement throttle model
                 # do not use EKF for now
                 #car.vi.updateAction(car.steering, car.getExpectedAcc())
-            elif (car.vehiclePlatform == VehiclePlatform.simulator):
+            elif (car.vehiclePlatform == VehiclePlatform.kinematic_simulator):
                 # update is done in updateSimulation()
                 pass
             elif (car.vehiclePlatform == VehiclePlatform.dynamic_simulator):
@@ -527,7 +530,7 @@ class Main():
         else:
             print_error("Unrecognized car config")
 
-        if (state_update_source == StateUpdateSource.simulator):
+        if (state_update_source == StateUpdateSource.kinematic_simulator):
             car_setting['serial_port'] = None
             #car_setting['max_throttle'] = 1.0
             #print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
@@ -564,14 +567,14 @@ class Main():
             car.initStateUpdate = self.initVicon
             car.updateState = self.updateVicon
             car.stopStateUpdate = self.stopVicon
-        elif car.stateUpdateSource == StateUpdateSource.simulator:
-            car.initStateUpdate = self.initSimulation
-            car.updateState = self.updateSimulation
-            car.stopStateUpdate = self.stopSimulation
+        elif car.stateUpdateSource == StateUpdateSource.kinematic_simulator:
+            car.initStateUpdate = self.initKinematicSimulation
+            car.updateState = self.updateKinematicSimulation
+            car.stopStateUpdate = self.stopKinematicSimulation
         elif car.stateUpdateSource == StateUpdateSource.dynamic_simulator:
-            car.initStateUpdate = self.initAdvSimulation
-            car.updateState = self.updateAdvSimulation
-            car.stopStateUpdate = self.stopAdvSimulation
+            car.initStateUpdate = self.initDynamicSimulation
+            car.updateState = self.updateDynamicSimulation
+            car.stopStateUpdate = self.stopDynamicSimulation
         elif car.stateUpdateSource == StateUpdateSource.eth_simulator:
             car.initStateUpdate = self.initEthSimulation
             car.updateState = self.updateEthSimulation
@@ -688,38 +691,43 @@ class Main():
         pass
 
 # ---- Simulation ----
-# NOTE outdated
-# TODO encapsulate this in a different class/file
-    def initSimulation(self):
-        self.new_state_update = Event()
-        self.new_state_update.set()
-        self.simulator = kinematicSimulator()
-        self.real_sim_dt = time()-self.simulator.t
-        coord = (0.5*0.565,1.7*0.565)
-        x,y = coord
+    def initKinematicSimulation(self, car, init_position = (0.3*0.6,1.7*0.6)):
+        print_info("kinematic simulation init")
+        car.new_state_update = Event()
+        car.new_state_update.set()
+
+        x,y = init_position
         heading = pi/2
+
+        car.simulator = kinematicSimulator(x,y,heading)
+
+        self.real_sim_dt = None
+
         omega = 0
         v = 0
 
-        self.car.steering = steering = 0
-        self.car.throttle = throttle = 0
-        self.v_target = 0
+        car.steering = steering = 0
+        car.throttle = throttle = 0
+        car.v_target = 0
 
-        self.car_state = (x,y,heading,v,0,omega)
-        self.sim_states = {'coord':coord,'heading':heading,'vf':1.0,'vs':0,'omega':0}
+        car.state = (x,y,heading,v,0,omega)
+        car.sim_states = {'coord':init_position,'heading':heading,'vf':0.0,'vs':0,'omega':0}
         self.sim_dt = 0.01
 
-    def updateSimulation(self):
+    def updateKinematicSimulation(self,car):
         # update car
-        sim_states = self.sim_states = self.simulator.updateCar(self.sim_dt,self.sim_states,self.car.throttle,self.car.steering)
-        self.car_state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
-        self.new_state_update.set()
+        sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
+        car.state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
+        car.new_state_update.set()
+        if isnan(sim_states['heading']):
+            print("error")
+        car.new_state_update.set()
 
-    def stopSimulation(self):
+    def stopKinematicSimulation(self,car):
         return
 
-# new dynamic simulator
-    def initAdvSimulation(self,car,init_position = (0.3*0.6,1.7*0.6)):
+# dynamic simulator
+    def initDynamicSimulation(self,car,init_position = (0.3*0.6,1.7*0.6)):
         car.new_state_update = Event()
         car.new_state_update.set()
         
@@ -739,7 +747,7 @@ class Main():
         car.sim_states = {'coord':init_position,'heading':heading,'vf':throttle,'vs':0,'omega':0}
         self.sim_dt = 0.01
 
-    def updateAdvSimulation(self,car):
+    def updateDynamicSimulation(self,car):
         # update car
         sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
@@ -750,7 +758,7 @@ class Main():
         #print("v = %.2f"%(sim_states['vf']))
         car.new_state_update.set()
 
-    def stopAdvSimulation(self,car):
+    def stopDynamicSimulation(self,car):
         return
 
 # eth dynamic simulator

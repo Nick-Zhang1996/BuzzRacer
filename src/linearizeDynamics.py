@@ -64,7 +64,7 @@ class LinearizeDynamics():
         Bs = np.dstack(Bs)
         ds = np.dstack(ds).reshape((self.n,1,self.N))
         #A, B, d, D = self.form_long_matrices_LTV(As, Bs, ds, Ds)
-        Sigma_epsilon = 1.0
+        Sigma_epsilon = np.diag([1.0]*m)
         A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, Sigma_epsilon)
 
         # TODO tune me
@@ -80,7 +80,7 @@ class LinearizeDynamics():
 
         # terminal mean constrain
         # TODO tune me
-        sigma_f = np.diag([3]*n)
+        sigma_f = np.diag([1e3]*n)
 
         # setup cvxpy
         I = np.eye(n*(N+1))
@@ -1169,7 +1169,6 @@ if __name__ == '__main__':
 
     # test CS solver on dynamic bicycle model
     # get x0 and control
-    '''
     i = 100
     x0 = main.ref_traj[i,:]
     u0 = main.ref_ctrl[i,:]
@@ -1179,9 +1178,8 @@ if __name__ == '__main__':
     main.covarianceControl_cvxpy(x0,u0)
     print("time elapsed:")
     print(time()-t0)
-    '''
 
     # test CS solver on double integrator
     #main.simpleDynamicsCovarianceControl()
-    main.testSimpleDynamics()
+    #main.testSimpleDynamics()
 
