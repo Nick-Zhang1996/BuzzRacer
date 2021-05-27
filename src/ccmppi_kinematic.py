@@ -27,7 +27,7 @@ class CCMPPI():
         self.m = 2
         self.l = self.n
 
-        self.dt = 0.01
+        self.dt = 0.1
         self.Sigma_epsilon = np.diag([0.1,0.1])
 
         # set up parameters for the model
@@ -35,6 +35,7 @@ class CCMPPI():
         # load track 
         #self.loadTrack()
         self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
+        np.random.seed()
 
     def setupParam(self):
         # dimension
