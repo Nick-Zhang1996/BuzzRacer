@@ -21,7 +21,7 @@ from RCPTrack import RCPtrack
 class CCMPPI():
     def __init__(self):
         # set time horizon
-        self.N = 10
+        self.N = 4
         self.n = 4
         self.m = 1
         self.l = self.n
@@ -120,6 +120,7 @@ class CCMPPI():
 
             As.append(A * self.dt)
             Bs.append(B * self.dt)
+            # NOTE is this right?
             Ds.append(D * self.dt)
             ds.append(d * self.dt)
         return As,Bs,Ds,ds
@@ -204,9 +205,9 @@ class CCMPPI():
         As, Bs, Ds, ds = self.calcDynamics(v_ref, dpsi_dt_ref)
 
         # assemble big matrices for batch dynamics
-        As = np.dstack(As)
-        Bs = np.dstack(Bs)
-        ds = np.dstack(ds).reshape((self.n,1,self.N))
+        self.As = As = np.dstack(As)
+        self.Bs = Bs = np.dstack(Bs)
+        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
         A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
         # TODO tune me
@@ -242,19 +243,75 @@ class CCMPPI():
         # TODO verify with Ji
         sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
         #sigma_y_sqrt = D@D.T
-        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
-        #constraints = []
+        #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        constraints = []
         prob = cp.Problem(objective, constraints)
 
         print("Optimal J = ", prob.solve())
         print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
-
+        self.Ks = Ks
         return K
+
+    # simulate model with and without cc
+    def simulate(self):
+        As = self.As
+        Bs = self.Bs
+        ds = self.ds
+        v = np.array([[0.1]])
+        x0 = np.array([0.0,0.0,0.0,0.0])
+        # without CC
+        sim_steps = self.N
+        rollout = 100
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+
+                x_i = (As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon) + ds[:,:,i]) * self.dt
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,1)
+        for i in range(states_vec.shape[0]):
+            # crosstrack and heading error
+            plt.plot(states_vec[i,:,0],states_vec[i,:,2])
+        plt.title("without CC")
+
+        # with CC
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            y_i = np.zeros(self.n)
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+
+                # TODO test me
+                x_i = (As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon + self.Ks[i].value.copy() @ y_i) + ds[:,:,i]) * self.dt
+                y_i = (As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon) * self.dt
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,2)
+        for i in range(states_vec.shape[0]):
+            # position?
+            plt.plot(states_vec[i,:,0],states_vec[i,:,2])
+        plt.title("with CC")
+        plt.show()
 
 if __name__ == "__main__":
     main = CCMPPI()
     state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
     main.cc(state)
+    main.simulate()
 

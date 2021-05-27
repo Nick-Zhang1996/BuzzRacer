@@ -578,54 +578,6 @@ class LinearizeDynamics():
         return states
 
     
-    def jacob_linearize(self, states, controls):
-        states = states.copy()
-        controls = controls.copy()
-        nx = self.n
-        nu = self.m
-        nN = self.N
-        dt = 0.01
-
-        delta_x = np.array([0.01,0.01,0.01,0.01,0.01,0.01])
-        delta_u = np.array([0.01, 0.01])
-        delta_x_flat = np.tile(delta_x, (1, nN))
-        delta_u_flat = np.tile(delta_u, (1, nN))
-        delta_x_final = np.multiply(np.tile(np.eye(nx), (1, nN)), delta_x_flat)
-        delta_u_final = np.multiply(np.tile(np.eye(nu), (1, nN)), delta_u_flat)
-        xx = np.tile(states.copy(), (nx, 1)).reshape((nx, nx*nN), order='F')
-        # print(delta_x_final, xx)
-        ux = np.tile(controls.copy(), (nx, 1)).reshape((nu, nx*nN), order='F')
-        x_plus = xx + delta_x_final
-        # print(x_plus, ux)
-        x_minus = xx - delta_x_final
-        fx_plus = self.update_dynamics(x_plus, ux, dt)
-        # print(fx_plus)
-        fx_minus = self.update_dynamics(x_minus, ux, dt)
-        A = (fx_plus - fx_minus) / (2 * delta_x_flat)
-
-        xu = np.tile(states.copy(), (nu, 1)).reshape((nx, nu*nN), order='F')
-        uu = np.tile(controls.copy(), (nu, 1)).reshape((nu, nu*nN), order='F')
-        u_plus = uu + delta_u_final
-        # print(xu)
-        u_minus = uu - delta_u_final
-        fu_plus = self.update_dynamics(xu, u_plus, dt)
-        # print(fu_plus)
-        fu_minus = self.update_dynamics(xu, u_minus, dt)
-        B = (fu_plus - fu_minus) / (2 * delta_u_flat)
-
-        state_row = np.zeros((nx*nN, nN))
-        input_row = np.zeros((nu*nN, nN))
-        for ii in range(nN):
-            state_row[ii*nx:ii*nx + nx, ii] = states.copy()[:, ii]
-            input_row[ii*nu:ii*nu+nu, ii] = controls.copy()[:, ii]
-        d = self.update_dynamics(states.copy(), controls.copy(), dt) - np.dot(A, state_row) - np.dot(B, input_row)
-
-        A = A.reshape((self.n, self.n, self.N), order='F')
-        B = B.reshape((self.n, self.m, self.N), order='F')
-        d = d.reshape((self.n, 1, self.N), order='F')
-
-        return A, B, d
-
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
     def linearize(self, nominal_state, nominal_ctrl):

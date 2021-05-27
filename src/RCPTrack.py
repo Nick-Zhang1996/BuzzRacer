@@ -1538,6 +1538,121 @@ class RCPtrack(Track):
         t.e()
         #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+
+    def getRefXYVheading(self, state, p, dt, reverse=False):
+        t = self.t
+
+        t.s()
+        if reverse:
+            print_error("reverse is not implemented")
+        # set wheelbase to 0 to get point closest to vehicle CG
+        t.s("local traj")
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        t.e("local traj")
+        if retval is None:
+            return None,None,False
+
+        # parse return value from localTrajectory
+        (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+        if isnan(orientation):
+            return None,None,False
+
+        # calculate s value for projection ref points
+        t.s("find s")
+        s0 = self.uToS(u0).item()
+        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        der = splev(u0%self.track_length_grid,self.raceline,der=1)
+        heading0 = atan2(der[1],der[0])
+        t.e("find s")
+
+        t.s("curvature")
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+
+        dr = np.array(splev(u0%self.track_length_grid,self.raceline,der=1))
+        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline,der=2))
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        t.e("curvature")
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+        u_vec = [u0]
+        s_vec = [s0]
+        k_vec = [curvature]
+        k_sign_vec = [cross_curvature]
+
+        v_vec = [v0]
+        xy_vec = [splev(s0%self.raceline_len_m, self.raceline_s)]
+
+
+        t.s("main loop")
+        for k in range(1,p+1):
+            s_k = s_vec[-1] + v_vec[-1] * dt
+            s_vec.append(s_k)
+            # find ref velocity for projection ref points
+            # TODO adjust ref velocity for current vehicle velocity
+            #v_k = self.targetVfromU(u_k%self.track_length_grid)
+            #v_k = self.sToV(s_k%self.raceline_len_m)
+            v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            v_vec.append(v_k)
+
+            xy_vec.append(splev(s_k%self.raceline_len_m, self.raceline_s))
+            
+        t.e("main loop")
+
+        #u_vec = np.array(u_vec)%self.track_length_grid
+        # find ref heading for projection ref points
+        t.s("psi")
+        #der = np.array(splev(u_vec,self.raceline,der=1))
+        s_vec = np.array(s_vec)%self.raceline_len_m
+        der = np.array(splev(s_vec,self.raceline_s,der=1))
+        heading_vec = np.arctan2(der[1,:],der[0,:])
+        t.e("psi")
+        # find ref coordinates for projection ref points
+
+        t.s("coord")
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
+        t.e("coord")
+
+        t.s("K")
+
+        #norm_curvature = np.linalg.norm(vec_curvature,axis=1)
+        dr = np.array(splev(s_vec,self.raceline_s,der=1))
+        ddr = vec_curvature = np.array(splev(s_vec,self.raceline_s,der=2))
+
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0,:]*vec_curvature[1,:]-der[1,:]*vec_curvature[0,:]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+
+
+        # TODO check dimension
+        k_signed_vec = np.copysign(k_vec,k_sign_vec)
+
+        x,y,heading,vf,vs,omega = state
+        e_heading = ((heading - heading0) + pi/2.0 ) % (2*pi) - pi/2.0
+        t.e("K")
+
+        t.e()
+        return np.array(xy_vec), np.array(v_vec), np.array(heading_vec)
         
     # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
     # Inputs:
