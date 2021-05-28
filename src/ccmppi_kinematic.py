@@ -27,8 +27,10 @@ class CCMPPI():
         self.m = 2
         self.l = self.n
 
-        self.dt = 0.1
-        self.Sigma_epsilon = np.diag([0.1,0.1])
+        self.dt = 0.01
+        self.Sigma_epsilon = np.diag([0.1,radians(10)])
+        # terminal covariance constrain
+        self.sigma_f = np.diag([1e-3]*self.n)
 
         # set up parameters for the model
         self.setupParam()
@@ -287,7 +289,6 @@ class CCMPPI():
         B = np.vstack(B)
 
         # C: n(N+1) x nN
-        '''
         row0 = np.zeros((n, n*N))
         C = [row0]
         for i in range(1,N+1):
@@ -296,10 +297,9 @@ class CCMPPI():
             row_i[:,(i-1)*n:i*n] = np.eye(n)
             C.append(row_i)
         C = np.vstack(C)
-        '''
 
         # d
-        d = ds.reshape((-1,1))
+        d = ds[:,0,:].T.flatten()
 
         # take Sigma_epsilon to be 1
         # since D can be used to control effect of gaussian noise on control
@@ -317,7 +317,7 @@ class CCMPPI():
             row_i[:,(i-1)*m:i*m] = Bs[:,:,i-1] @ Sigma_epsilon_half
             D.append(row_i)
         D = np.vstack(D)
-        return A,B,d,D
+        return A,B,C,d,D
 
     # apply covariance control
     #
@@ -325,6 +325,171 @@ class CCMPPI():
     #   state: (x,y,heading,v_forward,v_sideway,omega)
     # return: N? K matrices
     def cc(self, state):
+        n = self.n
+        N = self.N
+        m = self.m
+        l = self.l
+
+        #xy_vec, v_vec, heading_vec = self.track.getRefXYVheading(state, N-1, self.dt)
+        # assemble state: X,Y,V,heading
+        #ref_state_vec = np.hstack([xy_vec,v_vec[:,np.newaxis],heading_vec[:,np.newaxis]])
+
+
+        # find where the car is in reference to reference trajectory
+        xx = self.ref_traj[:,0]
+        yy = self.ref_traj[:,2]
+        x = state[0]
+        y = state[2]
+        dist_sqr = (xx-x)**2 + (yy-y)**2
+        # start : index of closest ref point to car
+        start = ref_traj_index = np.argmin(dist_sqr)
+
+        # ref_traj: x,dx,y,dy,heading,dheading
+        x = self.ref_traj[start:start+self.N,0]
+        vx = self.ref_traj[start:start+self.N,1]
+        y = self.ref_traj[start:start+self.N,2]
+        vy = self.ref_traj[start:start+self.N,3]
+        heading = self.ref_traj[start:start+self.N,4]
+        v = np.sqrt(vx*vx + vy*vy)
+
+        self.ref_state_vec = ref_state_vec = np.vstack([x,y,v,heading]).T
+        self.ref_ctrl_vec = ref_ctrl_vec = self.ref_ctrl[start:start+self.N]
+
+        # find reference throttle and steering
+
+        # ----------
+        # As = [A0..A(N-1)]
+        # NOTE this is discretized dynamics
+        # linearize dynamics around ref traj
+        # As = [A0..A(N-1)]
+        As = []
+        Bs = []
+        ds = []
+        for i in range(self.N):
+            A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
+            As.append(A)
+            Bs.append(B)
+            ds.append(d)
+
+        # assemble big matrices for batch dynamics
+        self.As = As = np.dstack(As)
+        self.Bs = Bs = np.dstack(Bs)
+        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
+        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
+
+        # TODO tune me
+        # cost matrix 
+        Q = np.eye(n)
+        Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
+        R = np.eye(m)
+        R_bar = np.kron(np.eye(N, dtype=int), R)
+
+        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
+        R_bar_sqrt = R_bar
+        Q_bar_sqrt = Q_bar
+
+        # terminal covariance constrain
+        sigma_f = self.sigma_f
+
+        # setup cvxpy
+        I = np.eye(n*(N+1))
+        E_N = np.zeros((n,n*(N+1)))
+        E_N[:,n*(N):] = np.eye(n)
+
+        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
+        Ks = [cp.Variable((m,n)) for i in range(N)]
+        # K dim: mN x n(N+1)
+        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
+        for i in range(1,N):
+            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
+            K = cp.vstack([K, line])
+
+        objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
+
+        # TODO verify with Ji
+        sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
+        #sigma_y_sqrt = D@D.T
+        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        #constraints = []
+        prob = cp.Problem(objective, constraints)
+
+        print("Optimal J = ", prob.solve())
+        print("Optimal Ks: ")
+        for i in range(N):
+            print(Ks[i].value)
+        self.Ks = Ks
+        return K
+
+
+    # simulate model with and without cc
+    def simulate(self):
+        As = self.As
+        Bs = self.Bs
+        ds = self.ds
+        x0 = self.ref_state_vec[0,:]
+        u0 = self.ref_ctrl_vec[0,:]
+        sim_steps = self.N
+        rollout = 100
+        print(x0)
+
+        # with CC
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            y_i = np.zeros(self.n)
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]*self.m
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+                v = self.ref_ctrl_vec[i,:]
+
+                # TODO test me
+                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon + self.Ks[i].value.copy() @ y_i) + ds[:,:,i].flatten()
+                y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,2)
+        for i in range(states_vec.shape[0]):
+            # position?
+            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
+            #plt.plot(states_vec[i,-1,0],states_vec[i,-1,1],'*')
+        plt.title("with CC")
+        plt.axis("square")
+        left,right = plt.xlim()
+        up,down = plt.ylim()
+
+        # without CC
+        states_vec = []
+        for j in range(rollout):
+            states_vec.append([])
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]*self.m
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+                v = self.ref_ctrl_vec[i,:]
+                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon) + ds[:,:,i].flatten()
+                states_vec[j].append(x_i.flatten())
+
+        states_vec = np.array(states_vec)
+        plt.subplot(2,1,1)
+        for i in range(states_vec.shape[0]):
+            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
+            #plt.plot(states_vec[i,-1,0],states_vec[i,-1,1],'*')
+        plt.title("without CC")
+
+        plt.xlim(left,right)
+        plt.ylim(up,down)
+        plt.axis("square")
+        plt.show()
+
+    # compare linearized batch dynamics against
+    def testLinearization(self,offset = 0):
+
         n = self.n
         N = self.N
         m = self.m
@@ -375,111 +540,60 @@ class CCMPPI():
         self.As = As = np.dstack(As)
         self.Bs = Bs = np.dstack(Bs)
         self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
-        A, B, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
+        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
-        # TODO tune me
-        # cost matrix 
-        Q = np.eye(n)
-        Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        R = np.eye(m)
-        R_bar = np.kron(np.eye(N, dtype=int), R)
+        # compare with actual result
+        #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
+        #u0 = (throttle[i],steering[i])
 
-        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
-        R_bar_sqrt = R_bar
-        Q_bar_sqrt = Q_bar
+        # simulate with batch dynamics
+        # X = AA x0 + BB u + C d + D noise
+        x0 = ref_state_vec[0,:]
+        print(x0)
+        u0 = ref_ctrl_vec[0,:]
+        #uu = ref_ctrl_vec.flatten() + np.array([0.1,radians(-5)]*self.N)
+        uu = ref_ctrl_vec.flatten() 
+        # actually need + DD @ w
+        xx_linearized = A @ x0 + B @ uu + C @ d
 
-        # terminal mean constrain
-        # TODO tune me
-        sigma_f = np.diag([1e-3]*n)
+        # simulate with step-by-step simulation
+        '''
+        xx_linearized = [x0]
+        x_i = x0.copy()
+        for i in range(self.N):
+            u = ref_ctrl_vec[i,:]
+            x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ u + ds[:,:,i].flatten()
+            xx_linearized.append(x_i)
 
-        # setup cvxpy
-        I = np.eye(n*(N+1))
-        E_N = np.zeros((n,n*(N+1)))
-        E_N[:,n*(N):] = np.eye(n)
+        xx_linearized = np.array(xx_linearized)
+        '''
 
-        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
-        Ks = [cp.Variable((m,n)) for i in range(N)]
-        # K dim: mN x n(N+1)
-        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
-        for i in range(1,N):
-            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            K = cp.vstack([K, line])
 
-        objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
+        # plot true and linearized traj
+        img_track = self.track.drawTrack()
+        img_track = self.track.drawRaceline(img=img_track)
+        car_state = (x0[0],x0[1],x0[3],0,0,0)
+        print(car_state)
+        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
 
-        # TODO verify with Ji
-        sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
-        #sigma_y_sqrt = D@D.T
-        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
-        #constraints = []
-        prob = cp.Problem(objective, constraints)
+        '''
+        actual_future_traj  = ref_state_vec[:,(0,1)]
+        img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+        '''
 
-        print("Optimal J = ", prob.solve())
-        print("Optimal Ks: ")
-        for i in range(N):
-            print(Ks[i].value)
-        self.Ks = Ks
-        return K
+        predicted_states = xx_linearized.reshape((-1,self.n))
+        predicted_future_traj  = predicted_states[:,(0,1)]
+        img = self.track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img.copy())
 
-    # simulate model with and without cc
-    def simulate(self):
-        As = self.As
-        Bs = self.Bs
-        ds = self.ds
-        v = np.array([0.0,0.0])
-        x0 = np.array([0.0,0.0,0.0,0.0])
-        # without CC
-        sim_steps = self.N
-        rollout = 100
-        states_vec = []
-        for j in range(rollout):
-            states_vec.append([])
-            x_i = x0.copy()
-            for i in range(sim_steps):
-                # generate random variable epsilon
-                mean = [0.0]*self.m
-                cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
-                x_i = (As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon) + ds[:,:,i]) * self.dt
-                states_vec[j].append(x_i.flatten())
-
-        states_vec = np.array(states_vec)
-        plt.subplot(2,1,1)
-        for i in range(states_vec.shape[0]):
-            # crosstrack and heading error
-            #plt.plot(states_vec[i,:,0],states_vec[i,:,2])
-            plt.plot(states_vec[i,-1,0],states_vec[i,-1,2],'*')
-        plt.title("without CC")
-
-        # with CC
-        states_vec = []
-        for j in range(rollout):
-            states_vec.append([])
-            y_i = np.zeros(self.n)
-            x_i = x0.copy()
-            for i in range(sim_steps):
-                # generate random variable epsilon
-                mean = [0.0]*self.m
-                cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
-
-                # TODO test me
-                x_i = (As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon + self.Ks[i].value.copy() @ y_i) + ds[:,:,i]) * self.dt
-                y_i = (As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon) * self.dt
-                states_vec[j].append(x_i.flatten())
-
-        states_vec = np.array(states_vec)
-        plt.subplot(2,1,2)
-        for i in range(states_vec.shape[0]):
-            # position?
-            #plt.plot(states_vec[i,:,0],states_vec[i,:,2])
-            plt.plot(states_vec[i,-1,0],states_vec[i,-1,2],'*')
-        plt.title("with CC")
+        plt.imshow(img)
         plt.show()
+
+        return 
 
 if __name__ == "__main__":
     main = CCMPPI()
     state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
     main.cc(state)
     main.simulate()
+    #main.testLinearization()
 
