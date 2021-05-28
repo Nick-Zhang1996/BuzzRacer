@@ -19,10 +19,10 @@ from cvxpy.atoms.affine.transpose import transpose
 
 from RCPTrack import RCPtrack
 
-class CCMPPI():
-    def __init__(self):
+class CCMPPI_KINEMATIC():
+    def __init__(self, N):
         # set time horizon
-        self.N = 20
+        self.N = N
         self.n = 4
         self.m = 2
         self.l = self.n
@@ -323,7 +323,7 @@ class CCMPPI():
     #
     # input:
     #   state: (x,y,heading,v_forward,v_sideway,omega)
-    # return: N? K matrices
+    # return: N K matrices of size (n,m)
     def cc(self, state):
         n = self.n
         N = self.N
@@ -413,12 +413,14 @@ class CCMPPI():
         #constraints = []
         prob = cp.Problem(objective, constraints)
 
+        '''
         print("Optimal J = ", prob.solve())
+        '''
         print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
-        self.Ks = Ks
-        return K
+
+        return [val.value for val in Ks]
 
 
     # simulate model with and without cc
@@ -591,7 +593,7 @@ class CCMPPI():
         return 
 
 if __name__ == "__main__":
-    main = CCMPPI()
+    main = CCMPPI_KINEMATIC(20)
     state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
     main.cc(state)
     main.simulate()

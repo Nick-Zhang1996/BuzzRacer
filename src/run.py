@@ -716,7 +716,7 @@ class Main():
 
     def updateKinematicSimulation(self,car):
         # update car
-        sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
+        sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.throttle,car.steering)
         car.state = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],0,sim_states['omega']])
         car.new_state_update.set()
         if isnan(sim_states['heading']):

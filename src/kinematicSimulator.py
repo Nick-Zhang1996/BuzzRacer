@@ -13,8 +13,11 @@ class kinematicSimulator():
 
         return
 
-    def updateCar(self,dt, sim_states, throttle, steering): 
-        x,y,v,heading = self.states
+    def updateCar(self,dt, throttle, steering, external_states=None): 
+        if external_states is None:
+            x,y,v,heading = self.states
+        else:
+            x,y,v,heading = external_states
         beta = np.arctan( np.tan(steering) * self.lr / (self.lf+self.lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
@@ -28,7 +31,7 @@ class kinematicSimulator():
         self.t += dt
 
         self.states = np.array([x,y,v,heading])
-        sim_states = {'coord':(x,y), 'heading':heading, 'vf':v, 'omega':0}
-        return sim_states
+        new_states = {'coord':(x,y), 'heading':heading, 'vf':v, 'omega':0}
+        return new_states
 
 
