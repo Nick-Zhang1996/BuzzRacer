@@ -36,7 +36,7 @@ class ctrlCcmppiWrapper(Car):
 
         # NOTE NOTE NOTE
         # update mppi_racecar.cu whenever you change parameter here
-        self.mppi_dt = 0.03
+        self.ccmppi_dt = 0.03
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
         self.horizon_steps = 20
@@ -50,11 +50,11 @@ class ctrlCcmppiWrapper(Car):
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
-        self.mppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.mppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
+        self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
-        self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.mppi.evaluateStepCost = self.evaluateStepCost
-        self.mppi.evaluateTerminalCost = self.evaluateTerminalCost
+        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
+        self.ccmppi.evaluateStepCost = self.evaluateStepCost
+        self.ccmppi.evaluateTerminalCost = self.evaluateTerminalCost
 
         if (sim is None):
             self.lf = 90e-3*0.95
@@ -164,7 +164,7 @@ class ctrlCcmppiWrapper(Car):
         #debug_dict['heading_error'] = e_heading
         p.s("local traj")
         if self.last_s is None:
-            retval = track.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+            retval = track.localTrajectory(states,wheelbase=0.102/2.0,return_u=True)
             if retval is None:
                 print_warning("localTrajectory returned None")
                 ret =  (0,0,False,debug_dict)
@@ -193,7 +193,7 @@ class ctrlCcmppiWrapper(Car):
         p.e("prep")
 
         p.s("mppi")
-        uu = self.mppi.control(states.copy(),self.control_limit)
+        uu = self.ccmppi.control(states.copy(),self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
@@ -205,7 +205,7 @@ class ctrlCcmppiWrapper(Car):
         p.s("debug")
         sim_states = states.copy()
         for i in range(self.horizon_steps):
-            sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.mppi_dt)
+            sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
             x,y,vf,heading = sim_states
             coord = (x,y)
             debug_dict['coord'].append(coord)

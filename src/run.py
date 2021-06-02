@@ -25,6 +25,7 @@ from ethCarSim import ethCarSim
 from ctrlMpcWrapper import ctrlMpcWrapper
 from ctrlStanleyWrapper import ctrlStanleyWrapper
 from ctrlMppiWrapper import ctrlMppiWrapper
+from ctrlCcmppiWrapper import ctrlCcmppiWrapper
 
 from timeUtil import execution_timer
 
@@ -55,6 +56,7 @@ class Controller(Enum):
     joystick = auto()
     dynamicMpc = auto()
     mppi = auto()
+    ccmppi = auto()
 
     # no controller, this means out of loop control
     empty = auto()
@@ -89,7 +91,7 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
@@ -382,6 +384,11 @@ class Main():
                 #self.debug_dict[i] = self.debug_dict[i] | debug_dict
                 self.debug_dict[i].update(debug_dict)
 
+            elif (car.controller == Controller.ccmppi):
+                throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
+                if isnan(steering):
+                    print("error steering nan")
+
             elif (car.controller == Controller.empty):
                 throttle = 0
                 steering = 0
@@ -550,6 +557,8 @@ class Main():
             car = ctrlStanleyWrapper(car_setting,self.dt)
         elif (controller == Controller.mppi):
             car = ctrlMppiWrapper(car_setting,self.dt)
+        elif (controller == Controller.ccmppi):
+            car = ctrlCcmppiWrapper(car_setting,self.dt)
 
         car.stateUpdateSource = state_update_source
         car.vehiclePlatform = platform
@@ -590,9 +599,10 @@ class Main():
                 car.initMpcSim(car.simulator)
             elif (car.stateUpdateSource == StateUpdateSource.optitrack):
                 car.initMpcReal()
-        elif (car.controller == Controller.mppi):
+        elif (car.controller == Controller.mppi or car.controller == Controller.ccmppi):
             if (car.stateUpdateSource == StateUpdateSource.dynamic_simulator \
-                    or car.stateUpdateSource == StateUpdateSource.eth_simulator):
+                    or car.stateUpdateSource == StateUpdateSource.eth_simulator \
+                    or car.stateUpdateSource == StateUpdateSource.kinematic_simulator):
                 car.init(self.track,car.simulator)
             elif (car.stateUpdateSource == StateUpdateSource.optitrack):
                 car.init(self.track)
@@ -801,18 +811,6 @@ class Main():
 if __name__ == '__main__':
     experiment = Main()
     experiment.run()
-    #experiment.simulator.debug()
-    try:
-        print("mppi")
-        experiment.cars[0].mppi.p.summary()
-        print("\n controller")
-        experiment.cars[0].p.summary()
-    except AttributeError:
-        pass
-
-    print("\n overall")
-    experiment.timer.summary()
-
     print_info("program complete")
 
 
