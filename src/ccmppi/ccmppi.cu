@@ -1,5 +1,4 @@
-// cuda code for MPPI with dynamic bicycle model
-// IMPORTANT make sure the macro declarations are accurate
+// cuda code for CC-MPPI with kinematic bicycle model 
 
 #include <curand_kernel.h>
 #define SAMPLE_COUNT %(SAMPLE_COUNT)s
@@ -55,21 +54,42 @@ float evaluate_collision_cost( float* state, float* opponent_pos);
 __device__
 float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate);
 
-// forward dynamics by one step
-__device__
-void forward_dynamics( float* x, float* u);
-
 // forward kinematics model by one step
 __device__
 void forward_kinematics( float* x, float* u);
 
 extern "C" {
+
+// out(m*p) = A(m*n) @ B(n*p), A matrix start from A+offset*n*m
+// A is assumed to be a stack of 2d matrix, offset instructs which 2d matrix to use
+__device__
+void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p, float* out){
+  for (int i=0; i<m; i++){
+    for (int j=0; j<p; j++){
+      out[i*p + j] = 0;
+      for (int k=0; k<n; k++){
+        out[i*p + j] += A[offset*n*m + i*n + j];
+      }
+    }
+  }
+
+}
+
 // evaluate step cost based on target state x_goal,current state x and control u
 // in_ref_control: dim horizon*control_dim
 // in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
 // in_raceline is 2d array of size (RACELINE_LEN,4), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian), 3:ref velocity
 __global__
-void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control, float* limits, float* in_epsilon, float in_raceline[][RACELINE_DIM], float opponents_prediction[][HORIZON+1][2],int opponent_count){
+void evaluate_control_sequence(
+    float* out_cost,
+    float* out_control,
+    float* x0, 
+    float* in_ref_control, 
+    float* limits, 
+    float* in_epsilon, 
+    float in_raceline[][RACELINE_DIM], 
+    float* Ks, float* As, float* Bs){
+
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -77,31 +97,20 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
   }
 
 
+  // prepare state variables
   float x[STATE_DIM];
+  float y[STATE_DIM];
+  float _limits[CONTROL_DIM*2];
   // copy to local state
   // NOTE possible time saving by copy to local memory
   for (int i=0; i<STATE_DIM; i++){
     x[i] = *(x0 + i);
+    y[i] = 0;
   }
-
-  float _limits[CONTROL_DIM*2];
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
   }
 
-  // DEBUG
-  /*
-  if (id==0 && opponent_count>0){
-    float dx = x[0]-opponents_prediction[0][0][0];
-    float dy = x[2]-opponents_prediction[0][0][1];
-    float opponent_dis = sqrtf(dx*dx + dy*dy);
-    printf("dist = %% .2f \n",opponent_dis);
-    //printf("x = %%.2f, y= %%.2f \n",x[0],x[2]);
-  }
-  */
-
-
-  // initialize cost
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_u = -1;
@@ -111,29 +120,34 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     float _u[CONTROL_DIM];
     float* u = _u;
 
-    // apply constrain on control input
+    // calculate control
+    // u = v(ref control) + K * y(cc feedback) + epsilon (noise)
+    // feedback
+    matrix_multiply_helper(Ks, i, y, CONTROL_DIM, STATE_DIM, 1, u);
+
     for (int j=0; j<CONTROL_DIM; j++){
-      float val = in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      // calculate control
+      float val = u[j] + in_ref_control[i*CONTROL_DIM + j] + in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+
+      // apply constrain on control input
       val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
       val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
+      // update epsilon
       in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val - in_ref_control[i*CONTROL_DIM + j];
+
+      // set control
       u[j] = val;
+      out_control[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
 
     }
+
     // step forward dynamics, update state x in place
-    forward_dynamics(x,u);
-    //forward_kinematics(x,u);
+    forward_kinematics(x, u);
 
-    // evaluate step cost
+    // evaluate step cost (crosstrack error and velocity deviation)
     cost += evaluate_step_cost(x,u,in_raceline,&last_u);
-    // cost related to collision avoidance / opponent avoidance
-    // TODO too conservative
-    for (int j=0; j<opponent_count; j++){
-      for (int k=0; k<HORIZON/2; k++){
-      cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
-      }
-    }
 
+    // evaluate track boundary cost
     int u_estimate = -1;
     for (int k=0; k<HORIZON; k++){
       cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
@@ -146,10 +160,24 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
     }
     */
 
+    // update y
+    // y = A * y + B * epsilon
+    float temp[STATE_DIM];
+    float temp2[STATE_DIM];
+    float* this_epsilon = in_epsilon + id*HORIZON*CONTROL_DIM + i*CONTROL_DIM;
+
+    matrix_multiply_helper(As, i, y, STATE_DIM, STATE_DIM, 1, temp);
+    matrix_multiply_helper(Bs, i, this_epsilon, STATE_DIM, STATE_DIM, 1, temp2);
+    for (int k=0; k<STATE_DIM; k++){
+      y[k] = temp[k] + temp2[k];
+    }
+
+
     u += CONTROL_DIM;
 
   }
   float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
+  // DEBUG
   if (id==0){
     //printf("terminal: %%.2f\n",terminal_cost/cost);
     //printf("terminal: %%.2f\n",terminal_cost);
@@ -159,6 +187,7 @@ void evaluate_control_sequence(float* out_cost,float* x0, float* in_ref_control,
   out_cost[id] = cost;
 
 }
+
 //extern c
 }
 
@@ -197,6 +226,7 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
   return;
 
 }
+
 
 __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u){
@@ -285,131 +315,36 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
   return cost;
 }
 
-// new dynamics
-// switch to kinematics model at low speed
 __device__
-void forward_dynamics(float* state,float* u){
-  float x,vxg,y,vyg,heading,omega,vx,vy;
-  float d_vx,d_vy,d_omega,slip_f,slip_r,Ffy,Fry,Frx;
-  float throttle,steering;
+void calc_feedback_control(float* controls, float*state, int index){
 
-  x = state[0];
-  vxg = state[1];
-  y = state[2];
-  vyg = state[3];
-  heading = state[4];
-  omega = state[5];
-
-  throttle = u[0];
-  steering = u[1];
-
-  // forward vel
-  vx = vxg*cosf(heading) + vyg*sinf(heading);
-  // lateral vel, left +
-  vy = - vxg*sinf(heading) + vyg*cosf(heading);
-
-  // for small velocity, use kinematic model 
-  if (vx<0.05){
-    float beta = atanf(PARAM_LR/PARAM_L*tanf(steering));
-    // motor model
-    d_vx = (( PARAM_CM1 - PARAM_CM2 * vx) * throttle - PARAM_CR - PARAM_CD * vx*vx);
-    vx = vx + d_vx * DT;
-    vy = sqrtf(vx*vx + vy*vy) * sinf(beta);
-    d_omega = 0.0;
-    omega = vx/PARAM_L*tanf(steering);
-
-    slip_f = 0.0;
-    slip_r = 0.0;
-    Ffy = 0.0;
-    Fry = 0.0;
-
-  } else {
-    // dynamic model
-    slip_f = -atanf((omega*PARAM_LF + vy)/vx) + steering;
-    slip_r = atanf((omega*PARAM_LR - vy)/vx);
-
-    Ffy = PARAM_DF * sinf( PARAM_C * atanf(PARAM_B *slip_f)) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
-    Fry = PARAM_DR * sinf( PARAM_C * atanf(PARAM_B *slip_r)) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
-
-    // motor model
-    Frx = (( PARAM_CM1 - PARAM_CM2 * vx) * throttle - PARAM_CR - PARAM_CD *vx*vx)*PARAM_MASS;
-
-    // Dynamics
-    d_vx = 1.0/PARAM_MASS * (Frx - Ffy * sinf( steering ) + PARAM_MASS * vy * omega);
-    d_vy = 1.0/PARAM_MASS * (Fry + Ffy * cosf( steering ) - PARAM_MASS * vx * omega);
-    d_omega = 1.0/PARAM_IZ * (Ffy * PARAM_LF * cosf( steering ) - Fry * PARAM_LR);
-
-    // discretization
-    vx = vx + d_vx * DT;
-    vy = vy + d_vy * DT;
-    omega = omega + d_omega * DT ;
-  }
-
-  // back to global frame
-  vxg = vx*cosf(heading)-vy*sinf(heading);
-  vyg = vx*sinf(heading)+vy*cosf(heading);
-
-  // apply updates
-  x += vxg*DT;
-  y += vyg*DT;
-  heading += omega*DT + 0.5* d_omega * DT * DT;
-
-  state[0] = x;
-  state[1] = vxg;
-  state[2] = y;
-  state[3] = vyg;
-  state[4] = heading;
-  state[5] = omega;
-
-  return;
 }
 
 
 // forward dynamics using kinematic model
-// note this model is tuned on actual car data, it may not work well with dynamic simulator
 __device__
 void forward_kinematics(float* state, float* u){
-  float dx,dy,psi,dpsi;
   float throttle,steering;
+  float x,y,velocity, psi;
 
-  //x = state[0];
-  dx = state[1];
-  //y = state[2];
-  dy = state[3];
-  psi = state[4];
-  //dpsi = state[5];
+  x = state[0];
+  y = state[1];
+  velocity = state[2]
+  psi = state[3]
 
   throttle = u[0];
   steering = u[1];
 
-  // convert to car frame
-  float local_dx = dx*cosf(-psi) - dy*sinf(-psi);
-  float local_dy = dx*sinf(-psi) + dy*cosf(-psi);
+  float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
+  float dx = velocity * cosf(psi + beta) * DT;
+  float dy = velocity * sinf(psi + beta) * DT;
+  float dvelocity = throttle * DT;
+  float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
-  // what if steering -> 0
-  // avoid numerical instability
-  //float R = 0.102/tanf(steering);
-  //float beta = atanf(0.036/R);
-  float beta = atanf(0.036/0.102*tanf(steering));
-  local_dx += (throttle - 0.24) * 7.0 * DT;
-  // avoid negative velocity
-  local_dx = local_dx>0.0? local_dx:0.0;
-  local_dy =  sqrtf(local_dx*local_dx + local_dy*local_dy) * sinf(beta);
-  // heuristic correction for tire drift
-  local_dy += -0.68*local_dx*steering;
-
-  dpsi = local_dx/0.102*tanf(steering);
-
-  // convert back to global frame
-  dx = local_dx*cosf(psi) - local_dy*sinf(psi);
-  dy = local_dx*sinf(psi) + local_dy*cosf(psi);
-
-  state[0] += dx * DT;
-  state[1] = dx;
-  state[2] += dy * DT;
-  state[3] = dy;
-  state[4] += dpsi * DT;
-  state[5] = dpsi;
+  state[0] += dx;
+  state[1] += dy;
+  state[2] += dvelocity;
+  state[3] += dpsi;
 
 }
 
@@ -461,26 +396,3 @@ __global__ void generate_random_normal(float *values,float* scales){
 // extern "C"
 }
 
-
-
-
-// dummy placeholder main() to trick compiler into compiling when testing
-/*
-int main(void){
-  int blockSize = 1;
-  int numBlocks = 256;
-  int  N = 100;
-  float *out_cost,*x0,*in_control,*in_epsilon ;
-  float in_raceline[][3];
-   
-  cudaMallocManaged(&out_cost, N*sizeof(float));
-  cudaMallocManaged(&x0, N*sizeof(float));
-  cudaMallocManaged(&in_control, N*sizeof(float));
-  cudaMallocManaged(&in_epsilon, N*sizeof(float));
-  cudaMallocManaged(&in_raceline, N*2*sizeof(float));
-
-  evaluate_control_sequence<<<numBlocks, blockSize>>>(out_cost,x0,in_control,in_epsilon,in_raceline);
-  return 0;
-
-}
-*/
