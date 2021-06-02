@@ -96,6 +96,11 @@ void evaluate_control_sequence(
     return;
   }
 
+  // DEBUG
+  if (id==0){
+    printf("CUDA debug, id0\n");
+  }
+
 
   // prepare state variables
   float x[STATE_DIM];

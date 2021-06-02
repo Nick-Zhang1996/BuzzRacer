@@ -53,8 +53,6 @@ class ctrlCcmppiWrapper(Car):
         self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.ccmppi.evaluateStepCost = self.evaluateStepCost
-        self.ccmppi.evaluateTerminalCost = self.evaluateTerminalCost
 
         if (sim is None):
             self.lf = 90e-3*0.95

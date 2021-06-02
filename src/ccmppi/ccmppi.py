@@ -86,21 +86,17 @@ class CCMPPI:
 
     # given state, apply CCMPPI and find control
     # state: current plant state
-    # opponents_prediction: predicted positions of opponent(s) list of n opponents, each of dim (steps, 2)
     # safety_margin: distance to keep from opponent
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
     # specifically for racecar
-    def control(self,state,opponents_prediction,control_limit,safety_margin=0.1,noise_cov=None,cuda=None):
+    def control(self,state,control_limit,safety_margin=0.1,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
         if cuda is None:
             cuda = self.cuda
         p = self.p
         p.s()
-        opponent_count = len(opponents_prediction)
-        opponent_count = np.int32(opponent_count)
-
 
         # start from zero 
         #ref_control = np.zeros([self.T,self.m])
@@ -121,8 +117,10 @@ class CCMPPI:
         Bs_flat = np.array(Bs,dtype=np.float32).flatten()
         device_Bs = drv.to_device(Bs_flat)
 
+        '''
         ds_flat = np.array(ds,dtype=np.float32).flatten()
         device_ds = drv.to_device(ds_flat)
+        '''
 
         # NOTE check dimension and unraveling for k
 
@@ -152,32 +150,23 @@ class CCMPPI:
             ref_control = ref_control.astype(np.float32)
             ref_control = ref_control.flatten()
 
-            # opponent position
-            opponents_prediction = np.array(opponents_prediction).astype(np.float32)
-            # shape: opponent_count, prediction_steps, 2(x,y)
-            if opponents_prediction.shape[0] > 0:
-                assert opponents_prediction.shape[1] == self.T+1
-            opponents_prediction = opponents_prediction.flatten()
-
-            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize + opponents_prediction.size*opponents_prediction.itemsize
+            # FIXME need update
+            memCount = cost.size*cost.itemsize + control.size*control.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize 
             assert np.sum(memCount)<8370061312
 
-            if (opponent_count == 0):
 
-                self.cuda_evaluate_control_sequence( 
-                        drv.Out(cost), # size: K
-                        drv.Out(control), # output control size:(K*N*m)
-                        drv.In(x0),
-                        drv.In(ref_control),
-                        device_control_limits, 
-                        self.device_rand_vals,
-                        self.device_discretized_raceline, 
-                        device_Ks, device_As, device_Bs,
-                        block=self.cuda_block_size, grid=self.cuda_grid_size
-                        )
+            self.cuda_evaluate_control_sequence( 
+                    drv.Out(cost), # size: K
+                    drv.Out(control), # output control size:(K*N*m)
+                    drv.In(x0),
+                    drv.In(ref_control),
+                    device_control_limits, 
+                    self.device_rand_vals,
+                    self.device_discretized_raceline, 
+                    device_Ks, device_As, device_Bs,
+                    block=self.cuda_block_size, grid=self.cuda_grid_size
+                    )
 
-            else:
-                print_error("CCMPPI can't handle opponent")
 
             # NOTE rand_vals is updated to respect control limits
             #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
@@ -197,8 +186,8 @@ class CCMPPI:
 
         # synthesize control signal
         #self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
-        #ref_control = ref_control.reshape([self.T,self.m])
         # NOTE test me
+        ref_control = ref_control.reshape([self.T,self.m])
         control = control.reshape([self.K, self.N, self.m])
         for t in range(self.T):
             for i in range(self.m):
