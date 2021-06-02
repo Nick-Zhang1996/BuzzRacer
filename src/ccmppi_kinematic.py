@@ -244,6 +244,7 @@ class CCMPPI_KINEMATIC():
         return A,B,d
 
     # NOTE in place modification on x0, send x0.copy() as argument
+    # state x: X,Y,V,heading
     def update_dynamics(self, x0, u0, dt):
         psi = x0[3]
         V = x0[2]
@@ -413,14 +414,25 @@ class CCMPPI_KINEMATIC():
         #constraints = []
         prob = cp.Problem(objective, constraints)
 
-        '''
-        print("Optimal J = ", prob.solve())
-        '''
+        J = prob.solve()
+        #print("Optimal J = ", prob.solve())
+        
         print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
 
-        return [val.value for val in Ks]
+        self.Ks = Ks
+
+        As = np.swapaxes(As,0,2)
+        As = np.swapaxes(As,1,2)
+
+        Bs = np.swapaxes(Bs,0,2)
+        Bs = np.swapaxes(Bs,1,2)
+
+        ds = np.swapaxes(ds,0,2)
+        ds = np.swapaxes(ds,1,2)
+
+        return [val.value for val in Ks], As, Bs, ds
 
 
     # simulate model with and without cc
@@ -595,7 +607,33 @@ class CCMPPI_KINEMATIC():
 if __name__ == "__main__":
     main = CCMPPI_KINEMATIC(20)
     state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
-    main.cc(state)
+    # dim: N*m*n
+    Ks, As, Bs, ds = main.cc(state)
+
+    m = main.m
+    n = main.n
+
+    # K (m*n)
+    # Ks_p[i,j] = p*n*m + i*n + j
+    Ks = np.array(Ks)
+    Ks_flat = np.array(Ks,dtype=np.float32).flatten()
+    print(Ks[0,1,2]-Ks_flat[0*n*m + 1*n + 2])
+
+    # A (n*n)
+    # As_p[i,j] = p*n*n + i*n + j
+    As_flat = np.array(As,dtype=np.float32).flatten()
+    print(As[0,1,2]-As_flat[0*n*n + 1*n + 2])
+
+    # B (n*m)
+    # Bs_p[i,j] = p*m*n + i*m + j
+    Bs_flat = np.array(Bs,dtype=np.float32).flatten()
+    print(Bs[0,2,1]-Bs_flat[0*m*n + 2*m + 1])
+
+    # d (n*1)
+    # Bs_p[i] = p*n + i*
+    ds_flat = np.array(ds,dtype=np.float32).flatten()
+    print(ds[1,2]-ds_flat[1*n + 2])
+
     main.simulate()
     #main.testLinearization()
 

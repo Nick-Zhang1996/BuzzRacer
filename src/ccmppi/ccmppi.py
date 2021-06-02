@@ -17,9 +17,9 @@ class CCMPPI:
         self.cc = CCMPPI_KINEMATIC(horizon_steps)
         self.K = samples_count
 
-        self.T = horizon_steps
+        self.N = self.T = horizon_steps
         self.m = control_dim
-        self.state_dim = state_dim
+        self.n = self.state_dim = state_dim
         self.temperature = float(temperature)
         self.dt = dt
         # variation of noise added to ref control
@@ -78,6 +78,7 @@ class CCMPPI:
 
             self.discretized_raceline = discretized_raceline.astype(np.float32)
             self.discretized_raceline = self.discretized_raceline.flatten()
+            self.device_discretized_raceline = drv.to_device(self.discretized_raceline)
 
             sleep(1)
 
@@ -108,9 +109,21 @@ class CCMPPI:
         ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
-        Ks = self.cc.cc(state)
+        # NOTE check dimension
+        Ks, As, Bs, ds = self.cc.cc(state)
+
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()
         device_Ks = drv.to_device(Ks_flat)
+
+        As_flat = np.array(As,dtype=np.float32).flatten()
+        device_As = drv.to_device(As_flat)
+
+        Bs_flat = np.array(Bs,dtype=np.float32).flatten()
+        device_Bs = drv.to_device(Bs_flat)
+
+        ds_flat = np.array(ds,dtype=np.float32).flatten()
+        device_ds = drv.to_device(ds_flat)
+
         # NOTE check dimension and unraveling for k
 
         if (cuda):
@@ -119,7 +132,7 @@ class CCMPPI:
             # assemble limites
             #limits = np.array([-1,1,-2,2],dtype=np.float32)
             control_limit = np.array(control_limit,dtype=np.float32).flatten()
-            device_limits = drv.to_device(control_limit)
+            device_control_limits = drv.to_device(control_limit)
 
             scales = np.array([np.sqrt(noise_cov[0,0]),np.sqrt(noise_cov[1,1])],dtype=np.float32)
             device_scales = drv.to_device(scales)
@@ -130,6 +143,8 @@ class CCMPPI:
 
             p.s("cuda sim")
             cost = np.zeros([self.K]).astype(np.float32)
+            control = np.zeros(self.K*self.N*self.m).astype(np.float32)
+
             # we leave the entry point in api for possible future modification
             x0 = state.copy()
             x0 = x0.astype(np.float32)
@@ -146,48 +161,56 @@ class CCMPPI:
 
             memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize + opponents_prediction.size*opponents_prediction.itemsize
             assert np.sum(memCount)<8370061312
-            #print("x0")
-            #print(x0)
+
             if (opponent_count == 0):
+
                 self.cuda_evaluate_control_sequence( 
-                        drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline), np.uint64(0),opponent_count,
-                        block=self.cuda_block_size, grid=self.cuda_grid_size)
+                        drv.Out(cost), # size: K
+                        drv.Out(control), # output control size:(K*N*m)
+                        drv.In(x0),
+                        drv.In(ref_control),
+                        device_control_limits, 
+                        self.device_rand_vals,
+                        self.device_discretized_raceline, 
+                        device_Ks, device_As, device_Bs,
+                        block=self.cuda_block_size, grid=self.cuda_grid_size
+                        )
+
             else:
-                self.cuda_evaluate_control_sequence( 
-                        drv.Out(cost),drv.In(x0),drv.In(ref_control),device_limits, self.device_rand_vals,drv.In(self.discretized_raceline), drv.In(opponents_prediction),opponent_count,
-                        block=self.cuda_block_size, grid=self.cuda_grid_size)
+                print_error("CCMPPI can't handle opponent")
 
             # NOTE rand_vals is updated to respect control limits
-            self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
-            S_vec = cost
+            #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
             p.e("cuda sim")
         else:
             print_error("cpu implementation of CCMPPI is unavailable")
 
         p.s("post")
         # Calculate statistics of cost function
-        S_vec = np.array(S_vec)
-        beta = np.min(S_vec)
+        cost = np.array(cost)
+        beta = np.min(cost)
 
         # calculate weights
-        weights = np.exp(- (S_vec - beta)/self.temperature)
+        weights = np.exp(- (cost - beta)/self.temperature)
         weights = weights / np.sum(weights)
         #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 
-
         # synthesize control signal
-        self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
-        ref_control = ref_control.reshape([self.T,self.m])
+        #self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
+        #ref_control = ref_control.reshape([self.T,self.m])
+        # NOTE test me
+        control = control.reshape([self.K, self.N, self.m])
         for t in range(self.T):
             for i in range(self.m):
-                ref_control[t,i] = ref_control[t,i] + np.sum(weights * self.rand_vals[:,t,i])
+                # control: (rollout, timestep, control_var)
+                ref_control[t,i] =  np.sum(weights * control[:,t,i])
         self.old_ref_control = ref_control.copy()
         p.e("post")
 
         # evaluate performance of synthesized control
         #print("best cost in sampled traj   %.2f"%(beta))
-        #print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
-        #print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
+        #print("worst cost in sampled traj   %.2f"%(np.max(cost)))
+        #print("avg cost in sampled traj    %.2f"%(np.mean(cost)))
         #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
         #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
         #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
