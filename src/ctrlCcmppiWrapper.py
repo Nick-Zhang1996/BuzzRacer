@@ -41,7 +41,7 @@ class ctrlCcmppiWrapper(Car):
         self.discretized_raceline_len = 1024
         self.horizon_steps = 20
         self.control_dim = 2
-        self.state_dim = 3
+        self.state_dim = 4
         self.temperature = 0.2
         # control noise for MPPI exploration
         self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
@@ -50,7 +50,7 @@ class ctrlCcmppiWrapper(Car):
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
-        self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="mppi/mppi_racecar.cu")
+        self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="ccmppi/ccmppi.cu")
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 

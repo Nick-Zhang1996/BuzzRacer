@@ -67,7 +67,6 @@ class CCMPPI:
             seed = np.int32(int(time()*10000))
             self.cuda_init_curand_kernel(seed,block=(1024,1,1),grid=(1,1,1))
 
-            #device_rand_vals = gpuarray.zeros(K*T*m, dtype=np.float32)
             self.rand_vals = np.zeros(self.K*self.T*self.m, dtype=np.float32)
             self.device_rand_vals = drv.to_device(self.rand_vals)
 
@@ -136,6 +135,8 @@ class CCMPPI:
             device_scales = drv.to_device(scales)
 
             self.cuda_generate_random_var(self.device_rand_vals,device_scales,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+            # DEBUG
+            #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
 
             p.e("prep ref ctrl")
 
@@ -151,14 +152,14 @@ class CCMPPI:
             ref_control = ref_control.flatten()
 
             # FIXME need update
-            memCount = cost.size*cost.itemsize + control.size*control.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize 
+            memCount = cost.size*cost.itemsize + control.size*control.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize + self.rand_vals.size*self.rand_vals.itemsize + self.discretized_raceline.flatten().size*self.rand_vals.flatten().itemsize + Ks_flat.size*Ks_flat.itemsize + As_flat.size*As_flat.itemsize + Bs_flat.size*Bs_flat.itemsize
             assert np.sum(memCount)<8370061312
 
 
             self.cuda_evaluate_control_sequence( 
                     drv.Out(cost), # size: K
                     drv.Out(control), # output control size:(K*N*m)
-                    drv.In(x0),
+                    drv.In(x0),  
                     drv.In(ref_control),
                     device_control_limits, 
                     self.device_rand_vals,
@@ -171,6 +172,8 @@ class CCMPPI:
             # NOTE rand_vals is updated to respect control limits
             #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
             p.e("cuda sim")
+            # DEBUG
+            print("cuda_evaluate_control_sequence returned")
         else:
             print_error("cpu implementation of CCMPPI is unavailable")
 
@@ -207,9 +210,10 @@ class CCMPPI:
         #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
         #return ref_control[0]
+        print(ref_control[0,:])
         p.e()
         if isnan(ref_control[0,1]):
-            print("error")
+            print_error("cc-mppi fail to return valid control")
         return ref_control
 
     # given state, apply MPPI and find control

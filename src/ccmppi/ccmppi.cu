@@ -116,6 +116,7 @@ void evaluate_control_sequence(
     _limits[i] = limits[i];
   }
 
+
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_u = -1;
@@ -330,12 +331,10 @@ void calc_feedback_control(float* controls, float*state, int index){
 __device__
 void forward_kinematics(float* state, float* u){
   float throttle,steering;
-  float x,y,velocity, psi;
+  float velocity, psi;
 
-  x = state[0];
-  y = state[1];
-  velocity = state[2]
-  psi = state[3]
+  velocity = state[2];
+  psi = state[3];
 
   throttle = u[0];
   steering = u[1];
@@ -396,6 +395,7 @@ __global__ void generate_random_normal(float *values,float* scales){
     
   }
   *curand_states[id] = s;
+
 }
 
 // extern "C"

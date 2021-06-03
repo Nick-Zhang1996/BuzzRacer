@@ -417,9 +417,13 @@ class CCMPPI_KINEMATIC():
         J = prob.solve()
         #print("Optimal J = ", prob.solve())
         
+        '''
         print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
+        '''
+        print("Optimal Ks: ")
+        print(Ks[0].value)
 
         self.Ks = Ks
 
