@@ -9,20 +9,8 @@
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
-#define PARAM_LF (0.09-0.036)
 #define PARAM_LR 0.036
 #define PARAM_L 0.09
-#define PARAM_DF  3.93731
-#define PARAM_DR  6.23597
-#define PARAM_C  2.80646
-#define PARAM_B  0.51943
-#define PARAM_CM1  6.03154
-#define PARAM_CM2  0.96769
-#define PARAM_CR  (-0.20375)
-#define PARAM_CD  0.00000
-#define PARAM_IZ  0.00278
-#define PARAM_MASS  0.1667
-
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -60,8 +48,9 @@ void forward_kinematics( float* x, float* u);
 
 extern "C" {
 
-// out(m*p) = A(m*n) @ B(n*p), A matrix start from A+offset*n*m
-// A is assumed to be a stack of 2d matrix, offset instructs which 2d matrix to use
+// calculate matrix multiplication
+// A is assumed to be a stack of 2d matrix, offset instructs the index of 2d matrix to use
+// out(m*p) = A_offset(m*n) @ B(n*p), A matrix start from A+offset*n*m
 __device__
 void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p, float* out){
   for (int i=0; i<m; i++){
@@ -72,7 +61,6 @@ void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p
       }
     }
   }
-
 }
 
 // evaluate step cost based on target state x_goal,current state x and control u
@@ -97,10 +85,9 @@ void evaluate_control_sequence(
   }
 
   // DEBUG
-  if (id==0){
-    printf("CUDA debug, id0\n");
+  if (id == 0){
+    printf("GPU sim, id=0\n");
   }
-
 
   // prepare state variables
   float x[STATE_DIM];
@@ -147,8 +134,12 @@ void evaluate_control_sequence(
 
     }
 
+    if (id == 0){
+      printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f \n", i, x[0], x[1], x[2], x[3], u[0], u[1]);
+    }
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
+
 
     // evaluate step cost (crosstrack error and velocity deviation)
     cost += evaluate_step_cost(x,u,in_raceline,&last_u);
@@ -352,6 +343,7 @@ void forward_kinematics(float* state, float* u){
 
 }
 
+// curand funtions
 
 __device__ curandState_t* curand_states[CURAND_KERNEL_N];
 

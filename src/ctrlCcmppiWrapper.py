@@ -1,19 +1,18 @@
-# CCMPPI with kinematic model
-from car import Car
-from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi,atan
-import numpy as np
-from time import time,sleep
-from timeUtil import execution_timer
-from scipy.interpolate import splprep, splev,CubicSpline,interp1d
-import matplotlib.pyplot as plt
-from linearizeDynamics import LinearizeDynamics
-
-from common import *
-
+# CCMPPI controller wrapper with kinematic bicycle model
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './ccmppi/')
 sys.path.append(base_dir)
+
+import numpy as np
+from time import time,sleep
+import matplotlib.pyplot as plt
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi,atan
+
+from common import *
+from timeUtil import execution_timer
+from car import Car
 from ccmppi import CCMPPI
 from kinematicSimulator import kinematicSimulator
 
@@ -21,13 +20,14 @@ class ctrlCcmppiWrapper(Car):
     def __init__(self,car_setting,dt):
         super().__init__(car_setting,dt)
         # no need simulator to track states
-        self.sim = kinematicSimulator(0,0,0)
+        self.sim = kinematicSimulator(0,0,0,0)
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
         self.p = execution_timer(True)
+        self.wheelbase = car_setting['wheelbase']
         return
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
@@ -44,6 +44,8 @@ class ctrlCcmppiWrapper(Car):
         self.state_dim = 4
         self.temperature = 0.2
         # control noise for MPPI exploration
+        # NOTE tune me
+        # TODO tune this
         self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
@@ -55,11 +57,9 @@ class ctrlCcmppiWrapper(Car):
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 
         if (sim is None):
-            self.lf = 90e-3*0.95
-            self.lr = 90e-3*0.05
+            self.lr = sim.lr
         else:
-            self.lf = sim.lf 
-            self.lr = sim.lr 
+            self.lr = 0.05*self.wheelbase
 
         return
 
@@ -108,7 +108,7 @@ class ctrlCcmppiWrapper(Car):
 
 
             # DEBUG
-            # calculate left/right boundary
+            # plot left/right boundary
             '''
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
@@ -152,17 +152,14 @@ class ctrlCcmppiWrapper(Car):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,states,track,v_override=None,reverse=False):
-        debug_dict = {'coord':[]}
         # profiling
         p = self.p
         p.s()
 
-        #e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
-        #debug_dict['crosstrack_error'] = e_cross
-        #debug_dict['heading_error'] = e_heading
         p.s("local traj")
         if self.last_s is None:
-            retval = track.localTrajectory(states,wheelbase=0.102/2.0,return_u=True)
+            # use self.lr as wheelbase to use center of gravity in evaluation
+            retval = track.localTrajectory(states,wheelbase=self.lr,return_u=True)
             if retval is None:
                 print_warning("localTrajectory returned None")
                 ret =  (0,0,False,debug_dict)
@@ -190,28 +187,49 @@ class ctrlCcmppiWrapper(Car):
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
         p.e("prep")
 
-        p.s("mppi")
+        p.s("ccmppi")
         uu = self.ccmppi.control(states.copy(),self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
-        p.e("mppi")
+        p.e("ccmppi")
 
         # DEBUG
         # simulate where mppi think where the car will end up with
         # with synthesized control sequence
         p.s("debug")
+        debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
+
         sim_states = states.copy()
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
             x,y,vf,heading = sim_states
             coord = (x,y)
-            debug_dict['coord'].append(coord)
+            debug_dict['ideal_traj'].append(coord)
 
+        # simulate vehicle trajectory with selected rollouts
+        sampled_control = self.ccmppi.debug_dict['sampled_control']
+        # use only first 100
+        samples = 100
+        sampled_control = sampled_control[:samples,:,:]
+        rollout_traj_vec = []
 
-        ret =  (throttle,steering,True,debug_dict)
+        for k in range(samples):
+            this_rollout_traj = []
+            sim_states = states.copy()
+            for i in range(self.horizon_steps):
+                sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
+                x,y,vf,heading = sim_states
+                coord = (x,y)
+                this_rollout_traj.append(coord)
+            rollout_traj_vec.append(this_rollout_traj)
+
+        debug_dict['rollout_traj_vec'] = rollout_traj_vec
+
         p.e("debug")
         p.e()
+
+        ret =  (throttle,steering,True,debug_dict)
         return ret
 
 
@@ -224,5 +242,3 @@ class ctrlCcmppiWrapper(Car):
 
 if __name__=="__main__":
     pass
-
-        

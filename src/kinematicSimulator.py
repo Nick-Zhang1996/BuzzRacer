@@ -4,9 +4,9 @@ import numpy as np
 
 class kinematicSimulator():
 
-    def __init__(self,x,y,heading):
+    def __init__(self,x,y,v,heading):
         # X,Y, velocity, heading
-        self.states = np.array([x,y,0,heading])
+        self.states = np.array([x,y,v,heading])
         self.lf = 90e-3*0.95
         self.lr = 90e-3*0.05
         self.t = 0.0

@@ -258,6 +258,19 @@ class Main():
                         x,y = coord
                         img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
+                if (car.controller == Controller.ccmppi):
+                    # plot ideal trajectory (if car follow synthesized control)
+                    coords = self.debug_dict[car.id]['ideal_traj']
+                    for coord in coords:
+                        x,y = coord
+                        img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+                    img = self.track.drawPolyline(coords,lineColor=(0,255,0),img=img)
+
+                    # plot sampled trajectory (if car follow one sampled control traj)
+                    coords_vec = self.debug_dict[car.id]['rollout_traj_vec']
+                    for coords in coords_vec:
+                        img = self.track.drawPolyline(coords,lineColor=(0,255,0),img=img)
+
             # TODO 
             '''
             if 'opponent' in self.debug_dict[0]:
@@ -386,6 +399,7 @@ class Main():
 
             elif (car.controller == Controller.ccmppi):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
+                self.debug_dict[i].update(debug_dict)
                 if isnan(steering):
                     print("error steering nan")
 
@@ -705,23 +719,22 @@ class Main():
         print_info("kinematic simulation init")
         car.new_state_update = Event()
         car.new_state_update.set()
+        self.real_sim_dt = None
 
         x,y = init_position
         heading = pi/2
-
-        car.simulator = kinematicSimulator(x,y,heading)
-
-        self.real_sim_dt = None
-
         omega = 0
-        v = 0
+
+        # NOTE DEBUG
+        v = 1.0
+        car.simulator = kinematicSimulator(x,y,v,heading)
 
         car.steering = steering = 0
         car.throttle = throttle = 0
         car.v_target = 0
 
         car.state = (x,y,heading,v,0,omega)
-        car.sim_states = {'coord':init_position,'heading':heading,'vf':0.0,'vs':0,'omega':0}
+        car.sim_states = {'coord':init_position,'heading':heading,'vf':v,'vs':0,'omega':0}
         self.sim_dt = 0.01
 
     def updateKinematicSimulation(self,car):
@@ -812,5 +825,8 @@ if __name__ == '__main__':
     experiment = Main()
     experiment.run()
     print_info("program complete")
+
+    experiment.timer.summary()
+    experiment.car[0].p.summary()
 
 

@@ -1,15 +1,15 @@
+# Covariance Control - Model Predictive Path Integral for kinematic bicycle model
 import os
 import sys
 import numpy as np
 from time import sleep,time
 from math import sin,radians,degrees,ceil,isnan
 import matplotlib.pyplot as plt
-from timeUtil import execution_timer
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
-from common import *
-# Covariance Control - Model Predictive Path Integral
 
+from common import *
+from timeUtil import execution_timer
 from ccmppi_kinematic import CCMPPI_KINEMATIC
 
 class CCMPPI:
@@ -27,6 +27,7 @@ class CCMPPI:
         self.p = execution_timer(True)
         # whether to use cuda
         self.cuda = cuda
+        self.debug_dict = {}
 
         self.old_ref_control = np.zeros([self.T,self.m],dtype=np.float32)
         if cuda:
@@ -97,15 +98,18 @@ class CCMPPI:
         p = self.p
         p.s()
 
-        # start from zero 
-        #ref_control = np.zeros([self.T,self.m])
-        #ref_control = self.old_ref_control
-        # or, recycle last reference control
+        p.s("CC")
+        # reference control is last time solution
         ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
-        # NOTE check dimension
+        '''
         Ks, As, Bs, ds = self.cc.cc(state)
+        '''
+
+        Ks = np.zeros([self.N*self.m*self.n])
+        As = np.zeros([self.N*self.n*self.n])
+        Bs = np.zeros([self.N*self.n*self.m])
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()
         device_Ks = drv.to_device(Ks_flat)
@@ -114,14 +118,13 @@ class CCMPPI:
         device_As = drv.to_device(As_flat)
 
         Bs_flat = np.array(Bs,dtype=np.float32).flatten()
+        p.e("CC")
         device_Bs = drv.to_device(Bs_flat)
 
         '''
         ds_flat = np.array(ds,dtype=np.float32).flatten()
         device_ds = drv.to_device(ds_flat)
         '''
-
-        # NOTE check dimension and unraveling for k
 
         if (cuda):
             # CUDA implementation
@@ -151,7 +154,7 @@ class CCMPPI:
             ref_control = ref_control.astype(np.float32)
             ref_control = ref_control.flatten()
 
-            # FIXME need update
+            # ensure we do not fill GPU memory
             memCount = cost.size*cost.itemsize + control.size*control.itemsize + x0.size*x0.itemsize + ref_control.size*ref_control.itemsize + self.rand_vals.size*self.rand_vals.itemsize + self.rand_vals.size*self.rand_vals.itemsize + self.discretized_raceline.flatten().size*self.rand_vals.flatten().itemsize + Ks_flat.size*Ks_flat.itemsize + As_flat.size*As_flat.itemsize + Bs_flat.size*Bs_flat.itemsize
             assert np.sum(memCount)<8370061312
 
@@ -177,6 +180,7 @@ class CCMPPI:
         else:
             print_error("cpu implementation of CCMPPI is unavailable")
 
+
         p.s("post")
         # Calculate statistics of cost function
         cost = np.array(cost)
@@ -199,6 +203,19 @@ class CCMPPI:
         self.old_ref_control = ref_control.copy()
         p.e("post")
 
+        # DEBUG
+        # simulate same control sequence in CPU to simpler debugging
+        # No CC
+        print("CPU")
+        for i in range(1):
+            this_control_seq = control[i]
+            state = x0.copy()
+            # NOTE step 0 is one step after initial condition x0
+            for k in range(self.N):
+                print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
+                state = self.forwardKinematics(state,this_control_seq[k])
+
+
         # evaluate performance of synthesized control
         #print("best cost in sampled traj   %.2f"%(beta))
         #print("worst cost in sampled traj   %.2f"%(np.max(cost)))
@@ -209,120 +226,14 @@ class CCMPPI:
         #print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
         #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
-        #return ref_control[0]
+        # throttle, steering
         print(ref_control[0,:])
+
         p.e()
+        exit(0)
+        self.debug_dict = {'sampled_control':control}
         if isnan(ref_control[0,1]):
             print_error("cc-mppi fail to return valid control")
-        return ref_control
-
-    # given state, apply MPPI and find control
-    # state: current plant state
-    # ref_control: reference control, dim (self.T,self.m)
-    # control_limit: min,max for each control element dim self.m*2 (min,max)
-    # control_cov: covariance matrix for noise added to ref_control
-    # NOTE not up to date
-    def control_goal_state(self,target_state,state,ref_control,control_limit,noise_cov=None,cuda=None):
-        if noise_cov is None:
-            noise_cov = self.noise_cov
-        if cuda is None:
-            cuda = self.cuda
-        p = self.p
-        p.s()
-        p.s("prep")
-        ref_control = np.array(ref_control).reshape(-1,self.m).astype(np.float32)
-        control_limit = np.array(control_limit)
-
-        # generate random noise for control sampling
-        epsilon_vec = np.random.multivariate_normal([0.0]*self.m, noise_cov, size=(self.K,self.T))
-
-        # assemble control, ref_control is broadcasted along axis 0 (K)
-        control_vec = ref_control + epsilon_vec
-
-        # cap control
-        for i in range(self.m):
-            control_vec[:,i] = np.clip(control_vec[:,i],control_limit[i,0],control_limit[i,1])
-
-        # NOTE which is better
-        clipped_epsilon_vec = control_vec - ref_control
-        #clipped_epsilon_vec = epsilon_vec
-
-
-        # for use in epsilon induced cost
-        #control_cost_mtx_inv = np.linalg.inv(noise_cov)
-        #control_cost_mtx_inv = np.eye(self.m)
-        p.e("prep")
-
-        if (cuda):
-            # NVIDIA YES !!!
-            # CUDA implementation
-            p.s("cuda sim")
-            cost = np.zeros([self.K]).astype(np.float32)
-            epsilon = clipped_epsilon_vec.astype(np.float32)
-            control = control_vec.astype(np.float32)
-            x0 = state.copy()
-            x_goal = target_state.astype(np.float32)
-            control = control.flatten()
-            memCount = cost.size*cost.itemsize + x0.size*x0.itemsize + control.size*control.itemsize + epsilon*epsilon.itemsize
-            assert np.sum(memCount)<8370061312
-            self.cuda_evaluate_control_sequence( 
-                    drv.Out(cost),drv.In(x_goal),drv.In(x0),drv.In(control), drv.In(epsilon),
-                    block=(self.K,1,1), grid=(1,1))
-            S_vec = cost
-            p.e("cuda sim")
-        else:
-            p.s("cpu sim")
-            # cost value for each simulation
-            S_vec = []
-            # spawn k simulations
-            for k in range(self.K):
-                S = 0
-                x = state.copy()
-                # run each simulation for self.T timesteps
-                for t in range(self.T):
-                    control = control_vec[k,t,:]
-                    x = self.applyDiscreteDynamics(x,control,self.dt)
-                    # NOTE ignoring additional epsilon induced cost
-                    #S += self.evaluateStepCost(x) + self.temperature * ref_control[t,:].T @ control_cost_mtx_inv @ epsilon_vec[k,t]
-                    # FIXME ignoring additional cost
-                    S += self.evaluateStepCost(x,control) 
-                # NOTE ignoring terminal cost
-                #S += self.evaluateTerminalCost(x,x0)
-                S_vec.append(S)
-            p.e("cpu sim")
-
-        p.s("post")
-        # Calculate statistics of cost function
-        S_vec = np.array(S_vec)
-        beta = np.min(S_vec)
-
-        # calculate weights
-        weights = np.exp(- (S_vec - beta)/self.temperature)
-        weights = weights / np.sum(weights)
-
-
-        # synthesize control signal
-        old_ref_control = ref_control.copy()
-        for t in range(self.T):
-            for i in range(self.m):
-                ref_control[t,i] = ref_control[t,i] + np.sum(weights * clipped_epsilon_vec[:,t,i])
-        p.s("post")
-
-
-        # evaluate performance of synthesized control
-        '''
-        print("best cost in sampled traj   %.2f"%(beta))
-        print("worst cost in sampled traj   %.2f"%(np.max(S_vec)))
-        print("avg cost in sampled traj    %.2f"%(np.mean(S_vec)))
-        print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
-        print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
-        print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        print("cost of const control(-1) %.2f"%(self.evalControl(state,[[-1,-1]]*self.T)))
-        print("cost of const control(1) %.2f"%(self.evalControl(state,[[1,1]]*self.T)))
-        '''
-
-        #return ref_control[0]
-        p.e()
         return ref_control
 
     def evalControl(self,state,candidate_control):
@@ -337,4 +248,25 @@ class CCMPPI:
             S += self.evaluateStepCost(x,control)
         S += self.evaluateTerminalCost(x,x0)
         return S
+
+    def forwardKinematics(self,state, control):
+        self.lr = 0.036
+        self.l = 0.09
+
+        dt = self.dt
+        throttle,steering = control
+        x,y,v,heading = state
+        beta = np.arctan( np.tan(steering) * self.lr / (self.l))
+        dXdt = v * np.cos( heading + beta )
+        dYdt = v * np.sin( heading + beta )
+        dvdt = throttle
+        dheadingdt = v/self.lr*np.sin(beta)
+
+        x += dt * dXdt
+        y += dt * dYdt
+        v += dt * dvdt
+        heading += dt * dheadingdt
+
+        return (x,y,v,heading)
+
 
