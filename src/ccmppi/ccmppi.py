@@ -99,10 +99,13 @@ class CCMPPI:
         p.s()
 
         p.s("CC")
+        # use zero as reference control
+        ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is last time solution
-        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
+        # FIXME
         '''
         Ks, As, Bs, ds = self.cc.cc(state)
         '''
@@ -176,7 +179,6 @@ class CCMPPI:
             #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
             p.e("cuda sim")
             # DEBUG
-            print("cuda_evaluate_control_sequence returned")
         else:
             print_error("cpu implementation of CCMPPI is unavailable")
 
@@ -185,6 +187,8 @@ class CCMPPI:
         # Calculate statistics of cost function
         cost = np.array(cost)
         beta = np.min(cost)
+        print("overall best cost %.2f"%(beta))
+        min_cost_index = np.argmin(cost)
 
         # calculate weights
         weights = np.exp(- (cost - beta)/self.temperature)
@@ -206,14 +210,14 @@ class CCMPPI:
         # DEBUG
         # simulate same control sequence in CPU to simpler debugging
         # No CC
-        print("CPU")
-        for i in range(1):
-            this_control_seq = control[i]
-            state = x0.copy()
-            # NOTE step 0 is one step after initial condition x0
-            for k in range(self.N):
-                print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-                state = self.forwardKinematics(state,this_control_seq[k])
+        print("CPU sim of min cost control sequence")
+        i = min_cost_index
+        this_control_seq = control[i]
+        state = x0.copy()
+        # NOTE step 0 is one step after initial condition x0
+        for k in range(self.N):
+            print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
+            state = self.forwardKinematics(state,this_control_seq[k])
 
 
         # evaluate performance of synthesized control
@@ -230,7 +234,6 @@ class CCMPPI:
         print(ref_control[0,:])
 
         p.e()
-        exit(0)
         self.debug_dict = {'sampled_control':control}
         if isnan(ref_control[0,1]):
             print_error("cc-mppi fail to return valid control")

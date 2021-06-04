@@ -63,6 +63,49 @@ void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p
   }
 }
 
+// DEBUG evaluate constant contorl sequence for sanity check
+__device__
+void evaluate_constant_control_sequence(float *x0, float in_raceline[][RACELINE_DIM], float throttle, float steering){
+
+  // prepare state variables
+  float x[STATE_DIM];
+  float u[2];
+  u[0] = throttle;
+  u[1] = steering;
+  // copy to local state
+  // NOTE possible time saving by copy to local memory
+  for (int i=0; i<STATE_DIM; i++){
+    x[i] = *(x0 + i);
+  }
+
+  float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_u = -1;
+  // run simulation
+  // loop over time horizon
+  printf("constant control T= %%.2f, S=%%.2f \n", throttle, steering);
+  for (int i=0; i<HORIZON; i++){
+
+    //printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f \n", i, x[0], x[1], x[2], x[3], u[0], u[1]);
+    // step forward dynamics, update state x in place
+    forward_kinematics(x, u);
+
+    // evaluate step cost (crosstrack error and velocity deviation)
+    cost += evaluate_step_cost(x,u,in_raceline,&last_u);
+
+    // evaluate track boundary cost
+    int u_estimate = -1;
+    for (int k=0; k<HORIZON; k++){
+      cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
+    }
+
+  }
+  cost += evaluate_terminal_cost(x,x0,in_raceline);
+  printf("constant control cost = %%.2f \n", cost);
+
+}
+
+
 // evaluate step cost based on target state x_goal,current state x and control u
 // in_ref_control: dim horizon*control_dim
 // in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
@@ -80,14 +123,23 @@ void evaluate_control_sequence(
 
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // DEBUG
+  if (id == 0){
+    evaluate_constant_control_sequence(x0, in_raceline, 0.1, -0.17); // 10 deg right
+  }
+
+
   if (id>=SAMPLE_COUNT){
     return;
   }
 
   // DEBUG
+  /*
   if (id == 0){
     printf("GPU sim, id=0\n");
   }
+  */
 
   // prepare state variables
   float x[STATE_DIM];
@@ -134,9 +186,11 @@ void evaluate_control_sequence(
 
     }
 
+    /*
     if (id == 0){
       printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f \n", i, x[0], x[1], x[2], x[3], u[0], u[1]);
     }
+    */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
 
