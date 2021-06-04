@@ -9,6 +9,7 @@ class kinematicSimulator():
         self.states = np.array([x,y,v,heading])
         self.lf = 90e-3*0.95
         self.lr = 90e-3*0.05
+        self.L = self.lf+self.lr
         self.t = 0.0
 
         return

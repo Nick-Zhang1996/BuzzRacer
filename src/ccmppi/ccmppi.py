@@ -3,7 +3,7 @@ import os
 import sys
 import numpy as np
 from time import sleep,time
-from math import sin,radians,degrees,ceil,isnan
+from math import sin,cos,radians,degrees,ceil,isnan
 import matplotlib.pyplot as plt
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
@@ -19,6 +19,7 @@ class CCMPPI:
 
         self.N = self.T = horizon_steps
         self.m = control_dim
+        # state: X,Y,vf, psi
         self.n = self.state_dim = state_dim
         self.temperature = float(temperature)
         self.dt = dt
@@ -142,7 +143,7 @@ class CCMPPI:
 
             self.cuda_generate_random_var(self.device_rand_vals,device_scales,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
             # DEBUG
-            #self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
+            self.rand_vals = drv.from_device(self.device_rand_vals,shape=(self.K*self.T*self.m,), dtype=np.float32)
 
             p.e("prep ref ctrl")
 
@@ -210,25 +211,19 @@ class CCMPPI:
         # DEBUG
         # simulate same control sequence in CPU to simpler debugging
         # No CC
+
         print("CPU sim of min cost control sequence")
         i = min_cost_index
         this_control_seq = control[i]
         state = x0.copy()
-        # NOTE step 0 is one step after initial condition x0
+        cost = 0.0
         for k in range(self.N):
             print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
             state = self.forwardKinematics(state,this_control_seq[k])
+            step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
+            cost += step_cost
+            print(step_cost, index, dist)
 
-
-        # evaluate performance of synthesized control
-        #print("best cost in sampled traj   %.2f"%(beta))
-        #print("worst cost in sampled traj   %.2f"%(np.max(cost)))
-        #print("avg cost in sampled traj    %.2f"%(np.mean(cost)))
-        #print_info("cost of synthesized control %.2f"%(self.evalControl(state,ref_control)))
-        #print("cost of ref control %.2f"%(self.evalControl(state,old_ref_control)))
-        #print("cost of no control(0) %.2f"%(self.evalControl(state,old_ref_control)))
-        #print("cost of const control(-5 deg) %.2f"%(self.evalControl(state,[[0,-radians(5)]]*self.T)))
-        #print("cost of const control(5 deg) %.2f"%(self.evalControl(state,[[0,radians(5)]]*self.T)))
 
         # throttle, steering
         print(ref_control[0,:])
@@ -272,4 +267,21 @@ class CCMPPI:
 
         return (x,y,v,heading)
 
+
+    def findClosestId(self, state, in_raceline):
+        x = state[0]
+        y = state[1]
+        dist2 = (x-in_raceline[:,0])**2 + (y-in_raceline[:,1])**2
+        min_index = np.argmin(dist2)
+        return min_index, dist2[min_index]**0.5 
+
+    def evaluateStepCost(self, state, control, in_raceline):
+        in_raceline = in_raceline.reshape(-1,6)
+        # find closest id
+        index, dist = self.findClosestId(state, in_raceline)
+        vx = state[2]
+        dv = vx - in_raceline[index, 3]
+
+        cost = dist + 0.1*dv*dv
+        return cost, index, dist
 

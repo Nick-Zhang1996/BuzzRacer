@@ -36,7 +36,7 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]);
 __device__
-float evaluate_collision_cost( float* state, float* opponent_pos);
+void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess, int range, int* ret_idx, float* ret_dist);
 
 // cost for going off track
 __device__
@@ -83,7 +83,6 @@ void evaluate_constant_control_sequence(float *x0, float in_raceline[][RACELINE_
   int last_u = -1;
   // run simulation
   // loop over time horizon
-  printf("constant control T= %%.2f, S=%%.2f \n", throttle, steering);
   for (int i=0; i<HORIZON; i++){
 
     //printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f \n", i, x[0], x[1], x[2], x[3], u[0], u[1]);
@@ -101,7 +100,7 @@ void evaluate_constant_control_sequence(float *x0, float in_raceline[][RACELINE_
 
   }
   cost += evaluate_terminal_cost(x,x0,in_raceline);
-  printf("constant control cost = %%.2f \n", cost);
+  printf("constant control T= %%.2f, S=%%.2f cost %%.2f \n", throttle, steering, cost);
 
 }
 
@@ -125,9 +124,14 @@ void evaluate_control_sequence(
   int id = blockIdx.x * blockDim.x + threadIdx.x;
 
   // DEBUG
+  /*
   if (id == 0){
     evaluate_constant_control_sequence(x0, in_raceline, 0.1, -0.17); // 10 deg right
   }
+  if (id == 1){
+    evaluate_constant_control_sequence(x0, in_raceline, 0.1, 0.17); // 10 deg right
+  }
+  */
 
 
   if (id>=SAMPLE_COUNT){
@@ -186,23 +190,29 @@ void evaluate_control_sequence(
 
     }
 
-    /*
     if (id == 0){
-      printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f \n", i, x[0], x[1], x[2], x[3], u[0], u[1]);
+      printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f cost = %%.2f \n", i, x[0], x[1], x[2], x[3], u[0], u[1], cost);
     }
-    */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
 
 
     // evaluate step cost (crosstrack error and velocity deviation)
-    cost += evaluate_step_cost(x,u,in_raceline,&last_u);
+    float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
+
+    int temp_index;
+    float temp_dist;
+    find_closest_id(x,in_raceline,last_u,RACELINE_SEARCH_RANGE, &temp_index, &temp_dist);
+
+    cost += step_cost;
+    if (id == 0){
+      printf("%%.2f, %%d, %%.2f \n",step_cost, temp_index, temp_dist);
+    }
 
     // evaluate track boundary cost
-    int u_estimate = -1;
-    for (int k=0; k<HORIZON; k++){
-      cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
-    }
+    //int u_estimate = -1;
+    // FIXME
+    //cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
 
     // FIXME ignoring epsilon induced cost
     /*
@@ -248,7 +258,7 @@ void evaluate_control_sequence(
 __device__
 void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess, int range, int* ret_idx, float* ret_dist){
   float x = state[0];
-  float y = state[2];
+  float y = state[1];
   float val;
 
   int idx = 0;
@@ -281,7 +291,7 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
 
 __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u){
-  //float heading = state[4];
+  //float heading = state[3];
   int idx;
   float dist;
 
@@ -296,28 +306,14 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // current FORWARD velocity - target velocity at closest ref point
 
   // forward vel
-  float vx = state[1]*cosf(state[4]) + state[3]*sinf(state[4]);
 
-  float dv = vx - in_raceline[idx][3];
+  float dv = state[2] - in_raceline[idx][3];
   float cost = dist + 0.1*dv*dv;
   //float cost = dist;
   // additional penalty on negative velocity 
-  if (vx < 0){
+  if (state[2] < 0){
     cost += 0.1;
   }
-  return cost;
-}
-
-__device__
-float evaluate_collision_cost( float* state, float* opponent_pos){
-  //float heading = state[4];
-
-  float dx = state[0]-opponent_pos[0];
-  float dy = state[2]-opponent_pos[1];
-  //float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
-  float cost = (0.15-sqrtf(dx*dx + dy*dy)) > 0? 0.4:0;
-
-
   return cost;
 }
 
@@ -351,7 +347,7 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
   *u_estimate = idx;
   
   float tangent_angle = in_raceline[idx][4];
-  float raceline_to_point_angle = atan2f(in_raceline[idx][1] - state[2], in_raceline[idx][0] - state[0]) ;
+  float raceline_to_point_angle = atan2f(in_raceline[idx][1] - state[1], in_raceline[idx][0] - state[0]) ;
   float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
 
   float cost;
@@ -373,6 +369,8 @@ void calc_feedback_control(float* controls, float*state, int index){
 
 
 // forward dynamics using kinematic model
+// state: X,Y,v_forward,psi
+// control : throttle, steering (left +)
 __device__
 void forward_kinematics(float* state, float* u){
   float throttle,steering;

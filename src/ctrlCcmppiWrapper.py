@@ -196,16 +196,7 @@ class ctrlCcmppiWrapper(Car):
 
         # DEBUG
         # simulate where mppi think where the car will end up with
-        # with synthesized control sequence
-        p.s("debug")
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
-
-        sim_states = states.copy()
-        for i in range(self.horizon_steps):
-            sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
-            x,y,vf,heading = sim_states
-            coord = (x,y)
-            debug_dict['ideal_traj'].append(coord)
 
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
@@ -218,13 +209,23 @@ class ctrlCcmppiWrapper(Car):
             this_rollout_traj = []
             sim_states = states.copy()
             for i in range(self.horizon_steps):
-                sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
+                sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
                 x,y,vf,heading = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
 
         debug_dict['rollout_traj_vec'] = rollout_traj_vec
+
+        # with synthesized control sequence
+        p.s("debug")
+
+        sim_states = states.copy()
+        for i in range(self.horizon_steps):
+            sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
+            x,y,vf,heading = sim_states
+            coord = (x,y)
+            debug_dict['ideal_traj'].append(coord)
 
         p.e("debug")
         p.e()

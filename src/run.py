@@ -7,6 +7,7 @@ from threading import Event,Lock
 from time import sleep,time
 from PIL import Image
 from math import pi,radians,degrees,asin,acos,isnan
+import matplotlib.pyplot as plt
 
 from common import *
 from vicon import Vicon
@@ -259,17 +260,24 @@ class Main():
                         img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
                 if (car.controller == Controller.ccmppi):
+
+                    # plot sampled trajectory (if car follow one sampled control traj)
+                    coords_vec = self.debug_dict[car.id]['rollout_traj_vec']
+                    for coords in coords_vec:
+                        img = self.track.drawPolyline(coords,lineColor=(200,200,200),img=img)
+
                     # plot ideal trajectory (if car follow synthesized control)
                     coords = self.debug_dict[car.id]['ideal_traj']
                     for coord in coords:
                         x,y = coord
                         img = self.track.drawPoint(img,(x,y),color=(255,0,0))
-                    img = self.track.drawPolyline(coords,lineColor=(0,255,0),img=img)
-
-                    # plot sampled trajectory (if car follow one sampled control traj)
-                    coords_vec = self.debug_dict[car.id]['rollout_traj_vec']
-                    for coords in coords_vec:
-                        img = self.track.drawPolyline(coords,lineColor=(0,255,0),img=img)
+                    img = self.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
+                    '''
+                    coords_vec = np.array(coords_vec)
+                    for i in range(len(coords_vec)):
+                        plt.plot(coords_vec[0,:,0], coords_vec[0,:,1])
+                    plt.show()
+                    '''
 
             # TODO 
             '''
