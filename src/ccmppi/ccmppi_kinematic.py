@@ -1,11 +1,13 @@
 # CCMPPI for kinematic bicycle model
 # using model in Ji's paper
 
+import os
+import sys
+base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
+sys.path.append(base_dir)
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-import os
 from common import *
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
@@ -36,7 +38,7 @@ class CCMPPI_KINEMATIC():
         self.setupParam()
         # load track 
         #self.loadTrack()
-        self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
+        self.getRefTraj("../../log/ref_traj/full_state1.p",show=False)
         np.random.seed()
 
     def setupParam(self):
@@ -417,13 +419,13 @@ class CCMPPI_KINEMATIC():
         J = prob.solve()
         #print("Optimal J = ", prob.solve())
         
-        '''
         print("Optimal Ks: ")
         for i in range(N):
             print(Ks[i].value)
         '''
         print("Optimal Ks: ")
         print(Ks[0].value)
+        '''
 
         self.Ks = Ks
 

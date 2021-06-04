@@ -107,13 +107,13 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         # FIXME
-        '''
         Ks, As, Bs, ds = self.cc.cc(state)
-        '''
 
+        '''
         Ks = np.zeros([self.N*self.m*self.n])
         As = np.zeros([self.N*self.n*self.n])
         Bs = np.zeros([self.N*self.n*self.m])
+        '''
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()
         device_Ks = drv.to_device(Ks_flat)
@@ -188,7 +188,7 @@ class CCMPPI:
         # Calculate statistics of cost function
         cost = np.array(cost)
         beta = np.min(cost)
-        print("overall best cost %.2f"%(beta))
+        #print("overall best cost %.2f"%(beta))
         min_cost_index = np.argmin(cost)
 
         # calculate weights
@@ -212,6 +212,7 @@ class CCMPPI:
         # simulate same control sequence in CPU to simpler debugging
         # No CC
 
+        '''
         print("CPU sim of min cost control sequence")
         i = min_cost_index
         this_control_seq = control[i]
@@ -223,6 +224,7 @@ class CCMPPI:
             step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
             cost += step_cost
             print(step_cost, index, dist)
+        '''
 
 
         # throttle, steering

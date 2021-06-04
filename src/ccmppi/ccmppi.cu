@@ -100,7 +100,7 @@ void evaluate_constant_control_sequence(float *x0, float in_raceline[][RACELINE_
 
   }
   cost += evaluate_terminal_cost(x,x0,in_raceline);
-  printf("constant control T= %%.2f, S=%%.2f cost %%.2f \n", throttle, steering, cost);
+  //printf("constant control T= %%.2f, S=%%.2f cost %%.2f \n", throttle, steering, cost);
 
 }
 
@@ -190,9 +190,11 @@ void evaluate_control_sequence(
 
     }
 
+    /*
     if (id == 0){
       printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f cost = %%.2f \n", i, x[0], x[1], x[2], x[3], u[0], u[1], cost);
     }
+    */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
 
@@ -205,9 +207,11 @@ void evaluate_control_sequence(
     find_closest_id(x,in_raceline,last_u,RACELINE_SEARCH_RANGE, &temp_index, &temp_dist);
 
     cost += step_cost;
+    /*
     if (id == 0){
       printf("%%.2f, %%d, %%.2f \n",step_cost, temp_index, temp_dist);
     }
+    */
 
     // evaluate track boundary cost
     //int u_estimate = -1;
