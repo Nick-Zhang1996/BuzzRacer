@@ -38,7 +38,8 @@ class CCMPPI_KINEMATIC():
         self.setupParam()
         # load track 
         #self.loadTrack()
-        self.getRefTraj("../../log/ref_traj/full_state1.p",show=False)
+        #self.getRefTraj("../../log/ref_traj/full_state1.p",show=False)
+        self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
         np.random.seed()
 
     def setupParam(self):

@@ -101,9 +101,9 @@ class CCMPPI:
 
         p.s("CC")
         # use zero as reference control
-        ref_control = np.zeros(self.N*self.m, dtype=np.float32)
+        #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is last time solution
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
         # FIXME
