@@ -6,20 +6,24 @@ import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 import pickle
-import matplotlib.pyplot as plt
 import numpy as np
-from common import *
-from laptimer import Laptimer
-from RCPTrack import RCPtrack
-from math import pi,radians,degrees,asin,acos,isnan,sin,cos
-from ethCarSim import ethCarSim
 from time import time
-from cs_solver import CSSolver #from cs_solver_covariance_only import CSSolver
+
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+import matplotlib.transforms as transforms
+
+from math import pi,radians,degrees,asin,acos,isnan,sin,cos
+
 import cvxpy as cp
 from cvxpy.atoms.affine.trace import trace 
 from cvxpy.atoms.affine.transpose import transpose
 
+
+from common import *
+from laptimer import Laptimer
 from RCPTrack import RCPtrack
+from ethCarSim import ethCarSim
 
 class CCMPPI_KINEMATIC():
     def __init__(self, N):
@@ -32,14 +36,16 @@ class CCMPPI_KINEMATIC():
         self.dt = 0.01
         self.Sigma_epsilon = np.diag([0.1,radians(10)])
         # terminal covariance constrain
-        self.sigma_f = np.diag([1e-3]*self.n)
+        self.sigma_f = np.diag([1e-2]*self.n)
+        self.control_limit = np.array([[-1.0,1.0],[-radians(27), radians(27)]])
 
         # set up parameters for the model
         self.setupParam()
         # load track 
         #self.loadTrack()
         #self.getRefTraj("../../log/ref_traj/full_state1.p",show=False)
-        self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
+        self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
+        
         np.random.seed()
 
     def setupParam(self):
@@ -328,7 +334,7 @@ class CCMPPI_KINEMATIC():
     # input:
     #   state: (x,y,heading,v_forward,v_sideway,omega)
     # return: N K matrices of size (n,m)
-    def cc(self, state):
+    def cc(self, state, return_sx=True, debug=False):
         n = self.n
         N = self.N
         m = self.m
@@ -414,18 +420,19 @@ class CCMPPI_KINEMATIC():
         sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
         #sigma_y_sqrt = D@D.T
         constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
-        #constraints = []
         prob = cp.Problem(objective, constraints)
 
         J = prob.solve()
         #print("Optimal J = ", prob.solve())
         
         print("Optimal Ks: ")
+        Ks = np.array([val.value for val in Ks])
+
         for i in range(N):
-            print(Ks[i].value)
+            print(Ks[i])
         '''
         print("Optimal Ks: ")
-        print(Ks[0].value)
+        print(Ks[0])
         '''
 
         self.Ks = Ks
@@ -439,11 +446,18 @@ class CCMPPI_KINEMATIC():
         ds = np.swapaxes(ds,0,2)
         ds = np.swapaxes(ds,1,2)
 
-        return [val.value for val in Ks], As, Bs, ds
+        if (return_sx):
+            Sigma_0 = np.zeros([n,n])
+            Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
+            Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
+            return Ks, As, Bs, ds, Sx_cc, Sx_nocc
+        else:
+            return Ks, As, Bs, ds
 
 
     # simulate model with and without cc
     def simulate(self):
+        print_info("simulation")
         As = self.As
         Bs = self.Bs
         ds = self.ds
@@ -451,12 +465,13 @@ class CCMPPI_KINEMATIC():
         u0 = self.ref_ctrl_vec[0,:]
         sim_steps = self.N
         rollout = 100
+        print_info("x0")
         print(x0)
 
         # with CC
-        states_vec = []
+        cc_states_vec = []
         for j in range(rollout):
-            states_vec.append([])
+            cc_states_vec.append([])
             y_i = np.zeros(self.n)
             x_i = x0.copy()
             for i in range(sim_steps):
@@ -466,26 +481,27 @@ class CCMPPI_KINEMATIC():
                 epsilon = np.random.multivariate_normal(mean, cov)
                 v = self.ref_ctrl_vec[i,:]
 
-                # TODO test me
-                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon + self.Ks[i].value.copy() @ y_i) + ds[:,:,i].flatten()
+                control = (v+epsilon + self.Ks[i] @ y_i)
+                # apply input constraints
+                for k in range(self.m):
+                    control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
+                # FIXME is this the right format?
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
-                states_vec[j].append(x_i.flatten())
+                cc_states_vec[j].append(x_i.flatten())
 
-        states_vec = np.array(states_vec)
-        plt.subplot(2,1,2)
-        for i in range(states_vec.shape[0]):
-            # position?
-            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
-            #plt.plot(states_vec[i,-1,0],states_vec[i,-1,1],'*')
-        plt.title("with CC")
-        plt.axis("square")
-        left,right = plt.xlim()
-        up,down = plt.ylim()
+                '''
+                if (j==0):
+                    print("step %d, control: %.2f, %.2f"%(i,control[0], control[1]))
+                '''
+
+        # size: (rollout, n, 2)
+        cc_states_vec = np.array(cc_states_vec)
 
         # without CC
-        states_vec = []
+        nocc_states_vec = []
         for j in range(rollout):
-            states_vec.append([])
+            nocc_states_vec.append([])
             x_i = x0.copy()
             for i in range(sim_steps):
                 # generate random variable epsilon
@@ -493,20 +509,17 @@ class CCMPPI_KINEMATIC():
                 cov = self.Sigma_epsilon
                 epsilon = np.random.multivariate_normal(mean, cov)
                 v = self.ref_ctrl_vec[i,:]
-                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ (v+epsilon) + ds[:,:,i].flatten()
-                states_vec[j].append(x_i.flatten())
+                control = v+epsilon
+                # apply input constraints
+                for k in range(self.m):
+                    control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
+                nocc_states_vec[j].append(x_i.flatten())
 
-        states_vec = np.array(states_vec)
-        plt.subplot(2,1,1)
-        for i in range(states_vec.shape[0]):
-            plt.plot(states_vec[i,:,0],states_vec[i,:,1])
-            #plt.plot(states_vec[i,-1,0],states_vec[i,-1,1],'*')
-        plt.title("without CC")
+        nocc_states_vec = np.array(nocc_states_vec)
 
-        plt.xlim(left,right)
-        plt.ylim(up,down)
-        plt.axis("square")
-        plt.show()
+        ret_dict = {'cc_states_vec':cc_states_vec, 'nocc_states_vec':nocc_states_vec}
+        return ret_dict
 
     # compare linearized batch dynamics against
     def testLinearization(self,offset = 0):
@@ -611,36 +624,138 @@ class CCMPPI_KINEMATIC():
 
         return 
 
+    # mean: (x_mean, y_mean)
+    def plotConfidenceEllipse(self, ax, mean, cov_matrix, color='red'):
+        facecolor = 'none'
+        # sigma, how large covariance matrix is
+        n_std = 3.0
+        mean_x, mean_y = mean
+        cov = cov_matrix
+        pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
+        # Using a special case to obtain the eigenvalues of this
+        # two-dimensionl dataset.
+        ell_radius_x = np.sqrt(1 + pearson)
+        ell_radius_y = np.sqrt(1 - pearson)
+        ellipse = Ellipse((0, 0), width=ell_radius_x * 2, height=ell_radius_y * 2,
+                          facecolor=facecolor, edgecolor=color)
+
+        # Calculating the stdandard deviation of x from
+        # the squareroot of the variance and multiplying
+        # with the given number of standard deviations.
+        scale_x = np.sqrt(cov[0, 0]) * n_std
+
+        # calculating the stdandard deviation of y ...
+        scale_y = np.sqrt(cov[1, 1]) * n_std
+
+        transf = transforms.Affine2D() \
+            .rotate_deg(45) \
+            .scale(scale_x, scale_y) \
+            .translate(mean_x, mean_y)
+
+        ellipse.set_transform(transf + ax.transData)
+        return ax.add_patch(ellipse)
+
+
+    def testSingleFrame(self):
+        state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
+        # dim: N*m*n
+        Ks, As, Bs, ds, _, _ = self.cc(state, True)
+
+        m = self.m
+        n = self.n
+
+        # K (m*n)
+        # Ks_p[i,j] = p*n*m + i*n + j
+        Ks = np.array(Ks)
+        Ks[0] = 0.0
+        Ks_flat = np.array(Ks,dtype=np.float32).flatten()
+        print(Ks[0,1,2]-Ks_flat[0*n*m + 1*n + 2])
+
+        # A (n*n)
+        # As_p[i,j] = p*n*n + i*n + j
+        As_flat = np.array(As,dtype=np.float32).flatten()
+        print(As[0,1,2]-As_flat[0*n*n + 1*n + 2])
+
+        # B (n*m)
+        # Bs_p[i,j] = p*m*n + i*m + j
+        Bs_flat = np.array(Bs,dtype=np.float32).flatten()
+        print(Bs[0,2,1]-Bs_flat[0*m*n + 2*m + 1])
+
+        # d (n*1)
+        # Bs_p[i] = p*n + i*
+        ds_flat = np.array(ds,dtype=np.float32).flatten()
+        print(ds[1,2]-ds_flat[1*n + 2])
+
+        self.simulate()
+        #self.testLinearization()
+
+    def visualizeConfidenceEllipse(self):
+        # problematic
+        state = np.array([0.6*0.7,0.6*0.5,radians(90), 1.0, 0, 0])
+        # expected
+        #state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
+        # dim: N*m*n
+        Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc(state, return_sx = True , debug=True)
+        theory_cc_cov_mtx =  Sx_cc[-4:-2,-4:-2]
+        theory_nocc_cov_mtx =  Sx_nocc[-4:-2,-4:-2]
+
+        m = self.m
+        n = self.n
+
+        ret_dict = self.simulate()
+        cc_states_vec = ret_dict['cc_states_vec']
+        nocc_states_vec = ret_dict['nocc_states_vec']
+
+
+        # visualize
+        # with CC
+        ax_cc = plt.subplot(2,1,2)
+        for i in range(cc_states_vec.shape[0]):
+            # position?
+            plt.plot(cc_states_vec[i,:,0],cc_states_vec[i,:,1])
+
+        xy_vec = np.vstack([cc_states_vec[:,-1,0], cc_states_vec[:,-1,1]])
+        x_mean = np.mean(cc_states_vec[:,-1,0])
+        y_mean = np.mean(cc_states_vec[:,-1,1])
+        cc_cov_mtx = np.cov(xy_vec)
+        self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), cc_cov_mtx) 
+        self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), theory_cc_cov_mtx, color='blue') 
+
+        plt.title("with CC")
+        plt.axis("square")
+        left,right = plt.xlim()
+        up,down = plt.ylim()
+
+        # without CC
+        ax_nocc = plt.subplot(2,1,1)
+        for i in range(nocc_states_vec.shape[0]):
+            plt.plot(nocc_states_vec[i,:,0],nocc_states_vec[i,:,1])
+            #plt.plot(nocc_states_vec[i,-1,0],nocc_states_vec[i,-1,1],'*')
+        xy_vec = np.vstack([nocc_states_vec[:,-1,0], nocc_states_vec[:,-1,1]])
+        x_mean = np.mean(nocc_states_vec[:,-1,0])
+        y_mean = np.mean(nocc_states_vec[:,-1,1])
+        nocc_cov_mtx = np.cov(xy_vec)
+        self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), nocc_cov_mtx) 
+        self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), theory_nocc_cov_mtx, color='blue') 
+
+        plt.title("without CC")
+        plt.xlim(left,right)
+        plt.ylim(up,down)
+        plt.axis("square")
+        plt.show()
+
+        print("theoretical cc cov")
+        print(theory_cc_cov_mtx)
+        print("theoretical nocc cov")
+        print(theory_nocc_cov_mtx)
+
+        print("actual cc cov")
+        print(cc_cov_mtx)
+        print("actual no cc cov")
+        print(nocc_cov_mtx)
+
 if __name__ == "__main__":
     main = CCMPPI_KINEMATIC(20)
-    state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
-    # dim: N*m*n
-    Ks, As, Bs, ds = main.cc(state)
-
-    m = main.m
-    n = main.n
-
-    # K (m*n)
-    # Ks_p[i,j] = p*n*m + i*n + j
-    Ks = np.array(Ks)
-    Ks_flat = np.array(Ks,dtype=np.float32).flatten()
-    print(Ks[0,1,2]-Ks_flat[0*n*m + 1*n + 2])
-
-    # A (n*n)
-    # As_p[i,j] = p*n*n + i*n + j
-    As_flat = np.array(As,dtype=np.float32).flatten()
-    print(As[0,1,2]-As_flat[0*n*n + 1*n + 2])
-
-    # B (n*m)
-    # Bs_p[i,j] = p*m*n + i*m + j
-    Bs_flat = np.array(Bs,dtype=np.float32).flatten()
-    print(Bs[0,2,1]-Bs_flat[0*m*n + 2*m + 1])
-
-    # d (n*1)
-    # Bs_p[i] = p*n + i*
-    ds_flat = np.array(ds,dtype=np.float32).flatten()
-    print(ds[1,2]-ds_flat[1*n + 2])
-
-    main.simulate()
-    #main.testLinearization()
+    #main.testSingleFrame()
+    main.visualizeConfidenceEllipse()
 
