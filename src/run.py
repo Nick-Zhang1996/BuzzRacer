@@ -92,7 +92,8 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(3.7*0.6,1.75*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
@@ -730,12 +731,12 @@ class Main():
         self.real_sim_dt = None
 
         x,y = init_position
-        heading = pi/2
+        heading = -pi/2
         omega = 0
 
         # NOTE DEBUG
         v = 1.0
-        car.simulator = kinematicSimulator(x,y,v,heading)
+        car.simulator = kinematicSimulator( x,y,v,heading)
 
         car.steering = steering = 0
         car.throttle = throttle = 0

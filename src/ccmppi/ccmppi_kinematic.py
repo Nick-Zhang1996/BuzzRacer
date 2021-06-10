@@ -33,10 +33,10 @@ class CCMPPI_KINEMATIC():
         self.m = 2
         self.l = self.n
 
-        self.dt = 0.01
+        self.dt = 0.02
         self.Sigma_epsilon = np.diag([0.1,radians(10)])
         # terminal covariance constrain
-        self.sigma_f = np.diag([1e-2]*self.n)
+        self.sigma_f = np.diag([1e-3]*self.n)
         self.control_limit = np.array([[-1.0,1.0],[-radians(27), radians(27)]])
 
         # set up parameters for the model
@@ -82,7 +82,6 @@ class CCMPPI_KINEMATIC():
     # use trajectory of second lap as reference trajectory
     # this sets and saves reference state and trajectory
     def getRefTraj(self, logname, lap_no = 2, show=False):
-
         # read log
         with open(logname, 'rb') as f:
             data = pickle.load(f)
@@ -98,7 +97,7 @@ class CCMPPI_KINEMATIC():
         # NOTE unwrapped
         heading = data[:,3]
         # calculate speed from pos, to use as no-bias but noise reference
-        dt = 0.01
+        dt = self.dt
         dx = np.diff(x) / dt
         dy = np.diff(y) / dt
         dheading = np.diff(heading)
@@ -334,7 +333,7 @@ class CCMPPI_KINEMATIC():
     # input:
     #   state: (x,y,heading,v_forward,v_sideway,omega)
     # return: N K matrices of size (n,m)
-    def cc(self, state, return_sx=True, debug=False):
+    def cc(self, state, return_sx=False, debug=False):
         n = self.n
         N = self.N
         m = self.m
@@ -349,21 +348,25 @@ class CCMPPI_KINEMATIC():
         xx = self.ref_traj[:,0]
         yy = self.ref_traj[:,2]
         x = state[0]
-        y = state[2]
+        y = state[1]
         dist_sqr = (xx-x)**2 + (yy-y)**2
         # start : index of closest ref point to car
         start = ref_traj_index = np.argmin(dist_sqr)
 
         # ref_traj: x,dx,y,dy,heading,dheading
-        x = self.ref_traj[start:start+self.N,0]
-        vx = self.ref_traj[start:start+self.N,1]
-        y = self.ref_traj[start:start+self.N,2]
-        vy = self.ref_traj[start:start+self.N,3]
-        heading = self.ref_traj[start:start+self.N,4]
+        # handle wrap around
+        ref_traj_wrapped = np.vstack([self.ref_traj, self.ref_traj[:self.N]])
+        ref_ctrl_wrapped = np.vstack([self.ref_ctrl, self.ref_ctrl[:self.N]])
+
+        x = ref_traj_wrapped[start:start+self.N,0]
+        vx = ref_traj_wrapped[start:start+self.N,1]
+        y = ref_traj_wrapped[start:start+self.N,2]
+        vy = ref_traj_wrapped[start:start+self.N,3]
+        heading = ref_traj_wrapped[start:start+self.N,4]
         v = np.sqrt(vx*vx + vy*vy)
 
         self.ref_state_vec = ref_state_vec = np.vstack([x,y,v,heading]).T
-        self.ref_ctrl_vec = ref_ctrl_vec = self.ref_ctrl[start:start+self.N]
+        self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
 
         # find reference throttle and steering
 
@@ -419,10 +422,13 @@ class CCMPPI_KINEMATIC():
         # TODO verify with Ji
         sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
         #sigma_y_sqrt = D@D.T
-        constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
+        constraints = []
         prob = cp.Problem(objective, constraints)
 
         J = prob.solve()
+        print("Problem status")
+        print(prob.status)
         #print("Optimal J = ", prob.solve())
         
         print("Optimal Ks: ")
@@ -430,10 +436,20 @@ class CCMPPI_KINEMATIC():
 
         for i in range(N):
             print(Ks[i])
+
+        reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
+        for i in range(1,N):
+            line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
+            reconstruct_K = np.vstack([reconstruct_K, line])
         '''
         print("Optimal Ks: ")
         print(Ks[0])
         '''
+
+        # DEBUG veirfy constraint
+        test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
+        if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
+            print_warning(" constraint not satisfied")
 
         self.Ks = Ks
 
@@ -448,7 +464,8 @@ class CCMPPI_KINEMATIC():
 
         if (return_sx):
             Sigma_0 = np.zeros([n,n])
-            Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
+            #Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
+            Sx_cc = (I + B@reconstruct_K ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@reconstruct_K ).T
             Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
             return Ks, As, Bs, ds, Sx_cc, Sx_nocc
         else:
@@ -483,8 +500,10 @@ class CCMPPI_KINEMATIC():
 
                 control = (v+epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
+                '''
                 for k in range(self.m):
                     control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                '''
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
                 # FIXME is this the right format?
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
@@ -659,7 +678,7 @@ class CCMPPI_KINEMATIC():
     def testSingleFrame(self):
         state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
         # dim: N*m*n
-        Ks, As, Bs, ds, _, _ = self.cc(state, True)
+        Ks, As, Bs, ds, = self.cc(state, True)
 
         m = self.m
         n = self.n
@@ -689,6 +708,42 @@ class CCMPPI_KINEMATIC():
         self.simulate()
         #self.testLinearization()
 
+    def visualizeOnTrack(self):
+        state = np.array([0.6*3.7,0.6*1.75,-radians(90), 1.0, 0, 0])
+        #state = np.array([0.6*0.7,0.6*0.5,radians(90), 1.0, 0, 0])
+        # dim: N*m*n
+        Ks, As, Bs, ds = self.cc(state, True)
+
+        m = self.m
+        n = self.n
+        self.simulate()
+
+        ret_dict = self.simulate()
+        cc_states_vec = ret_dict['cc_states_vec']
+        nocc_states_vec = ret_dict['nocc_states_vec']
+
+        # prepare track map
+        track = RCPtrack()
+        track.startPos = (0.6*3.5,0.6*1.75)
+        track.startDir = radians(90)
+        track.load()
+
+        img = track.drawTrack()
+        track.drawRaceline(img=img)
+        car_steering = 0.0
+        x0 = np.hstack([state[:3],0,0,0])
+        img = track.drawCar(img, x0, car_steering)
+
+        for i in range(cc_states_vec.shape[0]):
+            img = track.drawPolyline(cc_states_vec[i,:,:],img=img,lineColor=(200,200,200),thickness=1)
+
+        '''
+        for i in range(nocc_states_vec.shape[0]):
+            img = track.drawPolyline(nocc_states_vec[i,:,:],img=img,lineColor=(200,200,200),thickness=1)
+        '''
+        plt.imshow(img)
+        plt.show()
+
     def visualizeConfidenceEllipse(self):
         # problematic
         state = np.array([0.6*0.7,0.6*0.5,radians(90), 1.0, 0, 0])
@@ -710,6 +765,7 @@ class CCMPPI_KINEMATIC():
         # visualize
         # with CC
         ax_cc = plt.subplot(2,1,2)
+        plt.plot(state[0],state[1], 'ro')
         for i in range(cc_states_vec.shape[0]):
             # position?
             plt.plot(cc_states_vec[i,:,0],cc_states_vec[i,:,1])
@@ -721,13 +777,14 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), cc_cov_mtx) 
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), theory_cc_cov_mtx, color='blue') 
 
-        plt.title("with CC")
+        plt.title("with CC (linear model, no input limit)")
         plt.axis("square")
         left,right = plt.xlim()
         up,down = plt.ylim()
 
         # without CC
         ax_nocc = plt.subplot(2,1,1)
+        plt.plot(state[0],state[1], 'ro')
         for i in range(nocc_states_vec.shape[0]):
             plt.plot(nocc_states_vec[i,:,0],nocc_states_vec[i,:,1])
             #plt.plot(nocc_states_vec[i,-1,0],nocc_states_vec[i,-1,1],'*')
@@ -738,11 +795,10 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), nocc_cov_mtx) 
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), theory_nocc_cov_mtx, color='blue') 
 
-        plt.title("without CC")
+        plt.title("without CC (linear model, no input limit)")
         plt.xlim(left,right)
         plt.ylim(up,down)
         plt.axis("square")
-        plt.show()
 
         print("theoretical cc cov")
         print(theory_cc_cov_mtx)
@@ -753,9 +809,11 @@ class CCMPPI_KINEMATIC():
         print(cc_cov_mtx)
         print("actual no cc cov")
         print(nocc_cov_mtx)
+        plt.show()
 
 if __name__ == "__main__":
     main = CCMPPI_KINEMATIC(20)
     #main.testSingleFrame()
+    #main.visualizeOnTrack()
     main.visualizeConfidenceEllipse()
 

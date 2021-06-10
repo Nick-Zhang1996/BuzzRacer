@@ -1,6 +1,7 @@
 # refer to paper
 # The Kinematic Bicycle Model: a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles?
 import numpy as np
+from math import radians
 
 class kinematicSimulator():
 
@@ -15,6 +16,10 @@ class kinematicSimulator():
         return
 
     def updateCar(self,dt, throttle, steering, external_states=None): 
+        '''
+        throttle = np.clip(throttle, -1.0, 1.0)
+        steering = np.clip(throttle, -radians(27), radians(27))
+        '''
         if external_states is None:
             x,y,v,heading = self.states
         else:

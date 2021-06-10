@@ -28,6 +28,7 @@ class ctrlCcmppiWrapper(Car):
         self.last_s = None
         self.p = execution_timer(True)
         self.wheelbase = car_setting['wheelbase']
+        self.ccmppi_dt = 0.01
         return
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
@@ -36,7 +37,6 @@ class ctrlCcmppiWrapper(Car):
 
         # NOTE NOTE NOTE
         # update mppi_racecar.cu whenever you change parameter here
-        self.ccmppi_dt = 0.03
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
         self.horizon_steps = 20

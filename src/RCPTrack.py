@@ -1102,7 +1102,7 @@ class RCPtrack(Track):
 
     # draw a polynomial line defined in track space
     # points: a list of coordinates in format (x,y)
-    def drawPolyline(self,points,lineColor=(0,0,255), img=None):
+    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -1141,7 +1141,7 @@ class RCPtrack(Track):
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
-            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=3) 
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
 
         # plot reference points
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
