@@ -26,18 +26,16 @@ from RCPTrack import RCPtrack
 from kinematicSimulator import kinematicSimulator
 
 class CCMPPI_KINEMATIC():
-    def __init__(self, N, x0, model, input_constraint):
+    def __init__(self,dt, N, debug_info=None):
         # set time horizon
         self.N = N
         self.n = 4
         self.m = 2
         self.l = self.n
-        self.apply_input_constraint = input_constraint
-        self.model = model
         # (x,y,v,heading)
-        self.x0 = x0
+        self.debug_info = debug_info
 
-        self.dt = 0.03
+        self.dt = dt
         self.Sigma_epsilon = np.diag([0.2,radians(20)])
         # terminal covariance constrain
         self.sigma_f = np.diag([1e-3]*self.n)
@@ -509,9 +507,9 @@ class CCMPPI_KINEMATIC():
 
 
     def simulate(self):
-        if self.model=='linear_kinematic':
+        if self.debug_info['model'] =='linear_kinematic':
             return self.simulate_linear()
-        elif self.model=='kinematic':
+        elif self.debug_info['model']=='kinematic':
             return self.simulate_kinematic()
 
     def simulate_kinematic(self):
@@ -520,7 +518,7 @@ class CCMPPI_KINEMATIC():
         Bs = self.Bs
         ds = self.ds
         #x0 = self.ref_state_vec[0,:]
-        x0 = self.x0.copy()
+        x0 = self.debug_info['x0'].copy()
         u0 = self.ref_ctrl_vec[0,:]
         sim_steps = self.N
         rollout = 100
@@ -542,7 +540,7 @@ class CCMPPI_KINEMATIC():
 
                 control = (v+epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
-                if (self.apply_input_constraint):
+                if (self.debug_info['input_constraint']):
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
@@ -573,7 +571,7 @@ class CCMPPI_KINEMATIC():
                 v = self.ref_ctrl_vec[i,:]
                 control = v+epsilon
                 # apply input constraints
-                if (self.apply_input_constraint):
+                if (self.debug_info['input_constraint']):
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
@@ -593,7 +591,7 @@ class CCMPPI_KINEMATIC():
         Bs = self.Bs
         ds = self.ds
         #x0 = self.ref_state_vec[0,:]
-        x0 = self.x0.copy()
+        x0 = self.debug_info['x0'].copy()
         u0 = self.ref_ctrl_vec[0,:]
         sim_steps = self.N
         rollout = 100
@@ -613,7 +611,7 @@ class CCMPPI_KINEMATIC():
 
                 control = (v+epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
-                if (self.apply_input_constraint):
+                if (self.debug_info['input_constraint']):
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
@@ -642,7 +640,7 @@ class CCMPPI_KINEMATIC():
                 v = self.ref_ctrl_vec[i,:]
                 control = v+epsilon
                 # apply input constraints
-                if (self.apply_input_constraint):
+                if (self.debug_info['input_constraint']):
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
@@ -822,7 +820,7 @@ class CCMPPI_KINEMATIC():
         #self.testLinearization()
 
     def visualizeOnTrack(self):
-        state = self.x0.copy()
+        state = self.debug_info['x0'].copy()
 
         # dim: N*m*n
         Ks, As, Bs, ds = self.cc(state, False)
@@ -860,7 +858,7 @@ class CCMPPI_KINEMATIC():
 
     def visualizeConfidenceEllipse(self):
         # x,y,heading, v
-        state = self.x0.copy()
+        state = self.debug_info['x0'].copy()
 
         # dim: N*m*n
         Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc(state, return_sx = True , debug=True)
@@ -890,7 +888,7 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), cc_cov_mtx) 
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), theory_cc_cov_mtx, color='blue') 
 
-        plt.title("with CC (%s, input limit= %s)"%(self.model, str(self.apply_input_constraint)))
+        plt.title("with CC (%s, input limit= %s)"%(self.debug_info['model'], str(self.debug_info['input_constraint'])))
         plt.axis("square")
         left,right = plt.xlim()
         up,down = plt.ylim()
@@ -908,7 +906,7 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), nocc_cov_mtx) 
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), theory_nocc_cov_mtx, color='blue') 
 
-        plt.title("without CC (%s, input limit= %s)"%(self.model, str(self.apply_input_constraint)))
+        plt.title("without CC (%s, input limit= %s)"%(self.debug_info['model'], str(self.debug_info['input_constraint'])))
         plt.xlim(left,right)
         plt.ylim(up,down)
         plt.axis("square")
@@ -929,7 +927,9 @@ if __name__ == "__main__":
     #state = np.array([0.6*3.5,0.6*1.75, 1.0, radians(-90)])
     #state = np.array([0.6*3.7,0.6*1.75, 1.0, radians(-90)])
     #main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
-    main = CCMPPI_KINEMATIC(20, x0=state, model = 'kinematic', input_constraint=True)
+
+    debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
+    main = CCMPPI_KINEMATIC(0.03,20, debug_info)
     main.visualizeConfidenceEllipse()
     main.visualizeOnTrack()
 

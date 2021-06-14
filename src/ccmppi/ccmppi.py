@@ -14,7 +14,7 @@ from ccmppi_kinematic import CCMPPI_KINEMATIC
 
 class CCMPPI:
     def __init__(self,samples_count, horizon_steps, state_dim, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
-        self.cc = CCMPPI_KINEMATIC(horizon_steps)
+        self.cc = CCMPPI_KINEMATIC(dt, horizon_steps)
         self.K = samples_count
 
         self.N = self.T = horizon_steps
@@ -106,13 +106,19 @@ class CCMPPI:
         ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
-        # FIXME
         Ks, As, Bs, ds = self.cc.cc(state)
 
         '''
+        # effectively disable cc
         Ks = np.zeros([self.N*self.m*self.n])
         As = np.zeros([self.N*self.n*self.n])
         Bs = np.zeros([self.N*self.n*self.m])
+        '''
+
+        # DEBUG
+        '''
+        self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
+        self.cc.visualizeOnTrack()
         '''
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()

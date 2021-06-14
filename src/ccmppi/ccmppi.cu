@@ -57,10 +57,22 @@ void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p
     for (int j=0; j<p; j++){
       out[i*p + j] = 0;
       for (int k=0; k<n; k++){
-        out[i*p + j] += A[offset*n*m + i*n + j];
+        out[i*p + j] += A[offset*n*m + i*n + k] * B[k*p + j];
       }
     }
   }
+}
+
+// test matrix multiply helper
+__device__
+void test_matrix_multiplication(){
+  float a[9] = {1,2,3,4,5,6,7,8,9};
+  float b[6] = {1,4,2,5,3,6};
+  float ret[6];
+  matrix_multiply_helper(a,0,b,3,3,2,ret);
+  float error = pow(ret[0]-14,2.0) + pow(ret[1]-32,2.0) + pow(ret[2]-32,2.0);
+  printf("error = %%.2f \n",error);
+
 }
 
 // DEBUG evaluate constant contorl sequence for sanity check
@@ -123,25 +135,13 @@ void evaluate_control_sequence(
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // DEBUG
-  /*
-  if (id == 0){
-    evaluate_constant_control_sequence(x0, in_raceline, 0.1, -0.17); // 10 deg right
-  }
-  if (id == 1){
-    evaluate_constant_control_sequence(x0, in_raceline, 0.1, 0.17); // 10 deg right
-  }
-  */
-
-
   if (id>=SAMPLE_COUNT){
     return;
   }
 
-  // DEBUG
   /*
-  if (id == 0){
-    printf("GPU sim, id=0\n");
+  if (id==0){
+    test_matrix_multiplication();
   }
   */
 

@@ -260,6 +260,7 @@ class Main():
                         x,y = coord
                         img = self.track.drawPoint(img,(x,y),color=(255,0,0))
 
+                # CCMPPI
                 if (car.controller == Controller.ccmppi):
 
                     # plot sampled trajectory (if car follow one sampled control traj)

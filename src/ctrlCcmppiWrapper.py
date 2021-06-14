@@ -46,7 +46,8 @@ class ctrlCcmppiWrapper(Car):
         # control noise for MPPI exploration
         # NOTE tune me
         # TODO tune this
-        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
+        #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([0.2,radians(20)])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         # discretize raceline for use in MPPI
@@ -237,8 +238,7 @@ class ctrlCcmppiWrapper(Car):
     # advance car dynamics
     # for use in visualization
     def applyDiscreteDynamics(self,state,control,dt):
-        x = self.sim.updateCar(dt,control[0], control[1],external_states=state)
-        return np.array([x['coord'][0], x['coord'][1], x['vf'], x['heading']])
+        return self.sim.updateCar(dt,control[0], control[1],external_states=state)
 
 
 if __name__=="__main__":
