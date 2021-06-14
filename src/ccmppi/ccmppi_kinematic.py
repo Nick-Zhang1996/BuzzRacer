@@ -392,8 +392,12 @@ class CCMPPI_KINEMATIC():
 
         # TODO tune me
         # cost matrix 
-        Q = np.eye(n)
-        Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
+        #Q = np.eye(n)
+        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
+        # change this to 0
+        Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
+        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 50
+
         R = np.eye(m)
         R_bar = np.kron(np.eye(N, dtype=int), R)
 
