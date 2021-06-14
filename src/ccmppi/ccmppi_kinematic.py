@@ -23,18 +23,21 @@ from cvxpy.atoms.affine.transpose import transpose
 from common import *
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
-from ethCarSim import ethCarSim
+from kinematicSimulator import kinematicSimulator
 
 class CCMPPI_KINEMATIC():
-    def __init__(self, N):
+    def __init__(self, N, x0, model, input_constraint):
         # set time horizon
         self.N = N
         self.n = 4
         self.m = 2
         self.l = self.n
+        self.apply_input_constraint = input_constraint
+        self.model = model
+        self.x0 = x0
 
-        self.dt = 0.02
-        self.Sigma_epsilon = np.diag([0.1,radians(10)])
+        self.dt = 0.01
+        self.Sigma_epsilon = np.diag([0.2,radians(20)])
         # terminal covariance constrain
         self.sigma_f = np.diag([1e-3]*self.n)
         self.control_limit = np.array([[-1.0,1.0],[-radians(27), radians(27)]])
@@ -47,6 +50,7 @@ class CCMPPI_KINEMATIC():
         self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
         
         np.random.seed()
+        self.sim = kinematicSimulator(0,0,0,0)
 
     def setupParam(self):
         # dimension
@@ -339,16 +343,19 @@ class CCMPPI_KINEMATIC():
         m = self.m
         l = self.l
 
+        x,y,heading,v_forward = state
+
+        state = np.array([x,y,v_forward, heading])
+
         #xy_vec, v_vec, heading_vec = self.track.getRefXYVheading(state, N-1, self.dt)
         # assemble state: X,Y,V,heading
         #ref_state_vec = np.hstack([xy_vec,v_vec[:,np.newaxis],heading_vec[:,np.newaxis]])
 
-
         # find where the car is in reference to reference trajectory
         xx = self.ref_traj[:,0]
         yy = self.ref_traj[:,2]
-        x = state[0]
-        y = state[1]
+
+
         dist_sqr = (xx-x)**2 + (yy-y)**2
         # start : index of closest ref point to car
         start = ref_traj_index = np.argmin(dist_sqr)
@@ -367,6 +374,9 @@ class CCMPPI_KINEMATIC():
 
         self.ref_state_vec = ref_state_vec = np.vstack([x,y,v,heading]).T
         self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
+        if (debug):
+            print("ref state x0")
+            print(ref_state_vec[0])
 
         # find reference throttle and steering
 
@@ -384,10 +394,22 @@ class CCMPPI_KINEMATIC():
             Bs.append(B)
             ds.append(d)
 
+
         # assemble big matrices for batch dynamics
         self.As = As = np.dstack(As)
         self.Bs = Bs = np.dstack(Bs)
         self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
+
+        # NOTE ds, the offset,  is calculated off reference trajectory
+        # additional offsert must be added to account for difference between
+        # actual state and reference state
+        state_diff = state - self.ref_state_vec[0]
+        state_diff = state_diff.reshape(4,1)
+
+        #ds[:3,:,0] += state_diff[:3]
+        #ds[:2,:,0] += state_diff[:2]
+        #ds[:,:,0] += state_diff
+
         A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
         # TODO tune me
@@ -431,15 +453,18 @@ class CCMPPI_KINEMATIC():
         prob = cp.Problem(objective, constraints)
 
         J = prob.solve()
-        print("Problem status")
-        print(prob.status)
-        #print("Optimal J = ", prob.solve())
-        
-        print("Optimal Ks: ")
+
         Ks = np.array([val.value for val in Ks])
 
-        for i in range(N):
-            print(Ks[i])
+        if (debug):
+            print("Problem status")
+            print(prob.status)
+            #print("Optimal J = ", prob.solve())
+            
+            print("Optimal Ks: ")
+
+            for i in range(N):
+                print(Ks[i])
 
         reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
         for i in range(1,N):
@@ -476,13 +501,19 @@ class CCMPPI_KINEMATIC():
             return Ks, As, Bs, ds
 
 
-    # simulate model with and without cc
     def simulate(self):
-        print_info("simulation")
+        if self.model=='linear_kinematic':
+            return self.simulate_linear()
+        elif self.model=='kinematic':
+            return self.simulate_kinematic()
+
+    def simulate_kinematic(self):
+        print_info("simulation -- kinematic model")
         As = self.As
         Bs = self.Bs
         ds = self.ds
-        x0 = self.ref_state_vec[0,:]
+        #x0 = self.ref_state_vec[0,:]
+        x0 = self.x0.copy()
         u0 = self.ref_ctrl_vec[0,:]
         sim_steps = self.N
         rollout = 100
@@ -504,10 +535,82 @@ class CCMPPI_KINEMATIC():
 
                 control = (v+epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
+                if (self.apply_input_constraint):
+                    for k in range(self.m):
+                        control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
+                x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
+
+                # FIXME is this the right format?
+                y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
+                cc_states_vec[j].append(x_i.flatten())
+
                 '''
-                for k in range(self.m):
-                    control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                if (j==0):
+                    print("step %d, control: %.2f, %.2f"%(i,control[0], control[1]))
                 '''
+
+        # size: (rollout, n, 2)
+        cc_states_vec = np.array(cc_states_vec)
+
+        # without CC
+        nocc_states_vec = []
+        for j in range(rollout):
+            nocc_states_vec.append([])
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]*self.m
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+                v = self.ref_ctrl_vec[i,:]
+                control = v+epsilon
+                # apply input constraints
+                if (self.apply_input_constraint):
+                    for k in range(self.m):
+                        control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
+                x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
+                nocc_states_vec[j].append(x_i.flatten())
+
+        nocc_states_vec = np.array(nocc_states_vec)
+
+        ret_dict = {'cc_states_vec':cc_states_vec, 'nocc_states_vec':nocc_states_vec}
+        return ret_dict
+        
+
+    # simulate model with and without cc
+    def simulate_linear(self):
+        print_info("simulation -- linear model")
+        As = self.As
+        Bs = self.Bs
+        ds = self.ds
+        #x0 = self.ref_state_vec[0,:]
+        x0 = self.x0.copy()
+        u0 = self.ref_ctrl_vec[0,:]
+        sim_steps = self.N
+        rollout = 100
+        print_info("x0")
+        print(x0)
+
+        # with CC
+        cc_states_vec = []
+        for j in range(rollout):
+            cc_states_vec.append([])
+            y_i = np.zeros(self.n)
+            x_i = x0.copy()
+            for i in range(sim_steps):
+                # generate random variable epsilon
+                mean = [0.0]*self.m
+                cov = self.Sigma_epsilon
+                epsilon = np.random.multivariate_normal(mean, cov)
+                v = self.ref_ctrl_vec[i,:]
+
+                control = (v+epsilon + self.Ks[i] @ y_i)
+                # apply input constraints
+                if (self.apply_input_constraint):
+                    for k in range(self.m):
+                        control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
                 # FIXME is this the right format?
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
@@ -534,8 +637,9 @@ class CCMPPI_KINEMATIC():
                 v = self.ref_ctrl_vec[i,:]
                 control = v+epsilon
                 # apply input constraints
-                for k in range(self.m):
-                    control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
+                if (self.apply_input_constraint):
+                    for k in range(self.m):
+                        control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
                 nocc_states_vec[j].append(x_i.flatten())
 
@@ -709,18 +813,17 @@ class CCMPPI_KINEMATIC():
         ds_flat = np.array(ds,dtype=np.float32).flatten()
         print(ds[1,2]-ds_flat[1*n + 2])
 
-        self.simulate()
+        ret_dict = self.simulate()
         #self.testLinearization()
 
     def visualizeOnTrack(self):
-        state = np.array([0.6*3.7,0.6*1.75,-radians(90), 1.0, 0, 0])
-        #state = np.array([0.6*0.7,0.6*0.5,radians(90), 1.0, 0, 0])
+        state = self.x0.copy()
+
         # dim: N*m*n
-        Ks, As, Bs, ds = self.cc(state, True)
+        Ks, As, Bs, ds = self.cc(state, False)
 
         m = self.m
         n = self.n
-        self.simulate()
 
         ret_dict = self.simulate()
         cc_states_vec = ret_dict['cc_states_vec']
@@ -749,10 +852,10 @@ class CCMPPI_KINEMATIC():
         plt.show()
 
     def visualizeConfidenceEllipse(self):
-        # problematic
-        state = np.array([0.6*0.7,0.6*0.5,radians(90), 1.0, 0, 0])
-        # expected
-        #state = np.array([0.6*3.5,0.6*1.75,radians(90), 1.0, 0, 0])
+        # x,y,heading, v
+
+        state = self.x0.copy()
+
         # dim: N*m*n
         Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc(state, return_sx = True , debug=True)
         theory_cc_cov_mtx =  Sx_cc[-4:-2,-4:-2]
@@ -781,7 +884,7 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), cc_cov_mtx) 
         self.plotConfidenceEllipse(ax_cc,(x_mean,y_mean), theory_cc_cov_mtx, color='blue') 
 
-        plt.title("with CC (linear model, no input limit)")
+        plt.title("with CC (%s, input limit= %s)"%(self.model, str(self.apply_input_constraint)))
         plt.axis("square")
         left,right = plt.xlim()
         up,down = plt.ylim()
@@ -799,7 +902,7 @@ class CCMPPI_KINEMATIC():
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), nocc_cov_mtx) 
         self.plotConfidenceEllipse(ax_nocc,(x_mean,y_mean), theory_nocc_cov_mtx, color='blue') 
 
-        plt.title("without CC (linear model, no input limit)")
+        plt.title("with CC (%s, input limit= %s)"%(self.model, str(self.apply_input_constraint)))
         plt.xlim(left,right)
         plt.ylim(up,down)
         plt.axis("square")
@@ -816,8 +919,11 @@ class CCMPPI_KINEMATIC():
         plt.show()
 
 if __name__ == "__main__":
-    main = CCMPPI_KINEMATIC(20)
-    #main.testSingleFrame()
-    #main.visualizeOnTrack()
+    state = np.array([0.6*0.7,0.6*0.5,radians(130), 0.5])
+    #state = np.array([0.6*3.5,0.6*1.75,-radians(90), 1.0])
+    #state = np.array([0.6*3.7,0.6*1.75,-radians(90), 1.0])
+    main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
+    #main = CCMPPI_KINEMATIC(20, x0=state, model = 'kinematic', input_constraint=True)
     main.visualizeConfidenceEllipse()
+    main.visualizeOnTrack()
 
