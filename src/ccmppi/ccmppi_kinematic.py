@@ -34,6 +34,8 @@ class CCMPPI_KINEMATIC():
         self.l = self.n
         # (x,y,v,heading)
         self.debug_info = debug_info
+        self.rand_vals = None
+        self.v = None
 
         self.dt = dt
         self.Sigma_epsilon = np.diag([0.2,radians(20)])
@@ -141,7 +143,7 @@ class CCMPPI_KINEMATIC():
                 index += 1
         except IndexError:
             print_error("specified lap not found in log, maybe not long enough")
-        print(" reference laptime %.2fs "%(self.ref_laptime))
+        print_info(" reference laptime %.2fs "%(self.ref_laptime))
 
         # assemble ref traj
         # state: [X,dX,Y,dY,phi,omega]
@@ -402,11 +404,11 @@ class CCMPPI_KINEMATIC():
         state_diff = state_diff.reshape(4,1)
 
         if (debug):
-            print_info("ref state x0 (x,y,v,heading)")
+            print_info("[cc] ref state x0 (x,y,v,heading)")
             print(ref_state_vec[0])
-            print_info("actual state x0")
+            print_info("[cc] actual state x0")
             print(state)
-            print_info("state diff")
+            print_info("[cc] state diff")
             print(state_diff.flatten())
 
         # FIXME
@@ -461,7 +463,7 @@ class CCMPPI_KINEMATIC():
         Ks = np.array([val.value for val in Ks])
 
         if (debug):
-            print_info("Problem status")
+            print_info("[cc] Problem status")
             print(prob.status)
             #print("Optimal J = ", prob.solve())
             
@@ -483,7 +485,7 @@ class CCMPPI_KINEMATIC():
         # DEBUG veirfy constraint
         test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
         if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
-            print_warning(" constraint not satisfied")
+            print_warning("[cc] constraint not satisfied")
 
         self.Ks = Ks
 
@@ -513,7 +515,7 @@ class CCMPPI_KINEMATIC():
             return self.simulate_kinematic()
 
     def simulate_kinematic(self):
-        print_info("simulation -- kinematic model")
+        print_info("[ccmppi] simulation -- kinematic model")
         As = self.As
         Bs = self.Bs
         ds = self.ds
@@ -522,12 +524,15 @@ class CCMPPI_KINEMATIC():
         u0 = self.ref_ctrl_vec[0,:]
         sim_steps = self.N
         rollout = 100
-        print_info("x0")
+        print_info("[ccmppi] x0")
         print(x0)
 
         # with CC
         cc_states_vec = []
-        for j in range(rollout):
+        full_state_vec = []
+        #for j in range(rollout):
+        # FIXME
+        for j in range(1):
             cc_states_vec.append([])
             y_i = np.zeros(self.n)
             x_i = x0.copy()
@@ -535,10 +540,17 @@ class CCMPPI_KINEMATIC():
                 # generate random variable epsilon
                 mean = [0.0]*self.m
                 cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
+                if (self.rand_vals is None):
+                    epsilon = np.random.multivariate_normal(mean, cov)
+                else:
+                    epsilon = self.rand_vals[j,i,:]
                 v = self.ref_ctrl_vec[i,:]
+                # FIXME
+                v = np.zeros(2)
 
-                control = (v+epsilon + self.Ks[i] @ y_i)
+                #control = (v+epsilon + self.Ks[i] @ y_i)
+                control = epsilon
+
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
@@ -546,8 +558,11 @@ class CCMPPI_KINEMATIC():
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
                 x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
 
-                # FIXME is this the right format?
-                y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
+                full_state_vec.append(np.hstack([x_i.flatten(), control.flatten()]))
+
+                # TODO is this the right format?
+                # FIXME
+                #y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
                 cc_states_vec[j].append(x_i.flatten())
 
                 '''
@@ -558,6 +573,13 @@ class CCMPPI_KINEMATIC():
         # size: (rollout, n, 2)
         cc_states_vec = np.array(cc_states_vec)
 
+        # DEBUG
+        print_info("[visualizeOnTrack] x0")
+        print(x0)
+        print_info("[visualizeOnTrack] simulated states id=0")
+        print(np.array(full_state_vec))
+
+
         # without CC
         nocc_states_vec = []
         for j in range(rollout):
@@ -567,7 +589,10 @@ class CCMPPI_KINEMATIC():
                 # generate random variable epsilon
                 mean = [0.0]*self.m
                 cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
+                if (self.rand_vals is None):
+                    epsilon = np.random.multivariate_normal(mean, cov)
+                else:
+                    epsilon = self.rand_vals[j,i,:]
                 v = self.ref_ctrl_vec[i,:]
                 control = v+epsilon
                 # apply input constraints
@@ -606,7 +631,10 @@ class CCMPPI_KINEMATIC():
                 # generate random variable epsilon
                 mean = [0.0]*self.m
                 cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
+                if (self.rand_vals is None):
+                    epsilon = np.random.multivariate_normal(mean, cov)
+                else:
+                    epsilon = self.rand_vals[j,i,:]
                 v = self.ref_ctrl_vec[i,:]
 
                 control = (v+epsilon + self.Ks[i] @ y_i)
@@ -615,7 +643,7 @@ class CCMPPI_KINEMATIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                # FIXME is this the right format?
+                # TODO is this the right format?
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
                 cc_states_vec[j].append(x_i.flatten())
 
@@ -636,7 +664,10 @@ class CCMPPI_KINEMATIC():
                 # generate random variable epsilon
                 mean = [0.0]*self.m
                 cov = self.Sigma_epsilon
-                epsilon = np.random.multivariate_normal(mean, cov)
+                if (self.rand_vals is None):
+                    epsilon = np.random.multivariate_normal(mean, cov)
+                else:
+                    epsilon = self.rand_vals[j,i,:]
                 v = self.ref_ctrl_vec[i,:]
                 control = v+epsilon
                 # apply input constraints

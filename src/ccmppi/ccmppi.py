@@ -100,25 +100,17 @@ class CCMPPI:
         p.s()
 
         p.s("CC")
-        # use zero as reference control
-        #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
-        # reference control is last time solution
-        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
 
         # CCMPPI specific, generate and pack K matrices
         Ks, As, Bs, ds = self.cc.cc(state)
+        # FIXME
+        Ks = np.zeros([self.N*self.m*self.n])
 
         '''
         # effectively disable cc
         Ks = np.zeros([self.N*self.m*self.n])
         As = np.zeros([self.N*self.n*self.n])
         Bs = np.zeros([self.N*self.n*self.m])
-        '''
-
-        # DEBUG
-        '''
-        self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-        self.cc.visualizeOnTrack()
         '''
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()
@@ -135,6 +127,14 @@ class CCMPPI:
         ds_flat = np.array(ds,dtype=np.float32).flatten()
         device_ds = drv.to_device(ds_flat)
         '''
+
+        # use zero as reference control
+        ref_control = np.zeros(self.N*self.m, dtype=np.float32)
+        # reference control is solution at last timestep
+        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        # use ref raceline control
+        #ref_control = np.array(self.cc.ref_ctrl_vec, dtype=np.float32)
+
 
         if (cuda):
             # CUDA implementation
@@ -203,7 +203,6 @@ class CCMPPI:
         #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 
         # synthesize control signal
-        #self.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
         # NOTE test me
         ref_control = ref_control.reshape([self.T,self.m])
         control = control.reshape([self.K, self.N, self.m])
@@ -231,6 +230,11 @@ class CCMPPI:
             cost += step_cost
             print(step_cost, index, dist)
         '''
+
+        # DEBUG
+        self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
+        self.cc.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
+        self.cc.visualizeOnTrack()
 
 
         # throttle, steering

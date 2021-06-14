@@ -67,7 +67,7 @@ class Main():
     def __init__(self,):
         self.timer = execution_timer(True)
         # state update rate
-        self.dt = 0.01
+        self.dt = 0.03
 
         # noise in simulation
         self.sim_noise = False
@@ -745,7 +745,7 @@ class Main():
 
         car.state = (x,y,heading,v,0,omega)
         car.sim_states = {'coord':init_position,'heading':heading,'vf':v,'vs':0,'omega':0}
-        self.sim_dt = 0.01
+        self.sim_dt = self.dt
 
     def updateKinematicSimulation(self,car):
         # update car
@@ -778,7 +778,7 @@ class Main():
 
         car.state = (x,y,heading,0,0,0)
         car.sim_states = {'coord':init_position,'heading':heading,'vf':throttle,'vs':0,'omega':0}
-        self.sim_dt = 0.01
+        self.sim_dt = self.dt
 
     def updateDynamicSimulation(self,car):
         # update car
@@ -813,7 +813,7 @@ class Main():
 
         car.state = (x,y,heading,0,0,0)
         car.sim_states = {'coord':init_position,'heading':heading,'vf':throttle,'vs':0,'omega':0}
-        self.sim_dt = 0.01
+        self.sim_dt = self.dt
 
     def updateEthSimulation(self,car):
         # update car

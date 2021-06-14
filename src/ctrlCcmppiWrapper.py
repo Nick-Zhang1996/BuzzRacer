@@ -18,6 +18,8 @@ from kinematicSimulator import kinematicSimulator
 
 class ctrlCcmppiWrapper(Car):
     def __init__(self,car_setting,dt):
+        np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
+
         super().__init__(car_setting,dt)
         # no need simulator to track states
         self.sim = kinematicSimulator(0,0,0,0)
@@ -28,7 +30,7 @@ class ctrlCcmppiWrapper(Car):
         self.last_s = None
         self.p = execution_timer(True)
         self.wheelbase = car_setting['wheelbase']
-        self.ccmppi_dt = 0.01
+        self.ccmppi_dt = dt
         return
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
@@ -162,7 +164,7 @@ class ctrlCcmppiWrapper(Car):
             # use self.lr as wheelbase to use center of gravity in evaluation
             retval = track.localTrajectory(states,wheelbase=self.lr,return_u=True)
             if retval is None:
-                print_warning("localTrajectory returned None")
+                print_warning("[ctrlCcmppiWrapper:ctrlCar] localTrajectory returned None")
                 ret =  (0,0,False,debug_dict)
                 return ret
             else:
@@ -206,6 +208,7 @@ class ctrlCcmppiWrapper(Car):
         sampled_control = sampled_control[:samples,:,:]
         rollout_traj_vec = []
 
+        # DEBUG
         for k in range(samples):
             this_rollout_traj = []
             sim_states = states.copy()
@@ -215,6 +218,22 @@ class ctrlCcmppiWrapper(Car):
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
+
+        # DEBUG
+        # state + control
+        full_state_vec = []
+        sim_states = states.copy()
+        k = 0
+        for i in range(self.horizon_steps):
+            sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+            throttle, steering = sampled_control[k,i]
+            x,y,vf,heading = sim_states
+            entry = (x,y,vf,heading,throttle,steering)
+            full_state_vec.append(entry)
+        print_info("[ccmppi wrapper] x0")
+        print(states)
+        print_info("[ccmppi wrapper] rollout traj id=0")
+        print(np.array(full_state_vec))
 
         debug_dict['rollout_traj_vec'] = rollout_traj_vec
 
