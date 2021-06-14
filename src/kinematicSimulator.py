@@ -37,7 +37,10 @@ class kinematicSimulator():
         self.t += dt
 
         self.states = np.array([x,y,v,heading])
-        new_states = {'coord':(x,y), 'heading':heading, 'vf':v, 'omega':0}
-        return new_states
+        if (external_states is None):
+            new_states = {'coord':(x,y), 'heading':heading, 'vf':v, 'omega':0}
+            return new_states
+        else:
+            return self.states
 
 
