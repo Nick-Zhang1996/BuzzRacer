@@ -192,6 +192,7 @@ class ctrlCcmppiWrapper(Car):
         control = uu[0]
         throttle = control[0]
         steering = control[1]
+        #print_info("[wrapper:ccmppi.control] T= %.2f, S = %.2f"%(throttle,degrees(steering)) )
         p.e("ccmppi")
 
         # DEBUG
@@ -223,15 +224,10 @@ class ctrlCcmppiWrapper(Car):
         k = 0
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-            throttle, steering = sampled_control[k,i]
+            _throttle, _steering = sampled_control[k,i]
             x,y,vf,heading = sim_states
-            entry = (x,y,vf,heading,throttle,steering)
+            entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
-
-        print_info("[ccmppi wrapper] x0")
-        print(states)
-        print_info("[ccmppi wrapper] rollout traj id=0")
-        print(np.array(full_state_vec))
 
         debug_dict['rollout_traj_vec'] = rollout_traj_vec
 

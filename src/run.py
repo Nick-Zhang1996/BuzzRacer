@@ -398,7 +398,7 @@ class Main():
                 # (x,y,theta,vforward,vsideway=0,omega)
                 #print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                #print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
+                print("T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
                 if isnan(steering):
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
@@ -409,6 +409,7 @@ class Main():
 
             elif (car.controller == Controller.ccmppi):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
+                print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
                 self.debug_dict[i].update(debug_dict)
                 if isnan(steering):
                     print("error steering nan")

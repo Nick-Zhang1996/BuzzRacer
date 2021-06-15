@@ -159,9 +159,6 @@ void evaluate_control_sequence(
   int last_u = -1;
   // run simulation
   // loop over time horizon
-  if (id == 0){
-    printf("[gpu] sim \n");
-  }
   for (int i=0; i<HORIZON; i++){
     float _u[CONTROL_DIM];
     float* u = _u;

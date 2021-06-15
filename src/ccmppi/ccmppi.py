@@ -103,14 +103,13 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         Ks, As, Bs, ds = self.cc.cc(state)
-        Ks = np.zeros([self.N*self.m*self.n])
 
-        '''
         # effectively disable cc
-        Ks = np.zeros([self.N*self.m*self.n])
-        As = np.zeros([self.N*self.n*self.n])
-        Bs = np.zeros([self.N*self.n*self.m])
         '''
+        print_warning("CC disabled")
+        Ks = np.zeros([self.N*self.m*self.n])
+        '''
+
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()
         device_Ks = drv.to_device(Ks_flat)
@@ -127,12 +126,13 @@ class CCMPPI:
         device_ds = drv.to_device(ds_flat)
         '''
 
+        # NOTE
         # use zero as reference control
         #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is solution at last timestep
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         # use ref raceline control
-        ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)
+        #ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)
         
 
         if (cuda):
@@ -239,7 +239,7 @@ class CCMPPI:
 
 
         # throttle, steering
-        print("control = %7.3f, %7.3f " %(ref_control[0,0], ref_control[0,1]))
+        #print("control = %7.3f, %7.3f " %(ref_control[0,0], degrees(ref_control[0,1])))
 
         p.e()
         self.debug_dict = {'sampled_control':control}
