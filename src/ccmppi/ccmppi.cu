@@ -139,7 +139,6 @@ void evaluate_control_sequence(
     return;
   }
 
-
   // prepare state variables
   float x[STATE_DIM];
   float y[STATE_DIM];
@@ -152,14 +151,6 @@ void evaluate_control_sequence(
   }
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
-  }
-
-  if (id == 0){
-    printf("[gpu] x0 ");
-    for (int i=0; i<STATE_DIM; i++){
-      printf(" %%7.4f, ", x[i]);
-    }
-    printf("\n");
   }
 
 
@@ -187,7 +178,7 @@ void evaluate_control_sequence(
       // apply constrain on control input
       val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
       val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
-      // update epsilon
+      // TODO update epsilon
       //in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val - in_ref_control[i*CONTROL_DIM + j];
 
       // set control
@@ -196,9 +187,11 @@ void evaluate_control_sequence(
 
     }
 
+    /*
     if (id == 0){
       printf("states = %%7.4f, %%7.4f, %%7.4f, %%7.4f, ctrl =  %%7.4f, %%7.4f \n", x[0], x[1], x[2], x[3], u[0], u[1]);
     }
+    */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
 

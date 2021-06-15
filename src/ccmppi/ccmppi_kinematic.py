@@ -25,7 +25,7 @@ from RCPTrack import RCPtrack
 from kinematicSimulator import kinematicSimulator
 
 class CCMPPI_KINEMATIC():
-    def __init__(self,dt, N, debug_info=None):
+    def __init__(self,dt, N, noise_cov, debug_info=None):
         # set time horizon
         self.N = N
         self.n = 4
@@ -37,7 +37,8 @@ class CCMPPI_KINEMATIC():
         self.v = None
 
         self.dt = dt
-        self.Sigma_epsilon = np.diag([0.2,radians(20)])
+        #self.Sigma_epsilon = np.diag([0.2,radians(20)])
+        self.Sigma_epsilon = noise_cov
         # terminal covariance constrain
         # not needed with soft constraint
         #self.sigma_f = np.diag([1e-3]*self.n)
@@ -504,23 +505,20 @@ class CCMPPI_KINEMATIC():
         u0 = self.ref_ctrl_vec[0,:]
 
         sim_steps = self.N
-        rollout = 100
 
         # with CC
         cc_states_vec = []
-        full_state_vec = []
-        #for j in range(rollout):
-        # FIXME
-        print_info("cpu sim")
-        for j in range(1):
+
+        samples = 100
+        for j in range(samples):
             cc_states_vec.append([])
             y_i = np.zeros(self.n)
             x_i = x0.copy()
             for i in range(sim_steps):
-                # generate random variable epsilon
                 mean = [0.0]*self.m
-                cov = self.Sigma_epsilon
+                # generate random variable epsilon or retrieve from self.rand_val
                 if (self.rand_vals is None):
+                    cov = self.Sigma_epsilon
                     epsilon = np.random.multivariate_normal(mean, cov)
                 else:
                     epsilon = self.rand_vals[j,i,:]
@@ -531,27 +529,15 @@ class CCMPPI_KINEMATIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
-                print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
+                #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
                 x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
-
-                full_state_vec.append(np.hstack([x_i.flatten(), control.flatten()]))
-
-                # TODO is this the right format?
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
+
                 cc_states_vec[j].append(x_i.flatten())
 
 
         # size: (rollout, n, 2)
         cc_states_vec = np.array(cc_states_vec)
-
-        # DEBUG
-        '''
-        print_info("[simulate_kinematic] x0")
-        print(x0)
-        print_info("[simulate_kinematic] simulated states id=0")
-        print(np.array(full_state_vec))
-        '''
-
 
         # without CC
         nocc_states_vec = []

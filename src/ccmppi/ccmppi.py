@@ -14,7 +14,7 @@ from ccmppi_kinematic import CCMPPI_KINEMATIC
 
 class CCMPPI:
     def __init__(self,samples_count, horizon_steps, state_dim, control_dim, temperature,dt,noise_cov,discretized_raceline,cuda=False,cuda_filename=None):
-        self.cc = CCMPPI_KINEMATIC(dt, horizon_steps)
+        self.cc = CCMPPI_KINEMATIC(dt, horizon_steps, noise_cov)
         self.K = samples_count
 
         self.N = self.T = horizon_steps
@@ -103,6 +103,7 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         Ks, As, Bs, ds = self.cc.cc(state)
+        Ks = np.zeros([self.N*self.m*self.n])
 
         '''
         # effectively disable cc
@@ -230,13 +231,15 @@ class CCMPPI:
         '''
 
         # DEBUG
+        '''
         self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
         self.cc.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
         self.cc.visualizeOnTrack()
+        '''
 
 
         # throttle, steering
-        print(ref_control[0,:])
+        print("control = %7.3f, %7.3f " %(ref_control[0,0], ref_control[0,1]))
 
         p.e()
         self.debug_dict = {'sampled_control':control}

@@ -37,8 +37,6 @@ class ctrlCcmppiWrapper(Car):
     def init(self,track,sim=None):
         self.track = track
 
-        # NOTE NOTE NOTE
-        # update mppi_racecar.cu whenever you change parameter here
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
         self.horizon_steps = 20
@@ -47,9 +45,8 @@ class ctrlCcmppiWrapper(Car):
         self.temperature = 0.2
         # control noise for MPPI exploration
         # NOTE tune me
-        # TODO tune this
-        #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
-        self.noise_cov = np.diag([0.2,radians(20)])
+        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
+        #self.noise_cov = np.diag([0.2,radians(20)])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         # discretize raceline for use in MPPI
