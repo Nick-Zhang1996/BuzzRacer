@@ -139,11 +139,6 @@ void evaluate_control_sequence(
     return;
   }
 
-  /*
-  if (id==0){
-    test_matrix_multiplication();
-  }
-  */
 
   // prepare state variables
   float x[STATE_DIM];
@@ -159,12 +154,23 @@ void evaluate_control_sequence(
     _limits[i] = limits[i];
   }
 
+  if (id == 0){
+    printf("[gpu] x0 ");
+    for (int i=0; i<STATE_DIM; i++){
+      printf(" %%7.4f, ", x[i]);
+    }
+    printf("\n");
+  }
+
 
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_u = -1;
   // run simulation
   // loop over time horizon
+  if (id == 0){
+    printf("[gpu] sim \n");
+  }
   for (int i=0; i<HORIZON; i++){
     float _u[CONTROL_DIM];
     float* u = _u;
@@ -182,7 +188,7 @@ void evaluate_control_sequence(
       val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
       val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
       // update epsilon
-      in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val - in_ref_control[i*CONTROL_DIM + j];
+      //in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val - in_ref_control[i*CONTROL_DIM + j];
 
       // set control
       u[j] = val;
@@ -190,14 +196,11 @@ void evaluate_control_sequence(
 
     }
 
-    /*
     if (id == 0){
-      printf("step = %%d, x= %%.3f, y=%%.3f, v=%%.3f, psi=%%.3f, T=%%.3f, S=%%.3f cost = %%.2f \n", i, x[0], x[1], x[2], x[3], u[0], u[1], cost);
+      printf("states = %%7.4f, %%7.4f, %%7.4f, %%7.4f, ctrl =  %%7.4f, %%7.4f \n", x[0], x[1], x[2], x[3], u[0], u[1]);
     }
-    */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
-
 
     // evaluate step cost (crosstrack error and velocity deviation)
     float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
@@ -207,11 +210,6 @@ void evaluate_control_sequence(
     find_closest_id(x,in_raceline,last_u,RACELINE_SEARCH_RANGE, &temp_index, &temp_dist);
 
     cost += step_cost;
-    /*
-    if (id == 0){
-      printf("%%.2f, %%d, %%.2f \n",step_cost, temp_index, temp_dist);
-    }
-    */
 
     // evaluate track boundary cost
     //int u_estimate = -1;
@@ -232,22 +230,15 @@ void evaluate_control_sequence(
     float* this_epsilon = in_epsilon + id*HORIZON*CONTROL_DIM + i*CONTROL_DIM;
 
     matrix_multiply_helper(As, i, y, STATE_DIM, STATE_DIM, 1, temp);
-    matrix_multiply_helper(Bs, i, this_epsilon, STATE_DIM, STATE_DIM, 1, temp2);
+    matrix_multiply_helper(Bs, i, this_epsilon, STATE_DIM, CONTROL_DIM, 1, temp2);
     for (int k=0; k<STATE_DIM; k++){
       y[k] = temp[k] + temp2[k];
     }
-
 
     u += CONTROL_DIM;
 
   }
   float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
-  // DEBUG
-  if (id==0){
-    //printf("terminal: %%.2f\n",terminal_cost/cost);
-    //printf("terminal: %%.2f\n",terminal_cost);
-  }
-  //cost += evaluate_terminal_cost(x,x0,in_raceline);
   cost += terminal_cost;
   out_cost[id] = cost;
 

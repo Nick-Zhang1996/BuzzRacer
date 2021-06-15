@@ -103,8 +103,6 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         Ks, As, Bs, ds = self.cc.cc(state)
-        # FIXME
-        Ks = np.zeros([self.N*self.m*self.n])
 
         '''
         # effectively disable cc
@@ -129,12 +127,12 @@ class CCMPPI:
         '''
 
         # use zero as reference control
-        ref_control = np.zeros(self.N*self.m, dtype=np.float32)
+        #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is solution at last timestep
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         # use ref raceline control
-        #ref_control = np.array(self.cc.ref_ctrl_vec, dtype=np.float32)
-
+        ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)
+        
 
         if (cuda):
             # CUDA implementation

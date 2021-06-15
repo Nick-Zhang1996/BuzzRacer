@@ -18,7 +18,7 @@ from kinematicSimulator import kinematicSimulator
 
 class ctrlCcmppiWrapper(Car):
     def __init__(self,car_setting,dt):
-        np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
+        np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         super().__init__(car_setting,dt)
         # no need simulator to track states
@@ -230,6 +230,7 @@ class ctrlCcmppiWrapper(Car):
             x,y,vf,heading = sim_states
             entry = (x,y,vf,heading,throttle,steering)
             full_state_vec.append(entry)
+
         print_info("[ccmppi wrapper] x0")
         print(states)
         print_info("[ccmppi wrapper] rollout traj id=0")

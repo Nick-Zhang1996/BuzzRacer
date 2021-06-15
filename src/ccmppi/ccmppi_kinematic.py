@@ -1,6 +1,5 @@
 # CCMPPI for kinematic bicycle model
 # using model in Ji's paper
-
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
@@ -40,8 +39,9 @@ class CCMPPI_KINEMATIC():
         self.dt = dt
         self.Sigma_epsilon = np.diag([0.2,radians(20)])
         # terminal covariance constrain
-        self.sigma_f = np.diag([1e-3]*self.n)
-        self.control_limit = np.array([[-1.0,1.0],[-radians(27), radians(27)]])
+        # not needed with soft constraint
+        #self.sigma_f = np.diag([1e-3]*self.n)
+        self.control_limit = np.array([[-0.7,0.7],[-radians(27.1), radians(27.1)]])
 
         # set up parameters for the model
         self.setupParam()
@@ -344,22 +344,18 @@ class CCMPPI_KINEMATIC():
         m = self.m
         l = self.l
 
-        #xy_vec, v_vec, heading_vec = self.track.getRefXYVheading(state, N-1, self.dt)
-        # assemble state: X,Y,V,heading
-        #ref_state_vec = np.hstack([xy_vec,v_vec[:,np.newaxis],heading_vec[:,np.newaxis]])
-
         # find where the car is in reference to reference trajectory
-        xx = self.ref_traj[:,0]
-        yy = self.ref_traj[:,2]
+        ref_xx = self.ref_traj[:,0]
+        ref_yy = self.ref_traj[:,2]
 
         x,y,_,_ = state
 
-        dist_sqr = (xx-x)**2 + (yy-y)**2
+        dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
         # start : index of closest ref point to car
-        start = ref_traj_index = np.argmin(dist_sqr)
+        start = np.argmin(dist_sqr)
 
         # ref_traj: x,dx,y,dy,heading,dheading
-        # handle wrap around
+        # handle wrap around to prevent array out of bound at tail
         ref_traj_wrapped = np.vstack([self.ref_traj, self.ref_traj[:self.N]])
         ref_ctrl_wrapped = np.vstack([self.ref_ctrl, self.ref_ctrl[:self.N]])
 
@@ -375,15 +371,14 @@ class CCMPPI_KINEMATIC():
 
         # find reference throttle and steering
 
-        # ----------
         # As = [A0..A(N-1)]
-        # NOTE this is discretized dynamics
         # linearize dynamics around ref traj
         # As = [A0..A(N-1)]
         As = []
         Bs = []
         ds = []
         for i in range(self.N):
+            # NOTE this gives discretized dynamics
             A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
             As.append(A)
             Bs.append(B)
@@ -396,12 +391,13 @@ class CCMPPI_KINEMATIC():
         self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
 
         # NOTE ds, the offset,  is calculated off reference trajectory
-        # additional offsert must be added to account for difference between
+        # additional offsert may need to be added to account for difference between
         # actual state and reference state
-        # wrap angle
-
-        state_diff = state - self.ref_state_vec[0]
-        state_diff = state_diff.reshape(4,1)
+        #state_diff = state - self.ref_state_vec[0]
+        #state_diff = state_diff.reshape(4,1)
+        #ds[:3,:,0] += state_diff[:3]
+        #ds[:2,:,0] += state_diff[:2]
+        #ds[:,:,0] += state_diff
 
         if (debug):
             print_info("[cc] ref state x0 (x,y,v,heading)")
@@ -411,18 +407,12 @@ class CCMPPI_KINEMATIC():
             print_info("[cc] state diff")
             print(state_diff.flatten())
 
-        # FIXME
-        #ds[:3,:,0] += state_diff[:3]
-        #ds[:2,:,0] += state_diff[:2]
-        #ds[:,:,0] += state_diff
-
         A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
-        # TODO tune me
         # cost matrix 
         #Q = np.eye(n)
         #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        # change this to 0
+        # soft constraint Q matrix
         Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
         Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 50
 
@@ -434,7 +424,8 @@ class CCMPPI_KINEMATIC():
         Q_bar_sqrt = Q_bar
 
         # terminal covariance constrain
-        sigma_f = self.sigma_f
+        # not needed with soft constraint
+        #sigma_f = self.sigma_f
 
         # setup cvxpy
         I = np.eye(n*(N+1))
@@ -453,7 +444,7 @@ class CCMPPI_KINEMATIC():
 
         # TODO verify with Ji
         sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
-        #sigma_y_sqrt = D@D.T
+        # hard constraint, cvxpy doesn't respect this for some reasons
         #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
         constraints = []
         prob = cp.Problem(objective, constraints)
@@ -465,27 +456,13 @@ class CCMPPI_KINEMATIC():
         if (debug):
             print_info("[cc] Problem status")
             print(prob.status)
-            #print("Optimal J = ", prob.solve())
             
-            '''
-            print("Optimal Ks: ")
-            for i in range(N):
-                print(Ks[i])
-            '''
-
-        reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
-        for i in range(1,N):
-            line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            reconstruct_K = np.vstack([reconstruct_K, line])
-        '''
-        print("Optimal Ks: ")
-        print(Ks[0])
-        '''
-
         # DEBUG veirfy constraint
+        '''
         test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
         if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
             print_warning("[cc] constraint not satisfied")
+        '''
 
         self.Ks = Ks
 
@@ -498,7 +475,12 @@ class CCMPPI_KINEMATIC():
         ds = np.swapaxes(ds,0,2)
         ds = np.swapaxes(ds,1,2)
 
+        # return terminal covariance, theoretical values with and without cc
         if (return_sx):
+            reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
+            for i in range(1,N):
+                line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
+                reconstruct_K = np.vstack([reconstruct_K, line])
             Sigma_0 = np.zeros([n,n])
             #Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
             Sx_cc = (I + B@reconstruct_K ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@reconstruct_K ).T
@@ -515,23 +497,21 @@ class CCMPPI_KINEMATIC():
             return self.simulate_kinematic()
 
     def simulate_kinematic(self):
-        print_info("[ccmppi] simulation -- kinematic model")
         As = self.As
         Bs = self.Bs
         ds = self.ds
-        #x0 = self.ref_state_vec[0,:]
         x0 = self.debug_info['x0'].copy()
         u0 = self.ref_ctrl_vec[0,:]
+
         sim_steps = self.N
         rollout = 100
-        print_info("[ccmppi] x0")
-        print(x0)
 
         # with CC
         cc_states_vec = []
         full_state_vec = []
         #for j in range(rollout):
         # FIXME
+        print_info("cpu sim")
         for j in range(1):
             cc_states_vec.append([])
             y_i = np.zeros(self.n)
@@ -545,39 +525,32 @@ class CCMPPI_KINEMATIC():
                 else:
                     epsilon = self.rand_vals[j,i,:]
                 v = self.ref_ctrl_vec[i,:]
-                # FIXME
-                v = np.zeros(2)
-
-                #control = (v+epsilon + self.Ks[i] @ y_i)
-                control = epsilon
-
+                control = (v+epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
-                #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
+
+                print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
                 x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
 
                 full_state_vec.append(np.hstack([x_i.flatten(), control.flatten()]))
 
                 # TODO is this the right format?
-                # FIXME
-                #y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
+                y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
                 cc_states_vec[j].append(x_i.flatten())
 
-                '''
-                if (j==0):
-                    print("step %d, control: %.2f, %.2f"%(i,control[0], control[1]))
-                '''
 
         # size: (rollout, n, 2)
         cc_states_vec = np.array(cc_states_vec)
 
         # DEBUG
-        print_info("[visualizeOnTrack] x0")
+        '''
+        print_info("[simulate_kinematic] x0")
         print(x0)
-        print_info("[visualizeOnTrack] simulated states id=0")
+        print_info("[simulate_kinematic] simulated states id=0")
         print(np.array(full_state_vec))
+        '''
 
 
         # without CC
@@ -712,20 +685,18 @@ class CCMPPI_KINEMATIC():
         heading = self.ref_traj[start:start+self.N,4]
         v = np.sqrt(vx*vx + vy*vy)
 
+        # reference state trajectory and control
         ref_state_vec = np.vstack([x,y,v,heading]).T
         ref_ctrl_vec = self.ref_ctrl[start:start+self.N]
 
-        # find reference throttle and steering
-
-        # ----------
         # As = [A0..A(N-1)]
-        # NOTE this is discretized dynamics
         # linearize dynamics around ref traj
         # As = [A0..A(N-1)]
         As = []
         Bs = []
         ds = []
         for i in range(self.N):
+            # NOTE this gives discretized dynamics
             A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
             As.append(A)
             Bs.append(B)
@@ -737,10 +708,6 @@ class CCMPPI_KINEMATIC():
         self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
         A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
-        # compare with actual result
-        #x0 = (x[i],dx[i],y[i],dy[i],heading[i],dheading[i])
-        #u0 = (throttle[i],steering[i])
-
         # simulate with batch dynamics
         # X = AA x0 + BB u + C d + D noise
         x0 = ref_state_vec[0,:]
@@ -750,19 +717,6 @@ class CCMPPI_KINEMATIC():
         uu = ref_ctrl_vec.flatten() 
         # actually need + DD @ w
         xx_linearized = A @ x0 + B @ uu + C @ d
-
-        # simulate with step-by-step simulation
-        '''
-        xx_linearized = [x0]
-        x_i = x0.copy()
-        for i in range(self.N):
-            u = ref_ctrl_vec[i,:]
-            x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ u + ds[:,:,i].flatten()
-            xx_linearized.append(x_i)
-
-        xx_linearized = np.array(xx_linearized)
-        '''
-
 
         # plot true and linearized traj
         img_track = self.track.drawTrack()
