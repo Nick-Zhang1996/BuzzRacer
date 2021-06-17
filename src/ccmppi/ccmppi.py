@@ -130,6 +130,7 @@ class CCMPPI:
         # use zero as reference control
         #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is solution at last timestep
+        # TODO try to use this as linearization ref trajectory TODO TODO
         ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         # use ref raceline control
         #ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)

@@ -405,8 +405,8 @@ class CCMPPI_KINEMATIC():
             print(ref_state_vec[0])
             print_info("[cc] actual state x0")
             print(state)
-            print_info("[cc] state diff")
-            print(state_diff.flatten())
+            #print_info("[cc] state diff")
+            #print(state_diff.flatten())
 
         A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
 
@@ -902,6 +902,7 @@ if __name__ == "__main__":
 
     debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
     main = CCMPPI_KINEMATIC(0.03,20, debug_info)
+    main.debug_info = debug_info
     main.visualizeConfidenceEllipse()
     main.visualizeOnTrack()
 
