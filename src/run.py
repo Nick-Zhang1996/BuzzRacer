@@ -838,6 +838,6 @@ if __name__ == '__main__':
     print_info("program complete")
 
     experiment.timer.summary()
-    experiment.car[0].p.summary()
+    experiment.cars[0].p.summary()
 
 
