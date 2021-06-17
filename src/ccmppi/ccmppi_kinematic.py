@@ -542,7 +542,7 @@ class CCMPPI_KINEMATIC():
 
         # without CC
         nocc_states_vec = []
-        for j in range(rollout):
+        for j in range(samples):
             nocc_states_vec.append([])
             x_i = x0.copy()
             for i in range(sim_steps):
@@ -900,8 +900,9 @@ if __name__ == "__main__":
     #state = np.array([0.6*3.7,0.6*1.75, 1.0, radians(-90)])
     #main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
 
+    noise_cov = np.diag([0.2,radians(20)])
     debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-    main = CCMPPI_KINEMATIC(0.03,20, debug_info)
+    main = CCMPPI_KINEMATIC(0.03,20,noise_cov, debug_info)
     main.debug_info = debug_info
     main.visualizeConfidenceEllipse()
     main.visualizeOnTrack()
