@@ -45,8 +45,8 @@ class ctrlCcmppiWrapper(Car):
         self.temperature = 0.2
         # control noise for MPPI exploration
         # NOTE tune me
-        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
-        #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(60.0)**2])
+        #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(60.0)**2])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
         # discretize raceline for use in MPPI

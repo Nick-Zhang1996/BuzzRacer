@@ -293,7 +293,8 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // forward vel
 
   float dv = state[2] - in_raceline[idx][3];
-  float cost = dist + 0.1*dv*dv;
+  //float cost = dist + 0.1*dv*dv;
+  float cost = 2.0* dist + 0.5*dv*dv;
   //float cost = dist;
   // additional penalty on negative velocity 
   if (state[2] < 0){
