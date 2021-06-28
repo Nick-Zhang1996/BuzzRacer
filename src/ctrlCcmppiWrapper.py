@@ -153,9 +153,16 @@ class ctrlCcmppiWrapper(Car):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def ctrlCar(self,states,track,v_override=None,reverse=False):
+        debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
         # profiling
         p = self.p
         p.s()
+        try:
+            self.predictOpponent()
+            debug_dict['opponent'] = self.opponent_prediction
+        except AttributeError:
+            print_error("predictOpponent() AttributeError")
+            pass
 
         p.s("local traj")
         if self.last_s is None:
@@ -189,7 +196,7 @@ class ctrlCcmppiWrapper(Car):
         p.e("prep")
 
         p.s("ccmppi")
-        uu = self.ccmppi.control(states.copy(),self.control_limit)
+        uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
@@ -198,7 +205,6 @@ class ctrlCcmppiWrapper(Car):
 
         # DEBUG
         # simulate where mppi think where the car will end up with
-        debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
 
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
@@ -255,6 +261,15 @@ class ctrlCcmppiWrapper(Car):
     # for use in visualization
     def applyDiscreteDynamics(self,state,control,dt):
         return self.sim.updateCar(dt,control[0], control[1],external_states=state)
+    # we assume opponent will follow reference trajectory at current speed
+    def initTrackOpponents(self):
+        return
+
+    def predictOpponent(self):
+        self.opponent_prediction = []
+        for opponent in self.opponents:
+            traj = self.track.predictOpponent(opponent.state, self.horizon_steps, self.ccmppi_dt)
+            self.opponent_prediction.append(traj)
 
 
 if __name__=="__main__":

@@ -92,18 +92,14 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        #car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(3.7*0.6,1.75*0.6), start_delay=0.0)
-        #car0 = self.prepareCar("porsche", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
-        #car0 = self.prepareCar("porsche", StateUpdateSource.optitrack, VehiclePlatform.offboard, Controller.mppi,init_position=(0.7*0.6,0.5*0.6), start_delay=0.0)
         # the escaping car
-        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.eth_simulator, VehiclePlatform.eth_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
-        #car2 = self.prepareCar("porsche_slow", StateUpdateSource.dynamic_simulator, VehiclePlatform.dynamic_simulator, Controller.stanley,init_position=(0.3*0.6,1.6*0.6), start_delay=0.0)
+        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
-        car0.opponents = []
-        '''
+        car0.opponents = [car1]
         car0.initTrackOpponents()
+        '''
         car1.opponents = []
         car1.initTrackOpponents()
         car2.opponents = []
