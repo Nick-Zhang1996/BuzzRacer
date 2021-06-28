@@ -159,7 +159,7 @@ class ctrlCcmppiWrapper(Car):
         p.s()
         try:
             self.predictOpponent()
-            debug_dict['opponent'] = self.opponent_prediction
+            debug_dict['opponent_prediction'] = self.opponent_prediction
         except AttributeError:
             print_error("predictOpponent() AttributeError")
             pass

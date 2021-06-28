@@ -78,7 +78,7 @@ class Main():
         # whether to record control command, car state, etc.
         self.enableLog = False
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = True
+        self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
         self.enableLaptimer = False
 
@@ -92,9 +92,9 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_position=(3.7*0.6,1.75*0.6), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
         # the escaping car
-        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_position=(0.3*0.6,2.7*0.6), start_delay=0.0)
+        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
         car0.opponents = [car1]
@@ -105,7 +105,7 @@ class Main():
         car2.opponents = []
         car2.initTrackOpponents()
         '''
-        self.cars = [car0]
+        self.cars = [car0, car1]
         for i in range(len(self.cars)):
             self.cars[i].id = i
 
@@ -270,6 +270,15 @@ class Main():
                         x,y = coord
                         img = self.track.drawPoint(img,(x,y),color=(255,0,0))
                     img = self.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
+
+                    # plot opponent prediction
+                    coords_vec = self.debug_dict[car.id]['opponent_prediction']
+                    for coords in coords_vec:
+                        for coord in coords:
+                            x,y = coord
+                            img = self.track.drawPoint(img,(x,y),color=(255,0,0))
+                        img = self.track.drawPolyline(coords,lineColor=(100,0,0),img=img)
+
                     '''
                     coords_vec = np.array(coords_vec)
                     for i in range(len(coords_vec)):
@@ -528,7 +537,7 @@ class Main():
     # platform: VehiclePlatform.xx
     # controller: Controller.xx
     # start_delay: time delay at start, positive delay means car remains still  until delay(sec) has passed 
-    def prepareCar(self,config_name, state_update_source, platform, controller,init_position, start_delay=0.0):
+    def prepareCar(self,config_name, state_update_source, platform, controller,init_state, start_delay=0.0):
         porsche_setting = {'wheelbase':90e-3,
                          'max_steer_angle_left':radians(27.1),
                          'max_steer_pwm_left':1150,
@@ -613,7 +622,7 @@ class Main():
             print_error("unknown state update source")
 
         # NOTE this syntax only work on simulator
-        car.initStateUpdate(car,init_position)
+        car.initStateUpdate(car,init_state)
 
         if (car.controller == Controller.dynamicMpc):
             if (car.stateUpdateSource == StateUpdateSource.dynamic_simulator):
@@ -722,14 +731,13 @@ class Main():
         pass
 
 # ---- Simulation ----
-    def initKinematicSimulation(self, car, init_position = (0.3*0.6,1.7*0.6)):
+    def initKinematicSimulation(self, car, init_state = (0.3*0.6,1.7*0.6,radians(-90))):
         print_info("kinematic simulation init")
         car.new_state_update = Event()
         car.new_state_update.set()
         self.real_sim_dt = None
 
-        x,y = init_position
-        heading = -pi/2
+        x,y,heading = init_state
         omega = 0
 
         # NOTE DEBUG
@@ -741,7 +749,7 @@ class Main():
         car.v_target = 0
 
         car.state = (x,y,heading,v,0,omega)
-        car.sim_states = {'coord':init_position,'heading':heading,'vf':v,'vs':0,'omega':0}
+        car.sim_states = {'coord':(x,y),'heading':heading,'vf':v,'vs':0,'omega':0}
         self.sim_dt = self.dt
 
     def updateKinematicSimulation(self,car):
@@ -757,12 +765,11 @@ class Main():
         return
 
 # dynamic simulator
-    def initDynamicSimulation(self,car,init_position = (0.3*0.6,1.7*0.6)):
+    def initDynamicSimulation(self,car,init_state = (0.3*0.6,1.7*0.6,radians(90))):
         car.new_state_update = Event()
         car.new_state_update.set()
         
-        x,y = init_position
-        heading = pi/2
+        x,y,heading = init_state
         car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
@@ -774,7 +781,7 @@ class Main():
         car.v_target = 0
 
         car.state = (x,y,heading,0,0,0)
-        car.sim_states = {'coord':init_position,'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}
         self.sim_dt = self.dt
 
     def updateDynamicSimulation(self,car):
@@ -792,12 +799,11 @@ class Main():
         return
 
 # eth dynamic simulator
-    def initEthSimulation(self,car,init_position = (0.3*0.6,1.7*0.6)):
+    def initEthSimulation(self,car,init_state = (0.3*0.6,1.7*0.6,radians(90))):
         car.new_state_update = Event()
         car.new_state_update.set()
         
-        x,y = init_position
-        heading = pi/2
+        x,y,heading = init_state
         car.simulator = ethCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
@@ -809,7 +815,7 @@ class Main():
         car.v_target = 0
 
         car.state = (x,y,heading,0,0,0)
-        car.sim_states = {'coord':init_position,'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}
         self.sim_dt = self.dt
 
     def updateEthSimulation(self,car):

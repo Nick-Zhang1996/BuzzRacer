@@ -227,6 +227,13 @@ void _evaluate_control_sequence(
 
     // evaluate step cost (crosstrack error and velocity deviation)
     float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
+    // cost related to collision avoidance / opponent avoidance
+    // TODO too conservative
+    for (int j=0; j<opponent_count; j++){
+      for (int k=0; k<HORIZON; k++){
+      cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
+      }
+    }
 
     int temp_index;
     float temp_dist;
@@ -236,7 +243,6 @@ void _evaluate_control_sequence(
 
     // evaluate track boundary cost
     //int u_estimate = -1;
-    // FIXME
     //cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
 
     // FIXME ignoring epsilon induced cost
@@ -410,6 +416,19 @@ void forward_kinematics(float* state, float* u){
   state[2] += dvelocity;
   state[3] += dpsi;
 
+}
+
+__device__
+float evaluate_collision_cost( float* state, float* opponent_pos){
+  //float heading = state[4];
+
+  float dx = state[0]-opponent_pos[0];
+  float dy = state[2]-opponent_pos[1];
+  //float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
+  float cost = (0.15-sqrtf(dx*dx + dy*dy)) > 0? 0.1:0;
+
+
+  return cost ;
 }
 
 

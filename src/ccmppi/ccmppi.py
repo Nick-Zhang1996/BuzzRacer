@@ -44,7 +44,7 @@ class CCMPPI:
                 code = f.read()
 
             # prepare constants
-            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.5, "ZERO_REF_CTRL_RATIO":0.2}
+            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.0, "ZERO_REF_CTRL_RATIO":0.2}
             # add curand related config
             # new feature for Python 3.9
             #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
@@ -88,11 +88,10 @@ class CCMPPI:
     # given state, apply CCMPPI and find control
     # state: current plant state
     # opponents_prediction: predicted positions of opponent(s) list of n opponents, each of dim (steps, 2)
-    # safety_margin: distance to keep from opponent
     # control_limit: min,max for each control element dim self.m*2 (min,max)
     # control_cov: covariance matrix for noise added to ref_control
     # specifically for racecar
-    def control(self,state,opponents_prediction,control_limit,safety_margin=0.1,noise_cov=None,cuda=None):
+    def control(self,state,opponents_prediction,control_limit,noise_cov=None,cuda=None):
         if noise_cov is None:
             noise_cov = self.noise_cov
         if cuda is None:
