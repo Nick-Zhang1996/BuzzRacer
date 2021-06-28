@@ -10,6 +10,8 @@
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 // ratio of sampled trajectory to utilize CC
 #define CC_RATIO %(CC_RATIO)s
+// ratio of simulations that use zero reference control
+#define ZERO_REF_CTRL_RATIO %(ZERO_REF_CTRL_RATIO)s
 
 #define PARAM_LR 0.036
 #define PARAM_L 0.09
@@ -62,6 +64,27 @@ void evaluate_control_sequence_nocc(
     float in_raceline[][RACELINE_DIM], 
     float* Ks, float* As, float* Bs);
 
+__device__
+void evaluate_control_sequence_cc_zero_ref(
+    float* out_cost,
+    float* out_control,
+    float* x0, 
+    float* in_ref_control, 
+    float* limits, 
+    float* in_epsilon, 
+    float in_raceline[][RACELINE_DIM], 
+    float* Ks, float* As, float* Bs);
+
+__device__
+void evaluate_control_sequence_nocc_zero_ref(
+    float* out_cost,
+    float* out_control,
+    float* x0, 
+    float* in_ref_control, 
+    float* limits, 
+    float* in_epsilon, 
+    float in_raceline[][RACELINE_DIM], 
+    float* Ks, float* As, float* Bs);
 // cost for going off track
 __device__
 float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate);
@@ -122,9 +145,18 @@ void evaluate_control_sequence(
   }
 
   if (id <= int(CC_RATIO * SAMPLE_COUNT)){
-    evaluate_control_sequence_cc(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+    if (id <= int(CC_RATIO * SAMPLE_COUNT * ZERO_REF_CTRL_RATIO)){
+      evaluate_control_sequence_cc_zero_ref(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+    } else {
+      evaluate_control_sequence_cc(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+    }
   } else {
-    evaluate_control_sequence_nocc(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+
+    if (id <= int(CC_RATIO * SAMPLE_COUNT + (1.0-CC_RATIO) * SAMPLE_COUNT * ZERO_REF_CTRL_RATIO)){
+      evaluate_control_sequence_nocc_zero_ref(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+    } else {
+      evaluate_control_sequence_nocc(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, Ks, As, Bs);
+    }
   }
 
 }
@@ -350,6 +382,219 @@ void evaluate_control_sequence_nocc(
 
 }
 
+// evaluate step cost based on target state x_goal,current state x and control u
+// in_ref_control: dim horizon*control_dim
+// in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
+// in_raceline is 2d array of size (RACELINE_LEN,4), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian), 3:ref velocity
+__device__
+void evaluate_control_sequence_cc_zero_ref(
+    float* out_cost,
+    float* out_control,
+    float* x0, 
+    float* in_ref_control, 
+    float* limits, 
+    float* in_epsilon, 
+    float in_raceline[][RACELINE_DIM], 
+    float* Ks, float* As, float* Bs){
+
+  // get global thread id
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (id>=SAMPLE_COUNT){
+    return;
+  }
+
+  // prepare state variables
+  float x[STATE_DIM];
+  float y[STATE_DIM];
+  float _limits[CONTROL_DIM*2];
+  // copy to local state
+  // NOTE possible time saving by copy to local memory
+  for (int i=0; i<STATE_DIM; i++){
+    x[i] = *(x0 + i);
+    y[i] = 0;
+  }
+  for (int i=0; i<CONTROL_DIM*2; i++){
+    _limits[i] = limits[i];
+  }
+
+
+  float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_u = -1;
+  // run simulation
+  // loop over time horizon
+  for (int i=0; i<HORIZON; i++){
+    float _u[CONTROL_DIM];
+    float* u = _u;
+
+    // calculate control
+    // u = v(ref control) + K * y(cc feedback) + epsilon (noise)
+    // feedback
+    matrix_multiply_helper(Ks, i, y, CONTROL_DIM, STATE_DIM, 1, u);
+
+    for (int j=0; j<CONTROL_DIM; j++){
+      // calculate control
+      float val = u[j] +  in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+
+      // apply constrain on control input
+      val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
+      val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
+
+      // set control
+      u[j] = val;
+      out_control[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
+
+    }
+
+    /*
+    if (id == 0){
+      printf("states = %%7.4f, %%7.4f, %%7.4f, %%7.4f, ctrl =  %%7.4f, %%7.4f \n", x[0], x[1], x[2], x[3], u[0], u[1]);
+    }
+    */
+    // step forward dynamics, update state x in place
+    forward_kinematics(x, u);
+
+    // evaluate step cost (crosstrack error and velocity deviation)
+    float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
+
+    int temp_index;
+    float temp_dist;
+    find_closest_id(x,in_raceline,last_u,RACELINE_SEARCH_RANGE, &temp_index, &temp_dist);
+
+    cost += step_cost;
+
+    // evaluate track boundary cost
+    //int u_estimate = -1;
+    // FIXME
+    //cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
+
+    // FIXME ignoring epsilon induced cost
+    /*
+    for (int j=0; j<CONTROL_DIM; j++){
+      cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+    }
+    */
+
+    // update y
+    // y = A * y + B * epsilon
+    float temp[STATE_DIM];
+    float temp2[STATE_DIM];
+    float* this_epsilon = in_epsilon + id*HORIZON*CONTROL_DIM + i*CONTROL_DIM;
+
+    matrix_multiply_helper(As, i, y, STATE_DIM, STATE_DIM, 1, temp);
+    matrix_multiply_helper(Bs, i, this_epsilon, STATE_DIM, CONTROL_DIM, 1, temp2);
+    for (int k=0; k<STATE_DIM; k++){
+      y[k] = temp[k] + temp2[k];
+    }
+
+    u += CONTROL_DIM;
+
+  }
+  float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
+  cost += terminal_cost;
+  out_cost[id] = cost;
+
+}
+
+
+// evaluate step cost based on target state x_goal,current state x and control u
+// in_ref_control: dim horizon*control_dim
+// in_epsilon: dim samples*horizon*control_dim, will be updated so that in_ref_control + in_epsilon respects limits
+// in_raceline is 2d array of size (RACELINE_LEN,4), the first dimension denote different control points, the second denote data, 0:x, 1:y, 2:heading(radian), 3:ref velocity
+__device__
+void evaluate_control_sequence_nocc_zero_ref(
+    float* out_cost,
+    float* out_control,
+    float* x0, 
+    float* in_ref_control, 
+    float* limits, 
+    float* in_epsilon, 
+    float in_raceline[][RACELINE_DIM], 
+    float* Ks, float* As, float* Bs){
+
+  // get global thread id
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (id>=SAMPLE_COUNT){
+    return;
+  }
+
+  // prepare state variables
+  float x[STATE_DIM];
+  float _limits[CONTROL_DIM*2];
+  // copy to local state
+  // NOTE possible time saving by copy to local memory
+  for (int i=0; i<STATE_DIM; i++){
+    x[i] = *(x0 + i);
+  }
+  for (int i=0; i<CONTROL_DIM*2; i++){
+    _limits[i] = limits[i];
+  }
+
+
+  float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_u = -1;
+  // run simulation
+  // loop over time horizon
+  for (int i=0; i<HORIZON; i++){
+    float _u[CONTROL_DIM];
+    float* u = _u;
+
+    // calculate control
+    // u = v(ref control) + epsilon (noise)
+    for (int j=0; j<CONTROL_DIM; j++){
+      // calculate control
+      float val =  in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+
+      // apply constrain on control input
+      val = val < _limits[j*CONTROL_DIM]? _limits[j*CONTROL_DIM]:val;
+      val = val > _limits[j*CONTROL_DIM+1]? _limits[j*CONTROL_DIM+1]:val;
+
+      // set control
+      u[j] = val;
+      out_control[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
+
+    }
+
+    /*
+    if (id == 0){
+      printf("states = %%7.4f, %%7.4f, %%7.4f, %%7.4f, ctrl =  %%7.4f, %%7.4f \n", x[0], x[1], x[2], x[3], u[0], u[1]);
+    }
+    */
+    // step forward dynamics, update state x in place
+    forward_kinematics(x, u);
+
+    // evaluate step cost (crosstrack error and velocity deviation)
+    float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
+
+    int temp_index;
+    float temp_dist;
+    find_closest_id(x,in_raceline,last_u,RACELINE_SEARCH_RANGE, &temp_index, &temp_dist);
+
+    cost += step_cost;
+
+    // evaluate track boundary cost
+    //int u_estimate = -1;
+    // FIXME
+    //cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
+
+    // FIXME ignoring epsilon induced cost
+    /*
+    for (int j=0; j<CONTROL_DIM; j++){
+      cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+    }
+    */
+
+    u += CONTROL_DIM;
+
+  }
+  float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
+  cost += terminal_cost;
+  out_cost[id] = cost;
+
+}
 
 
 // find closest id in the index range (guess - range, guess + range)

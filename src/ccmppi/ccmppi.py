@@ -44,7 +44,7 @@ class CCMPPI:
                 code = f.read()
 
             # prepare constants
-            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.5}
+            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.5, "ZERO_REF_CTRL_RATIO":0.2}
             # add curand related config
             # new feature for Python 3.9
             #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
@@ -131,9 +131,9 @@ class CCMPPI:
         #ref_control = np.zeros(self.N*self.m, dtype=np.float32)
         # reference control is solution at last timestep
         # TODO try to use this as linearization ref trajectory TODO TODO
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         # use ref raceline control
-        ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)
+        #ref_control = np.array(self.cc.ref_ctrl_vec.flatten(), dtype=np.float32)
         
 
         if (cuda):

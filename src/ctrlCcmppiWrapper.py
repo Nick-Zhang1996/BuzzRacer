@@ -9,6 +9,7 @@ from time import time,sleep
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi,atan
+import random
 
 from common import *
 from timeUtil import execution_timer
@@ -203,7 +204,9 @@ class ctrlCcmppiWrapper(Car):
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
         samples = 100
-        sampled_control = sampled_control[:samples,:,:]
+        # randomly select 100
+        index = random.sample(range(sampled_control.shape[0]), samples)
+        sampled_control = sampled_control[index,:,:]
         rollout_traj_vec = []
 
         # DEBUG
