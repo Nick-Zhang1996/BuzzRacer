@@ -236,7 +236,9 @@ class Main():
             time_to_reach = self.cars[0].simulator.t*self.real_sim_time_ratio + self.real_sim_dt
             #print("sim_t = %.3f, time = %.3f, expected= %.3f, delta = %.3f"%(self.cars[0].simulator.t, time()-self.real_sim_dt, self.cars[0].simulator.t*self.real_sim_time_ratio, time_to_reach-time() ))
             if (time_to_reach-time() < 0):
-                print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))
+                # DEBUG
+                #print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))
+                pass
 
             sleep(max(0,time_to_reach - time()))
 
@@ -414,7 +416,7 @@ class Main():
 
             elif (car.controller == Controller.ccmppi):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
+                #print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
                 self.debug_dict[i].update(debug_dict)
                 if isnan(steering):
                     print("error steering nan")

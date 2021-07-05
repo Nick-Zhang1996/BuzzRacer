@@ -186,6 +186,7 @@ void _evaluate_control_sequence(
   int last_u = -1;
   // run simulation
   // loop over time horizon
+  float total_collision_cost = 0.0;
   for (int i=0; i<HORIZON; i++){
     float _u[CONTROL_DIM];
     float* u = _u;
@@ -229,9 +230,15 @@ void _evaluate_control_sequence(
     float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
     // cost related to collision avoidance / opponent avoidance
     // TODO too conservative
-    for (int j=0; j<opponent_count; j++){
-      for (int k=0; k<HORIZON; k++){
-      cost += evaluate_collision_cost(x,opponents_prediction[j][k]);
+    if (i < HORIZON/2){
+      for (int j=0; j<opponent_count; j++){
+        for (int k=0; k<HORIZON/2; k++){ 
+          //cost += evaluate_collision_cost(x,opponents_prediction[j][i]);
+          // NOTE use current position only
+          float this_collision_cost = evaluate_collision_cost(x,opponents_prediction[j][k]);
+          cost += this_collision_cost;
+          total_collision_cost += this_collision_cost;
+        }
       }
     }
 
@@ -242,15 +249,8 @@ void _evaluate_control_sequence(
     cost += step_cost;
 
     // evaluate track boundary cost
-    //int u_estimate = -1;
-    //cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
-
-    // FIXME ignoring epsilon induced cost
-    /*
-    for (int j=0; j<CONTROL_DIM; j++){
-      cost += u[i]*in_epsilon[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
-    }
-    */
+    int u_estimate = -1;
+    cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
 
     // update y
     // y = A * y + B * epsilon
@@ -271,6 +271,12 @@ void _evaluate_control_sequence(
   }
   float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
   cost += terminal_cost;
+
+  if (id == 0 ){
+    printf(" [gpu] : %%.2f (%%.2f / %%.2f) \n", total_collision_cost / cost, total_collision_cost, cost);
+    //printf(" [gpu[ : opponent: (%%.2f, %%.2f) ego: (%%.2f, %%.2f) \n", 
+  }
+    
   out_cost[id] = cost;
 
 }
@@ -337,7 +343,7 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   if (state[2] < 0){
     cost += 0.1;
   }
-  return cost;
+  return cost*5.0;
 }
 
 __device__
@@ -423,10 +429,10 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
   //float heading = state[4];
 
   float dx = state[0]-opponent_pos[0];
-  float dy = state[2]-opponent_pos[1];
-  //float cost = 2.0*(0.15 - sqrtf(dx*dx + dy*dy));
-  float cost = (0.15-sqrtf(dx*dx + dy*dy)) > 0? 0.1:0;
-
+  float dy = state[1]-opponent_pos[1];
+  //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
+  float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
+  cost = cost>0? cost:0;
 
   return cost ;
 }
