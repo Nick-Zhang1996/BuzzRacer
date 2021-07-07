@@ -272,11 +272,6 @@ void _evaluate_control_sequence(
   float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
   cost += terminal_cost;
 
-  if (id == 0 ){
-    printf(" [gpu] : %%.2f (%%.2f / %%.2f) \n", total_collision_cost / cost, total_collision_cost, cost);
-    //printf(" [gpu[ : opponent: (%%.2f, %%.2f) ego: (%%.2f, %%.2f) \n", 
-  }
-    
   out_cost[id] = cost;
 
 }

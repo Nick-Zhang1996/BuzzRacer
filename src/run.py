@@ -80,7 +80,7 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         self.saveGif = False
         # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = False
+        self.enableLaptimer = True
 
         # run the track in reverse direction
         self.reverse = False
@@ -274,12 +274,14 @@ class Main():
                     img = self.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
 
                     # plot opponent prediction
+                    '''
                     coords_vec = self.debug_dict[car.id]['opponent_prediction']
                     for coords in coords_vec:
                         for coord in coords:
                             x,y = coord
                             img = self.track.drawPoint(img,(x,y),color=(255,0,0))
                         img = self.track.drawPolyline(coords,lineColor=(100,0,0),img=img)
+                    '''
 
                     '''
                     coords_vec = np.array(coords_vec)
@@ -366,7 +368,7 @@ class Main():
                 
             
             if (car.enableLaptimer):
-                retval = car.laptimer.update((car.state[0],car.state[1]))
+                retval = car.laptimer.update((car.state[0],car.state[1]),current_time=car.simulator.t)
                 if retval:
                     #car.laptimer.announce()
                     print(car.laptimer.last_laptime)
