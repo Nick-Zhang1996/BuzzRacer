@@ -198,6 +198,7 @@ class ctrlMppiWrapper(Car):
                 # parse return value from localTrajectory
                 (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
                 self.last_s = track.uToS(u0).item()
+                debug_dict['crosstrack_error'] = np.abs(offset)
         p.e("local traj")
 
         p.s("prep")

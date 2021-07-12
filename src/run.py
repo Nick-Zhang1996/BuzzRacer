@@ -32,6 +32,9 @@ from timeUtil import execution_timer
 
 from enum import Enum, auto
 
+# Extensions
+from CrosstrackErrorTracker import CrosstrackErrorTracker
+
 # for cpu/ram analysis
 #import psutil
 class StateUpdateSource(Enum):
@@ -94,10 +97,11 @@ class Main():
         # the pursuer car
         car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
         # the escaping car
-        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
+        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
-        car0.opponents = [car1]
+        car0.opponents = []
+        #car0.opponents = [car1]
         car0.initTrackOpponents()
         '''
         car1.opponents = []
@@ -105,7 +109,8 @@ class Main():
         car2.opponents = []
         car2.initTrackOpponents()
         '''
-        self.cars = [car0, car1]
+        self.cars = [car0]
+        #self.cars = [car0, car1]
         for i in range(len(self.cars)):
             self.cars[i].id = i
 
@@ -153,6 +158,14 @@ class Main():
 
         # prepare save gif, this provides an easy to use visualization for presentation
         self.prepareGif()
+        self.critical_lap = Event()
+
+        # --- New approach: Extensions ---
+        self.extensions = []
+        self.extensions.append(CrosstrackErrorTracker(self))
+
+        for item in self.extensions:
+            item.init()
 
     # run experiment until user press q in visualization window
     def run(self):
@@ -161,6 +174,9 @@ class Main():
         while not self.exit_request.isSet():
             t.s()
             self.update()
+            # -- Extension update -- 
+            for item in self.extensions:
+                item.update()
             # x,y,theta are in track frame
             # v_forward in vehicle frame, forward positive
             # v_sideway in vehicle frame, left positive
@@ -171,11 +187,6 @@ class Main():
                 (x,y,theta,v_forward,_,_) = car.state
 
                 # (x,y,theta,vforward,vsideway=0,omega)
-                '''
-                self.debug_dict[i]['target_v'].append(car.v_target)
-                self.debug_dict[i]['actual_v'].append(v_forward)
-                self.debug_dict[i]['throttle'].append(car.throttle)
-                '''
 
                 if car.stateUpdateSource == StateUpdateSource.optitrack \
                         or car.stateUpdateSource == StateUpdateSource.vicon:
@@ -193,6 +204,8 @@ class Main():
         # exit point
         print_info("Exiting ...")
         cv2.destroyAllWindows()
+        for item in self.extensions:
+            item.final()
         for car in self.cars:
             car.stopStateUpdate(car)
 
@@ -221,8 +234,6 @@ class Main():
             output = open(self.logDictFilename,'wb')
             pickle.dump(self.debug_dict,output)
             output.close()
-
-
 
     def updateVisualization(self,):
         # we want a real-time simulation, waiting sim_dt between each simulation step
@@ -372,6 +383,13 @@ class Main():
                 if retval:
                     #car.laptimer.announce()
                     print(car.laptimer.last_laptime)
+                    if (not self.critical_lap.is_set()):
+                        self.critical_lap.set()
+                        print_info("critical lap start")
+                    else:
+                        self.critical_lap.clear()
+                        print_info("critical lap end")
+                        self.exit_request.set()
 
             # apply controller
             if (car.controller == Controller.stanley):
