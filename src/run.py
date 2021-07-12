@@ -1,11 +1,7 @@
 # universal entry point for running the car
 import cv2
-import sys
-import os.path
-import pickle
 from threading import Event,Lock
 from time import sleep,time
-from PIL import Image
 from math import pi,radians,degrees,asin,acos,isnan
 import matplotlib.pyplot as plt
 
@@ -17,7 +13,6 @@ from RCPTrack import RCPtrack
 from skidpad import Skidpad
 from Optitrack import Optitrack
 from joystick import Joystick
-from laptimer import Laptimer
 
 from advCarSim import advCarSim
 from kinematicSimulator import kinematicSimulator
@@ -33,7 +28,10 @@ from timeUtil import execution_timer
 from enum import Enum, auto
 
 # Extensions
+from Laptimer import Laptimer
 from CrosstrackErrorTracker import CrosstrackErrorTracker
+from Gifsaver import Gifsaver
+from Logger import Logger
 
 # for cpu/ram analysis
 #import psutil
@@ -74,16 +72,8 @@ class Main():
 
         # noise in simulation
         self.sim_noise = False
-        # noise
+        # simulation noise
         self.sim_noise_cov = np.diag([0.1,0.3,0.1,0.3,radians(10),1.0])
-
-        # CONFIG
-        # whether to record control command, car state, etc.
-        self.enableLog = False
-        # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.saveGif = False
-        # enable Laptime Voiceover, if True, will read out lap time after each lap
-        self.enableLaptimer = True
 
         # run the track in reverse direction
         self.reverse = False
@@ -92,6 +82,7 @@ class Main():
         #self.track = self.prepareSkidpad()
         # or, use RCP track
         self.track = self.prepareRcpTrack()
+        self.visualization_img = None
 
         # a list of Car class object running
         # the pursuer car
@@ -124,9 +115,6 @@ class Main():
                 self.real_sim_time_ratio = 1.0
                 break
 
-        # if log is enabled this will be updated
-        # if log is not enabled this will be used as gif image name
-        self.log_no = 0
 
         # flag to quit all child threads gracefully
         self.exit_request = Event()
@@ -142,27 +130,21 @@ class Main():
         for car in self.cars:
             self.debug_dict.append({'target_v':[],'actual_v':[],'throttle':[],'p':[],'i':[],'d':[],'crosstrack_error':[],'heading_error':[]})
 
-        # prepare log
-        if (self.enableLog):
-            self.resolveLogname()
-            # the vector that's written to pickle file
-            # this is updated frequently, use the last line
-            # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
-            self.full_state_log = []
-
         # verify that a valid track subclass is specified
         if not issubclass(type(self.track),Track):
             print_error("specified self.track is not a subclass of Track")
 
         self.prepareVisualization()
 
-        # prepare save gif, this provides an easy to use visualization for presentation
-        self.prepareGif()
-        self.critical_lap = Event()
 
         # --- New approach: Extensions ---
         self.extensions = []
+        # Laptimer
+        self.extensions.append(Laptimer(self))
         self.extensions.append(CrosstrackErrorTracker(self))
+        # save experiment as a gif, this provides an easy to use visualization for presentation
+        self.extensions.append(Gifsaver(self))
+        #self.extensions.append(Logger(self))
 
         for item in self.extensions:
             item.init()
@@ -177,29 +159,6 @@ class Main():
             # -- Extension update -- 
             for item in self.extensions:
                 item.update()
-            # x,y,theta are in track frame
-            # v_forward in vehicle frame, forward positive
-            # v_sideway in vehicle frame, left positive
-            # omega in vehicle frame, axis pointing upward
-            temp_log = []
-            for i in range(len(self.cars)):
-                car = self.cars[i]
-                (x,y,theta,v_forward,_,_) = car.state
-
-                # (x,y,theta,vforward,vsideway=0,omega)
-
-                if car.stateUpdateSource == StateUpdateSource.optitrack \
-                        or car.stateUpdateSource == StateUpdateSource.vicon:
-                    (kf_x,kf_y,kf_v,kf_theta,kf_omega) = car.vi.getKFstate(car.internal_id)
-            else:
-                # in simulation there's no need for kf states, just use ground truth
-                (kf_x,kf_y,kf_theta,kf_v,_,kf_omega) = car.state
-
-                if self.enableLog:
-                   temp_log.append([time(),x,y,theta,car.steering,car.throttle, kf_x, kf_y, kf_v, kf_theta, kf_omega])
-
-            if self.enableLog:
-                self.full_state_log.append(temp_log)
             t.e()
         # exit point
         print_info("Exiting ...")
@@ -212,28 +171,6 @@ class Main():
             if (car.controller == Controller.joystick):
                 print_info("exiting joystick... move joystick a little")
                 car.joystick.quit()
-
-        if self.saveGif:
-            print_info("saving gif.. This may take a while")
-            gif_filename = "../gifs/sim"+str(self.log_no)+".gif"
-            # TODO better way of determining duration
-            self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
-            print_info("gif saved at "+gif_filename)
-
-
-        if self.enableLog:
-            print_info("saving log...")
-            print_info(self.logFilename)
-
-            output = open(self.logFilename,'wb')
-            pickle.dump(self.full_state_log,output)
-            output.close()
-
-            print_info("saving log...")
-            print_info(self.logDictFilename)
-            output = open(self.logDictFilename,'wb')
-            pickle.dump(self.debug_dict,output)
-            output.close()
 
     def updateVisualization(self,):
         # we want a real-time simulation, waiting sim_dt between each simulation step
@@ -321,10 +258,9 @@ class Main():
 
             self.visualization_ts = time()
 
+            self.visualization_img = img
             cv2.imshow('experiment',img)
 
-            if self.saveGif:
-                self.gifimages.append(Image.fromarray(cv2.cvtColor(img.copy(),cv2.COLOR_BGR2RGB)))
             '''
             # hardware resource usage
             ram = psutil.virtual_memory().percent
@@ -375,21 +311,6 @@ class Main():
                     car.throttle = 0
                     continue
 
-
-                
-            
-            if (car.enableLaptimer):
-                retval = car.laptimer.update((car.state[0],car.state[1]),current_time=car.simulator.t)
-                if retval:
-                    #car.laptimer.announce()
-                    print(car.laptimer.last_laptime)
-                    if (not self.critical_lap.is_set()):
-                        self.critical_lap.set()
-                        print_info("critical lap start")
-                    else:
-                        self.critical_lap.clear()
-                        print_info("critical lap end")
-                        self.exit_request.set()
 
             # apply controller
             if (car.controller == Controller.stanley):
@@ -474,10 +395,6 @@ class Main():
         self.updateVisualization()
         
 # ---- Short Routine ----
-    def prepareGif(self):
-        if self.saveGif:
-            self.gifimages = []
-            self.gifimages.append(Image.fromarray(cv2.cvtColor(self.img_track.copy(),cv2.COLOR_BGR2RGB)))
 
     def prepareVisualization(self,):
         self.visualization_ts = time()
@@ -659,28 +576,11 @@ class Main():
             elif (car.stateUpdateSource == StateUpdateSource.optitrack):
                 car.init(self.track)
         # NOTE we can turn on/off laptimer for each car individually
-        car.enableLaptimer = self.enableLaptimer
-        if car.enableLaptimer:
-            car.laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        car.enableLaptimer = True
         # so that Car class has access to the track
         car.track = self.track
         return car
 
-    def resolveLogname(self,):
-        # setup log file
-        # log file will record state of the vehicle for later analysis
-        logFolder = "../log/ref_traj/"
-        logPrefix = "full_state"
-        logSuffix = ".p"
-        no = 1
-        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
-            no += 1
-
-        self.log_no = no
-        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
-
-        logPrefix = "debug_dict"
-        self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
 
     # call before exiting
     def stop(self,):

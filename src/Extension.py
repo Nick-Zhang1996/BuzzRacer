@@ -17,4 +17,4 @@ class Extension:
         pass
 
     def final(self):
-        raise NotImplementedError
+        pass
