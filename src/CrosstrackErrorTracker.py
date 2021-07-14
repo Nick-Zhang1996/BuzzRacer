@@ -19,10 +19,17 @@ class CrosstrackErrorTracker(Extension):
                 # parse return value from localTrajectory
                 (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
                 err = np.abs(offset)
-                #print_info("[CrosstrackErrorTracker]: new error %.3f"%err)
+                #print_info("[CrosstrackErrorTracker]: new error %.4f"%err)
                 self.crosstrack_error_vec.append(err)
+            if (self.car.laptimer.new_lap.is_set()):
+                mean_err = np.mean(self.crosstrack_error_vec)
+                print_info("[CrosstrackErrorTracker]: current mean error = %.4f"%mean_err)
+
 
     def final(self):
-        mean_err = np.mean(self.crosstrack_error_vec)
-        print_ok("[CrosstrackErrorTracker] mean error = %.3f"%mean_err)
+        if (len(self.crosstrack_error_vec) > 100):
+            mean_err = np.mean(self.crosstrack_error_vec)
+            print_ok("[CrosstrackErrorTracker]: mean error = %.4f"%mean_err)
+        else:
+            print_warning("[CrosstrackErrorTracker]: insufficient data")
 

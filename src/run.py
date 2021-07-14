@@ -32,6 +32,7 @@ from Laptimer import Laptimer
 from CrosstrackErrorTracker import CrosstrackErrorTracker
 from Gifsaver import Gifsaver
 from Logger import Logger
+from LapCounter import LapCounter
 
 # for cpu/ram analysis
 #import psutil
@@ -142,8 +143,9 @@ class Main():
         # Laptimer
         self.extensions.append(Laptimer(self))
         self.extensions.append(CrosstrackErrorTracker(self))
+        self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.extensions.append(Gifsaver(self))
+        #self.extensions.append(Gifsaver(self))
         #self.extensions.append(Logger(self))
 
         for item in self.extensions:
@@ -313,65 +315,40 @@ class Main():
 
 
             # apply controller
+            # states:(x,y,theta,vforward,vsideway=0,omega)
             if (car.controller == Controller.stanley):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                if not valid:
-                    print_warning("ctrlCar invalid retval")
-                    exit(1)
-                if self.slowdown.isSet():
-                    throttle = 0.0
-
-                # DEBUG
-                debug_dict['v_target'] = 0
-                car.v_target = debug_dict['v_target']
             elif (car.controller == Controller.dynamicMpc):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                #self.debug_dict[i]['x_project'] = debug_dict['x_project']
-                self.debug_dict[i]['x_ref'] = debug_dict['x_ref']
-                self.debug_dict[i]['crosstrack_error'].append(debug_dict['crosstrack_error'])
-                self.debug_dict[i]['heading_error'].append(debug_dict['heading_error'])
-                if not valid:
-                    print_warning("ctrlCar invalid retval")
-                    exit(1)
-                # DEBUG
-                debug_dict['v_target'] = 0
-                car.v_target = debug_dict['v_target']
             elif (car.controller == Controller.joystick):
                 throttle = car.joystick.throttle
                 # just use right side for both ends
                 steering = car.joystick.steering*car.max_steering_right
-                car.v_target = throttle
+                valid = True
             elif (car.controller == Controller.mppi):
-                # TODO debugging...
-                # (x,y,theta,vforward,vsideway=0,omega)
-                #print("pos = %.2f, %.2f, psi = %.0f,v=%4.1f  omega=%.1f "%(car.state[0],car.state[1],degrees(car.state[2]),car.state[3],degrees(car.state[5])))
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                print("T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
-                if isnan(steering):
-                    print("error steering nan")
-                #print("T = %.2f, S = %.2f"%(throttle,steering))
-                # note: this style of debug dict is updated in whole at every step
-                # this syntax requires Python 3.9
-                #self.debug_dict[i] = self.debug_dict[i] | debug_dict
-                self.debug_dict[i].update(debug_dict)
-
             elif (car.controller == Controller.ccmppi):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.state,car.track,reverse=self.reverse)
-                #print("T= %4.1f, S= %4.1f"%( throttle,degrees(steering)))
-                self.debug_dict[i].update(debug_dict)
-                if isnan(steering):
-                    print("error steering nan")
-
             elif (car.controller == Controller.empty):
                 throttle = 0
                 steering = 0
+                valid = True
+
+            # post processing
+            if not valid:
+                print_warning("ctrlCar invalid retval")
+                exit(1)
+            self.debug_dict[i].update(debug_dict)
+            if isnan(steering):
+                print("error steering nan")
+            #print("T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
 
             if self.slowdown.isSet():
                 throttle = 0.0
             
             #print("V = %.2f"%(car.state[3]))
             car.steering = steering
-            # FIXME this may affect model prediction
+            # NOTE this may affect model prediction
             car.throttle = min(throttle, car.max_throttle)
 
             if (car.vehiclePlatform == VehiclePlatform.offboard):
@@ -700,7 +677,6 @@ class Main():
 
         car.steering = steering = 0
         car.throttle = throttle = 0
-        car.v_target = 0
 
         car.state = (x,y,heading,0,0,0)
         car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}
@@ -734,7 +710,6 @@ class Main():
 
         car.steering = steering = 0
         car.throttle = throttle = 0
-        car.v_target = 0
 
         car.state = (x,y,heading,0,0,0)
         car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}

@@ -15,8 +15,7 @@ class Laptimer(Extension):
         for car in self.main.cars:
             if car.enableLaptimer:
                 car.laptimer = _Laptimer(self.main.track.startPos, self.main.track.startDir)
-                car.laptimer.laps_remaining = 2
-                car.critical_lap = Event()
+                car.laptime_vec = []
 
     def update(self):
         for car in self.main.cars:
@@ -24,19 +23,20 @@ class Laptimer(Extension):
                 retval = car.laptimer.update((car.state[0],car.state[1]),current_time=car.simulator.t)
                 if retval:
                     #car.laptimer.announce()
-                    print_info("[Laptimer]: new laptime: %.3f s"%(car.laptimer.last_laptime))
-                    if (not car.critical_lap.is_set()):
-                        car.critical_lap.set()
-                        print_info("[Laptimer]: critical lap start, total = %d laps"%(car.laptimer.laps_remaining))
-                        continue
+                    print_info("[Laptimer]: car%d, new laptime: %.4f s"%(car.id, car.laptimer.last_laptime))
+                    car.laptime_vec.append(car.laptimer.last_laptime)
+                    self.showStats()
 
-                    if (car.laptimer.laps_remaining == 0):
-                        print_info("[Laptimer]: critical lap end")
-                        self.main.exit_request.set()
-                        car.critical_lap.clear()
-                    else:
-                        car.laptimer.laps_remaining -= 1
-                        print_info("[Laptimer]: %d laps remaining"%(car.laptimer.laps_remaining))
+    def final(self):
+        self.showStats()
+
+    def showStats(self):
+        for car in self.main.cars:
+            if (car.enableLaptimer):
+                mean = np.mean(car.laptime_vec)
+                stddev = np.std(car.laptime_vec)
+                laps = len(car.laptime_vec)
+                print_info("[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)"%(car.id,laps,mean,stddev))
 
 
 class _Laptimer:
