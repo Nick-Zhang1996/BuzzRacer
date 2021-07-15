@@ -44,7 +44,7 @@ class CCMPPI:
                 code = f.read()
 
             # prepare constants
-            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.8, "ZERO_REF_CTRL_RATIO":0.2}
+            cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.0, "ZERO_REF_CTRL_RATIO":0.2}
             self.cuda_code_macros = cuda_code_macros
             # add curand related config
             # new feature for Python 3.9
