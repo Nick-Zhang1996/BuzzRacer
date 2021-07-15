@@ -32,7 +32,7 @@ class Laptimer(Extension):
 
     def showStats(self):
         for car in self.main.cars:
-            if (car.enableLaptimer):
+            if (car.enableLaptimer and len(car.laptime_vec) > 0):
                 mean = np.mean(car.laptime_vec)
                 stddev = np.std(car.laptime_vec)
                 laps = len(car.laptime_vec)

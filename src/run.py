@@ -89,11 +89,11 @@ class Main():
         # the pursuer car
         car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
         # the escaping car
-        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
+        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
         car0.opponents = []
-        #car0.opponents = [car1]
+        car0.opponents = [car1]
         car0.initTrackOpponents()
         '''
         car1.opponents = []
@@ -101,8 +101,8 @@ class Main():
         car2.opponents = []
         car2.initTrackOpponents()
         '''
-        self.cars = [car0]
-        #self.cars = [car0, car1]
+        #self.cars = [car0]
+        self.cars = [car0, car1]
         for i in range(len(self.cars)):
             self.cars[i].id = i
 
