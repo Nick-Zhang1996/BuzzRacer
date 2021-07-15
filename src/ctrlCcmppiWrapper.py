@@ -40,13 +40,13 @@ class ctrlCcmppiWrapper(Car):
 
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 20
+        self.horizon_steps = 15
         self.control_dim = 2
         self.state_dim = 4
         self.temperature = 0.2
         # control noise for MPPI exploration
         # NOTE tune me
-        self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(40.0/2)**2])
+        self.noise_cov = np.diag([(self.max_throttle)**2,radians(40.0/2)**2])
         #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(60.0)**2])
         self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
 
@@ -205,6 +205,7 @@ class ctrlCcmppiWrapper(Car):
 
         # DEBUG
         # simulate where mppi think where the car will end up with
+        p.s("debug")
 
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
@@ -216,6 +217,7 @@ class ctrlCcmppiWrapper(Car):
         rollout_traj_vec = []
 
         # DEBUG
+        # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
             sim_states = states.copy()
@@ -228,6 +230,7 @@ class ctrlCcmppiWrapper(Car):
 
         # DEBUG
         # state + control
+        '''
         full_state_vec = []
         sim_states = states.copy()
         k = 0
@@ -237,11 +240,11 @@ class ctrlCcmppiWrapper(Car):
             x,y,vf,heading = sim_states
             entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
+        '''
 
         debug_dict['rollout_traj_vec'] = rollout_traj_vec
 
         # with synthesized control sequence
-        p.s("debug")
 
         sim_states = states.copy()
         for i in range(self.horizon_steps):

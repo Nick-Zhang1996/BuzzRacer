@@ -45,6 +45,7 @@ class CCMPPI:
 
             # prepare constants
             cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":dt, "CC_RATIO":0.8, "ZERO_REF_CTRL_RATIO":0.2}
+            self.cuda_code_macros = cuda_code_macros
             # add curand related config
             # new feature for Python 3.9
             #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
@@ -104,13 +105,14 @@ class CCMPPI:
         p.s("CC")
 
         # CCMPPI specific, generate and pack K matrices
-        Ks, As, Bs, ds = self.cc.cc(state)
-
-        # effectively disable cc
-        '''
-        print_warning("CC disabled")
-        Ks = np.zeros([self.N*self.m*self.n])
-        '''
+        if (self.cuda_code_macros['CC_RATIO'] > 0.01):
+            Ks, As, Bs, ds = self.cc.cc(state)
+        else:
+            # effectively disable cc
+            #print_warning("CC disabled")
+            Ks = np.zeros([self.N*self.m*self.n])
+            As = np.zeros([self.N*self.n*self.n])
+            Bs = np.zeros([self.N*self.n*self.m])
 
 
         Ks_flat = np.array(Ks,dtype=np.float32).flatten()

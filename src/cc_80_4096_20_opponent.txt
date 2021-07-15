@@ -1,0 +1,772 @@
+nick@nick-Zephyrus-M15-GU502LW-GU502LW:~/rcvip/src$ python run.py 
+ track and raceline loaded 
+ kinematic simulation init 
+ track and raceline loaded 
+  reference laptime 8.59s  
+ loading cuda module ... 
+cuda block size 1024, grid size 4
+ registers used each kernel in eval_ctrl= 56 
+ kinematic simulation init 
+ [CrosstrackErrorTracker]: in use 
+ [Laptimer]: in use 
+ [LapCounter]: in use, total 100 laps 
+ running ... press q to quit 
+ [Laptimer]: car0, new laptime: 5.4600 s 
+ [Laptimer]: car0, 1 laps, mean 5.4600, stddev 0.0000 (sec) 
+ [LapCounter]: car0 critical lap start, total = 100 laps 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 1 laps, mean 5.4600, stddev 0.0000 (sec) 
+ [Laptimer]: car1, 1 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [LapCounter]: car1 critical lap start, total = 100 laps 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 2 laps, mean 5.3400, stddev 0.1200 (sec) 
+ [Laptimer]: car1, 1 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0176 
+ [LapCounter]: car0, 99 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 3 laps, mean 5.2200, stddev 0.1960 (sec) 
+ [Laptimer]: car1, 1 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0212 
+ [LapCounter]: car0, 98 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 3 laps, mean 5.2200, stddev 0.1960 (sec) 
+ [Laptimer]: car1, 2 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [LapCounter]: car1, 99 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0100 s 
+ [Laptimer]: car0, 4 laps, mean 5.1675, stddev 0.1925 (sec) 
+ [Laptimer]: car1, 2 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0206 
+ [LapCounter]: car0, 97 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 5 laps, mean 5.1720, stddev 0.1724 (sec) 
+ [Laptimer]: car1, 2 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 96 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 5 laps, mean 5.1720, stddev 0.1724 (sec) 
+ [Laptimer]: car1, 3 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [LapCounter]: car1, 98 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 6 laps, mean 5.1650, stddev 0.1582 (sec) 
+ [Laptimer]: car1, 3 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0209 
+ [LapCounter]: car0, 95 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 7 laps, mean 5.1557, stddev 0.1482 (sec) 
+ [Laptimer]: car1, 3 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0214 
+ [LapCounter]: car0, 94 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 7 laps, mean 5.1557, stddev 0.1482 (sec) 
+ [Laptimer]: car1, 4 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [LapCounter]: car1, 97 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 8 laps, mean 5.1638, stddev 0.1403 (sec) 
+ [Laptimer]: car1, 4 laps, mean 8.7000, stddev 0.0000 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0208 
+ [LapCounter]: car0, 93 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 8 laps, mean 5.1638, stddev 0.1403 (sec) 
+ [Laptimer]: car1, 5 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 96 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 9 laps, mean 5.1633, stddev 0.1322 (sec) 
+ [Laptimer]: car1, 5 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0203 
+ [LapCounter]: car0, 92 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 10 laps, mean 5.1660, stddev 0.1257 (sec) 
+ [Laptimer]: car1, 5 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0213 
+ [LapCounter]: car0, 91 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 10 laps, mean 5.1660, stddev 0.1257 (sec) 
+ [Laptimer]: car1, 6 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [LapCounter]: car1, 95 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 11 laps, mean 5.1545, stddev 0.1252 (sec) 
+ [Laptimer]: car1, 6 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0208 
+ [LapCounter]: car0, 90 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 12 laps, mean 5.1575, stddev 0.1203 (sec) 
+ [Laptimer]: car1, 6 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0215 
+ [LapCounter]: car0, 89 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 12 laps, mean 5.1575, stddev 0.1203 (sec) 
+ [Laptimer]: car1, 7 laps, mean 8.6957, stddev 0.0105 (sec) 
+ [LapCounter]: car1, 94 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 13 laps, mean 5.1600, stddev 0.1159 (sec) 
+ [Laptimer]: car1, 7 laps, mean 8.6957, stddev 0.0105 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0211 
+ [LapCounter]: car0, 88 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 13 laps, mean 5.1600, stddev 0.1159 (sec) 
+ [Laptimer]: car1, 8 laps, mean 8.6963, stddev 0.0099 (sec) 
+ [LapCounter]: car1, 93 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 14 laps, mean 5.1643, stddev 0.1127 (sec) 
+ [Laptimer]: car1, 8 laps, mean 8.6963, stddev 0.0099 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0209 
+ [LapCounter]: car0, 87 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 15 laps, mean 5.1680, stddev 0.1098 (sec) 
+ [Laptimer]: car1, 8 laps, mean 8.6963, stddev 0.0099 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 86 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 15 laps, mean 5.1680, stddev 0.1098 (sec) 
+ [Laptimer]: car1, 9 laps, mean 8.6933, stddev 0.0125 (sec) 
+ [LapCounter]: car1, 92 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 16 laps, mean 5.1675, stddev 0.1063 (sec) 
+ [Laptimer]: car1, 9 laps, mean 8.6933, stddev 0.0125 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0215 
+ [LapCounter]: car0, 85 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 17 laps, mean 5.1618, stddev 0.1057 (sec) 
+ [Laptimer]: car1, 9 laps, mean 8.6933, stddev 0.0125 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 84 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 17 laps, mean 5.1618, stddev 0.1057 (sec) 
+ [Laptimer]: car1, 10 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 91 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 18 laps, mean 5.1583, stddev 0.1037 (sec) 
+ [Laptimer]: car1, 10 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 83 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 18 laps, mean 5.1583, stddev 0.1037 (sec) 
+ [Laptimer]: car1, 11 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [LapCounter]: car1, 90 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 19 laps, mean 5.1489, stddev 0.1085 (sec) 
+ [Laptimer]: car1, 11 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0213 
+ [LapCounter]: car0, 82 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3400 s 
+ [Laptimer]: car0, 20 laps, mean 5.1585, stddev 0.1136 (sec) 
+ [Laptimer]: car1, 11 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 81 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 20 laps, mean 5.1585, stddev 0.1136 (sec) 
+ [Laptimer]: car1, 12 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [LapCounter]: car1, 89 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 21 laps, mean 5.1614, stddev 0.1117 (sec) 
+ [Laptimer]: car1, 12 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 80 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0100 s 
+ [Laptimer]: car0, 22 laps, mean 5.1545, stddev 0.1136 (sec) 
+ [Laptimer]: car1, 12 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 79 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 22 laps, mean 5.1545, stddev 0.1136 (sec) 
+ [Laptimer]: car1, 13 laps, mean 8.6954, stddev 0.0108 (sec) 
+ [LapCounter]: car1, 88 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 23 laps, mean 5.1496, stddev 0.1135 (sec) 
+ [Laptimer]: car1, 13 laps, mean 8.6954, stddev 0.0108 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 78 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 23 laps, mean 5.1496, stddev 0.1135 (sec) 
+ [Laptimer]: car1, 14 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 87 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9200 s 
+ [Laptimer]: car0, 24 laps, mean 5.1400, stddev 0.1202 (sec) 
+ [Laptimer]: car1, 14 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0215 
+ [LapCounter]: car0, 77 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8300 s 
+ [Laptimer]: car0, 25 laps, mean 5.1276, stddev 0.1325 (sec) 
+ [Laptimer]: car1, 14 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 76 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 25 laps, mean 5.1276, stddev 0.1325 (sec) 
+ [Laptimer]: car1, 15 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 86 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 26 laps, mean 5.1242, stddev 0.1310 (sec) 
+ [Laptimer]: car1, 15 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0214 
+ [LapCounter]: car0, 75 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3100 s 
+ [Laptimer]: car0, 27 laps, mean 5.1311, stddev 0.1333 (sec) 
+ [Laptimer]: car1, 15 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 74 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 27 laps, mean 5.1311, stddev 0.1333 (sec) 
+ [Laptimer]: car1, 16 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [LapCounter]: car1, 85 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 28 laps, mean 5.1289, stddev 0.1314 (sec) 
+ [Laptimer]: car1, 16 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 73 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 29 laps, mean 5.1321, stddev 0.1302 (sec) 
+ [Laptimer]: car1, 16 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 72 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 29 laps, mean 5.1321, stddev 0.1302 (sec) 
+ [Laptimer]: car1, 17 laps, mean 8.6947, stddev 0.0114 (sec) 
+ [LapCounter]: car1, 84 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 30 laps, mean 5.1340, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 17 laps, mean 8.6947, stddev 0.0114 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 71 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 30 laps, mean 5.1340, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 18 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [LapCounter]: car1, 83 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 31 laps, mean 5.1358, stddev 0.1267 (sec) 
+ [Laptimer]: car1, 18 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0215 
+ [LapCounter]: car0, 70 laps remaining 
+ [Laptimer]: car0, new laptime: 5.4300 s 
+ [Laptimer]: car0, 32 laps, mean 5.1450, stddev 0.1348 (sec) 
+ [Laptimer]: car1, 18 laps, mean 8.6950, stddev 0.0112 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 69 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 32 laps, mean 5.1450, stddev 0.1348 (sec) 
+ [Laptimer]: car1, 19 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 82 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 33 laps, mean 5.1436, stddev 0.1330 (sec) 
+ [Laptimer]: car1, 19 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 68 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 34 laps, mean 5.1424, stddev 0.1312 (sec) 
+ [Laptimer]: car1, 19 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 67 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 34 laps, mean 5.1424, stddev 0.1312 (sec) 
+ [Laptimer]: car1, 20 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 81 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 35 laps, mean 5.1377, stddev 0.1321 (sec) 
+ [Laptimer]: car1, 20 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 66 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 35 laps, mean 5.1377, stddev 0.1321 (sec) 
+ [Laptimer]: car1, 21 laps, mean 8.6943, stddev 0.0118 (sec) 
+ [LapCounter]: car1, 80 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0100 s 
+ [Laptimer]: car0, 36 laps, mean 5.1342, stddev 0.1319 (sec) 
+ [Laptimer]: car1, 21 laps, mean 8.6943, stddev 0.0118 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 65 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9200 s 
+ [Laptimer]: car0, 37 laps, mean 5.1284, stddev 0.1347 (sec) 
+ [Laptimer]: car1, 21 laps, mean 8.6943, stddev 0.0118 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 64 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 37 laps, mean 5.1284, stddev 0.1347 (sec) 
+ [Laptimer]: car1, 22 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [LapCounter]: car1, 79 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 38 laps, mean 5.1261, stddev 0.1337 (sec) 
+ [Laptimer]: car1, 22 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0215 
+ [LapCounter]: car0, 63 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 39 laps, mean 5.1269, stddev 0.1320 (sec) 
+ [Laptimer]: car1, 22 laps, mean 8.6945, stddev 0.0116 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 62 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 39 laps, mean 5.1269, stddev 0.1320 (sec) 
+ [Laptimer]: car1, 23 laps, mean 8.6935, stddev 0.0124 (sec) 
+ [LapCounter]: car1, 78 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 40 laps, mean 5.1255, stddev 0.1307 (sec) 
+ [Laptimer]: car1, 23 laps, mean 8.6935, stddev 0.0124 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 61 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 41 laps, mean 5.1241, stddev 0.1294 (sec) 
+ [Laptimer]: car1, 23 laps, mean 8.6935, stddev 0.0124 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 60 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 41 laps, mean 5.1241, stddev 0.1294 (sec) 
+ [Laptimer]: car1, 24 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 77 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 42 laps, mean 5.1229, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 24 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 59 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 42 laps, mean 5.1229, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 25 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 76 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8900 s 
+ [Laptimer]: car0, 43 laps, mean 5.1174, stddev 0.1314 (sec) 
+ [Laptimer]: car1, 25 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 58 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 44 laps, mean 5.1198, stddev 0.1308 (sec) 
+ [Laptimer]: car1, 25 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 57 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 44 laps, mean 5.1198, stddev 0.1308 (sec) 
+ [Laptimer]: car1, 26 laps, mean 8.6942, stddev 0.0118 (sec) 
+ [LapCounter]: car1, 75 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 45 laps, mean 5.1220, stddev 0.1301 (sec) 
+ [Laptimer]: car1, 26 laps, mean 8.6942, stddev 0.0118 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 56 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 46 laps, mean 5.1228, stddev 0.1288 (sec) 
+ [Laptimer]: car1, 26 laps, mean 8.6942, stddev 0.0118 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 55 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 46 laps, mean 5.1228, stddev 0.1288 (sec) 
+ [Laptimer]: car1, 27 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [LapCounter]: car1, 74 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 47 laps, mean 5.1236, stddev 0.1276 (sec) 
+ [Laptimer]: car1, 27 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 54 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 47 laps, mean 5.1236, stddev 0.1276 (sec) 
+ [Laptimer]: car1, 28 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 73 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 48 laps, mean 5.1256, stddev 0.1270 (sec) 
+ [Laptimer]: car1, 28 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 53 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3100 s 
+ [Laptimer]: car0, 49 laps, mean 5.1294, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 28 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 52 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 49 laps, mean 5.1294, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 29 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 72 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 50 laps, mean 5.1282, stddev 0.1273 (sec) 
+ [Laptimer]: car1, 29 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 51 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 51 laps, mean 5.1276, stddev 0.1261 (sec) 
+ [Laptimer]: car1, 29 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0220 
+ [LapCounter]: car0, 50 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 51 laps, mean 5.1276, stddev 0.1261 (sec) 
+ [Laptimer]: car1, 30 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 71 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8900 s 
+ [Laptimer]: car0, 52 laps, mean 5.1231, stddev 0.1291 (sec) 
+ [Laptimer]: car1, 30 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 49 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 52 laps, mean 5.1231, stddev 0.1291 (sec) 
+ [Laptimer]: car1, 31 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [LapCounter]: car1, 70 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 53 laps, mean 5.1221, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 31 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 48 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3400 s 
+ [Laptimer]: car0, 54 laps, mean 5.1261, stddev 0.1303 (sec) 
+ [Laptimer]: car1, 31 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 47 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 54 laps, mean 5.1261, stddev 0.1303 (sec) 
+ [Laptimer]: car1, 32 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [LapCounter]: car1, 69 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 55 laps, mean 5.1245, stddev 0.1296 (sec) 
+ [Laptimer]: car1, 32 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 46 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 56 laps, mean 5.1246, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 32 laps, mean 8.6944, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 45 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 56 laps, mean 5.1246, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 33 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 68 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 57 laps, mean 5.1232, stddev 0.1278 (sec) 
+ [Laptimer]: car1, 33 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 44 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0100 s 
+ [Laptimer]: car0, 58 laps, mean 5.1212, stddev 0.1275 (sec) 
+ [Laptimer]: car1, 33 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 43 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 58 laps, mean 5.1212, stddev 0.1275 (sec) 
+ [Laptimer]: car1, 34 laps, mean 8.6938, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 67 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 59 laps, mean 5.1214, stddev 0.1264 (sec) 
+ [Laptimer]: car1, 34 laps, mean 8.6938, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 42 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 59 laps, mean 5.1214, stddev 0.1264 (sec) 
+ [Laptimer]: car1, 35 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 66 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9200 s 
+ [Laptimer]: car0, 60 laps, mean 5.1180, stddev 0.1280 (sec) 
+ [Laptimer]: car1, 35 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 41 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8900 s 
+ [Laptimer]: car0, 61 laps, mean 5.1143, stddev 0.1302 (sec) 
+ [Laptimer]: car1, 35 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 40 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 61 laps, mean 5.1143, stddev 0.1302 (sec) 
+ [Laptimer]: car1, 36 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [LapCounter]: car1, 65 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 62 laps, mean 5.1150, stddev 0.1293 (sec) 
+ [Laptimer]: car1, 36 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 39 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3100 s 
+ [Laptimer]: car0, 63 laps, mean 5.1181, stddev 0.1306 (sec) 
+ [Laptimer]: car1, 36 laps, mean 8.6942, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 38 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 63 laps, mean 5.1181, stddev 0.1306 (sec) 
+ [Laptimer]: car1, 37 laps, mean 8.6943, stddev 0.0117 (sec) 
+ [LapCounter]: car1, 64 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 64 laps, mean 5.1183, stddev 0.1295 (sec) 
+ [Laptimer]: car1, 37 laps, mean 8.6943, stddev 0.0117 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 37 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 64 laps, mean 5.1183, stddev 0.1295 (sec) 
+ [Laptimer]: car1, 38 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 63 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 65 laps, mean 5.1185, stddev 0.1285 (sec) 
+ [Laptimer]: car1, 38 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 36 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2500 s 
+ [Laptimer]: car0, 66 laps, mean 5.1205, stddev 0.1286 (sec) 
+ [Laptimer]: car1, 38 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 35 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 66 laps, mean 5.1205, stddev 0.1286 (sec) 
+ [Laptimer]: car1, 39 laps, mean 8.6938, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 62 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 67 laps, mean 5.1206, stddev 0.1276 (sec) 
+ [Laptimer]: car1, 39 laps, mean 8.6938, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 34 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2800 s 
+ [Laptimer]: car0, 68 laps, mean 5.1229, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 39 laps, mean 8.6938, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 33 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 68 laps, mean 5.1229, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 40 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 61 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 69 laps, mean 5.1230, stddev 0.1272 (sec) 
+ [Laptimer]: car1, 40 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 32 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 69 laps, mean 5.1230, stddev 0.1272 (sec) 
+ [Laptimer]: car1, 41 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [LapCounter]: car1, 60 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 70 laps, mean 5.1219, stddev 0.1267 (sec) 
+ [Laptimer]: car1, 41 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 31 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8600 s 
+ [Laptimer]: car0, 71 laps, mean 5.1182, stddev 0.1295 (sec) 
+ [Laptimer]: car1, 41 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 30 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 71 laps, mean 5.1182, stddev 0.1295 (sec) 
+ [Laptimer]: car1, 42 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 59 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 72 laps, mean 5.1162, stddev 0.1296 (sec) 
+ [Laptimer]: car1, 42 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 29 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2800 s 
+ [Laptimer]: car0, 73 laps, mean 5.1185, stddev 0.1301 (sec) 
+ [Laptimer]: car1, 42 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 28 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 73 laps, mean 5.1185, stddev 0.1301 (sec) 
+ [Laptimer]: car1, 43 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 58 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 74 laps, mean 5.1186, stddev 0.1292 (sec) 
+ [Laptimer]: car1, 43 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 27 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 75 laps, mean 5.1188, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 43 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 26 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 75 laps, mean 5.1188, stddev 0.1284 (sec) 
+ [Laptimer]: car1, 44 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 57 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9500 s 
+ [Laptimer]: car0, 76 laps, mean 5.1166, stddev 0.1290 (sec) 
+ [Laptimer]: car1, 44 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 25 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 76 laps, mean 5.1166, stddev 0.1290 (sec) 
+ [Laptimer]: car1, 45 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 56 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 77 laps, mean 5.1164, stddev 0.1282 (sec) 
+ [Laptimer]: car1, 45 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0216 
+ [LapCounter]: car0, 24 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2800 s 
+ [Laptimer]: car0, 78 laps, mean 5.1185, stddev 0.1287 (sec) 
+ [Laptimer]: car1, 45 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 23 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 78 laps, mean 5.1185, stddev 0.1287 (sec) 
+ [Laptimer]: car1, 46 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [LapCounter]: car1, 55 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 79 laps, mean 5.1175, stddev 0.1281 (sec) 
+ [Laptimer]: car1, 46 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 22 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2500 s 
+ [Laptimer]: car0, 80 laps, mean 5.1191, stddev 0.1282 (sec) 
+ [Laptimer]: car1, 46 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 21 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 80 laps, mean 5.1191, stddev 0.1282 (sec) 
+ [Laptimer]: car1, 47 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 54 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8900 s 
+ [Laptimer]: car0, 81 laps, mean 5.1163, stddev 0.1299 (sec) 
+ [Laptimer]: car1, 47 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 20 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 81 laps, mean 5.1163, stddev 0.1299 (sec) 
+ [Laptimer]: car1, 48 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 53 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1300 s 
+ [Laptimer]: car0, 82 laps, mean 5.1165, stddev 0.1291 (sec) 
+ [Laptimer]: car1, 48 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 19 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3400 s 
+ [Laptimer]: car0, 83 laps, mean 5.1192, stddev 0.1306 (sec) 
+ [Laptimer]: car1, 48 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 18 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 83 laps, mean 5.1192, stddev 0.1306 (sec) 
+ [Laptimer]: car1, 49 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 52 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1000 s 
+ [Laptimer]: car0, 84 laps, mean 5.1189, stddev 0.1298 (sec) 
+ [Laptimer]: car1, 49 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 17 laps remaining 
+ [Laptimer]: car0, new laptime: 5.3700 s 
+ [Laptimer]: car0, 85 laps, mean 5.1219, stddev 0.1319 (sec) 
+ [Laptimer]: car1, 49 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0219 
+ [LapCounter]: car0, 16 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 85 laps, mean 5.1219, stddev 0.1319 (sec) 
+ [Laptimer]: car1, 50 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 51 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 86 laps, mean 5.1227, stddev 0.1313 (sec) 
+ [Laptimer]: car1, 50 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 15 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 86 laps, mean 5.1227, stddev 0.1313 (sec) 
+ [Laptimer]: car1, 51 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [LapCounter]: car1, 50 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 87 laps, mean 5.1234, stddev 0.1308 (sec) 
+ [Laptimer]: car1, 51 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 14 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 88 laps, mean 5.1239, stddev 0.1301 (sec) 
+ [Laptimer]: car1, 51 laps, mean 8.6941, stddev 0.0119 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 13 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 88 laps, mean 5.1239, stddev 0.1301 (sec) 
+ [Laptimer]: car1, 52 laps, mean 8.6937, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 49 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1600 s 
+ [Laptimer]: car0, 89 laps, mean 5.1243, stddev 0.1294 (sec) 
+ [Laptimer]: car1, 52 laps, mean 8.6937, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 12 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2800 s 
+ [Laptimer]: car0, 90 laps, mean 5.1260, stddev 0.1297 (sec) 
+ [Laptimer]: car1, 52 laps, mean 8.6937, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 11 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 90 laps, mean 5.1260, stddev 0.1297 (sec) 
+ [Laptimer]: car1, 53 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 48 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 91 laps, mean 5.1254, stddev 0.1291 (sec) 
+ [Laptimer]: car1, 53 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 10 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 91 laps, mean 5.1254, stddev 0.1291 (sec) 
+ [Laptimer]: car1, 54 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 47 laps remaining 
+ [Laptimer]: car0, new laptime: 5.2200 s 
+ [Laptimer]: car0, 92 laps, mean 5.1264, stddev 0.1288 (sec) 
+ [Laptimer]: car1, 54 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 9 laps remaining 
+ [Laptimer]: car0, new laptime: 5.4600 s 
+ [Laptimer]: car0, 93 laps, mean 5.1300, stddev 0.1326 (sec) 
+ [Laptimer]: car1, 54 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 8 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 93 laps, mean 5.1300, stddev 0.1326 (sec) 
+ [Laptimer]: car1, 55 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [LapCounter]: car1, 46 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 94 laps, mean 5.1290, stddev 0.1323 (sec) 
+ [Laptimer]: car1, 55 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 7 laps remaining 
+ [Laptimer]: car0, new laptime: 4.8900 s 
+ [Laptimer]: car0, 95 laps, mean 5.1265, stddev 0.1338 (sec) 
+ [Laptimer]: car1, 55 laps, mean 8.6940, stddev 0.0120 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 6 laps remaining 
+ [Laptimer]: car1, new laptime: 8.6700 s 
+ [Laptimer]: car0, 95 laps, mean 5.1265, stddev 0.1338 (sec) 
+ [Laptimer]: car1, 56 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [LapCounter]: car1, 45 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 96 laps, mean 5.1250, stddev 0.1339 (sec) 
+ [Laptimer]: car1, 56 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 5 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 97 laps, mean 5.1241, stddev 0.1335 (sec) 
+ [Laptimer]: car1, 56 laps, mean 8.6936, stddev 0.0123 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 4 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 97 laps, mean 5.1241, stddev 0.1335 (sec) 
+ [Laptimer]: car1, 57 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 44 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0700 s 
+ [Laptimer]: car0, 98 laps, mean 5.1236, stddev 0.1329 (sec) 
+ [Laptimer]: car1, 57 laps, mean 8.6937, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 3 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 98 laps, mean 5.1236, stddev 0.1329 (sec) 
+ [Laptimer]: car1, 58 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [LapCounter]: car1, 43 laps remaining 
+ [Laptimer]: car0, new laptime: 5.0400 s 
+ [Laptimer]: car0, 99 laps, mean 5.1227, stddev 0.1325 (sec) 
+ [Laptimer]: car1, 58 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 2 laps remaining 
+ [Laptimer]: car0, new laptime: 5.1900 s 
+ [Laptimer]: car0, 100 laps, mean 5.1234, stddev 0.1320 (sec) 
+ [Laptimer]: car1, 58 laps, mean 8.6938, stddev 0.0122 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0218 
+ [LapCounter]: car0, 1 laps remaining 
+ [Laptimer]: car1, new laptime: 8.7000 s 
+ [Laptimer]: car0, 100 laps, mean 5.1234, stddev 0.1320 (sec) 
+ [Laptimer]: car1, 59 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [LapCounter]: car1, 42 laps remaining 
+ [Laptimer]: car0, new laptime: 4.9800 s 
+ [Laptimer]: car0, 101 laps, mean 5.1220, stddev 0.1321 (sec) 
+ [Laptimer]: car1, 59 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: current mean error = 0.0217 
+ [LapCounter]: car0, 0 laps remaining 
+ [LapCounter]: car0 critical lap end 
+ Exiting ... 
+ [Laptimer]: car0, 101 laps, mean 5.1220, stddev 0.1321 (sec) 
+ [Laptimer]: car1, 59 laps, mean 8.6939, stddev 0.0121 (sec) 
+ [CrosstrackErrorTracker]: mean error = 0.0217 
+ program complete 
+-----Variables--------
+-------Time-----------
+avg frequency = 4.004Hz
+unaccounted time = 100.0 %
+-----Variables--------
+-------Time-----------
+local traj		0.0 %
+prep		0.0 %
+ccmppi		71.8 %
+debug		0.3 %
+avg frequency = 4.837Hz
+unaccounted time = 28.0 %
+nick@nick-Zephyrus-M15-GU502LW-GU502LW:~/rcvip/src$ 
+

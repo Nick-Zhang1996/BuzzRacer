@@ -269,10 +269,12 @@ void _evaluate_control_sequence(
     u += CONTROL_DIM;
 
   }
+
+
   float terminal_cost = evaluate_terminal_cost(x,x0,in_raceline);
   cost += terminal_cost;
-
   out_cost[id] = cost;
+
 
 }
 
@@ -331,32 +333,36 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // forward vel
 
   float dv = state[2] - in_raceline[idx][3];
-  float cost = dist + 0.1*dv*dv;
-  //float cost = 2.0* dist + 0.5*dv*dv;
-  //float cost = dist;
+  //float cost = dist + 0.1*dv*dv;
+  float cost = dist;
   // additional penalty on negative velocity 
   if (state[2] < 0){
     cost += 0.1;
   }
-  return cost*5.0;
+  //return cost;
+  return 0.0;
 }
 
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
-  //int idx0,idx;
-  //float dist;
+  int idx0,idx;
+  float dist,cost;
+
+  //int id = blockIdx.x * blockDim.x + threadIdx.x;
 
   // we don't need distance info for initial state, 
   //dist is put in as a dummy variable, it is immediately overritten
-  //find_closest_id(x0,in_raceline,-1,0,&idx0,&dist);
-  //find_closest_id(state,in_raceline,-1,0,&idx,&dist);
+  find_closest_id(x0,in_raceline,-1,0,&idx0,&dist);
+  find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
 
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
+  cost += dist*dist*100;
+  return cost;
   // NOTE ignoring terminal cost
-  return 0.0;
+  //return 0.0;
 }
 
 // NOTE potential improvement by reusing idx result from other functions
@@ -378,17 +384,14 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist +0.05> in_raceline[idx][4])? 0.3:0.0;
+    //cost = (dist +0.05> in_raceline[idx][4])? 0.3:0.0;
+    cost = (dist +0.05> in_raceline[idx][4])? 20.0:0.0;
   } else {
-    cost = (dist +0.05> in_raceline[idx][5])? 0.3:0.0;
+    //cost = (dist +0.05> in_raceline[idx][5])? 0.3:0.0;
+    cost = (dist +0.05> in_raceline[idx][5])? 20.0:0.0;
   }
 
   return cost;
-}
-
-__device__
-void calc_feedback_control(float* controls, float*state, int index){
-
 }
 
 
@@ -434,7 +437,6 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
 
 // curand funtions
-
 __device__ curandState_t* curand_states[CURAND_KERNEL_N];
 
 extern "C" {

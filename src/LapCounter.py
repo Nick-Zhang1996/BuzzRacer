@@ -8,7 +8,7 @@ class LapCounter(Extension):
         Extension.__init__(self,main)
 
     def init(self):
-        self.total_laps = 100
+        self.total_laps = 5
         print_ok("[LapCounter]: in use, total %d laps"%(self.total_laps))
         for car in self.main.cars:
             car.laps_remaining = self.total_laps

@@ -145,7 +145,7 @@ class Main():
         self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Gifsaver(self))
+        self.extensions.append(Gifsaver(self))
         #self.extensions.append(Logger(self))
 
         for item in self.extensions:
