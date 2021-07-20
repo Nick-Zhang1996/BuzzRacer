@@ -20,7 +20,7 @@ class Laptimer(Extension):
     def update(self):
         for car in self.main.cars:
             if (car.enableLaptimer):
-                retval = car.laptimer.update((car.state[0],car.state[1]),current_time=car.simulator.t)
+                retval = car.laptimer.update((car.states[0],car.states[1]),current_time=self.main.sim_t)
                 if retval:
                     #car.laptimer.announce()
                     print_info("[Laptimer]: car%d, new laptime: %.4f s"%(car.id, car.laptimer.last_laptime))

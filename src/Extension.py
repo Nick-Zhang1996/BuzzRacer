@@ -1,7 +1,7 @@
 
 class Extension:
     def __init__(self,main):
-        self.main = main
+        Extension.main = main
 
     # optional initialization
     def init(self):

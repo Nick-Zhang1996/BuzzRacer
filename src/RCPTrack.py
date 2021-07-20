@@ -1766,6 +1766,18 @@ class RCPtrack(Track):
 
         return img
 
+    # draw a circle on canvas at coord
+    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
+        src = self.m2canvas(coord)
+        if src is None:
+            #print("Can't draw point -- outside track")
+            return img
+        radius_pix = radius_m / self.scale * self.resolution
+        img = cv2.circle(img, src, radius_pix, color,-1)
+
+        return img
+
+
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
     def drawAcc(acc,img):
         pass
