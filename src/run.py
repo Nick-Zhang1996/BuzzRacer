@@ -463,10 +463,14 @@ class Main():
         else:
             print_error("Unrecognized car config")
 
+        # FIXME
+        car_setting['serial_port'] = None
+        '''
         if (self.experiment_type == ExperimentType.Simulation):
             car_setting['serial_port'] = None
             #car_setting['max_throttle'] = 1.0
             #print_warning("Limiting max_throttle to %.2f"%car_setting['max_throttle'])
+        '''
 
         # select right controller subclass to instantiate for car
         if (controller == Controller.dynamicMpc):
@@ -540,7 +544,7 @@ if __name__ == '__main__':
     experiment.run()
     print_info("program complete")
 
-    experiment.timer.summary()
-    experiment.cars[0].p.summary()
+    #experiment.timer.summary()
+    #experiment.cars[0].p.summary()
 
 
