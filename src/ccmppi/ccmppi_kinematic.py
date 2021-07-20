@@ -22,7 +22,7 @@ from cvxpy.atoms.affine.transpose import transpose
 from common import *
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
-from kinematicSimulator import kinematicSimulator
+from KinematicSimulator import KinematicSimulator
 
 class CCMPPI_KINEMATIC():
     def __init__(self,dt, N, noise_cov, debug_info=None):
@@ -52,7 +52,6 @@ class CCMPPI_KINEMATIC():
         self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
         
         np.random.seed()
-        self.sim = kinematicSimulator(0,0,0,0)
 
     def setupParam(self):
         # dimension
@@ -531,7 +530,7 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
+                x_i = KinematicSimulator.advanceDynamics(x_i, control)
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
 
                 cc_states_vec[j].append(x_i.flatten())
@@ -560,7 +559,7 @@ class CCMPPI_KINEMATIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = self.sim.updateCar(self.dt, control[0], control[1], external_states=x_i)
+                x_i = KinematicSimulator.advanceDynamics(x_i, control)
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)

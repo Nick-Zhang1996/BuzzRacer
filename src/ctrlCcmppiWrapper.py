@@ -15,15 +15,12 @@ from common import *
 from timeUtil import execution_timer
 from car import Car
 from ccmppi import CCMPPI
-from kinematicSimulator import kinematicSimulator
 
 class ctrlCcmppiWrapper(Car):
     def __init__(self,car_setting,dt):
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         super().__init__(car_setting,dt)
-        # no need simulator to track states
-        self.sim = kinematicSimulator(0,0,0,0)
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
         # last_s is the last s such that R(last_s) is closest to vehicle
