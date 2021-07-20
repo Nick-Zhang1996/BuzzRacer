@@ -21,19 +21,6 @@ class Car:
         # controller would cease attempt to correct for it, and will brake vehicle to a stop
         # unit: m
         self.max_offset = 1.0
-        # controller tuning, steering->lateral offset
-        # P is applied on offset
-        # unit: radiant of steering per meter offset
-        # the way it is set up now the first number is degree of steering per cm offset
-        # for actual car 1 seems to work
-        #self.P = 2.0/180*pi/0.01
-        # variable P
-        # define two velocity->gain map, a linear interpolation would be used to determine gain
-        p1 = (1.0,2.0)
-        p2 = (4.0,0.5)
-        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
-        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
-        self.Pfun = lambda v: max(min((self.Pfun_slope*v+self.Pfun_offset),4.0),0.5)/280*pi/0.01
         # define maximum allowable throttle and steering
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
@@ -99,7 +86,6 @@ class Car:
     def ctrlCar(self,state,track,v_override=None,reverse=False):
         print_error("No implementation for ctrlCar() is defined, ctrlCar() in Car is a function template, inherit Car class and overload this function")
         return
-
 
     def actuate(self,steering,throttle):
         if not (self.car_interface is None):

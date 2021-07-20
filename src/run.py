@@ -49,7 +49,6 @@ class VehiclePlatform(Enum):
     dynamic_simulator = auto()
     eth_simulator = auto()
 
-
 class Controller(Enum):
     stanley = auto()
     purePursuit = auto() # NOT IMPLEMENTED
@@ -79,20 +78,22 @@ class Main():
 
         # a list of Car class object running
         # the pursuer car
-        #car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
-        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
+        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
         # the escaping car
-        car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
+        #car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
 
         # to allow car 0 to track car1, predict its future trajectory etc
         car0.opponents = []
-        car0.opponents = [car1]
-        #car0.initTrackOpponents()
-        #self.cars = [car0]
-        self.cars = [car0, car1]
+        # prepare random obstacles
+        car0.opponent_prediction = []
+        obstacles = np.random.random((10,2))
+        car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
+        print("obstacles")
+        print(obstacles)
+
+        self.cars = [car0]
         for i in range(len(self.cars)):
             self.cars[i].id = i
-
 
         # flag to quit all child threads gracefully
         self.exit_request = Event()
@@ -114,7 +115,6 @@ class Main():
 
         self.prepareVisualization()
 
-
         # --- New approach: Extensions ---
         self.extensions = []
         # Laptimer
@@ -135,11 +135,13 @@ class Main():
         # real time/sim_time
         # larger value result in slower simulation
         # NOTE ignored in real experiments
+        '''
         self.real_sim_dt = None
         self.real_sim_time_ratio = 1.0
         if (self.experiment_type == ExperimentType.Realworld):
             print_warning(" setting real_sim_time_ratio = 1")
             self.real_sim_time_ratio = 1.0
+        '''
 
     # run experiment until user press q in visualization window
     def run(self):
@@ -147,10 +149,12 @@ class Main():
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             t.s()
+            # -- Extension update -- 
             for item in self.extensions:
                 item.preUpdate()
+
             self.update()
-            # -- Extension update -- 
+
             for item in self.extensions:
                 item.update()
             for item in self.extensions:
@@ -257,13 +261,6 @@ class Main():
             self.visualization_img = img
             cv2.imshow('experiment',img)
 
-            '''
-            # hardware resource usage
-            ram = psutil.virtual_memory().percent
-            cpu = psutil.cpu_percent()
-            print("ram = %.2f, cpu = %.2f"%(ram,cpu))
-            '''
-
             k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
                 # first time q is presed, slow down
@@ -290,20 +287,6 @@ class Main():
             # manually clear the Event()
             car.new_state_update.clear()
             #print("car %d T: %.2f S: %.2f, y pos %.2f"%(i,car.throttle, car.steering, car.states[1]))
-
-            # force motor freeze if start_delay has not been reached
-            if (self.experiment_type == ExperimentType.Simulation):
-                # FIXME use simulation time
-                if (time() < car.start_delay):
-                    car.steering = 0
-                    car.throttle = 0
-                    continue
-            else:
-                if (time() < car.start_delay):
-                    car.steering = 0
-                    car.throttle = 0
-                    continue
-
 
             # apply controller
             # states:(x,y,theta,vforward,vsideway=0,omega)
@@ -345,9 +328,6 @@ class Main():
             if (car.vehiclePlatform == VehiclePlatform.offboard):
                 car.actuate(steering,throttle)
                 print(car.steering, car.throttle)
-                # TODO implement throttle model
-                # do not use EKF for now
-                #car.vi.updateAction(car.steering, car.getExpectedAcc())
 
         self.updateVisualization()
         
@@ -496,7 +476,7 @@ class Main():
             if (car.stateUpdateSource == StateUpdateSource.dynamic_simulator \
                     or car.stateUpdateSource == StateUpdateSource.eth_simulator \
                     or car.stateUpdateSource == StateUpdateSource.kinematic_simulator):
-                car.init(self.track,car.simulator)
+                car.init(self.track)
             elif (car.stateUpdateSource == StateUpdateSource.optitrack):
                 car.init(self.track)
         # NOTE we can turn on/off laptimer for each car individually

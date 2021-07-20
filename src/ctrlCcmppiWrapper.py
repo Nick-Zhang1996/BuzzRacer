@@ -54,11 +54,6 @@ class ctrlCcmppiWrapper(Car):
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 
-        if (sim is None):
-            self.lr = sim.lr
-        else:
-            self.lr = 0.05*self.wheelbase
-
         return
 
     def prepareDiscretizedRaceline(self):
@@ -154,12 +149,14 @@ class ctrlCcmppiWrapper(Car):
         # profiling
         p = self.p
         p.s()
+        '''
         try:
             self.predictOpponent()
             debug_dict['opponent_prediction'] = self.opponent_prediction
         except AttributeError:
             print_error("predictOpponent() AttributeError")
             pass
+        '''
 
         p.s("local traj")
         if self.last_s is None:
@@ -261,9 +258,6 @@ class ctrlCcmppiWrapper(Car):
     # for use in visualization
     def applyDiscreteDynamics(self,state,control,dt):
         return self.sim.updateCar(dt,control[0], control[1],external_states=state)
-    # we assume opponent will follow reference trajectory at current speed
-    def initTrackOpponents(self):
-        return
 
     def predictOpponent(self):
         self.opponent_prediction = []
