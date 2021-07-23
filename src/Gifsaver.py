@@ -12,13 +12,15 @@ class Gifsaver(Extension):
         Extension.__init__(self,main)
         print_ok("[Gifsaver]: in use")
 
+    def init(self):
+
         # prepare save gif, this provides an easy to use visualization for presentation
         self.prepareGif()
         self.resolveLogname()
 
     def prepareGif(self):
         self.gifimages = []
-        self.gifimages.append(Image.fromarray(cv2.cvtColor(self.main.img_track.copy(),cv2.COLOR_BGR2RGB)))
+        self.gifimages.append(Image.fromarray(cv2.cvtColor(self.main.visualization.img_track.copy(),cv2.COLOR_BGR2RGB)))
 
     def resolveLogname(self,):
         # setup log file
@@ -34,7 +36,7 @@ class Gifsaver(Extension):
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
 
     def update(self):
-        self.gifimages.append(Image.fromarray(cv2.cvtColor(self.main.visualization_img.copy(),cv2.COLOR_BGR2RGB)))
+        self.gifimages.append(Image.fromarray(cv2.cvtColor(self.main.visualization.visualization_img.copy(),cv2.COLOR_BGR2RGB)))
 
     def final(self):
         print_ok("[Gifsaver]: saving gif.. This may take a while")

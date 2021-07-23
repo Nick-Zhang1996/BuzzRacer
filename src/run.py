@@ -53,17 +53,20 @@ class Main():
         self.slowdown = Event()
         self.slowdown_ts = 0
 
-        # --- New approach: Extensions ---
+        # --- Extensions ---
+        # named extensions
+        self.visualization = Visualization(self)
+
         self.extensions = []
+        self.extensions.append(self.visualization)
         # Laptimer
-        #self.extensions.append(Laptimer(self))
-        #self.extensions.append(CrosstrackErrorTracker(self))
-        #self.extensions.append(LapCounter(self))
+        self.extensions.append(Laptimer(self))
+        self.extensions.append(CrosstrackErrorTracker(self))
+        self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Gifsaver(self))
-        #self.extensions.append(Logger(self))
+        self.extensions.append(Gifsaver(self))
+        self.extensions.append(Logger(self))
         #self.extensions.append(Optitrack(self))
-        self.extensions.append(Visualization(self))
 
         # simulator
         self.extensions.append(KinematicSimulator(self))

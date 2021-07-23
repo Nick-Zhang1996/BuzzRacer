@@ -45,7 +45,7 @@ class Logger(Extension):
         log_entry = []
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
-            (x,y,theta,v_forward,v_sideway,omega) = car.state
+            (x,y,theta,v_forward,v_sideway,omega) = car.states
 
             # (x,y,theta,vforward,vsideway=0,omega)
             log_entry.append([time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle])
@@ -60,6 +60,9 @@ class Logger(Extension):
         output.close()
 
         print_ok("[Logger]: saving log at " + self.logDictFilename)
+        self.debug_dict = []
+        for car in self.main.cars:
+            self.debug_dict.append(car.debug_dict)
         output = open(self.logDictFilename,'wb')
-        pickle.dump(self.main.debug_dict,output)
+        pickle.dump(self.debug_dict,output)
         output.close()
