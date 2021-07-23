@@ -8,9 +8,70 @@ from kalmanFilter import KalmanFilter
 import numpy as np
 from math import pi,degrees,atan2
 from scipy.spatial.transform import Rotation
+from Extension import Extension
+
+class Optitrack(Extension):
+    def __init__(self, main):
+        super().__init__(main)
+        # ensure experiment_type hasn't been initialized
+        flag_is_unique = False
+        try:
+            main.experiment_type != ExperimentType.Simulation
+        except (AttributeError):
+            flag_is_unique = True
+        if (not flag_is_unique):
+            print_error("[Optitrack]: another state update source has been initialized")
+
+        main.experiment_type = ExperimentType.Realworld
+
+    def init(self):
+        print_ok("[Optitrack]: in use")
+
+        self.vi = Optitrack(wheelbase=car.wheelbase)
+        self.new_state_update = self.vi.newState
+        for car in self.main.cars:
+            car.internal_id = self.vi.getInternalId(car.optitrack_id)
+            print_ok("[Optitrack]: Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))
+
+    def updateCarStates(self):
+        for car in self.main.cars:
+            # update for eachj car
+            # not using kf state for now
+            (x,y,v,theta,omega) = self.vi.getKFstate(car.internal_id)
+            #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
+            # (x,y,theta,vforward,vsideway=0,omega)
+            car.states = (x,y,theta,v,0,omega)
+
+    def final(self):
+        self.vi.quit()
 
 
-class Optitrack:
+# ---- Optitrack ---- old
+    def initOptitrack(self,car,unused=None):
+        print_info("Initializing Optitrack...")
+        car.vi = Optitrack(wheelbase=car.wheelbase)
+        # TODO use acutal optitrack id for car
+        # porsche: 2
+        car.internal_id = car.vi.getInternalId(car.optitrack_id)
+        car.new_state_update = car.vi.newState
+
+    def updateOptitrack(self,car):
+        # update for eachj car
+        # not using kf state for now
+        (x,y,v,theta,omega) = car.vi.getKFstate(car.internal_id)
+
+        #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
+        # (x,y,theta,vforward,vsideway=0,omega)
+        car.states = (x,y,theta,v,0,omega)
+        return
+
+    def stopOptitrack(self,car):
+        # the optitrack destructor should handle things properly
+        car.vi.quit()
+        pass
+
+
+class _Optitrack:
     def __init__(self,wheelbase=102e-3,enableKF=True):
         self.newState = Event()
         self.enableKF = Event()
@@ -164,6 +225,7 @@ class Optitrack:
             # kf.getState() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].getState()
         self.state_lock.release()
+        self.updateCarStates()
         self.newState.set()
         #print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         #print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))

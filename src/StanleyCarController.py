@@ -23,14 +23,15 @@ class StanleyCarController(CarController):
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
+        #print("[StanleyCarController]: T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
         if valid:
-            self.throttle = throttle
-            self.steering = steering
+            self.car.throttle = throttle
+            self.car.steering = steering
             return True
         else:
             print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
-            self.throttle = 0.0
-            self.steering = 0.0
+            self.car.throttle = 0.0
+            self.car.steering = 0.0
             return False
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
