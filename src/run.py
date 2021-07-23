@@ -6,10 +6,7 @@ from math import pi,radians,degrees,asin,acos,isnan
 import matplotlib.pyplot as plt
 
 from common import *
-from car import Car
-from Track import Track
-from RCPTrack import RCPtrack
-from skidpad import Skidpad
+#from car import Car
 from Optitrack import Optitrack
 from joystick import Joystick
 
@@ -23,8 +20,12 @@ from ctrlMppiWrapper import ctrlMppiWrapper
 from ctrlCcmppiWrapper import ctrlCcmppiWrapper
 
 from timeUtil import execution_timer
-
 from enum import Enum, auto
+from TrackFactory import TrackFactory
+from Track import Track
+
+from Car import Car
+from StanleyCarController import StanleyCarController
 
 # Extensions
 from Laptimer import Laptimer
@@ -51,12 +52,10 @@ class VehiclePlatform(Enum):
 
 class Controller(Enum):
     stanley = auto()
-    purePursuit = auto() # NOT IMPLEMENTED
-    joystick = auto()
-    dynamicMpc = auto()
-    mppi = auto()
-    ccmppi = auto()
-
+    #joystick = auto()
+    #dynamicMpc = auto()
+    #mppi = auto()
+    #ccmppi = auto()
     # no controller, this means out of loop control
     empty = auto()
 
@@ -70,26 +69,23 @@ class Main():
         # run the track in reverse direction
         self.reverse = False
 
-        # prepare track object
-        #self.track = self.prepareSkidpad()
-        # or, use RCP track
-        self.track = self.prepareRcpTrack()
+        self.track = TrackFactory(name='full')
         self.visualization_img = None
 
         # a list of Car class object running
         # the pursuer car
-        car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
+        #car0 = self.prepareCar("porsche", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.ccmppi,init_state=(3.7*0.6,1.75*0.6, radians(-90)), start_delay=0.0)
         # the escaping car
         #car1 = self.prepareCar("porsche_slow", StateUpdateSource.kinematic_simulator, VehiclePlatform.kinematic_simulator, Controller.stanley,init_state=(2.3*0.6,0.7*0.6, radians(90)), start_delay=0.0)
 
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90)))
+
         # to allow car 0 to track car1, predict its future trajectory etc
-        car0.opponents = []
+        #car0.opponents = []
         # prepare random obstacles
-        car0.opponent_prediction = []
-        obstacles = np.random.random((10,2))
-        car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
-        print("obstacles")
-        print(obstacles)
+        #car0.opponent_prediction = []
+        #obstacles = np.random.random((10,2))
+        #car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
 
         self.cars = [car0]
         for i in range(len(self.cars)):
@@ -198,6 +194,8 @@ class Main():
             img = self.img_track.copy()
             for car in self.cars:
                 img = self.track.drawCar(img, car.states, car.steering)
+                # FIXME
+                continue
 
                 # plot reference trajectory following optimal control sequence
                 if (car.controller == Controller.mppi):
@@ -290,8 +288,11 @@ class Main():
 
             # apply controller
             # states:(x,y,theta,vforward,vsideway=0,omega)
-            if (car.controller == Controller.stanley):
-                throttle,steering,valid,debug_dict = car.ctrlCar(car.states,car.track,reverse=self.reverse)
+            if (type(car.controller) == StanleyCarController):
+                car.controller.control()
+                throttle = car.throttle
+                steering = car.steering
+
             elif (car.controller == Controller.dynamicMpc):
                 throttle,steering,valid,debug_dict = car.ctrlCar(car.states,car.track,reverse=self.reverse)
             elif (car.controller == Controller.joystick):
@@ -308,26 +309,14 @@ class Main():
                 steering = 0
                 valid = True
 
-            # post processing
-            if not valid:
-                print_warning("ctrlCar invalid retval")
-                exit(1)
-            self.debug_dict[i].update(debug_dict)
-            if isnan(steering):
-                print("error steering nan")
+            self.debug_dict[i].update(car.debug_dict)
             #print("T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
 
             if self.slowdown.isSet():
                 throttle = 0.0
             
-            #print("V = %.2f"%(car.states[3]))
-            car.steering = steering
-            # NOTE this may affect model prediction
-            car.throttle = min(throttle, car.max_throttle)
-
-            if (car.vehiclePlatform == VehiclePlatform.offboard):
+            if (self.experiment_type == ExperimentType.Realworld):
                 car.actuate(steering,throttle)
-                print(car.steering, car.throttle)
 
         self.updateVisualization()
         
@@ -340,72 +329,7 @@ class Main():
         cv2.imshow('experiment',self.img_track)
         cv2.waitKey(1)
 
-    def prepareSkidpad(self,):
-        sp = Skidpad()
-        sp.initSkidpad(radius=2,velocity=target_velocity)
-        return sp
 
-    def prepareRcpTrackSmall(self,):
-        # current track setup in mk103, L shaped
-        # width 0.563, length 0.6
-        mk103 = RCPtrack()
-        mk103.initTrack('uuruurddddll',(5,3),scale=0.57)
-        # add manual offset for each control points
-        adjustment = [0,0,0,0,0,0,0,0,0,0,0,0]
-        adjustment[4] = -0.5
-        adjustment[8] = -0.5
-        adjustment[9] = 0
-        adjustment[10] = -0.5
-        mk103.initRaceline((2,2),'d',4,offset=adjustment)
-        return mk103
-
-    def prepareRcpTrack(self,):
-        # width 0.563, square tile side length 0.6
-
-        # full RCP track
-        # NOTE load track instead of re-constructing
-        fulltrack = RCPtrack()
-        fulltrack.startPos = (0.6*3.5,0.6*1.75)
-        fulltrack.startDir = radians(90)
-        fulltrack.load()
-        return fulltrack
-
-        # row, col
-        track_size = (6,4)
-        #fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
-        fulltrack.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
-        # add manual offset for each control points
-        adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-
-        adjustment[0] = -0.2
-        adjustment[1] = -0.2
-        #bottom right turn
-        adjustment[2] = -0.2
-        adjustment[3] = 0.5
-        adjustment[4] = -0.2
-
-        #bottom middle turn
-        adjustment[6] = -0.2
-
-        #bottom left turn
-        adjustment[9] = -0.2
-
-        # left L turn
-        adjustment[12] = 0.5
-        adjustment[13] = 0.5
-
-        adjustment[15] = -0.5
-        adjustment[16] = 0.5
-        adjustment[18] = 0.5
-
-        adjustment[21] = 0.35
-        adjustment[22] = 0.35
-
-        # start coord, direction, sequence number of origin
-        # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
-        # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-        fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
-        return fulltrack
 
     # generate a Car instance with appropriate setting
     # config_name: "porsche" or "lambo"
@@ -523,8 +447,3 @@ if __name__ == '__main__':
     experiment = Main()
     experiment.run()
     print_info("program complete")
-
-    #experiment.timer.summary()
-    #experiment.cars[0].p.summary()
-
-

@@ -13,6 +13,7 @@ class Laptimer(Extension):
     def init(self):
         print_ok("[Laptimer]: in use")
         for car in self.main.cars:
+            car.enableLaptimer = True
             if car.enableLaptimer:
                 car.laptimer = _Laptimer(self.main.track.startPos, self.main.track.startDir)
                 car.laptime_vec = []
