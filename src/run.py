@@ -11,6 +11,7 @@ from TrackFactory import TrackFactory
 
 from Car import Car
 from StanleyCarController import StanleyCarController
+from CcmppiCarController import CcmppiCarController
 
 # Extensions
 from Laptimer import Laptimer
@@ -27,20 +28,10 @@ class Main():
         # state update rate
         self.dt = 0.03
 
-        # run the track in reverse direction
-        self.reverse = False
-
         self.track = TrackFactory(name='full')
-        self.visualization_img = None
 
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90)))
-
-        # to allow car 0 to track car1, predict its future trajectory etc
-        #car0.opponents = []
-        # prepare random obstacles
-        #car0.opponent_prediction = []
-        #obstacles = np.random.random((10,2))
-        #car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
+        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90)))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90)))
 
         self.cars = Car.cars
 
@@ -60,14 +51,14 @@ class Main():
         self.extensions = []
         self.extensions.append(self.visualization)
         # Laptimer
-        self.extensions.append(Laptimer(self))
-        self.extensions.append(CrosstrackErrorTracker(self))
-        self.extensions.append(LapCounter(self))
+        #self.extensions.append(Laptimer(self))
+        #self.extensions.append(CrosstrackErrorTracker(self))
+        #self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.extensions.append(Gifsaver(self))
-        self.extensions.append(Logger(self))
-        #self.extensions.append(Optitrack(self))
+        #self.extensions.append(Gifsaver(self))
+        #self.extensions.append(Logger(self))
 
+        #self.extensions.append(Optitrack(self))
         # simulator
         self.extensions.append(KinematicSimulator(self))
 

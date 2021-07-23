@@ -3,6 +3,9 @@ class CarController:
         self.car = car
         self.track = car.main.track
 
+    def init(self):
+        return
+
     # return control signals
     # throttle, steering
     def control(self):

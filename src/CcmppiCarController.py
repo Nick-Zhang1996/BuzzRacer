@@ -13,27 +13,35 @@ import random
 
 from common import *
 from timeUtil import execution_timer
-from car import Car
 from ccmppi import CCMPPI
+from CarController import CarController
 
-class ctrlCcmppiWrapper(Car):
-    def __init__(self,car_setting,dt):
+class CcmppiCarController(CarController):
+    def __init__(self,car):
+        super().__init__(car)
+
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
-
-        super().__init__(car_setting,dt)
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
         self.p = execution_timer(True)
-        self.wheelbase = car_setting['wheelbase']
-        self.ccmppi_dt = dt
+        self.wheelbase = car.wheelbase
+        self.ccmppi_dt = car.main.dt
+
+        self.opponents = []
+        self.opponent_prediction = []
         return
 
+    def additionalSetup(self):
+        #obstacles = np.random.random((10,2))
+        #car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
+        pass
+
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
-    def init(self,track,sim=None):
-        self.track = track
+    def init(self):
+        self.track = self.car.main.track
 
         self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
@@ -43,9 +51,9 @@ class ctrlCcmppiWrapper(Car):
         self.temperature = 0.2
         # control noise for MPPI exploration
         # NOTE tune me
-        self.noise_cov = np.diag([(self.max_throttle)**2,radians(40.0/2)**2])
-        #self.noise_cov = np.diag([(self.max_throttle/2)**2,radians(60.0)**2])
-        self.control_limit = np.array([[-self.max_throttle,self.max_throttle],[-radians(27.1),radians(27.1)]])
+        self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(40.0/2)**2])
+        #self.noise_cov = np.diag([(self.car.max_throttle/2)**2,radians(60.0)**2])
+        self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
 
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
@@ -55,6 +63,7 @@ class ctrlCcmppiWrapper(Car):
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 
         return
+
 
     def prepareDiscretizedRaceline(self):
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
@@ -134,17 +143,18 @@ class ctrlCcmppiWrapper(Car):
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 #   track: track object, can be RCPtrack or skidpad
 #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
-#   reverse: true if running in opposite direction of raceline init direction
 
 # output:
 #   (throttle,steering,valid,debug) 
 # ranges for output:
-#   throttle -1.0,self.max_throttle
+#   throttle -1.0,self.car.max_throttle
 #   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    def ctrlCar(self,states,track,v_override=None,reverse=False):
+    def control(self):
+        states = self.car.states
+        track = self.car.main.track
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
         # profiling
         p = self.p
@@ -161,7 +171,7 @@ class ctrlCcmppiWrapper(Car):
         p.s("local traj")
         if self.last_s is None:
             # use self.lr as wheelbase to use center of gravity in evaluation
-            retval = track.localTrajectory(states,wheelbase=self.lr,return_u=True)
+            retval = track.localTrajectory(states,wheelbase=self.car.lr,return_u=True)
             if retval is None:
                 print_warning("[ctrlCcmppiWrapper:ctrlCar] localTrajectory returned None")
                 ret =  (0,0,False,debug_dict)

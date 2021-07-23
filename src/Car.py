@@ -16,6 +16,7 @@ class Car:
     def postInit(self):
         if (Car.main.experiment_type == ExperimentType.Realworld):
             self.initSerialInterface()
+        self.controller.init()
 
     def initSerialInterface(self):
         try:
@@ -57,7 +58,6 @@ class Car:
     @classmethod
     def Factory(cls, main, config_name, controller, init_states):
         car = cls(main)
-        car.controller = controller(car)
         # (x,y,theta,vforward,vsideway=0,omega)
         x,y,heading = init_states
         car.states = (x,y,heading,0,0,0)
@@ -103,7 +103,7 @@ class Car:
         car.optitrack_id = car_setting['optitrack_streaming_id']
         car.lr = car.lf = 45e-3
         car.id = Car.car_count
-
+        car.controller = controller(car)
         Car.cars.append(car)
         Car.car_count += 1
         return car
