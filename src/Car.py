@@ -63,8 +63,8 @@ class Car:
     def Factory(cls, main, config_name, controller, init_states):
         car = cls(main)
         # (x,y,theta,vforward,vsideway=0,omega)
-        x,y,heading = init_states
-        car.states = (x,y,heading,0,0,0)
+        x,y,heading,v_forward = init_states
+        car.states = (x,y,heading,v_forward,0,0)
 
         porsche_setting = {'wheelbase':90e-3,
                          'max_steer_angle_left':radians(27.1),
