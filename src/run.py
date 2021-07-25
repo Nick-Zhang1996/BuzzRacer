@@ -26,7 +26,7 @@ class Main():
     def __init__(self,):
         self.timer = execution_timer(True)
         # state update rate
-        self.dt = 0.03
+        self.dt = 0.02
 
         self.track = TrackFactory(name='full')
 

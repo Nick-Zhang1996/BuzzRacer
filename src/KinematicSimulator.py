@@ -42,13 +42,9 @@ class KinematicSimulator(Simulator):
         self.matchRealTime()
 
     @staticmethod
-    def advanceDynamics(sim_states,control, car=None):
-        if (car is None):
-            lr = self.lr
-            lf = self.lf
-        else:
-            lr = car.lr
-            lf = car.lf
+    def advanceDynamics(sim_states,control, car):
+        lr = car.lr
+        lf = car.lf
         
         '''
         throttle = np.clip(throttle, -1.0, 1.0)

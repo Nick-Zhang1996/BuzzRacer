@@ -30,7 +30,11 @@ class Car:
             self.throttle = 0.0
             self.steering = 0.0
         else:
+            # TODO: address when controller can't find a valid solution
             self.controller.control()
+            print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
+            #print_info(self.states)
+
 
         if (Car.main.slowdown.is_set()):
             self.throttle = 0.0

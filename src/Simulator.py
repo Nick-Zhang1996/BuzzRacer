@@ -29,7 +29,8 @@ class Simulator(Extension):
         time_to_reach = self.main.sim_t * self.real_sim_time_ratio + self.t0
         #print("sim_t = %.3f, time = %.3f, expected= %.3f, delta = %.3f"%(self.main.sim_t, time()-self.t0, self.main.sim_t*self.real_sim_time_ratio, time_to_reach-time() ))
         if (time_to_reach-time() < 0):
-            print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))
+            pass
+            #print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))
 
         sleep(max(0,time_to_reach - time()))
 

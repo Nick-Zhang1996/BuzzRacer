@@ -15,10 +15,12 @@ from common import *
 from timeUtil import execution_timer
 from ccmppi import CCMPPI
 from CarController import CarController
+from KinematicSimulator import KinematicSimulator
 
 class CcmppiCarController(CarController):
     def __init__(self,car):
         super().__init__(car)
+        self.debug_dict = {}
 
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
@@ -231,9 +233,10 @@ class CcmppiCarController(CarController):
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
+        debug_dict['rollout_traj_vec'] = rollout_traj_vec
 
         # DEBUG
-        # state + control
+        # apply the kth sampled control
         '''
         full_state_vec = []
         sim_states = states.copy()
@@ -246,10 +249,9 @@ class CcmppiCarController(CarController):
             full_state_vec.append(entry)
         '''
 
-        debug_dict['rollout_traj_vec'] = rollout_traj_vec
 
-        # with synthesized control sequence
-
+        # DEBUG
+        # trajectory following synthesized control sequence
         sim_states = states.copy()
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
@@ -259,15 +261,70 @@ class CcmppiCarController(CarController):
 
         p.e("debug")
         p.e()
+        self.debug_dict = debug_dict
 
-        ret =  (throttle,steering,True,debug_dict)
-        return ret
+        self.car.throttle = throttle
+        self.car.steering = steering
+        self.plotDebug()
+        return True
+
+    def plotDebug(self):
+        img = self.car.main.visualization.visualization_img
+        # plot sampled trajectory (if car follow one sampled control traj)
+        coords_vec = self.debug_dict['rollout_traj_vec']
+        for coords in coords_vec:
+            img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img)
+
+        # plot ideal trajectory (if car follow synthesized control)
+        coords = self.debug_dict['ideal_traj']
+        for coord in coords:
+            x,y = coord
+            img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
+        img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
+
+        # plot opponent prediction
+        '''
+        coords_vec = self.debug_dict[car.id]['opponent_prediction']
+        for coords in coords_vec:
+            for coord in coords:
+                x,y = coord
+                img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
+            img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,0),img=img)
+        '''
+
+        '''
+        coords_vec = np.array(coords_vec)
+        for i in range(len(coords_vec)):
+            plt.plot(coords_vec[0,:,0], coords_vec[0,:,1])
+        plt.show()
+        '''
+
+        # TODO 
+        '''
+        if 'opponent' in self.debug_dict[0]:
+            x_ref = self.debug_dict[0]['opponent']
+            for coord in x_ref[0]:
+                x,y = coord
+                img = self.main.track.drawPoint(img,(x,y),color=(255,0,0))
+        '''
+
+        # plot reference trajectory following some alternative control sequence
+        '''
+        x_ref_alt = self.debug_dict[0]['x_ref_alt']
+        for samples in x_ref_alt:
+            for coord in samples:
+                x,y = coord
+                img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
+        '''
+        self.car.main.visualization.visualization_img = img
+        return
 
 
     # advance car dynamics
     # for use in visualization
-    def applyDiscreteDynamics(self,state,control,dt):
-        return self.sim.updateCar(dt,control[0], control[1],external_states=state)
+    def applyDiscreteDynamics(self,states,control,dt):
+        #return self.sim.updateCar(dt,control[0], control[1],external_states=state)
+        return KinematicSimulator.advanceDynamics(states, control, car = self.car)
 
     def predictOpponent(self):
         self.opponent_prediction = []

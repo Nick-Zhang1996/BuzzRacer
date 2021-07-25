@@ -117,10 +117,6 @@ void evaluate_control_sequence(
 
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (id == 0){
-    printf("[gpu] obs0 = %%.2f, %%.2f, obs1 = %%.2f, %%.2f\n",opponents_prediction[0][0][0], opponents_prediction[0][0][1], opponents_prediction[1][0][0], opponents_prediction[1][0][1]);
-
-  }
 
   if (id>=SAMPLE_COUNT){
     return;

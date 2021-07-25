@@ -182,6 +182,7 @@ class CCMPPI:
             assert np.sum(memCount)<8370061312
 
 
+            #print("[ccmppi.py: ",x0)
             if (opponent_count == 0):
                 self.cuda_evaluate_control_sequence( 
                         drv.Out(cost), # size: K
