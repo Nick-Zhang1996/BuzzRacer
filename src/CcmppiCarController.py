@@ -34,12 +34,19 @@ class CcmppiCarController(CarController):
 
         self.opponents = []
         self.opponent_prediction = []
+
         return
 
+    # Hack
     def additionalSetup(self):
-        #obstacles = np.random.random((10,2))
-        #car0.opponent_prediction = np.repeat(obstacles, car0.horizon_steps + 1, axis=0)
-        pass
+        obstacle_count = 30
+        obstacles = np.random.random((30,2))
+        track = self.car.main.track
+        obstacles[:,0] *= track.gridsize[1]*track.scale
+        obstacles[:,1] *= track.gridsize[0]*track.scale
+
+        self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
+        self.obstacles = obstacles
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
@@ -63,6 +70,7 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="ccmppi/ccmppi.cu")
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
+        self.additionalSetup()
 
         return
 
@@ -269,6 +277,8 @@ class CcmppiCarController(CarController):
         return True
 
     def plotDebug(self):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
         img = self.car.main.visualization.visualization_img
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
@@ -316,6 +326,11 @@ class CcmppiCarController(CarController):
                 x,y = coord
                 img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
         '''
+
+        # plot obstacles
+        for obs in self.obstacles:
+            img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+
         self.car.main.visualization.visualization_img = img
         return
 

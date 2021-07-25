@@ -1772,7 +1772,7 @@ class RCPtrack(Track):
         if src is None:
             #print("Can't draw point -- outside track")
             return img
-        radius_pix = radius_m / self.scale * self.resolution
+        radius_pix = int(radius_m / self.scale * self.resolution)
         img = cv2.circle(img, src, radius_pix, color,-1)
 
         return img

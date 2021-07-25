@@ -32,7 +32,7 @@ class Car:
         else:
             # TODO: address when controller can't find a valid solution
             self.controller.control()
-            print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
+            #print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
             #print_info(self.states)
 
 
