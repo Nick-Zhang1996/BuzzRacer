@@ -64,7 +64,7 @@ class Main():
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
-        #self.extensions.append(Gifsaver(self))
+        self.extensions.append(Gifsaver(self))
         self.extensions.append(PerformanceTracker(self))
 
         for item in self.extensions:

@@ -91,14 +91,14 @@ class CcmppiCarController(CarController):
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
 
-        CC = False
+        CC = True
         if (CC):
             #CCMPPI
             self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
             cc_ratio = 0.8
         else:
             # pure MPPI
-            ratio = 0.4
+            ratio = 0.6
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
 
