@@ -15,6 +15,7 @@ class KinematicSimulator(Simulator):
         # for when a specific car instance is not speciied
         self.lr = 45e-3
         self.lf = 45e-3
+        KinematicSimulator.max_v = 3.0
 
     def init(self):
         super().init()
@@ -58,7 +59,10 @@ class KinematicSimulator(Simulator):
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
-        dvdt = throttle
+        if (v > KinematicSimulator.max_v):
+            dvdt = -0.01
+        else:
+            dvdt = throttle
         dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt

@@ -4,6 +4,7 @@ import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './ccmppi/')
 sys.path.append(base_dir)
 
+import cv2
 import numpy as np
 from time import time,sleep
 import matplotlib.pyplot as plt
@@ -16,6 +17,7 @@ from timeUtil import execution_timer
 from ccmppi import CCMPPI
 from CarController import CarController
 from KinematicSimulator import KinematicSimulator
+import pickle
 
 class CcmppiCarController(CarController):
     def __init__(self,car):
@@ -38,9 +40,23 @@ class CcmppiCarController(CarController):
         return
 
     # Hack
-    def additionalSetup(self):
+    def additionalSetup(self, new_obstacle = False):
         obstacle_count = 30
-        obstacles = np.random.random((30,2))
+        filename = "obstacles.p"
+        if (new_obstacle):
+            print_ok("[ccmppi]: new obstacles, count = %d"%(obstacle_count))
+            obstacles = np.random.random((obstacle_count,2))
+            # save obstacles
+            with open(filename, 'wb') as f:
+                pickle.dump(obstacles,f)
+            print_ok("[ccmppi]: saved obstacles at " + filename)
+        else:
+            with open(filename, 'rb') as f:
+                obstacles = pickle.load(f)
+            print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
+            print_ok("[ccmppi]: loading obstacles at " + filename)
+
+
         track = self.car.main.track
         obstacles[:,0] *= track.gridsize[1]*track.scale
         obstacles[:,1] *= track.gridsize[0]*track.scale
@@ -48,16 +64,24 @@ class CcmppiCarController(CarController):
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles
 
+    # check if vehicle is currently in collision with obstacle
+    def isInObstacle(self, dist = 0.1):
+        x,y,heading,vf,vs,omega = self.car.states
+        min_dist = 100.0
+        for obs in self.obstacles:
+            dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
+            if (dist<min_dist):
+                min_dist = dist
+            if (dist < 0.1):
+                return True
+        #print("[ccmppi]: min = %3.2f"%(min_dist))
+        return False
+
+
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
         self.track = self.car.main.track
-
-        self.samples_count = 1024*4
         self.discretized_raceline_len = 1024
-        self.horizon_steps = 15
-        self.control_dim = 2
-        self.state_dim = 4
-        self.temperature = 0.2
         # control noise for MPPI exploration
         # NOTE tune me
         self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(40.0/2)**2])
@@ -67,10 +91,27 @@ class CcmppiCarController(CarController):
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
-        self.ccmppi = CCMPPI(self.samples_count,self.horizon_steps,self.state_dim,self.control_dim,self.temperature,self.ccmppi_dt,self.noise_cov,self.discretized_raceline,cuda=True,cuda_filename="ccmppi/ccmppi.cu")
+        arg_list = {'samples':1024*4,
+                'horizon': 15,
+                'state_dim': 4,
+                'control_dim': 2,
+                'temperature': 0.2,
+                'dt': self.ccmppi_dt,
+                'noise_cov': self.noise_cov,
+                'cc_ratio': 0.0,
+                'raceline': self.discretized_raceline,
+                'cuda_filename': "ccmppi/ccmppi.cu",
+                'max_v': self.car.main.simulator.max_v}
+
+        self.control_dim = arg_list['control_dim']
+        self.horizon_steps = arg_list['horizon']
+        self.samples_count = arg_list['samples']
+        self.cc_ratio = arg_list['cc_ratio']
+
+        self.ccmppi = CCMPPI(arg_list)
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.additionalSetup()
+        self.additionalSetup(False)
 
         return
 
@@ -330,6 +371,26 @@ class CcmppiCarController(CarController):
         # plot obstacles
         for obs in self.obstacles:
             img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+
+        # plot debug text
+        if (self.cc_ratio < 0.01):
+            text = "MPPI"
+        else:
+            text = "CCMPPI %.1f"%(self.cc_ratio)
+
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (50, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        # Using cv2.putText() method
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
 
         self.car.main.visualization.visualization_img = img
         return

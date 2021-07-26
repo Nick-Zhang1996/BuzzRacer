@@ -19,6 +19,7 @@ from CrosstrackErrorTracker import CrosstrackErrorTracker
 from Gifsaver import Gifsaver
 from Logger import Logger
 from LapCounter import LapCounter
+from CollisionChecker import CollisionChecker
 from Optitrack import Optitrack
 from Visualization import Visualization
 
@@ -31,7 +32,7 @@ class Main():
         self.track = TrackFactory(name='full')
 
         #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
 
         self.cars = Car.cars
 
@@ -47,20 +48,21 @@ class Main():
         # --- Extensions ---
         # named extensions
         self.visualization = Visualization(self)
+        self.simulator = KinematicSimulator(self)
 
         self.extensions = []
         self.extensions.append(self.visualization)
         # Laptimer
-        #self.extensions.append(Laptimer(self))
+        self.extensions.append(Laptimer(self))
         #self.extensions.append(CrosstrackErrorTracker(self))
-        #self.extensions.append(LapCounter(self))
+        self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Gifsaver(self))
+        self.extensions.append(Gifsaver(self))
         #self.extensions.append(Logger(self))
+        self.extensions.append(CollisionChecker(self))
 
         #self.extensions.append(Optitrack(self))
-        # simulator
-        self.extensions.append(KinematicSimulator(self))
+        self.extensions.append(self.simulator)
 
         for item in self.extensions:
             item.init()

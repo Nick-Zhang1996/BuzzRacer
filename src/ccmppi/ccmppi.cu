@@ -23,6 +23,7 @@
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
+#define MAX_V %(MAX_V)s
 
 #define PI 3.141592654f
 
@@ -228,17 +229,15 @@ void _evaluate_control_sequence(
 
     // evaluate step cost (crosstrack error and velocity deviation)
     float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
-    // cost related to collision avoidance / opponent avoidance
-    // TODO too conservative
-    if (i < HORIZON/2){
+    // cost related to obstacle collision avoidance / opponent avoidance
+    // note this does not predict opponent
+    // i: prediction step
+    if (i < HORIZON){
       for (int j=0; j<opponent_count; j++){
-        for (int k=0; k<HORIZON/2; k++){ 
-          //cost += evaluate_collision_cost(x,opponents_prediction[j][i]);
-          // NOTE use current position only
-          float this_collision_cost = evaluate_collision_cost(x,opponents_prediction[j][k]);
-          cost += this_collision_cost;
-          total_collision_cost += this_collision_cost;
-        }
+        float this_collision_cost = evaluate_collision_cost(x,opponents_prediction[j][i]);
+        // * horizon to normalize
+        cost += this_collision_cost*HORIZON;
+        total_collision_cost += this_collision_cost;
       }
     }
 
@@ -412,7 +411,16 @@ void forward_kinematics(float* state, float* u){
   float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
   float dx = velocity * cosf(psi + beta) * DT;
   float dy = velocity * sinf(psi + beta) * DT;
-  float dvelocity = throttle * DT;
+  float dvelocity;
+  if (velocity > MAX_V){
+    dvelocity = -0.01;
+  } else {
+    dvelocity = throttle * DT;
+
+  }
+
+
+
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
   state[0] += dx;
