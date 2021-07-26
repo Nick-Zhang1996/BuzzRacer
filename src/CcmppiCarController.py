@@ -37,24 +37,27 @@ class CcmppiCarController(CarController):
         self.opponents = []
         self.opponent_prediction = []
 
+        # DEBUG
+        self.terminal_cov_vec = []
+
         return
 
     # Hack
-    def additionalSetup(self, new_obstacle = False):
-        obstacle_count = 30
+    def additionalSetup(self):
+        obstacle_count = 60
         filename = "obstacles.p"
-        if (new_obstacle):
+        if (os.path.isfile(filename)):
+            with open(filename, 'rb') as f:
+                obstacles = pickle.load(f)
+            print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
+            print_ok("[ccmppi]: loading obstacles at " + filename)
+        else:
             print_ok("[ccmppi]: new obstacles, count = %d"%(obstacle_count))
             obstacles = np.random.random((obstacle_count,2))
             # save obstacles
             with open(filename, 'wb') as f:
                 pickle.dump(obstacles,f)
             print_ok("[ccmppi]: saved obstacles at " + filename)
-        else:
-            with open(filename, 'rb') as f:
-                obstacles = pickle.load(f)
-            print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
-            print_ok("[ccmppi]: loading obstacles at " + filename)
 
 
         track = self.car.main.track
@@ -65,28 +68,45 @@ class CcmppiCarController(CarController):
         self.obstacles = obstacles
 
     # check if vehicle is currently in collision with obstacle
-    def isInObstacle(self, dist = 0.1):
+    def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
         x,y,heading,vf,vs,omega = self.car.states
         min_dist = 100.0
-        for obs in self.obstacles:
+        for i in range(self.obstacles.shape[0]):
+            obs = self.obstacles[i]
             dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
             if (dist<min_dist):
                 min_dist = dist
             if (dist < 0.1):
-                return True
+                if (get_obstacle_id):
+                    return (True,i)
+                else:
+                    return True
         #print("[ccmppi]: min = %3.2f"%(min_dist))
-        return False
+        if (get_obstacle_id):
+            return (False,0)
+        else:
+            return False
 
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
+
+        CC = False
+        if (CC):
+            #CCMPPI
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            cc_ratio = 0.8
+        else:
+            # pure MPPI
+            ratio = 0.4
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+
         self.track = self.car.main.track
         self.discretized_raceline_len = 1024
         # control noise for MPPI exploration
-        # NOTE tune me
-        self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(40.0/2)**2])
-        #self.noise_cov = np.diag([(self.car.max_throttle/2)**2,radians(60.0)**2])
         self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
+
 
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
@@ -98,7 +118,7 @@ class CcmppiCarController(CarController):
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
                 'noise_cov': self.noise_cov,
-                'cc_ratio': 0.0,
+                'cc_ratio': cc_ratio,
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v}
@@ -111,7 +131,7 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(arg_list)
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.additionalSetup(False)
+        self.additionalSetup()
 
         return
 
@@ -284,6 +304,11 @@ class CcmppiCarController(CarController):
             rollout_traj_vec.append(this_rollout_traj)
         debug_dict['rollout_traj_vec'] = rollout_traj_vec
 
+        # calculate terminal covariance on position
+        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
+        self.terminal_cov_vec.append(self.terminal_xy_cov)
+
         # DEBUG
         # apply the kth sampled control
         '''
@@ -371,6 +396,10 @@ class CcmppiCarController(CarController):
         # plot obstacles
         for obs in self.obstacles:
             img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+        has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
+        if (has_collided):
+            # plot obstacle in collision red
+            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
 
         # plot debug text
         if (self.cc_ratio < 0.01):
@@ -392,9 +421,13 @@ class CcmppiCarController(CarController):
         img = cv2.putText(img, text, org, font,
                            fontScale, color, thickness, cv2.LINE_AA)
 
+        text = "collision: %d"%(self.car.main.collision_checker.collision_count)
+        org = (250, 50)
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+
         self.car.main.visualization.visualization_img = img
         return
-
 
     # advance car dynamics
     # for use in visualization

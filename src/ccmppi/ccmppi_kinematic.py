@@ -20,6 +20,7 @@ from cvxpy.atoms.affine.transpose import transpose
 
 
 from common import *
+from Car import Car
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
 from KinematicSimulator import KinematicSimulator
@@ -49,6 +50,7 @@ class CCMPPI_KINEMATIC():
         # load track 
         #self.loadTrack()
         self.getRefTraj("../log/ref_traj/full_state1.p",show=False)
+        #self.getRefTraj("../../log/ref_traj/full_state1.p",show=False)
         #self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
         
         np.random.seed()
@@ -530,7 +532,7 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = KinematicSimulator.advanceDynamics(x_i, control)
+                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
 
                 cc_states_vec[j].append(x_i.flatten())
@@ -559,7 +561,7 @@ class CCMPPI_KINEMATIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advanceDynamics(x_i, control)
+                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)
@@ -894,15 +896,25 @@ class CCMPPI_KINEMATIC():
         plt.show()
 
 if __name__ == "__main__":
+    dt = 0.03
     state = np.array([0.6*0.7,0.6*0.5, 0.5, radians(130)])
     #state = np.array([0.6*3.5,0.6*1.75, 1.0, radians(-90)])
     #state = np.array([0.6*3.7,0.6*1.75, 1.0, radians(-90)])
     #main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
 
-    noise_cov = np.diag([0.2,radians(20)])
+    #noise_cov = np.diag([(0.7)**2,radians(40.0/2)**2])
+    ratio = 0.4
+    noise_cov = np.diag([(0.7*ratio)**2,radians(20.0*ratio)**2])
     debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-    main = CCMPPI_KINEMATIC(0.03,20,noise_cov, debug_info)
+    car = Car(None)
+    car.lr = car.lf = 45e-3
+    car.serial_port = None
+
+    main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
+    KinematicSimulator.dt = dt
+    KinematicSimulator.max_v = 30.0
+    main.car = car
     main.debug_info = debug_info
     main.visualizeConfidenceEllipse()
-    main.visualizeOnTrack()
+    #main.visualizeOnTrack()
 

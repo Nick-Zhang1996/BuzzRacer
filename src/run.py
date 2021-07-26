@@ -22,6 +22,7 @@ from LapCounter import LapCounter
 from CollisionChecker import CollisionChecker
 from Optitrack import Optitrack
 from Visualization import Visualization
+from PerformanceTracker import PerformanceTracker
 
 class Main():
     def __init__(self,):
@@ -49,6 +50,7 @@ class Main():
         # named extensions
         self.visualization = Visualization(self)
         self.simulator = KinematicSimulator(self)
+        self.collision_checker = CollisionChecker(self)
 
         self.extensions = []
         self.extensions.append(self.visualization)
@@ -57,12 +59,13 @@ class Main():
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.extensions.append(Gifsaver(self))
         #self.extensions.append(Logger(self))
-        self.extensions.append(CollisionChecker(self))
+        self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
+        #self.extensions.append(Gifsaver(self))
+        self.extensions.append(PerformanceTracker(self))
 
         for item in self.extensions:
             item.init()

@@ -20,6 +20,7 @@ class KinematicSimulator(Simulator):
     def init(self):
         super().init()
         self.cars = self.main.cars
+        KinematicSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
         self.main.new_state_update = Event()
@@ -54,7 +55,7 @@ class KinematicSimulator(Simulator):
         x,y,v,heading = sim_states
         throttle = control[0]
         steering = control[1]
-        dt = KinematicSimulator.main.dt
+        dt = KinematicSimulator.dt
 
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
