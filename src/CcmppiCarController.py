@@ -98,7 +98,7 @@ class CcmppiCarController(CarController):
             cc_ratio = 0.8
         else:
             # pure MPPI
-            ratio = 0.6
+            ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
 
@@ -111,7 +111,7 @@ class CcmppiCarController(CarController):
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
-        arg_list = {'samples':1024*4,
+        arg_list = {'samples':4096,
                 'horizon': 15,
                 'state_dim': 4,
                 'control_dim': 2,
