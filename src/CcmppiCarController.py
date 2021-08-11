@@ -112,7 +112,7 @@ class CcmppiCarController(CarController):
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
-        arg_list = {'samples':1024*4,
+        arg_list = {'samples':4096,
                 'horizon': 15,
                 'state_dim': 4,
                 'control_dim': 2,
