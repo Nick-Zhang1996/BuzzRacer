@@ -60,6 +60,10 @@ class Car:
             self.car_interface.close()
 
     @classmethod
+    def reset(cls):
+        cls.cars = []
+        cls.car_count = 0
+    @classmethod
     def Factory(cls, main, config_name, controller, init_states):
         car = cls(main)
         # (x,y,theta,vforward,vsideway=0,omega)

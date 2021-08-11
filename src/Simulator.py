@@ -6,9 +6,10 @@ from time import time,sleep
 class Simulator(Extension):
     def __init__(self,main):
         super().__init__(main)
+        self.match_real_time = True
         self.t0 = None
         self.real_sim_time_ratio = 1.0
-        print_ok("[%s]: real/sim time ratio = %.1f "%(self.__class__.__name__, self.real_sim_time_ratio))
+        print_ok(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
         # ensure experiment_type hasn't been initialized
@@ -18,12 +19,15 @@ class Simulator(Extension):
         except (AttributeError):
             flag_is_unique = True
         if (not flag_is_unique):
-            print_error("[%s]: another state update source has been initialized"%(self.__class__.__name__))
+            print_error(self.prefix() + "another state update source has been initialized")
 
         self.main.experiment_type = ExperimentType.Simulation
         self.main.sim_t = 0
+        print_ok(self.prefix() + "match_real_time: " + str(self.match_real_time))
 
     def matchRealTime(self):
+        if (not self.match_real_time):
+            return
         if (self.t0 is None):
             self.t0 = time()
         time_to_reach = self.main.sim_t * self.real_sim_time_ratio + self.t0

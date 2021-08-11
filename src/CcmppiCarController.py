@@ -92,6 +92,9 @@ class CcmppiCarController(CarController):
     def init(self):
 
         CC = True
+        if ('use_cc' in self.car.main.params.keys()):
+            CC = self.car.main.params['use_cc']
+            print_info("ccmppi CC override to "+str(CC))
         if (CC):
             #CCMPPI
             self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
@@ -124,6 +127,9 @@ class CcmppiCarController(CarController):
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v}
 
+        if ('samples' in self.car.main.params.keys()):
+            arg_list['samples'] = self.car.main.params['samples']
+            print_info("ccmppi samples override to %d"%(arg_list['samples']))
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
         self.samples_count = arg_list['samples']
@@ -340,7 +346,10 @@ class CcmppiCarController(CarController):
 
         self.car.throttle = throttle
         self.car.steering = steering
-        self.plotDebug()
+        try:
+            self.plotDebug()
+        except AttributeError:
+            pass
         return True
 
     def plotDebug(self):

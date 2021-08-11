@@ -8,11 +8,13 @@ class LapCounter(Extension):
         Extension.__init__(self,main)
 
     def init(self):
-        self.total_laps = 10
+        self.total_laps = 100
         print_ok("[LapCounter]: in use, total %d laps"%(self.total_laps))
+        self.main.car_total_laps = []
         for car in self.main.cars:
             car.laps_remaining = self.total_laps
             car.critical_lap = Event()
+            self.main.car_total_laps.append(self.total_laps)
 
     def update(self):
         for car in self.main.cars:
