@@ -98,7 +98,8 @@ class CcmppiCarController(CarController):
             cc_ratio = 0.8
         else:
             # pure MPPI
-            ratio = 0.6
+            #ratio = 0.6
+            ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
 
