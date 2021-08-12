@@ -52,8 +52,8 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         # named extensions
-        #self.visualization = Visualization(self)
-        #self.extensions.append(self.visualization)
+        self.visualization = Visualization(self)
+        self.extensions.append(self.visualization)
         self.simulator = KinematicSimulator(self)
         self.simulator.match_real_time = False
         self.collision_checker = CollisionChecker(self)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count\n")
     
     experiment_count = 0
-    for use_cc in [True, False]:
+    for use_cc in [False, True]:
         for samples in [128, 256, 512, 1024, 2048, 4096]:
             algorithm_text = 'ccmppi' if use_cc else 'mppi'
             params = {'samples':samples, 'use_cc':use_cc}

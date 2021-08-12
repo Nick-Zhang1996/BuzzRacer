@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 filename = "log.txt"
+#filename = "20laps.txt"
 
 mppi = []
 ccmppi = []
@@ -19,17 +20,17 @@ with open(filename, 'r') as f:
 ccmppi = np.array(ccmppi)
 mppi = np.array(mppi)
         
-plt.plot(ccmppi[:,0], ccmppi[:,3], label='ccmppi')
-plt.plot(mppi[:,0], mppi[:,3], label= 'mppi')
-plt.title("Laptime (equal injected noise, 10 laps avg)")
+plt.plot(ccmppi[:,0], ccmppi[:,2], label='ccmppi')
+plt.plot(mppi[:,0], mppi[:,2], label= 'mppi')
+plt.title("Laptime (equal injected noise, 100 laps avg)")
 plt.xlabel("Samples")
 plt.ylabel("Laptime (s)")
 plt.legend()
 plt.show()
 
-plt.plot(ccmppi[:,0], ccmppi[:,4], label='ccmppi')
-plt.plot(mppi[:,0], mppi[:,4], label= 'mppi')
-plt.title("Collisions (equal injected noise, 10 laps avg)")
+plt.plot(ccmppi[:,0], ccmppi[:,3], label='ccmppi')
+plt.plot(mppi[:,0], mppi[:,3], label= 'mppi')
+plt.title("Collisions (equal injected noise, 100 laps avg)")
 plt.xlabel("Samples")
 plt.ylabel("Collisions")
 plt.legend()

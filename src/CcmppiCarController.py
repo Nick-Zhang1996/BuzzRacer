@@ -347,10 +347,66 @@ class CcmppiCarController(CarController):
         self.car.throttle = throttle
         self.car.steering = steering
         try:
-            self.plotDebug()
+            #self.plotDebug()
+            self.plotObstacles()
+            self.plotAlgorithm()
+            pass
         except AttributeError:
             pass
         return True
+
+    def plotAlgorithm(self):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+        # plot debug text
+        if (self.cc_ratio < 0.01):
+            text = "MPPI"
+        else:
+            text = "CCMPPI %.1f"%(self.cc_ratio)
+
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (50, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        # Using cv2.putText() method
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+        self.car.main.visualization.visualization_img = img
+
+    def plotObstacles(self):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+        # plot obstacles
+        for obs in self.obstacles:
+            img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+        has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
+        if (has_collided):
+            # plot obstacle in collision red
+            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
+
+        text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (250, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+        self.car.main.visualization.visualization_img = img
+
 
     def plotDebug(self):
         if (not self.car.main.visualization.update_visualization.is_set()):
@@ -403,38 +459,7 @@ class CcmppiCarController(CarController):
                 img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
         '''
 
-        # plot obstacles
-        for obs in self.obstacles:
-            img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
-        has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
-        if (has_collided):
-            # plot obstacle in collision red
-            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
 
-        # plot debug text
-        if (self.cc_ratio < 0.01):
-            text = "MPPI"
-        else:
-            text = "CCMPPI %.1f"%(self.cc_ratio)
-
-        # font
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        # org
-        org = (50, 50)
-        # fontScale
-        fontScale = 1
-        # Blue color in BGR
-        color = (255, 0, 0)
-        # Line thickness of 2 px
-        thickness = 2
-        # Using cv2.putText() method
-        img = cv2.putText(img, text, org, font,
-                           fontScale, color, thickness, cv2.LINE_AA)
-
-        text = "collision: %d"%(self.car.main.collision_checker.collision_count)
-        org = (250, 50)
-        img = cv2.putText(img, text, org, font,
-                           fontScale, color, thickness, cv2.LINE_AA)
 
         self.car.main.visualization.visualization_img = img
         return
