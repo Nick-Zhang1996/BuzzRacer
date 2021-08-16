@@ -3,7 +3,7 @@
 import numpy as np
 from math import radians
 from common import *
-from threading import Event,Lock
+from threading import Event
 from Simulator import Simulator
 
 class KinematicSimulator(Simulator):

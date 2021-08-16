@@ -13,7 +13,7 @@ class Car:
         self.debug_dict = {}
         self.car_interface = None
 
-    def postInit(self):
+    def init(self):
         if (Car.main.experiment_type == ExperimentType.Realworld):
             self.initSerialInterface()
         self.controller.init()

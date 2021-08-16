@@ -3,13 +3,13 @@ from time import sleep,time
 from common import *
 from Extension import Extension
 from threading import Event
+import pickle
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
         self.update_visualization = Event()
         self.update_freq = 100
         self.frame_dt = 1.0/self.update_freq
-
 
     def final(self):
         cv2.destroyAllWindows()
@@ -20,6 +20,20 @@ class Visualization(Extension):
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
         cv2.imshow('experiment',self.img_track)
         cv2.waitKey(1)
+
+    def postInit(self,):
+        self.saveBlankImg()
+
+    def saveBlankImg(self):
+        img = self.img_track.copy()
+        obstacles = self.main.cars[0].controller.obstacles
+        # plot obstacles
+        for obs in obstacles:
+            img = self.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+        
+        with open("track_img.p",'wb') as f:
+            print_info(self.prefix()+"saved raw track background")
+            pickle.dump(img,f)
 
     # show image
     # do this last since controllers may need to alter the image

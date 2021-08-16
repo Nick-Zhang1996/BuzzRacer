@@ -3,6 +3,11 @@ from Extension import Extension
 from time import time,sleep
 # base class for all simulators
 # contains code for aligning simulator time with real time
+
+# it is required that:
+# car.states = x,y,heading,v_forward,v_sideway,omega
+# however simulator can establish a property car.sim_states
+# that use different state representation
 class Simulator(Extension):
     def __init__(self,main):
         super().__init__(main)

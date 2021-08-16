@@ -5,6 +5,7 @@ from math import pi,radians,degrees
 
 
 from KinematicSimulator import KinematicSimulator
+from DynamicSimulator import DynamicSimulator
 
 from timeUtil import execution_timer
 from TrackFactory import TrackFactory
@@ -25,17 +26,20 @@ from Visualization import Visualization
 from PerformanceTracker import PerformanceTracker
 
 class Main():
-    def __init__(self,):
+    def __init__(self,params={}):
         self.timer = execution_timer(True)
         # state update rate
         self.dt = 0.02
+        self.params = params
 
         self.track = TrackFactory(name='full')
 
         #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        Car.reset()
         car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
 
         self.cars = Car.cars
+        print_info("[main] total cars: %d"%(len(self.cars)))
 
         # flag to quit all child threads gracefully
         self.exit_request = Event()
@@ -50,6 +54,8 @@ class Main():
         # named extensions
         self.visualization = Visualization(self)
         self.simulator = KinematicSimulator(self)
+        #self.simulator = DynamicSimulator(self)
+        self.simulator.match_real_time = False
         self.collision_checker = CollisionChecker(self)
 
         self.extensions = []
@@ -59,19 +65,22 @@ class Main():
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Logger(self))
-        self.extensions.append(self.collision_checker)
+        self.extensions.append(Logger(self))
+        #self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
-        self.extensions.append(Gifsaver(self))
+        #self.extensions.append(Gifsaver(self))
         self.extensions.append(PerformanceTracker(self))
 
         for item in self.extensions:
             item.init()
 
         for car in self.cars:
-            car.postInit()
+            car.init()
+
+        for item in self.extensions:
+            item.postInit()
 
     # run experiment until user press q in visualization window
     def run(self):
@@ -120,6 +129,7 @@ class Main():
 
 
 if __name__ == '__main__':
-    experiment = Main()
+    params = {'samples':4096, 'use_cc':False}
+    experiment = Main(params)
     experiment.run()
     print_info("program complete")
