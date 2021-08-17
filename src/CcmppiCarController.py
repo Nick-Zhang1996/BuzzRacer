@@ -292,75 +292,24 @@ class CcmppiCarController(CarController):
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
 
-        # DEBUG
-        # simulate where mppi think where the car will end up with
-        p.s("debug")
+        # for debug
+        self.debug_states = states.copy()
+        self.debug_uu = uu
 
-        # simulate vehicle trajectory with selected rollouts
-        sampled_control = self.ccmppi.debug_dict['sampled_control']
-        # use only first 100
-        samples = 100
-        # randomly select 100
-        index = random.sample(range(sampled_control.shape[0]), samples)
-        sampled_control = sampled_control[index,:,:]
-        rollout_traj_vec = []
-
-        # states, sampled_control
-        # DEBUG
-        # plot sampled trajectories
-        for k in range(samples):
-            this_rollout_traj = []
-            sim_states = states.copy()
-            for i in range(self.horizon_steps):
-                sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-                x,y,vf,heading = sim_states
-                coord = (x,y)
-                this_rollout_traj.append(coord)
-            rollout_traj_vec.append(this_rollout_traj)
-        debug_dict['rollout_traj_vec'] = rollout_traj_vec
-
-        # calculate terminal covariance on position
-        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
-        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
-        self.terminal_cov_vec.append(self.terminal_xy_cov)
-
-        # DEBUG
-        # apply the kth sampled control
-        '''
-        full_state_vec = []
-        sim_states = states.copy()
-        k = 0
-        for i in range(self.horizon_steps):
-            sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-            _throttle, _steering = sampled_control[k,i]
-            x,y,vf,heading = sim_states
-            entry = (x,y,vf,heading,_throttle,_steering)
-            full_state_vec.append(entry)
-        '''
-
-
-        # DEBUG
-        # trajectory following synthesized control sequence
-        sim_states = states.copy()
-        for i in range(self.horizon_steps):
-            sim_states = self.applyDiscreteDynamics(sim_states,uu[i],self.ccmppi_dt)
-            x,y,vf,heading = sim_states
-            coord = (x,y)
-            debug_dict['ideal_traj'].append(coord)
-
-        p.e("debug")
-        p.e()
-        self.debug_dict = debug_dict
+        self.debug_dict.update(debug_dict)
 
         self.car.throttle = throttle
         self.car.steering = steering
+        p.s("debug")
         try:
-            self.plotDebug()
+            #self.plotDebug()
             self.plotObstacles()
             self.plotAlgorithm()
             pass
         except AttributeError:
             pass
+        p.e("debug")
+        p.e()
         return True
 
     def plotAlgorithm(self):
@@ -419,6 +368,61 @@ class CcmppiCarController(CarController):
     def plotDebug(self):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
+
+        # DEBUG
+        # simulate where mppi think where the car will end up with
+        states = self.debug_states
+        # simulate vehicle trajectory with selected rollouts
+        sampled_control = self.ccmppi.debug_dict['sampled_control']
+        # use only first 100
+        samples = 100
+        # randomly select 100
+        index = random.sample(range(sampled_control.shape[0]), samples)
+        sampled_control = sampled_control[index,:,:]
+        rollout_traj_vec = []
+        # states, sampled_control
+        # DEBUG
+        # plot sampled trajectories
+        for k in range(samples):
+            this_rollout_traj = []
+            sim_states = states.copy()
+            for i in range(self.horizon_steps):
+                sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+                x,y,vf,heading = sim_states
+                coord = (x,y)
+                this_rollout_traj.append(coord)
+            rollout_traj_vec.append(this_rollout_traj)
+        self.debug_dict['rollout_traj_vec'] = rollout_traj_vec
+
+        # calculate terminal covariance on position
+        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
+        self.terminal_cov_vec.append(self.terminal_xy_cov)
+
+        # DEBUG
+        # apply the kth sampled control
+        '''
+        full_state_vec = []
+        sim_states = states.copy()
+        k = 0
+        for i in range(self.horizon_steps):
+            sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+            _throttle, _steering = sampled_control[k,i]
+            x,y,vf,heading = sim_states
+            entry = (x,y,vf,heading,_throttle,_steering)
+            full_state_vec.append(entry)
+        '''
+
+
+        # DEBUG
+        # trajectory following synthesized control sequence
+        sim_states = states.copy()
+        for i in range(self.horizon_steps):
+            sim_states = self.applyDiscreteDynamics(sim_states,self.debug_uu[i],self.ccmppi_dt)
+            x,y,vf,heading = sim_states
+            coord = (x,y)
+            self.debug_dict['ideal_traj'].append(coord)
+
         img = self.car.main.visualization.visualization_img
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']

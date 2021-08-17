@@ -10,7 +10,6 @@ import os.path
 class Gifsaver(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-        #print_ok("[Gifsaver]: in use")
 
     def init(self):
 

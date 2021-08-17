@@ -5,7 +5,6 @@ from Extension import Extension
 class PerformanceTracker(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-        print_ok("[PerformanceTracker]: in use")
         self.car = self.main.cars[0]
 
         self.control_effort_vec = []

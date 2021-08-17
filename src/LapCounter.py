@@ -9,7 +9,7 @@ class LapCounter(Extension):
 
     def init(self):
         self.total_laps = 100
-        print_ok("[LapCounter]: in use, total %d laps"%(self.total_laps))
+        print_ok("[LapCounter]: total %d laps"%(self.total_laps))
         self.main.car_total_laps = []
         for car in self.main.cars:
             car.laps_remaining = self.total_laps

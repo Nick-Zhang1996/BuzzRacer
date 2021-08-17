@@ -10,7 +10,6 @@ class KinematicSimulator(Simulator):
 
     def __init__(self,main):
         super().__init__(main)
-        print_ok("[KinematicSimulator]: in use")
 
         # for when a specific car instance is not speciied
         self.lr = 45e-3

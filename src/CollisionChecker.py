@@ -5,7 +5,6 @@ from Extension import Extension
 class CollisionChecker(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-        print_ok("[CollisionChecker]: in use")
         self.collision_count = [0] * len(self.main.cars)
 
     def update(self):

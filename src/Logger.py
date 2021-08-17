@@ -10,7 +10,6 @@ import pickle
 class Logger(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-        print_ok("[Logger]: in use")
 
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name

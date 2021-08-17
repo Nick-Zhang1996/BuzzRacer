@@ -10,7 +10,6 @@ from threading import Event,Lock
 class DynamicSimulator(Simulator):
     def __init__(self,main):
         super().__init__(main)
-        print_ok(self.prefix() + "in use")
         DynamicSimulator.max_v = 3.0
 
         # Defaults for when a specific car instance is not speciied

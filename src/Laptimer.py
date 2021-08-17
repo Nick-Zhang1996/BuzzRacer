@@ -11,7 +11,6 @@ class Laptimer(Extension):
         Extension.__init__(self,main)
 
     def init(self):
-        print_ok("[Laptimer]: in use")
         for car in self.main.cars:
             car.enableLaptimer = True
             if car.enableLaptimer:
