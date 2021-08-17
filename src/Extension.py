@@ -1,7 +1,8 @@
-
+from common import *
 class Extension:
     def __init__(self,main):
         Extension.main = main
+        print_ok(self.prefix() + "in use")
 
     def prefix(self):
         return "["+self.__class__.__name__+"]: "

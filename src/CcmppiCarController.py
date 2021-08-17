@@ -40,6 +40,10 @@ class CcmppiCarController(CarController):
         # DEBUG
         self.terminal_cov_vec = []
 
+        # diagnal terms of control cost matrix u'Ru
+        self.R_diag = [0.1, 0.1]
+        # control effort u'Ru
+        self.utru = 0
         return
 
     # Hack
@@ -285,6 +289,9 @@ class CcmppiCarController(CarController):
         #print_info("[wrapper:ccmppi.control] T= %.2f, S = %.2f"%(throttle,degrees(steering)) )
         p.e("ccmppi")
 
+        # record control energy
+        self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
+
         # DEBUG
         # simulate where mppi think where the car will end up with
         p.s("debug")
@@ -298,6 +305,7 @@ class CcmppiCarController(CarController):
         sampled_control = sampled_control[index,:,:]
         rollout_traj_vec = []
 
+        # states, sampled_control
         # DEBUG
         # plot sampled trajectories
         for k in range(samples):
@@ -347,7 +355,7 @@ class CcmppiCarController(CarController):
         self.car.throttle = throttle
         self.car.steering = steering
         try:
-            #self.plotDebug()
+            self.plotDebug()
             self.plotObstacles()
             self.plotAlgorithm()
             pass
