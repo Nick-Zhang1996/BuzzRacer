@@ -39,6 +39,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
+        self.plotDebugFlag = False
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.1, 0.1]
@@ -302,7 +303,8 @@ class CcmppiCarController(CarController):
         self.car.steering = steering
         p.s("debug")
         try:
-            #self.plotDebug()
+            if (self.plotDebugFlag):
+                self.plotDebug()
             self.plotObstacles()
             self.plotAlgorithm()
             pass

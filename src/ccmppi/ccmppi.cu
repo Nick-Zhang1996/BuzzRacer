@@ -42,7 +42,7 @@
 
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u);
+float evaluate_step_cost( float* state, float* u,float in_raceline[][RACELINE_DIM],int idx0, int* last_u);
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]);
 __device__
@@ -185,6 +185,12 @@ void _evaluate_control_sequence(
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_u = -1;
+
+  // record index of initial state
+  int idx0;
+  float unused;
+  find_closest_id(x0,in_raceline,-1,0,&idx0,&unused);
+
   // run simulation
   // loop over time horizon
   float total_collision_cost = 0.0;
@@ -228,7 +234,7 @@ void _evaluate_control_sequence(
     forward_kinematics(x, u);
 
     // evaluate step cost (crosstrack error and velocity deviation)
-    float step_cost = evaluate_step_cost(x,u,in_raceline,&last_u);
+    float step_cost = evaluate_step_cost(x,u,in_raceline,idx0,&last_u);
     // cost related to obstacle collision avoidance / opponent avoidance
     // note this does not predict opponent
     // i: prediction step
@@ -314,40 +320,36 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
 
 
 __device__
-float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int* last_u){
+float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int idx0, int* last_u){
   //float heading = state[3];
   int idx;
-  float dist;
-
-  find_closest_id(state,in_raceline,*last_u,RACELINE_SEARCH_RANGE, &idx,&dist);
-  // update estimate of closest index on raceline
-  *last_u = idx;
-
-  // heading cost
-  //float cost = dist*0.5 + fabsf(fmodf(in_raceline[idx][2] - heading + PI,2*PI) - PI);
-
+  float dist, cost, dv;
+  cost = 0;
   // velocity cost
-  // current FORWARD velocity - target velocity at closest ref point
-
-  // forward vel
-
-  float dv = state[2] - in_raceline[idx][3];
-  //float cost = dist + 0.1*dv*dv;
-  float cost = dist;
+  //dv = state[2] - in_raceline[idx][3];
   // additional penalty on negative velocity 
   if (state[2] < 0){
     cost += 0.1;
   }
-  //return cost;
-  return 0.0;
+
+  // progress cost
+  find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
+  // update estimate of closest index on raceline
+  *last_u = idx;
+
+  // wrapping
+  // *0.01: convert index difference into length difference
+  // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
+  cost += dist*dist*10;
+
+  return cost;
 }
 
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
   int idx0,idx;
   float dist,cost;
-
-  //int id = blockIdx.x * blockDim.x + threadIdx.x;
 
   // we don't need distance info for initial state, 
   //dist is put in as a dummy variable, it is immediately overritten

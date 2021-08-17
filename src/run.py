@@ -55,7 +55,7 @@ class Main():
         self.visualization = Visualization(self)
         self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
-        self.simulator.match_real_time = False
+        self.simulator.match_real_time = True
         self.collision_checker = CollisionChecker(self)
 
         self.extensions = []
