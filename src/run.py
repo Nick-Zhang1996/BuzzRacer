@@ -57,6 +57,7 @@ class Main():
         #self.simulator = DynamicSimulator(self)
         self.simulator.match_real_time = True
         self.collision_checker = CollisionChecker(self)
+        self.performance_tracker = PerformanceTracker(self)
 
         self.extensions = []
         self.extensions.append(self.visualization)
@@ -71,7 +72,7 @@ class Main():
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
-        self.extensions.append(PerformanceTracker(self))
+        self.extensions.append(self.performance_tracker)
 
         for item in self.extensions:
             item.init()

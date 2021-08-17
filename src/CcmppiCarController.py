@@ -130,7 +130,8 @@ class CcmppiCarController(CarController):
                 'cc_ratio': cc_ratio,
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
-                'max_v': self.car.main.simulator.max_v}
+                'max_v': self.car.main.simulator.max_v,
+                'R_diag': self.R_diag}
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']

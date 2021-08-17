@@ -47,7 +47,7 @@ class CCMPPI:
 
 
         # prepare constants
-        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v}
+        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1] }
         self.cuda_code_macros = cuda_code_macros
         # add curand related config
         # new feature for Python 3.9
@@ -56,14 +56,15 @@ class CCMPPI:
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
-        if (self.K < 1024):
+        threads_per_block = 512
+        if (self.K < 512):
             # if K is small only employ one grid
             self.cuda_block_size = (self.K,1,1)
             self.cuda_grid_size = (1,1)
         else:
             # employ multiple grid,
-            self.cuda_block_size = (1024,1,1)
-            self.cuda_grid_size = (ceil(self.K/1024.0),1)
+            self.cuda_block_size = (512,1,1)
+            self.cuda_grid_size = (ceil(self.K/float(threads_per_block)),1)
         print("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
 
         self.cuda_init_curand_kernel = mod.get_function("init_curand_kernel")

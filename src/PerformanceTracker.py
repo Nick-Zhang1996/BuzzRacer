@@ -18,4 +18,5 @@ class PerformanceTracker(Extension):
         print_ok(self.prefix()+"terminal covariance = %.5f"%(terminal_cov))
         mean_control_effort = np.mean(self.control_effort_vec)
         print_ok(self.prefix() + "mean control effort u'Ru = %.5f"%(mean_control_effort))
+        self.mean_control_effort = mean_control_effort
 

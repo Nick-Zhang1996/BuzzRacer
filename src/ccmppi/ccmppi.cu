@@ -12,6 +12,9 @@
 #define CC_RATIO %(CC_RATIO)s
 // ratio of simulations that use zero reference control
 #define ZERO_REF_CTRL_RATIO %(ZERO_REF_CTRL_RATIO)s
+// control cost matrix R
+#define CONTROL_COST_MTX_R_1 %(R1)s
+#define CONTROL_COST_MTX_R_2 %(R2)s
 
 #define MODE_CC 1
 #define MODE_NOCC 2
@@ -234,6 +237,7 @@ void _evaluate_control_sequence(
     forward_kinematics(x, u);
 
     // evaluate step cost (crosstrack error and velocity deviation)
+    // corresponds to q(x)
     float step_cost = evaluate_step_cost(x,u,in_raceline,idx0,&last_u);
     // cost related to obstacle collision avoidance / opponent avoidance
     // note this does not predict opponent
@@ -256,6 +260,17 @@ void _evaluate_control_sequence(
     // evaluate track boundary cost
     int u_estimate = -1;
     cost += evaluate_boundary_cost(x,x0,in_raceline, &u_estimate);
+    // add control cost
+    float* eps = in_epsilon + id*HORIZON*CONTROL_DIM + i*CONTROL_DIM;
+    // 1/2*eps' * R * eps
+    cost += 0.5 * (eps[0]*eps[0]*CONTROL_COST_MTX_R_1 + eps[1]*eps[1]*CONTROL_COST_MTX_R_2);
+    // v * R * eps
+    cost += in_ref_control[i*CONTROL_DIM + 0] * CONTROL_COST_MTX_R_1 * eps[0];
+    cost += in_ref_control[i*CONTROL_DIM + 1] * CONTROL_COST_MTX_R_2 * eps[2];
+    // 1/2 v' * R * v
+    cost += in_ref_control[i*CONTROL_DIM + 0] * in_ref_control[i*CONTROL_DIM + 0] * CONTROL_COST_MTX_R_1;
+    cost += in_ref_control[i*CONTROL_DIM + 1] * in_ref_control[i*CONTROL_DIM + 1] * CONTROL_COST_MTX_R_2;
+
 
     // update y
     // y = A * y + B * epsilon
@@ -323,7 +338,7 @@ __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int idx0, int* last_u){
   //float heading = state[3];
   int idx;
-  float dist, cost, dv;
+  float dist, cost;
   cost = 0;
   // velocity cost
   //dv = state[2] - in_raceline[idx][3];
