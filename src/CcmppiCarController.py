@@ -42,7 +42,7 @@ class CcmppiCarController(CarController):
         self.plotDebugFlag = False
 
         # diagnal terms of control cost matrix u'Ru
-        self.R_diag = [0.1, 0.1]
+        self.R_diag = [0.01, 0.01]
         # control effort u'Ru
         self.utru = 0
         return

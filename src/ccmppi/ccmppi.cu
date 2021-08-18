@@ -358,7 +358,8 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
   cost += dist*dist*10;
 
-  return cost;
+  //return cost;
+  return 0.0;
 }
 
 __device__
