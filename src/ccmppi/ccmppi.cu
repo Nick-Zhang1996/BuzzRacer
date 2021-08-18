@@ -16,6 +16,8 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 
+#define %(MODEL_NAME)s
+
 #define MODE_CC 1
 #define MODE_NOCC 2
 #define MODE_ZERO_REF 3
@@ -41,6 +43,7 @@
 
 // one discretization step is around 1cm
 #define RACELINE_SEARCH_RANGE 10
+
 
 
 

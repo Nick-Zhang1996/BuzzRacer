@@ -12,21 +12,6 @@ class DynamicSimulator(Simulator):
         super().__init__(main)
         DynamicSimulator.max_v = 3.0
 
-        # Defaults for when a specific car instance is not speciied
-        self.lr = 45e-3
-        self.lf = 45e-3
-        # front tire cornering stiffness
-        g = 9.81
-        self.m = 0.1667
-        self.Caf = 5*0.25*self.m*g
-        #self.Car = 5*0.25*self.m*g
-        self.Car = self.Caf
-        # CG to front axle
-        self.lf = 0.09-0.036
-        self.lr = 0.036
-        # approximate as a solid box
-        self.Iz = self.m/12.0*(0.1**2+0.1**2)
-
     def init(self):
         super().init()
         self.cars = self.main.cars
@@ -73,6 +58,7 @@ class DynamicSimulator(Simulator):
     # this is to make itself useful for when update is not necessary
     @staticmethod
     def advanceDynamics(car_states, control, car):
+        dt = DynamicSimulator.dt
         x,y,psi,v_forward,v_sideway,d_psi = car_states
 
         d_x = v_forward*cos(psi)-v_sideway*sin(psi)
@@ -118,9 +104,9 @@ class DynamicSimulator(Simulator):
         y = sim_states[2]
         psi = sim_states[4] # heading
         # longitidunal,velocity forward positive
-        v_forward = sim_states[1] *cos(heading) + sim_states[3] *sin(heading)
+        v_forward = sim_states[1] *cos(psi) + sim_states[3] *sin(psi)
         # lateral, sideway velocity, left positive
-        v_sideway = -sim_states[1] *sin(heading) + sim_states[3] *cos(heading)
+        v_sideway = -sim_states[1] *sin(psi) + sim_states[3] *cos(psi)
         omega = sim_states[5]
         car_states = x,y,psi,v_forward,v_sideway,omega
         return car_states

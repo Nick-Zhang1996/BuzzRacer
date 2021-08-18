@@ -109,9 +109,25 @@ class Car:
         car.max_pwm_right = car_setting['max_steer_pwm_right']
         car.serial_port = car_setting['serial_port']
         car.optitrack_id = car_setting['optitrack_streaming_id']
-        car.lr = car.lf = 45e-3
         car.id = Car.car_count
         car.controller = controller(car)
+
+        # physics properties
+        # Defaults for when a specific car instance is not speciied
+        car.lr = 45e-3
+        car.lf = 45e-3
+        # front tire cornering stiffness
+        g = 9.81
+        car.m = 0.1667
+        car.Caf = 5*0.25*car.m*g
+        #car.Car = 5*0.25*car.m*g
+        car.Car = car.Caf
+        # CG to front axle
+        car.lf = 0.09-0.036
+        car.lr = 0.036
+        # approximate as a solid box
+        car.Iz = car.m/12.0*(0.1**2+0.1**2)
+
         Car.cars.append(car)
         Car.car_count += 1
         return car

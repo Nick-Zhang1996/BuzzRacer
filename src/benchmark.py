@@ -62,7 +62,8 @@ class Main():
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Logger(self))
+        self.logger = Logger(self)
+        self.extensions.append(self.logger)
         self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
@@ -130,23 +131,25 @@ if __name__ == '__main__':
     
     experiment_count = 0
     for use_cc in [False, True]:
-        for samples in [4096, 2048, 1024, 512, 256, 128]:
-            algorithm_text = 'ccmppi' if use_cc else 'mppi'
-            params = {'samples':samples, 'use_cc':use_cc}
-            experiment_count += 1
+        algorithm_text = 'ccmppi' if use_cc else 'mppi'
+        samples = 4096
+        params = {'samples':samples, 'use_cc':use_cc}
+        experiment_count += 1
 
-            print_info("-------------- start one experiment ------------")
-            print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm_text, samples))
-            experiment = Main(params)
-            experiment.run()
+        print_info("-------------- start one experiment ------------")
+        print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm_text, samples))
+        experiment = Main(params)
+        experiment.run()
 
-            laptime = experiment.car_laptime_mean[0]
-            laps = experiment.car_total_laps[0]
-            collisions = experiment.car_total_collisions[0]
-            control_effort = experiment.performance_tracker.mean_control_effort
-            print_info("%s, %d, %d, %.4f, %d, %.5f"%( algorithm_text, samples, laps, laptime, collisions,control_effort))
-            with open(log_filename,'a') as f:
-                f.write("%s, %d, %d, %.4f, %d, %.5f\n"%( algorithm_text, samples, laps, laptime, collisions,control_effort))
-            print_info("-------------- finish one experiment ------------")
+        laptime = experiment.car_laptime_mean[0]
+        laps = experiment.car_total_laps[0]
+        collisions = experiment.car_total_collisions[0]
+        control_effort = experiment.performance_tracker.mean_control_effort
+        # TODO
+        fullstate_log_filename = experiment.logger.logFilename
+        print_info("%s, %d, %d, %.4f, %d, %.5f, %s"%( algorithm_text, samples, laps, laptime, collisions,control_effort, fullstate_log_filename))
+        with open(log_filename,'a') as f:
+            f.write("%s, %d, %d, %.4f, %d, %.5f, %s\n"%( algorithm_text, samples, laps, laptime, collisions,control_effort, fullstate_log_filename))
+        print_info("-------------- finish one experiment ------------")
 
     print_info("program complete")

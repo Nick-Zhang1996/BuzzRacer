@@ -5,6 +5,7 @@ from math import sin,cos
 import numpy as np
 from time import time
 from common import *
+import pickle
 
 class Laptimer(Extension):
     def __init__(self, main):
@@ -29,6 +30,17 @@ class Laptimer(Extension):
 
     def final(self):
         self.showStats()
+        self.logLaptime()
+
+    def logLaptime(self):
+        try:
+            logname = "../log/plot_traj/laptime_" + str(self.main.logger.log_no) + ".p"
+            with open(logname,'wb') as f:
+                pickle.dump(self.main.cars[0].laptime_vec,f)
+                print_ok(self.prefix() + " saved laptime vec to " + logname)
+        except AttributeError:
+            pass
+
 
     def showStats(self):
         car_laptime_mean = []

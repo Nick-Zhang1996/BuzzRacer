@@ -17,13 +17,14 @@ from timeUtil import execution_timer
 from ccmppi import CCMPPI
 from CarController import CarController
 from KinematicSimulator import KinematicSimulator
+from DynamicSimulator import DynamicSimulator
 import pickle
 
 class CcmppiCarController(CarController):
     def __init__(self,car):
         super().__init__(car)
         self.debug_dict = {}
-
+        self.model = KinematicSimulator
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
@@ -122,7 +123,6 @@ class CcmppiCarController(CarController):
 
         arg_list = {'samples':4096,
                 'horizon': 15,
-                'state_dim': 4,
                 'control_dim': 2,
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
@@ -132,17 +132,23 @@ class CcmppiCarController(CarController):
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v,
                 'R_diag': self.R_diag}
+        if (self.model == KinematicSimulator):
+            arg_list['state_dim'] = 4
+        elif (self.model == DynamicSimulator):
+            arg_list['state_dim'] = 6
+
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
             print_info("ccmppi samples override to %d"%(arg_list['samples']))
+
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
         self.samples_count = arg_list['samples']
         self.cc_ratio = arg_list['cc_ratio']
 
         self.ccmppi = CCMPPI(arg_list)
-
+        self.ccmppi.model = self.model
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.additionalSetup()
 
@@ -237,7 +243,7 @@ class CcmppiCarController(CarController):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def control(self):
-        states = self.car.states
+        car_states = self.car.states
         track = self.car.main.track
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
         # profiling
@@ -255,7 +261,7 @@ class CcmppiCarController(CarController):
         p.s("local traj")
         if self.last_s is None:
             # use self.lr as wheelbase to use center of gravity in evaluation
-            retval = track.localTrajectory(states,wheelbase=self.car.lr,return_u=True)
+            retval = track.localTrajectory(car_states,wheelbase=self.car.lr,return_u=True)
             if retval is None:
                 print_warning("[ctrlCcmppiWrapper:ctrlCar] localTrajectory returned None")
                 ret =  (0,0,False,debug_dict)
@@ -274,9 +280,12 @@ class CcmppiCarController(CarController):
         # vs: left positive
         # convert state used in run.py : x,y,heading,vf,vs,omega 
         #    to state in ccmppi : x,y,v,heading
-        x,y,heading,vf,vs,omega = states
+        x,y,heading,vf,vs,omega = car_states
 
-        self.states = states = np.array([x,y,vf,heading])
+        if self.model == KinematicSimulator:
+            self.states = states = np.array([x,y,vf,heading])
+        elif self.model == DynamicSimulator:
+            self.states = states = np.array([x,y, heading,vf,vs,omega])
 
 
         # NOTE may need revision to use previous results
@@ -284,6 +293,7 @@ class CcmppiCarController(CarController):
         p.e("prep")
 
         p.s("ccmppi")
+        # dynamic simulator
         uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
         control = uu[0]
         throttle = control[0]
@@ -391,7 +401,10 @@ class CcmppiCarController(CarController):
             sim_states = states.copy()
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-                x,y,vf,heading = sim_states
+                if (self.model == KinematicSimulator):
+                    x,y,vf,heading = sim_states
+                elif (self.model == DynamicSimulator):
+                    x,y, heading,vf,vs,omega = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -411,7 +424,10 @@ class CcmppiCarController(CarController):
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
             _throttle, _steering = sampled_control[k,i]
-            x,y,vf,heading = sim_states
+            if (self.model == KinematicSimulator):
+                x,y,vf,heading = sim_states
+            elif (self.model == DynamicSimulator):
+                x,y, heading,vf,vs,omega = sim_states
             entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
         '''
@@ -422,7 +438,10 @@ class CcmppiCarController(CarController):
         sim_states = states.copy()
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,self.debug_uu[i],self.ccmppi_dt)
-            x,y,vf,heading = sim_states
+            if (self.model == KinematicSimulator):
+                x,y,vf,heading = sim_states
+            elif (self.model == DynamicSimulator):
+                x,y, heading,vf,vs,omega = sim_states
             coord = (x,y)
             self.debug_dict['ideal_traj'].append(coord)
 
@@ -483,7 +502,8 @@ class CcmppiCarController(CarController):
     # for use in visualization
     def applyDiscreteDynamics(self,states,control,dt):
         #return self.sim.updateCar(dt,control[0], control[1],external_states=state)
-        return KinematicSimulator.advanceDynamics(states, control, car = self.car)
+        # NOTE kinematic simulator and dynamic simulator use different state representation
+        return self.model.advanceDynamics(states, control, car = self.car)
 
     def predictOpponent(self):
         self.opponent_prediction = []

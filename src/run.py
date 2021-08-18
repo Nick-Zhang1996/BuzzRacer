@@ -34,9 +34,9 @@ class Main():
 
         self.track = TrackFactory(name='full')
 
-        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -53,11 +53,12 @@ class Main():
         # --- Extensions ---
         # named extensions
         self.visualization = Visualization(self)
-        self.simulator = KinematicSimulator(self)
-        #self.simulator = DynamicSimulator(self)
-        self.simulator.match_real_time = True
+        #self.simulator = KinematicSimulator(self)
+        self.simulator = DynamicSimulator(self)
+        self.simulator.match_real_time = False
         self.collision_checker = CollisionChecker(self)
-        self.performance_tracker = PerformanceTracker(self)
+        #self.performance_tracker = PerformanceTracker(self)
+        #self.extensions.append(self.performance_tracker)
 
         self.extensions = []
         self.extensions.append(self.visualization)
@@ -66,13 +67,13 @@ class Main():
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Logger(self))
+        self.logger = Logger(self)
+        self.extensions.append(self.logger)
         #self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
-        self.extensions.append(self.performance_tracker)
 
         for item in self.extensions:
             item.init()

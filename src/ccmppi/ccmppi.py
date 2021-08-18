@@ -11,6 +11,9 @@ sys.path.append(base_dir)
 from common import *
 from timeUtil import execution_timer
 from ccmppi_kinematic import CCMPPI_KINEMATIC
+from ccmppi_dynamic import CCMPPI_DYNAMIC
+from KinematicSimulator import KinematicSimulator
+from DynamicSimulator import DynamicSimulator
 
 class CCMPPI:
     def __init__(self,arg_list):
@@ -19,7 +22,10 @@ class CCMPPI:
 
         self.N = self.T = arg_list['horizon']
         self.m = arg_list['control_dim']
+        # kinematic model:
         # state: X,Y,vf, psi
+        # dynamic model:
+        # state: x,y,heading,vf,vs,omega
         self.n = self.state_dim = arg_list['state_dim']
         self.temperature = arg_list['temperature']
         self.dt = arg_list['dt']
@@ -29,7 +35,10 @@ class CCMPPI:
         discretized_raceline = arg_list['raceline']
         # kinematic simulator velocity cap
         max_v = arg_list['max_v']
-        self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
+        if (self.model == KinematicSimulator):
+            self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
+        elif (self.model == DynamicSimulator):
+            self.cc = CCMPPI_DYNAMIC(self.dt, self.T, self.noise_cov)
 
         self.p = execution_timer(True)
         self.debug_dict = {}
@@ -47,7 +56,8 @@ class CCMPPI:
 
 
         # prepare constants
-        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1] }
+        model_name = "KINEMATIC_MODEL" if (self.model == KinematicSimulator) else "DYNAMIC_MODEL"
+        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name}
         self.cuda_code_macros = cuda_code_macros
         # add curand related config
         # new feature for Python 3.9
@@ -253,7 +263,7 @@ class CCMPPI:
         cost = 0.0
         for k in range(self.N):
             print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-            state = self.forwardKinematics(state,this_control_seq[k])
+            state = self.applyDiscreteDynamics(state,this_control_seq[k],self.dt)
             step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
             cost += step_cost
             print(step_cost, index, dist)
@@ -288,26 +298,6 @@ class CCMPPI:
             S += self.evaluateStepCost(x,control)
         S += self.evaluateTerminalCost(x,x0)
         return S
-
-    def forwardKinematics(self,state, control):
-        self.lr = 0.036
-        self.l = 0.09
-
-        dt = self.dt
-        throttle,steering = control
-        x,y,v,heading = state
-        beta = np.arctan( np.tan(steering) * self.lr / (self.l))
-        dXdt = v * np.cos( heading + beta )
-        dYdt = v * np.sin( heading + beta )
-        dvdt = throttle
-        dheadingdt = v/self.lr*np.sin(beta)
-
-        x += dt * dXdt
-        y += dt * dYdt
-        v += dt * dvdt
-        heading += dt * dheadingdt
-
-        return (x,y,v,heading)
 
 
     def findClosestId(self, state, in_raceline):
