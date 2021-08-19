@@ -16,6 +16,13 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 
+#define CAR_CAF %(Caf)s
+#define CAR_CAR %(Car)s
+#define CAR_M %(car_m)s
+#define CAR_IZ %(car_Iz)s
+#define CAR_LF %(car_lf)s
+#define CAR_LR %(car_lr)s
+
 #define %(MODEL_NAME)s
 
 #define MODE_CC 1
@@ -44,9 +51,6 @@
 // one discretization step is around 1cm
 #define RACELINE_SEARCH_RANGE 10
 
-
-
-
 __device__
 float evaluate_step_cost( float* state, float* u,float in_raceline[][RACELINE_DIM],int idx0, int* last_u);
 __device__
@@ -73,8 +77,14 @@ __device__
 float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate);
 
 // forward kinematics model by one step
+#ifdef KINEMATIC_MODEL
 __device__
 void forward_kinematics( float* x, float* u);
+#elif defined DYNAMIC_MODEL
+// forward dynamic model by one step
+__device__
+void forward_dynamics( float* x, float* u);
+#endif
 
 
 // calculate matrix multiplication
@@ -237,7 +247,11 @@ void _evaluate_control_sequence(
     }
     */
     // step forward dynamics, update state x in place
+#ifdef KINEMATIC_MODEL
     forward_kinematics(x, u);
+#elif defined DYNAMIC_MODEL
+    forward_dynamics(x, u);
+#endif
 
     // evaluate step cost (crosstrack error and velocity deviation)
     // corresponds to q(x)
@@ -298,7 +312,6 @@ void _evaluate_control_sequence(
   cost += terminal_cost;
   out_cost[id] = cost;
 
-
 }
 
 // find closest id in the index range (guess - range, guess + range)
@@ -339,16 +352,21 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
 
 __device__
 float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_DIM], int idx0, int* last_u){
-  //float heading = state[3];
   int idx;
   float dist, cost;
   cost = 0;
   // velocity cost
   //dv = state[2] - in_raceline[idx][3];
   // additional penalty on negative velocity 
+  #ifdef KINEMATIC_MODEL
   if (state[2] < 0){
     cost += 0.1;
   }
+  #elif defined DYNAMIC_MODEL
+  if (state[3] < 0){
+    cost += 0.1;
+  }
+  #endif
 
   // progress cost
   find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
@@ -450,6 +468,125 @@ void forward_kinematics(float* state, float* u){
   state[2] += dvelocity;
   state[3] += dpsi;
 
+}
+
+__device__
+void forward_dynamics(float* state, float* u){
+  // replicate DynamicSimulator.advanceDYnamics
+
+}
+
+__device__
+void make_B(float vf, float* buffer){
+  # NOTE need transpose
+  *(buffer+0) = 0;
+  *(buffer+0) = 1;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+
+}
+
+__device__
+void make_A(float vf, float* buffer){
+  *(buffer+0) = 0;
+  *(buffer+0) = 1;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+  *(buffer+0) = 0;
+
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+0) = 0;
+
+  *(buffer+6*2+0) = 0;
+  *(buffer+6*2+0) = 0;
+  *(buffer+6*2+0) = 0;
+  *(buffer+6*2+0) = 1;
+  *(buffer+6*2+0) = 0;
+  *(buffer+6*2+0) = 0;
+  
+  *(buffer+6*3+0) = 0;
+  *(buffer+6*3+0) = 0;
+  *(buffer+6*3+0) = 0;
+  *(buffer+6*3+0) = -(2*CAR_CAF + 2*CAR_CAR)/(CAR_M*vf);
+  *(buffer+6*3+0) = 0;
+  *(buffer+6*3+0) = -vf-(2*CAR_CAF*CAR_LF-2*CAR_CAR*CAR_LR)/(CAR_M*vf);
+
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+0) = 1;
+  
+  *(buffer+6*5+0) = 0;
+  *(buffer+6*5+0) = 0;
+  *(buffer+6*5+0) = 0;
+  *(buffer+6*5+0) = -(2*CAR_LF*CAR_CAF-2*CAR_LR*CAR_CAR)/(CAR_IZ*cf);
+  *(buffer+6*5+0) = 0;
+  *(buffer+6*5+0) = -(2*CAR_LF*CAR_LF*CAR_CAF+2*CAR_LR*CAR_LR*CAR_CAR)/(CAR_IZ*vf);
+
+}
+
+// make active rotation matrix
+__device__
+void make_R(float angle,float* buffer){
+  float c = cosf(angle);
+  float s = sinf(angle);
+  *(buffer+0) = c;
+  *(buffer+1) = 0;
+  *(buffer+2) = -s;
+  *(buffer+3) = 0;
+  *(buffer+4) = 0;
+  *(buffer+5) = 0;
+
+  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+1) = c;
+  *(buffer+6*1+2) = 0;
+  *(buffer+6*1+3) = -s;
+  *(buffer+6*1+4) = 0;
+  *(buffer+6*1+5) = 0;
+
+  *(buffer+6*2+0) = s;
+  *(buffer+6*2+1) = 0;
+  *(buffer+6*2+2) = c;
+  *(buffer+6*2+3) = 0;
+  *(buffer+6*2+4) = 0;
+  *(buffer+6*2+5) = 0;
+
+  *(buffer+6*3+0) = 0;
+  *(buffer+6*3+1) = s;
+  *(buffer+6*3+2) = 0;
+  *(buffer+6*3+3) = c;
+  *(buffer+6*3+4) = 0;
+  *(buffer+6*3+5) = 0;
+
+  *(buffer+6*4+0) = 0;
+  *(buffer+6*4+1) = 0;
+  *(buffer+6*4+2) = 0;
+  *(buffer+6*4+3) = 0;
+  *(buffer+6*4+4) = 1;
+  *(buffer+6*4+5) = 0;
+
+  *(buffer+6*5+0) = 0;
+  *(buffer+6*5+1) = 0;
+  *(buffer+6*5+2) = 0;
+  *(buffer+6*5+3) = 0;
+  *(buffer+6*5+4) = 0;
+  *(buffer+6*5+5) = 1;
 }
 
 __device__

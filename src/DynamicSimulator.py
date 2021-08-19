@@ -47,7 +47,7 @@ class DynamicSimulator(Simulator):
             car.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6,6)
 
-        car.states_hist = []
+        #car.states_hist = []
         car.local_states_hist = []
         car.norm = []
 
@@ -68,7 +68,6 @@ class DynamicSimulator(Simulator):
         throttle, steering = control
         u = np.array([throttle,steering])
         # NOTE page 30 of book vehicle dynamics and control
-
         A = np.array([[0, 1, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 1, 0, 0],
@@ -97,8 +96,8 @@ class DynamicSimulator(Simulator):
             sim_states = sim_states + R(psi) @ (A @ R(-psi) @ sim_states + B @ u + plant_noise)*dt
         else:
             sim_states = sim_states + R(psi) @ (A @ R(-psi) @ sim_states + B @ u)*dt
-        car.states_hist.append(sim_states)
-        car.local_states_hist.append(R(-psi)@sim_states)
+        #car.states_hist.append(sim_states)
+        #car.local_states_hist.append(R(-psi)@sim_states)
 
         x = sim_states[0]
         y = sim_states[2]
@@ -109,12 +108,13 @@ class DynamicSimulator(Simulator):
         v_sideway = -sim_states[1] *sin(psi) + sim_states[3] *cos(psi)
         omega = sim_states[5]
         car_states = x,y,psi,v_forward,v_sideway,omega
-        return car_states
+        return np.array(car_states)
 
     def update(self): 
         #print_ok(self.prefix() + "update")
         for car in self.cars:
             car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
+            print(self.prefix()+str(car.states))
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()

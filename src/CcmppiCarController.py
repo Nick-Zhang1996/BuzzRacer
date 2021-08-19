@@ -24,7 +24,7 @@ class CcmppiCarController(CarController):
     def __init__(self,car):
         super().__init__(car)
         self.debug_dict = {}
-        self.model = KinematicSimulator
+        self.model = DynamicSimulator
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
@@ -134,8 +134,10 @@ class CcmppiCarController(CarController):
                 'R_diag': self.R_diag}
         if (self.model == KinematicSimulator):
             arg_list['state_dim'] = 4
+            arg_list['model_name'] = KinematicSimulator
         elif (self.model == DynamicSimulator):
             arg_list['state_dim'] = 6
+            arg_list['model_name'] = DynamicSimulator
 
 
         if ('samples' in self.car.main.params.keys()):
@@ -146,9 +148,9 @@ class CcmppiCarController(CarController):
         self.horizon_steps = arg_list['horizon']
         self.samples_count = arg_list['samples']
         self.cc_ratio = arg_list['cc_ratio']
+        arg_list['car'] = self.car
 
         self.ccmppi = CCMPPI(arg_list)
-        self.ccmppi.model = self.model
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.additionalSetup()
 
@@ -312,6 +314,7 @@ class CcmppiCarController(CarController):
 
         self.car.throttle = throttle
         self.car.steering = steering
+        print("[Ccmppi] T = %.1f, S = %.1f"%(throttle, degrees(steering)))
         p.s("debug")
         try:
             if (self.plotDebugFlag):

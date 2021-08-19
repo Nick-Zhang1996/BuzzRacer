@@ -35,6 +35,7 @@ class CCMPPI:
         discretized_raceline = arg_list['raceline']
         # kinematic simulator velocity cap
         max_v = arg_list['max_v']
+        self.model = arg_list['model_name']
         if (self.model == KinematicSimulator):
             self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
         elif (self.model == DynamicSimulator):
@@ -55,9 +56,10 @@ class CCMPPI:
             code = f.read()
 
 
+        car = self.car
         # prepare constants
         model_name = "KINEMATIC_MODEL" if (self.model == KinematicSimulator) else "DYNAMIC_MODEL"
-        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name}
+        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name,"Caf":car.Caf,"Car":car.Car,"car_m":car.m,"car_Iz":car.Iz,"car_lf":car.lf,"car_lr",car.lr}
         self.cuda_code_macros = cuda_code_macros
         # add curand related config
         # new feature for Python 3.9

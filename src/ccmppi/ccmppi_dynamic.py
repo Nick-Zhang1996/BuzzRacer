@@ -24,6 +24,7 @@ from Car import Car
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
 from DynamicSimulator import DynamicSimulator
+from StanleyCarController import StanleyCarController
 
 class CCMPPI_DYNAMIC():
     def __init__(self,dt, N, noise_cov, debug_info=None):
@@ -50,6 +51,7 @@ class CCMPPI_DYNAMIC():
         # load track 
         #self.loadTrack()
         self.getRefTraj("../log/ref_traj/dynamic.p",show=False)
+        #self.getRefTraj("../../log/ref_traj/dynamic.p",show=False)
         
         np.random.seed()
 
@@ -336,7 +338,6 @@ class CCMPPI_DYNAMIC():
     # apply covariance control
     #
     # input:
-    #   state: (x,y,v,heading)
     # return: N K matrices of size (n,m)
     def cc(self, state, return_sx=False, debug=False):
         n = self.n
@@ -348,7 +349,7 @@ class CCMPPI_DYNAMIC():
         ref_xx = self.ref_traj[:,0]
         ref_yy = self.ref_traj[:,2]
 
-        x,y,_,_ = state
+        x,y,_,_,_,__ = state
 
         dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
         # start : index of closest ref point to car
@@ -364,9 +365,13 @@ class CCMPPI_DYNAMIC():
         y = ref_traj_wrapped[start:start+self.N,2]
         vy = ref_traj_wrapped[start:start+self.N,3]
         heading = ref_traj_wrapped[start:start+self.N,4]
+        omega = ref_traj_wrapped[start:start+self.N,5]
         v = np.sqrt(vx*vx + vy*vy)
 
-        self.ref_state_vec = ref_state_vec = np.vstack([x,y,v,heading]).T
+        v_forward = vx*np.cos(heading) + vy*np.sin(heading)
+        v_sideway = -vx*np.sin(heading) + vy*np.cos(heading)
+        self.ref_state_vec = ref_state_vec = np.vstack([x,y,heading,v_forward, v_sideway,omega]).T
+
         self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
 
         # find reference throttle and steering
@@ -400,7 +405,7 @@ class CCMPPI_DYNAMIC():
         #ds[:,:,0] += state_diff
 
         if (debug):
-            print_info("[cc] ref state x0 (x,y,v,heading)")
+            print_info("[cc] ref state x0 (x,y,heading,vf, vs, omega)")
             print(ref_state_vec[0])
             print_info("[cc] actual state x0")
             print(state)
@@ -492,12 +497,12 @@ class CCMPPI_DYNAMIC():
 
 
     def simulate(self):
-        if self.debug_info['model'] =='linear_kinematic':
+        if self.debug_info['model'] =='linear_dynamic':
             return self.simulate_linear()
-        elif self.debug_info['model']=='kinematic':
-            return self.simulate_kinematic()
+        elif self.debug_info['model']=='dynamic':
+            return self.simulate_dynamic()
 
-    def simulate_kinematic(self):
+    def simulate_dynamic(self):
         As = self.As
         Bs = self.Bs
         ds = self.ds
@@ -514,6 +519,7 @@ class CCMPPI_DYNAMIC():
             cc_states_vec.append([])
             y_i = np.zeros(self.n)
             x_i = x0.copy()
+            #print("sample %d"%(j))
             for i in range(sim_steps):
                 mean = [0.0]*self.m
                 # generate random variable epsilon or retrieve from self.rand_val
@@ -530,7 +536,7 @@ class CCMPPI_DYNAMIC():
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
+                x_i = DynamicSimulator.advanceDynamics(x_i, control,self.car)
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
 
                 cc_states_vec[j].append(x_i.flatten())
@@ -544,6 +550,7 @@ class CCMPPI_DYNAMIC():
         for j in range(samples):
             nocc_states_vec.append([])
             x_i = x0.copy()
+            #print("sample %d"%(j))
             for i in range(sim_steps):
                 # generate random variable epsilon
                 mean = [0.0]*self.m
@@ -559,7 +566,8 @@ class CCMPPI_DYNAMIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
+                x_i = DynamicSimulator.advanceDynamics(x_i, control,self.car)
+                #print("states = %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], x_i[4], x_i[5], control[0], control[1]))
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)
@@ -813,8 +821,7 @@ class CCMPPI_DYNAMIC():
         track.drawRaceline(img=img)
         car_steering = 0.0
 
-        x,y,v,heading = state
-        x0 = np.hstack([x,y,heading,0,0,0])
+        x0 = state
         img = track.drawCar(img, x0, car_steering)
 
         for i in range(cc_states_vec.shape[0]):
@@ -894,23 +901,18 @@ class CCMPPI_DYNAMIC():
         plt.show()
 
 if __name__ == "__main__":
-    dt = 0.03
-    state = np.array([0.6*0.7,0.6*0.5, 0.5, radians(130)])
-    #state = np.array([0.6*3.5,0.6*1.75, 1.0, radians(-90)])
-    #state = np.array([0.6*3.7,0.6*1.75, 1.0, radians(-90)])
-    #main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
-
-    #noise_cov = np.diag([(0.7)**2,radians(40.0/2)**2])
-    ratio = 0.4
+    dt = 0.01
+    #np.vstack([x,y,heading,v_forward, v_sideway,omega]).T
+    state = np.array([0.6*0.7,0.6*0.5,  radians(130),0.5,0.0,0.0])
+    ratio = 1.0
     noise_cov = np.diag([(0.7*ratio)**2,radians(20.0*ratio)**2])
-    debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-    car = Car(None)
-    car.lr = car.lf = 45e-3
-    car.serial_port = None
+    debug_info = {'x0':state, 'model':'dynamic', 'input_constraint':True}
 
-    main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
-    KinematicSimulator.dt = dt
-    KinematicSimulator.max_v = 30.0
+    main = CCMPPI_DYNAMIC(dt,20,noise_cov, debug_info)
+    car = Car.Factory(main, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+    car.noise = False
+    DynamicSimulator.dt = dt
+    DynamicSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
     main.visualizeConfidenceEllipse()
