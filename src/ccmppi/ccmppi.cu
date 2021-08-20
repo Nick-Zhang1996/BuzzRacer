@@ -518,6 +518,7 @@ void forward_dynamics(float* state, float* u){
   float kinematic_state[4];
 
   // fallback to kinematic model if velocity is too low to avoid singularity
+  /*
   if (vf < 0.4){
     kinematic_state[0] = x;
     kinematic_state[1] = y;
@@ -532,6 +533,7 @@ void forward_dynamics(float* state, float* u){
     state[5] = 0;
     return;
   }
+  */
 
 
 
