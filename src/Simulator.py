@@ -13,7 +13,7 @@ class Simulator(Extension):
         super().__init__(main)
         self.match_real_time = True
         self.t0 = None
-        self.real_sim_time_ratio = 10.0
+        self.real_sim_time_ratio = 1.0
         print_ok(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):

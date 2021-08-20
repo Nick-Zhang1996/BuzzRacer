@@ -462,6 +462,28 @@ class CcmppiCarController(CarController):
             img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
         img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
 
+        # plot resultant trajectory from constant control
+        sim_states = states.copy()
+        constant_uu = np.array([0.0, 0.0])
+        debug_traj = []
+        for i in range(self.horizon_steps):
+            sim_states = self.applyDiscreteDynamics(sim_states,constant_uu,self.ccmppi_dt)
+            if (self.model == KinematicSimulator):
+                x,y,vf,heading = sim_states
+            elif (self.model == DynamicSimulator):
+                x,y, heading,vf,vs,omega = sim_states
+            coord = (x,y)
+            debug_traj.append(coord)
+        for coord in debug_traj:
+            x,y = coord
+            img = self.car.main.track.drawPoint(img,(x,y),color=(0,0,255))
+        traj = np.array(debug_traj)
+        #print(states.copy())
+        #plt.plot(traj[:,0], traj[:,1])
+        #plt.show()
+        self.car.main.visualization.visualization_img = img
+        return
+
         # plot opponent prediction
         '''
         coords_vec = self.debug_dict[car.id]['opponent_prediction']
@@ -488,19 +510,7 @@ class CcmppiCarController(CarController):
                 img = self.main.track.drawPoint(img,(x,y),color=(255,0,0))
         '''
 
-        # plot reference trajectory following some alternative control sequence
-        '''
-        x_ref_alt = self.debug_dict[0]['x_ref_alt']
-        for samples in x_ref_alt:
-            for coord in samples:
-                x,y = coord
-                img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
-        '''
 
-
-
-        self.car.main.visualization.visualization_img = img
-        return
 
     # advance car dynamics
     # for use in visualization

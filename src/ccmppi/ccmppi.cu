@@ -406,10 +406,10 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  cost += dist*dist*10;
+  cost += dist*dist*100;
 
-  //return cost;
-  return 0.0;
+  return cost;
+  //return 0.0;
 }
 
 __device__
@@ -428,9 +428,9 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
   //cost += dist*dist*100;
   cost += dist*dist*500;
-  return cost;
+  //return cost;
   // NOTE ignoring terminal cost
-  //return 0.0;
+  return 0.0;
 }
 
 // NOTE potential improvement by reusing idx result from other functions
@@ -515,6 +515,24 @@ void forward_dynamics(float* state, float* u){
   float A[6*6],B[6*2],R[6*6],buffer[6*6];
   float state_buffer[6],state_buffer2[6];
   float sim_states[6];
+  float kinematic_state[4];
+
+  // fallback to kinematic model if velocity is too low to avoid singularity
+  if (vf < 0.4){
+    kinematic_state[0] = x;
+    kinematic_state[1] = y;
+    kinematic_state[2] = vf;
+    kinematic_state[3] = psi;
+    forward_kinematics(kinematic_state, u);
+    state[0] = kinematic_state[0];
+    state[1] = kinematic_state[1];
+    state[2] = kinematic_state[3];
+    state[3] = kinematic_state[2];
+    state[4] = 0;
+    state[5] = 0;
+    return;
+  }
+
 
 
   sim_states[0] = x;

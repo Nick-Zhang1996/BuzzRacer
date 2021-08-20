@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from Simulator import Simulator
 from common import *
 from threading import Event,Lock
+from KinematicSimulator import KinematicSimulator
 
 class DynamicSimulator(Simulator):
     def __init__(self,main):
@@ -16,6 +17,8 @@ class DynamicSimulator(Simulator):
         super().init()
         self.cars = self.main.cars
         DynamicSimulator.dt = self.main.dt
+        KinematicSimulator.dt = DynamicSimulator.dt
+        KinematicSimulator.max_v = 100
         for car in self.cars:
             self.addCar(car)
         self.main.new_state_update = Event()
@@ -56,10 +59,20 @@ class DynamicSimulator(Simulator):
     # NOTE using car frame origined at CG with x pointing forward, y leftward
     # this method does NOT update car.sim_states, only returns a sim_state
     # this is to make itself useful for when update is not necessary
+    #    x,y,psi,v_forward,v_sideway,d_psi = car_states
     @staticmethod
     def advanceDynamics(car_states, control, car):
         dt = DynamicSimulator.dt
         x,y,psi,v_forward,v_sideway,d_psi = car_states
+
+        # to avoid singularity when velocity is low, switch to kinematic model when v is low
+        if (v_forward < 0.3):
+            sim_states = (x,y,v_forward,psi)
+            sim_states = KinematicSimulator.advanceDynamics(sim_states,control,car)
+            x,y,v_forward,psi = sim_states
+            car_states = np.array([x,y,psi,v_forward, 0, 0])
+            return car_states
+
 
         d_x = v_forward*cos(psi)-v_sideway*sin(psi)
         d_y = v_forward*sin(psi)+v_sideway*cos(psi)
@@ -112,7 +125,8 @@ class DynamicSimulator(Simulator):
         #print_ok(self.prefix() + "update")
         for car in self.cars:
             car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
-            #print(self.prefix()+str(car.states))
+            print(self.prefix()+str(car.states))
+            print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()

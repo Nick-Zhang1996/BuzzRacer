@@ -42,6 +42,7 @@ class KinematicSimulator(Simulator):
         self.main.sim_t += self.main.dt
         self.matchRealTime()
 
+    #x,y,v,heading = sim_states
     @staticmethod
     def advanceDynamics(sim_states,control, car):
         lr = car.lr
