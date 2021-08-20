@@ -36,6 +36,7 @@ class CCMPPI:
         # kinematic simulator velocity cap
         max_v = arg_list['max_v']
         self.model = arg_list['model_name']
+        self.car = arg_list['car']
         if (self.model == KinematicSimulator):
             self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
         elif (self.model == DynamicSimulator):
@@ -59,7 +60,7 @@ class CCMPPI:
         car = self.car
         # prepare constants
         model_name = "KINEMATIC_MODEL" if (self.model == KinematicSimulator) else "DYNAMIC_MODEL"
-        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name,"Caf":car.Caf,"Car":car.Car,"car_m":car.m,"car_Iz":car.Iz,"car_lf":car.lf,"car_lr",car.lr}
+        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name,"Caf":car.Caf,"Car":car.Car,"car_m":car.m,"car_Iz":car.Iz,"car_lf":car.lf,"car_lr":car.lr}
         self.cuda_code_macros = cuda_code_macros
         # add curand related config
         # new feature for Python 3.9
@@ -68,14 +69,15 @@ class CCMPPI:
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
-        threads_per_block = 512
-        if (self.K < 512):
+        threads_per_block = 256
+        assert(threads_per_block<1024)
+        if (self.K < threads_per_block):
             # if K is small only employ one grid
             self.cuda_block_size = (self.K,1,1)
             self.cuda_grid_size = (1,1)
         else:
             # employ multiple grid,
-            self.cuda_block_size = (512,1,1)
+            self.cuda_block_size = (threads_per_block,1,1)
             self.cuda_grid_size = (ceil(self.K/float(threads_per_block)),1)
         print("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
 
@@ -84,12 +86,13 @@ class CCMPPI:
         self.cuda_evaluate_control_sequence = mod.get_function("evaluate_control_sequence")
 
         seed = np.int32(int(time()*10000))
-        self.cuda_init_curand_kernel(seed,block=(1024,1,1),grid=(1,1,1))
+        self.cuda_init_curand_kernel(seed,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
 
         self.rand_vals = np.zeros(self.K*self.T*self.m, dtype=np.float32)
         self.device_rand_vals = drv.to_device(self.rand_vals)
 
         print_info("registers used each kernel in eval_ctrl= %d"%self.cuda_evaluate_control_sequence.num_regs)
+        print("total registers used in one block (%d/%d)(used/available)"%(int(self.cuda_evaluate_control_sequence.num_regs * self.cuda_block_size[0]),65536))
         assert int(self.cuda_evaluate_control_sequence.num_regs * self.cuda_block_size[0]) <= 65536
         assert int(self.cuda_init_curand_kernel.num_regs * self.cuda_block_size[0]) <= 65536
         assert int(self.cuda_generate_random_var.num_regs * self.cuda_block_size[0]) <= 65536

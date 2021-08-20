@@ -110,7 +110,8 @@ class Car:
         car.serial_port = car_setting['serial_port']
         car.optitrack_id = car_setting['optitrack_streaming_id']
         car.id = Car.car_count
-        car.controller = controller(car)
+        if not controller is None:
+            car.controller = controller(car)
 
         # physics properties
         # Defaults for when a specific car instance is not speciied

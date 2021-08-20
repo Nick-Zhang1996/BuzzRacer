@@ -76,8 +76,6 @@ class DynamicSimulator(Simulator):
                     [0, 0, 0, -(2*car.lf*car.Caf-2*car.lr*car.Car)/(car.Iz*v_forward), 0, -(2*car.lf**2*car.Caf+2*car.lr**2*car.Car)/(car.Iz*v_forward)]])
         B = np.array([[0,1,0,0,0,0],[0,0,0,2*car.Caf/car.m,0,2*car.lf*car.Caf/car.Iz]]).T
 
-
-
         # vehicle frame: origin at CG, x forward y leftward
         # active roattion matrix of angle(rad)
         R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
@@ -114,7 +112,7 @@ class DynamicSimulator(Simulator):
         #print_ok(self.prefix() + "update")
         for car in self.cars:
             car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
-            print(self.prefix()+str(car.states))
+            #print(self.prefix()+str(car.states))
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()

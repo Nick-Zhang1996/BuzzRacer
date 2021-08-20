@@ -40,7 +40,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]
@@ -122,7 +122,7 @@ class CcmppiCarController(CarController):
         self.prepareDiscretizedRaceline()
 
         arg_list = {'samples':4096,
-                'horizon': 15,
+                'horizon': 30,
                 'control_dim': 2,
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
@@ -152,7 +152,8 @@ class CcmppiCarController(CarController):
 
         self.ccmppi = CCMPPI(arg_list)
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.additionalSetup()
+        # add obstacles
+        #self.additionalSetup()
 
         return
 
@@ -314,7 +315,7 @@ class CcmppiCarController(CarController):
 
         self.car.throttle = throttle
         self.car.steering = steering
-        print("[Ccmppi] T = %.1f, S = %.1f"%(throttle, degrees(steering)))
+        #print("[Ccmppi] T = %.1f, S = %.1f"%(throttle, degrees(steering)))
         p.s("debug")
         try:
             if (self.plotDebugFlag):

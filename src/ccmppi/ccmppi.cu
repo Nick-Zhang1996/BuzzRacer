@@ -61,6 +61,15 @@ __device__
 void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess, int range, int* ret_idx, float* ret_dist);
 
 __device__
+void make_B(float vf, float* buffer);
+__device__
+void make_A(float vf, float* buffer);
+__device__
+void make_R(float angle,float* buffer);
+__device__
+void print_matrix(float* mtx, int m, int n, char* text);
+
+__device__
 void _evaluate_control_sequence(
     float* out_cost,
     float* out_control,
@@ -98,6 +107,26 @@ void matrix_multiply_helper( float* A, int offset, float* B, int m, int n, int p
       for (int k=0; k<n; k++){
         out[i*p + j] += A[offset*n*m + i*n + k] * B[k*p + j];
       }
+    }
+  }
+}
+
+__device__
+void matrix_multiply_scalar(float* A, float coeff, int m, int n){
+  for (int i=0; i<m; i++){
+    for (int j=0; j<n; j++){
+      A[i*n + j] *= coeff;
+    }
+  }
+
+}
+
+// element wise addition, out can be either A or B or a new buffer
+__device__
+void matrix_addition_helper(float* A, float* B, int m, int n, float* out){
+  for (int i=0; i<m; i++){
+    for (int j=0; j<n; j++){
+      out[i*n + j] = A[i*n + j] + B[i*n + j];
     }
   }
 }
@@ -459,8 +488,6 @@ void forward_kinematics(float* state, float* u){
 
   }
 
-
-
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
   state[0] += dx;
@@ -472,76 +499,190 @@ void forward_kinematics(float* state, float* u){
 
 __device__
 void forward_dynamics(float* state, float* u){
+  // get global thread id
+  //int id = blockIdx.x * blockDim.x + threadIdx.x;
   // replicate DynamicSimulator.advanceDYnamics
+  float x = state[0];
+  float y = state[1];
+  float psi = state[2];
+  float vf = state[3];
+  float vs = state[4];
+  float omega = state[5];
+  float vx = vf*cosf(psi)-vs*sinf(psi);
+  float vy = vf*sinf(psi)+vs*cosf(psi);
+  //float throttle = u[0];
+  //float steering = u[1];
+  float A[6*6],B[6*2],R[6*6],buffer[6*6];
+  float state_buffer[6],state_buffer2[6];
+  float sim_states[6];
 
+
+  sim_states[0] = x;
+  sim_states[1] = vx;
+  sim_states[2] = y;
+  sim_states[3] = vy;
+  sim_states[4] = psi;
+  sim_states[5] = omega;
+
+
+  make_A(vf,A);// 6*6
+  make_B(vf,B);// 6*2
+  make_R(-psi,R);//6*6
+  /*
+  if (id==0){
+    printf("pre update: \n");
+    printf("car_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", x,y,psi,vf,vs,omega);
+    printf("sim_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", x,vx,y,vy,psi,omega);
+    printf("control = np.array([%%.4f, %%.4f])\n", u[0], u[1]);
+    print_matrix(A,6,6,"A");
+    print_matrix(B,6,2,"B");
+    print_matrix(R,6,6,"R(-psi)");
+  }
+  */
+  matrix_multiply_helper( A, 0, R, 6, 6, 6, buffer);
+  /*
+  if (id==0){
+    print_matrix(buffer, 6, 6," A@R");
+  }
+  */
+  matrix_multiply_helper( buffer, 0, sim_states, 6, 6, 1, state_buffer);
+  /*
+  if (id==0){
+    print_matrix(state_buffer, 6, 1," A@R@sim_states");
+  }
+  */
+  matrix_multiply_helper( B, 0, u, 6, 2, 1, state_buffer2);
+  /*
+  if (id==0){
+    print_matrix(state_buffer2, 6, 1," B@u");
+  }
+  */
+  matrix_addition_helper( state_buffer, state_buffer2, 6,1, state_buffer);
+  /*
+  if (id==0){
+    print_matrix(state_buffer, 6, 1,"A@R@sim_states+ B@u");
+  }
+  */
+  make_R(psi,R);//6*6
+  /*
+  if (id==0){
+    print_matrix(R,6,6,"R(psi)");
+  }
+  */
+  matrix_multiply_helper(R, 0, state_buffer, 6, 6, 1, state_buffer2);
+  /*
+  if (id==0){
+    print_matrix(state_buffer, 6, 1,"R(A@R@sim_states+ B@u)");
+  }
+  */
+  matrix_multiply_scalar(state_buffer, DT, 6, 1);
+  /*
+  if (id==0){
+    print_matrix(state_buffer, 6, 1,"R(A@R@sim_states+ B@u)*dt");
+  }
+  */
+  matrix_addition_helper(state_buffer, sim_states, 6, 1, sim_states);
+  //x
+  state[0] = sim_states[0];
+  //y
+  state[1] = sim_states[2];
+  //psi
+  state[2] = sim_states[4];
+  //vf
+  state[3] = sim_states[1]*cosf(sim_states[4]) + sim_states[3]*sinf(sim_states[4]);
+  //vs
+  state[4] = -sim_states[1]*sinf(sim_states[4]) + sim_states[3]*cosf(sim_states[4]);
+  //omage
+  state[5] = sim_states[5];
+  /*
+  if (id==0){
+    printf("post update: \n");
+    printf("car_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", state[0], state[1], state[2], state[3], state[4], state[5]);
+    printf("sim_states = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", sim_states[0], sim_states[1], sim_states[2], sim_states[3], sim_states[4], sim_states[5]);
+  }
+  */
 }
 
+//buffer: 6*2=12
 __device__
 void make_B(float vf, float* buffer){
-  # NOTE need transpose
   *(buffer+0) = 0;
-  *(buffer+0) = 1;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
+  *(buffer+1) = 0;
 
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
+  *(buffer+2*1+0) = 1;
+  *(buffer+2*1+1) = 0;
+
+  *(buffer+2*2+0) = 0;
+  *(buffer+2*2+1) = 0;
+
+  *(buffer+2*3+0) = 0;
+  *(buffer+2*3+1) = 2*CAR_CAF/CAR_M;
+
+  *(buffer+2*4+0) = 0;
+  *(buffer+2*4+1) = 0;
+
+  *(buffer+2*5+0) = 0;
+  *(buffer+2*5+1) = 2*CAR_LF*CAR_CAF/CAR_IZ;
+  // get global thread id
+  /*
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (id==0){
+    printf("debug= %%.4f\n",*(buffer+2));
+    print_matrix(buffer,6,2,"B(make_B)");
+  }
+  */
 
 }
 
+//buffer: 6*6=36
 __device__
 void make_A(float vf, float* buffer){
   *(buffer+0) = 0;
-  *(buffer+0) = 1;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
-  *(buffer+0) = 0;
+  *(buffer+1) = 1;
+  *(buffer+2) = 0;
+  *(buffer+3) = 0;
+  *(buffer+4) = 0;
+  *(buffer+5) = 0;
 
   *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
-  *(buffer+6*1+0) = 0;
+  *(buffer+6*1+1) = 0;
+  *(buffer+6*1+2) = 0;
+  *(buffer+6*1+3) = 0;
+  *(buffer+6*1+4) = 0;
+  *(buffer+6*1+5) = 0;
 
   *(buffer+6*2+0) = 0;
-  *(buffer+6*2+0) = 0;
-  *(buffer+6*2+0) = 0;
-  *(buffer+6*2+0) = 1;
-  *(buffer+6*2+0) = 0;
-  *(buffer+6*2+0) = 0;
+  *(buffer+6*2+1) = 0;
+  *(buffer+6*2+2) = 0;
+  *(buffer+6*2+3) = 1;
+  *(buffer+6*2+4) = 0;
+  *(buffer+6*2+5) = 0;
   
   *(buffer+6*3+0) = 0;
-  *(buffer+6*3+0) = 0;
-  *(buffer+6*3+0) = 0;
-  *(buffer+6*3+0) = -(2*CAR_CAF + 2*CAR_CAR)/(CAR_M*vf);
-  *(buffer+6*3+0) = 0;
-  *(buffer+6*3+0) = -vf-(2*CAR_CAF*CAR_LF-2*CAR_CAR*CAR_LR)/(CAR_M*vf);
+  *(buffer+6*3+1) = 0;
+  *(buffer+6*3+2) = 0;
+  *(buffer+6*3+3) = -(2*CAR_CAF + 2*CAR_CAR)/(CAR_M*vf);
+  *(buffer+6*3+4) = 0;
+  *(buffer+6*3+5) = -vf-(2*CAR_CAF*CAR_LF-2*CAR_CAR*CAR_LR)/(CAR_M*vf);
 
   *(buffer+6*4+0) = 0;
-  *(buffer+6*4+0) = 0;
-  *(buffer+6*4+0) = 0;
-  *(buffer+6*4+0) = 0;
-  *(buffer+6*4+0) = 0;
-  *(buffer+6*4+0) = 1;
+  *(buffer+6*4+1) = 0;
+  *(buffer+6*4+2) = 0;
+  *(buffer+6*4+3) = 0;
+  *(buffer+6*4+4) = 0;
+  *(buffer+6*4+5) = 1;
   
   *(buffer+6*5+0) = 0;
-  *(buffer+6*5+0) = 0;
-  *(buffer+6*5+0) = 0;
-  *(buffer+6*5+0) = -(2*CAR_LF*CAR_CAF-2*CAR_LR*CAR_CAR)/(CAR_IZ*cf);
-  *(buffer+6*5+0) = 0;
-  *(buffer+6*5+0) = -(2*CAR_LF*CAR_LF*CAR_CAF+2*CAR_LR*CAR_LR*CAR_CAR)/(CAR_IZ*vf);
+  *(buffer+6*5+1) = 0;
+  *(buffer+6*5+2) = 0;
+  *(buffer+6*5+3) = -(2*CAR_LF*CAR_CAF-2*CAR_LR*CAR_CAR)/(CAR_IZ*vf);
+  *(buffer+6*5+4) = 0;
+  *(buffer+6*5+5) = -(2*CAR_LF*CAR_LF*CAR_CAF+2*CAR_LR*CAR_LR*CAR_CAR)/(CAR_IZ*vf);
 
 }
 
 // make active rotation matrix
+// buffer: 6*6=36
 __device__
 void make_R(float angle,float* buffer){
   float c = cosf(angle);
@@ -587,6 +728,19 @@ void make_R(float angle,float* buffer){
   *(buffer+6*5+3) = 0;
   *(buffer+6*5+4) = 0;
   *(buffer+6*5+5) = 1;
+}
+
+__device__
+void print_matrix(float* mtx, int m, int n, char* text){
+  printf(text);
+  printf(" = \n");
+  for (int i=0; i<m; i++){
+    for (int j=0; j<n; j++){
+      printf("%%7.3f, ",mtx[i*n+j]);
+    }
+    printf("\n");
+  }
+
 }
 
 __device__

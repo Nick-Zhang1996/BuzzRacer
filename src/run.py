@@ -36,7 +36,7 @@ class Main():
 
         Car.reset()
         #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,3.75*0.6, radians(-90),2.0))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,3*0.6, radians(-90),2.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
