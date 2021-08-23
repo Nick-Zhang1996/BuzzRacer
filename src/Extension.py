@@ -23,5 +23,9 @@ class Extension:
     def postUpdate(self):
         pass
 
+    def preFinal(self):
+        pass
     def final(self):
+        pass
+    def postFinal(self):
         pass

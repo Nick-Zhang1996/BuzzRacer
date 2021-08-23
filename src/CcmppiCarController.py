@@ -40,6 +40,7 @@ class CcmppiCarController(CarController):
         # DEBUG
         self.terminal_cov_vec = []
         self.plotDebugFlag = False
+        self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]
@@ -96,20 +97,22 @@ class CcmppiCarController(CarController):
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
 
-        CC = True
-        if ('use_cc' in self.car.main.params.keys()):
-            CC = self.car.main.params['use_cc']
-            print_info("ccmppi CC override to "+str(CC))
-        if (CC):
-            #CCMPPI
+        algorithm = 'ccmppi'
+        if ('algorithm' in self.car.main.params.keys()):
+            algorithm = self.car.main.params['algorithm']
+
+        if (algorithm == 'ccmppi'):
             self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
             cc_ratio = 0.8
-        else:
-            # pure MPPI
-            #ratio = 0.6
+        elif (algorithm == 'mppi-same-injected'):
             ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
+        elif (algorithm == 'mppi-same-terminal-cov'):
+            ratio = 0.7
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        print_info('[CcmppiCarController]: ' + algorithm)
 
         self.track = self.car.main.track
         self.discretized_raceline_len = 1024
@@ -306,6 +309,8 @@ class CcmppiCarController(CarController):
         try:
             if (self.plotDebugFlag):
                 self.plotDebug()
+            elif (self.getEstimatedTerminalCovFlag):
+                self.getEstimatedTerminalCov()
             self.plotObstacles()
             self.plotAlgorithm()
             pass
@@ -367,6 +372,37 @@ class CcmppiCarController(CarController):
                            fontScale, color, thickness, cv2.LINE_AA)
         self.car.main.visualization.visualization_img = img
 
+
+    def getEstimatedTerminalCov(self):
+        # simulate where mppi think where the car will end up with
+        states = self.debug_states
+        # simulate vehicle trajectory with selected rollouts
+        sampled_control = self.ccmppi.debug_dict['sampled_control']
+        # use only first 100
+        samples = 100
+        # randomly select 100
+        index = random.sample(range(sampled_control.shape[0]), samples)
+        sampled_control = sampled_control[index,:,:]
+        rollout_traj_vec = []
+        # states, sampled_control
+        # DEBUG
+        # plot sampled trajectories
+        for k in range(samples):
+            this_rollout_traj = []
+            sim_states = states.copy()
+            for i in range(self.horizon_steps):
+                sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+                x,y,vf,heading = sim_states
+                coord = (x,y)
+                this_rollout_traj.append(coord)
+            rollout_traj_vec.append(this_rollout_traj)
+        self.debug_dict['rollout_traj_vec'] = rollout_traj_vec
+
+        # calculate terminal covariance on position
+        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
+        self.terminal_cov_vec.append(self.terminal_xy_cov)
+        return
 
     def plotDebug(self):
         if (not self.car.main.visualization.update_visualization.is_set()):

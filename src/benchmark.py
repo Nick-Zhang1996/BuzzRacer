@@ -58,11 +58,13 @@ class Main():
         self.simulator.match_real_time = False
         self.collision_checker = CollisionChecker(self)
         # Laptimer
-        self.extensions.append(Laptimer(self))
+        self.laptimer = Laptimer(self)
+        self.extensions.append(self.laptimer)
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Logger(self))
+        self.logger = Logger(self)
+        self.extensions.append(self.logger)
         self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
@@ -88,7 +90,11 @@ class Main():
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
+            item.preFinal()
+        for item in self.extensions:
             item.final()
+        for item in self.extensions:
+            item.postFinal()
 
 
     # run the control/visualization update
@@ -129,24 +135,27 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort\n")
     
     experiment_count = 0
-    for use_cc in [False, True]:
-        for samples in [4096, 2048, 1024, 512, 256, 128]:
-            algorithm_text = 'ccmppi' if use_cc else 'mppi'
-            params = {'samples':samples, 'use_cc':use_cc}
-            experiment_count += 1
+    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+        samples = 4096
+        params = {'samples':samples, 'algorithm':algorithm}
 
-            print_info("-------------- start one experiment ------------")
-            print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm_text, samples))
-            experiment = Main(params)
-            experiment.run()
+        experiment_count += 1
 
-            laptime = experiment.car_laptime_mean[0]
-            laps = experiment.car_total_laps[0]
-            collisions = experiment.car_total_collisions[0]
-            control_effort = experiment.performance_tracker.mean_control_effort
-            print_info("%s, %d, %d, %.4f, %d, %.5f"%( algorithm_text, samples, laps, laptime, collisions,control_effort))
-            with open(log_filename,'a') as f:
-                f.write("%s, %d, %d, %.4f, %d, %.5f\n"%( algorithm_text, samples, laps, laptime, collisions,control_effort))
-            print_info("-------------- finish one experiment ------------")
+        print_info("-------------- start one experiment ------------")
+        print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
+        experiment = Main(params)
+        experiment.run()
+
+        laptime = experiment.car_laptime_mean[0]
+        laps = experiment.car_total_laps[0]
+        laptime_stddev = experiment.car_laptime_stddev[0]
+        collisions = experiment.car_total_collisions[0]
+        control_effort = experiment.performance_tracker.mean_control_effort
+        terminal_cov = experiment.performance_tracker.terminal_cov
+        text = "%s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, self.logger.log_no)
+        print_info(text)
+        with open(log_filename,'a') as f:
+            f.write(text +"\n")
+        print_info("-------------- finish one experiment ------------")
 
     print_info("program complete")

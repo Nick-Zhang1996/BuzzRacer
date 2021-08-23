@@ -23,7 +23,7 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/plot_traj/"
+        logFolder = "../log/kinematics_results/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -51,14 +51,14 @@ class Logger(Extension):
 
         self.full_state_log.append(log_entry)
 
-    def final(self):
-        print_ok("[Logger]: saving log at " + self.logFilename)
+    def postFinal(self):
+        print_ok("[Logger]: saving full_state log at " + self.logFilename)
 
         output = open(self.logFilename,'wb')
         pickle.dump(self.full_state_log,output)
         output.close()
 
-        print_ok("[Logger]: saving log at " + self.logDictFilename)
+        print_ok("[Logger]: saving debugDict log at " + self.logDictFilename)
         self.debug_dict = []
         for car in self.main.cars:
             self.debug_dict.append(car.debug_dict)
