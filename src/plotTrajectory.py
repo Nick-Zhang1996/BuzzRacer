@@ -11,7 +11,7 @@ with open("track_img.p", 'rb') as f:
 
 # load log
 if (len(sys.argv) != 2):
-    filename = "../log/kinematics_results/full_state1.p"
+    filename = "../log/kinematics_results/full_state10.p"
     print_warning("reading default file" + filename)
 else:
     filename = sys.argv[1]
