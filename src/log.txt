@@ -1,27 +1,4 @@
 # algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-mppi, 4096, 100, 3.9750, 446, 0.00118
-mppi, 2048, 100, 3.9289, 465, 0.00140
-mppi, 1024, 100, 3.9180, 475, 0.00167
-mppi, 512, 100, 3.9204, 563, 0.00202
-mppi, 256, 100, 4.1414, 788, 0.00245
-mppi, 128, 100, 4.3040, 1056, 0.00287
-ccmppi, 4096, 100, 3.8788, 410, 0.00133
-ccmppi, 2048, 100, 3.7772, 449, 0.00149
-ccmppi, 1024, 100, 3.9152, 537, 0.00168
-ccmppi, 512, 100, 4.7004, 765, 0.00179
-ccmppi, 256, 100, 6.4254, 848, 0.00065
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-mppi-same-injected, 4096, 5, 5.4500, 64, 0.00095, nan, 0.21127
-mppi-same-terminal-cov, 4096, 5, 6.0167, 73, 0.00092, nan, 0.05588
-ccmppi, 4096, 5, 5.2200, 56, 0.00102, nan, 0.20559
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
-mppi-same-injected, 4096, 5, 5.4467, 64, 0.00100, 0.02728, 0.21623
-mppi-same-terminal-cov, 4096, 5, 6.1033, 72, 0.00091, 0.01297, 0.11912
-ccmppi, 4096, 5, 5.3700, 61, 0.00103, 0.01543, 0.35190
+mppi-same-injected, 4096, 100, 3.8048, 420, 0.00094, 0.06561, 1.26060, 8
+mppi-same-terminal-cov, 4096, 100, 6.2564, 1059, 0.00095, 0.01319, 0.42746, 9
+ccmppi, 4096, 100, 2.7392, 187, 0.00108, 0.03383, 1.76386, 10
