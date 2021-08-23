@@ -15,11 +15,11 @@ class CollisionChecker(Extension):
                 self.collision_count[i] += 1
                 #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
             if (car.laptimer.new_lap.is_set()):
-                self.collision_by_lap_vec[i].append(self.collision_count[i])
+                self.cumsum_collision_by_lap_vec[i].append(self.collision_count[i])
 
     def final(self):
         for i in range(len(self.main.cars)):
             print_ok(self.prefix(), "car %d, total collision = %d"%(i,self.collision_count[i]))
-            self.main.cars[i].debug_dict.update({'collision_vec':self.collision_by_lap_vec[i]})
+            self.main.cars[i].debug_dict.update({'collision_vec':self.cumsum_collision_by_lap_vec[i]})
         self.main.car_total_collisions = self.collision_count
 
