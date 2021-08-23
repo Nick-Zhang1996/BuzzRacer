@@ -406,7 +406,7 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  cost += dist*dist*100;
+  cost += dist*dist*10;
 
   //return cost;
   return 0.0;
@@ -426,7 +426,6 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  //cost += dist*dist*100;
   cost += dist*dist*500;
   return cost;
   // NOTE ignoring terminal cost

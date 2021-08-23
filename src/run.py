@@ -29,11 +29,13 @@ class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
         # state update rate
-        self.dt = 0.01
+        self.dt = 0.02
         self.params = params
 
         self.track = TrackFactory(name='full')
 
+        self.simulator = KinematicSimulator(self)
+        #self.simulator = DynamicSimulator(self)
         Car.reset()
         #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
@@ -53,8 +55,6 @@ class Main():
         # --- Extensions ---
         # named extensions
         self.visualization = Visualization(self)
-        self.simulator = KinematicSimulator(self)
-        #self.simulator = DynamicSimulator(self)
         self.simulator.match_real_time = True
         self.collision_checker = CollisionChecker(self)
         #self.performance_tracker = PerformanceTracker(self)

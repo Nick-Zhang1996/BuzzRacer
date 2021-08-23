@@ -24,7 +24,7 @@ class CcmppiCarController(CarController):
     def __init__(self,car):
         super().__init__(car)
         self.debug_dict = {}
-        self.model = DynamicSimulator
+        self.model = type(car.main.simulator)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
@@ -40,7 +40,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]
@@ -122,7 +122,7 @@ class CcmppiCarController(CarController):
         self.prepareDiscretizedRaceline()
 
         arg_list = {'samples':4096,
-                'horizon': 30,
+                'horizon': 15,
                 'control_dim': 2,
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
@@ -153,7 +153,7 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(arg_list)
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         # add obstacles
-        #self.additionalSetup()
+        self.additionalSetup()
 
         return
 
