@@ -69,8 +69,8 @@ class CCMPPI:
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
-        threads_per_block = 256
-        assert(threads_per_block<1024)
+        threads_per_block = 512
+        assert(threads_per_block<=1024)
         if (self.K < threads_per_block):
             # if K is small only employ one grid
             self.cuda_block_size = (self.K,1,1)

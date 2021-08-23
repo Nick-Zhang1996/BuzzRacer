@@ -53,8 +53,8 @@ class Main():
         # --- Extensions ---
         # named extensions
         self.visualization = Visualization(self)
-        #self.simulator = KinematicSimulator(self)
-        self.simulator = DynamicSimulator(self)
+        self.simulator = KinematicSimulator(self)
+        #self.simulator = DynamicSimulator(self)
         self.simulator.match_real_time = True
         self.collision_checker = CollisionChecker(self)
         #self.performance_tracker = PerformanceTracker(self)
