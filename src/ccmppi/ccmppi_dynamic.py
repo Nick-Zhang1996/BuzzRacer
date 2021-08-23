@@ -1,5 +1,4 @@
-# CCMPPI for kinematic bicycle model
-# using model in Ji's paper
+# CCMPPI for dynamic bicycle model
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')

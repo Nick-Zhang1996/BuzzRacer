@@ -408,8 +408,8 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
   cost += dist*dist*100;
 
-  return cost;
-  //return 0.0;
+  //return cost;
+  return 0.0;
 }
 
 __device__
@@ -428,9 +428,9 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
   //cost += dist*dist*100;
   cost += dist*dist*500;
-  //return cost;
+  return cost;
   // NOTE ignoring terminal cost
-  return 0.0;
+  //return 0.0;
 }
 
 // NOTE potential improvement by reusing idx result from other functions
