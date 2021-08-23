@@ -1,4 +1,4 @@
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
 mppi-same-injected, 4096, 100, 3.8048, 420, 0.00094, 0.06561, 1.26060, 8
 mppi-same-terminal-cov, 4096, 100, 6.2564, 1059, 0.00095, 0.01319, 0.42746, 9
 ccmppi, 4096, 100, 2.7392, 187, 0.00108, 0.03383, 1.76386, 10
