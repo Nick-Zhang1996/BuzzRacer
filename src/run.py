@@ -95,7 +95,11 @@ class Main():
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
+            item.preFinal()
+        for item in self.extensions:
             item.final()
+        for item in self.extensions:
+            item.postFinal()
 
 
     # run the control/visualization update

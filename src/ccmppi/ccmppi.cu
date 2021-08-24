@@ -452,10 +452,10 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
   if (angle_diff > 0.0){
     // point is to left of raceline
     //cost = (dist +0.05> in_raceline[idx][4])? 0.3:0.0;
-    cost = (dist +0.05> in_raceline[idx][4])? 20.0:0.0;
+    cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
   } else {
     //cost = (dist +0.05> in_raceline[idx][5])? 0.3:0.0;
-    cost = (dist +0.05> in_raceline[idx][5])? 20.0:0.0;
+    cost = (dist +0.05> in_raceline[idx][5])? 2000.0:0.0;
   }
 
   return cost;
