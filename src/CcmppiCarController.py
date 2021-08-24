@@ -41,7 +41,7 @@ class CcmppiCarController(CarController):
         # DEBUG
         self.terminal_cov_vec = []
         self.plotDebugFlag = False
-        self.getEstimatedTerminalCovFlag = True
+        self.getEstimatedTerminalCovFlag = False
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]

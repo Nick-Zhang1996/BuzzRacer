@@ -1,3 +1,4 @@
+from common import *
 from math import isnan,pi
 from CarController import CarController
 from PidController import PidController

@@ -1,7 +1,7 @@
 # dynamic simulator of a passenger vehicle
 # page 30 of book vehicle dynamics and control
 import numpy as np
-from math import sin,cos,tan,radians,degrees,pi
+from math import sin,cos,tan,radians,degrees,pi,atan
 import matplotlib.pyplot as plt
 from Simulator import Simulator
 from common import *
@@ -12,6 +12,7 @@ class DynamicSimulator(Simulator):
     def __init__(self,main):
         super().__init__(main)
         DynamicSimulator.max_v = 3.0
+        DynamicSimulator.using_kinematics = False
 
     def init(self):
         super().init()
@@ -54,25 +55,29 @@ class DynamicSimulator(Simulator):
         car.local_states_hist = []
         car.norm = []
 
-
     # advance vehicle dynamics
     # NOTE using car frame origined at CG with x pointing forward, y leftward
     # this method does NOT update car.sim_states, only returns a sim_state
     # this is to make itself useful for when update is not necessary
     #    x,y,psi,v_forward,v_sideway,d_psi = car_states
     @staticmethod
-    def advanceDynamics(car_states, control, car):
+    def OldadvanceDynamics(car_states, control, car):
+        in_car_states = np.array(car_states).copy()
         dt = DynamicSimulator.dt
         x,y,psi,v_forward,v_sideway,d_psi = car_states
 
         # to avoid singularity when velocity is low, switch to kinematic model when v is low
         if (v_forward < 0.3):
+            if (not DynamicSimulator.using_kinematics):
+                DynamicSimulator.using_kinematics = True
             sim_states = (x,y,v_forward,psi)
             sim_states = KinematicSimulator.advanceDynamics(sim_states,control,car)
             x,y,v_forward,psi = sim_states
             car_states = np.array([x,y,psi,v_forward, 0, 0])
             return car_states
 
+        if (DynamicSimulator.using_kinematics):
+            DynamicSimulator.using_kinematics = False
 
         d_x = v_forward*cos(psi)-v_sideway*sin(psi)
         d_y = v_forward*sin(psi)+v_sideway*cos(psi)
@@ -81,6 +86,7 @@ class DynamicSimulator(Simulator):
         throttle, steering = control
         u = np.array([throttle,steering])
         # NOTE page 30 of book vehicle dynamics and control
+        # Ax -> x: 
         A = np.array([[0, 1, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0, 0],
                     [0, 0, 0, 1, 0, 0],
@@ -102,24 +108,182 @@ class DynamicSimulator(Simulator):
         # we use R() to convert state from global frame to vehicle frame
         # then we apply A,B
         # finally we convert state back to track/world frame
+        #
+        pri_states = sim_states.copy()
         if (car.noise):
             plant_noise = np.random.multivariate_normal([0.0]*car.state_dim, car.noise_cov, size=1).flatten()
             sim_states = sim_states + R(psi) @ (A @ R(-psi) @ sim_states + B @ u + plant_noise)*dt
         else:
             sim_states = sim_states + R(psi) @ (A @ R(-psi) @ sim_states + B @ u)*dt
+
+        post_states = sim_states.copy()
         #car.states_hist.append(sim_states)
         #car.local_states_hist.append(R(-psi)@sim_states)
 
         x = sim_states[0]
         y = sim_states[2]
-        psi = sim_states[4] # heading
         # longitidunal,velocity forward positive
         v_forward = sim_states[1] *cos(psi) + sim_states[3] *sin(psi)
         # lateral, sideway velocity, left positive
         v_sideway = -sim_states[1] *sin(psi) + sim_states[3] *cos(psi)
+
+        # DEBUG
+        v_before = pri_states[1] *cos(psi) + pri_states[3] *sin(psi)
+
+        # NOTE 
+        #psi = sim_states[4] # heading
+
+        v_after = post_states[1] *cos(psi) + post_states[3] *sin(psi)
+        if (v_after < v_before):
+            print(v_before)
+            print(v_after)
+            breakpoint()
+
         omega = sim_states[5]
         car_states = x,y,psi,v_forward,v_sideway,omega
         return np.array(car_states)
+
+    # advance vehicle dynamics
+    # NOTE using car frame origined at CG with x pointing forward, y leftward
+    # this method does NOT update car.sim_states, only returns a sim_state
+    # this is to make itself useful for when update is not necessary
+    #    x,y,psi,v_forward,v_sideway,d_psi = car_states
+    @staticmethod
+    def newadvanceDynamics(car_states, control, car):
+        in_car_states = np.array(car_states).copy()
+        dt = DynamicSimulator.dt
+        x,y,psi,v_forward,v_sideway,d_psi = car_states
+
+        # to avoid singularity when velocity is low, switch to kinematic model when v is low
+        if (v_forward < 0.3):
+            if (not DynamicSimulator.using_kinematics):
+                DynamicSimulator.using_kinematics = True
+            sim_states = (x,y,v_forward,psi)
+            sim_states = KinematicSimulator.advanceDynamics(sim_states,control,car)
+            x,y,v_forward,psi = sim_states
+            car_states = np.array([x,y,psi,v_forward, 0, 0])
+            return car_states
+
+        if (DynamicSimulator.using_kinematics):
+            DynamicSimulator.using_kinematics = False
+
+        throttle, steering = control
+        u = np.array([throttle,steering])
+        # NOTE page 30 of book vehicle dynamics and control
+        # Ax -> x: 
+        A = np.array([[0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, -(2*car.Caf+2*car.Car)/(car.m*v_forward), 0, -v_forward-(2*car.Caf*car.lf-2*car.Car*car.lr)/(car.m*v_forward)],
+                    [0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, -(2*car.lf*car.Caf-2*car.lr*car.Car)/(car.Iz*v_forward), 0, -(2*car.lf**2*car.Caf+2*car.lr**2*car.Car)/(car.Iz*v_forward)]])
+        B = np.array([[0,1,0,0,0,0],[0,0,0,2*car.Caf/car.m,0,2*car.lf*car.Caf/car.Iz]]).T
+
+        # vehicle frame: origin at CG, x forward y leftward
+        # active roattion matrix of angle(rad)
+        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
+                        [0, cos(angle), 0,-sin(angle),0,0],
+                        [sin(angle),0,cos(angle),0,0,0],
+                        [0,sin(angle),0,cos(angle),0,0],
+                        [0,0,0,0,1,0],
+                        [0,0,0,0,0,1]])
+        print_ok(np.linalg.eigvals(A*0.01))
+
+        # dynamics (A and B) work in vehicle frame
+        # we use R() to convert state from global frame to vehicle frame
+        # then we apply A,B
+        # finally we convert state back to track/world frame
+        old_v_forward = v_forward
+        
+        sim_states = np.array([0,v_forward,0, v_sideway,psi, d_psi])
+        sim_states = sim_states + (A @ sim_states + B @ u)*dt
+
+        psi = sim_states[4]
+        x = x + sim_states[0]*cos(psi)-sim_states[2]*sin(psi)
+        y = y + sim_states[0]*sin(psi)+sim_states[2]*cos(psi)
+        v_forward = sim_states[1]
+        v_sideway = sim_states[3]
+        omega = sim_states[5]
+
+        if (v_forward < old_v_forward):
+            print(old_v_forward)
+            print(v_forward)
+            breakpoint()
+
+        car_states = x,y,psi,v_forward,v_sideway,omega
+        return np.array(car_states)
+
+    #    x,y,psi,v_forward,v_sideway,d_psi = car_states
+    @staticmethod
+    def advanceDynamics(car_states, control, car):
+        lf = car.lf
+        lr = car.lr
+        L = car.L
+
+        Df = car.Df
+        Dr = car.Dr
+        B = car.B
+        C = car.C
+        Cm1 = car.Cm1
+        Cm2 = car.Cm2
+        Cr = car.Cr
+        Cd = car.Cd
+        Iz = car.Iz
+        m = car.m
+        dt = DynamicSimulator.dt
+
+        # NOTE here vx = vf, vy = vs, different convention
+        x,y,heading,vx,vy,omega = car_states
+        throttle, steering = control
+
+        # for small longitudinal velocity use kinematic model
+        if (vx<0.05):
+            beta = atan(lr/L*tan(steering))
+            norm = lambda a,b:(a**2+b**2)**0.5
+            # motor model
+            d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+            vx = vx + d_vx * dt
+            vy = norm(vx,vy)*sin(beta)
+            d_omega = 0.0
+            omega = vx/L*tan(steering)
+
+            slip_f = 0
+            slip_r = 0
+            Ffy = 0
+            Fry = 0
+
+        else:
+            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+            slip_r = np.arctan((omega*lr - vy)/vx)
+
+            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+            # motor model
+            Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+
+            # Dynamics
+            d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+            d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+            # discretization
+            vx = vx + d_vx * dt
+            vy = vy + d_vy * dt
+            omega = omega + d_omega * dt 
+
+        # back to global frame
+        vxg = vx*cos(heading)-vy*sin(heading)
+        vyg = vx*sin(heading)+vy*cos(heading)
+
+        # update x,y, heading
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt + 0.5* d_omega * dt * dt
+
+        car_states = x,y,heading,vx,vy,omega
+        return np.array(car_states)
+
 
     def update(self): 
         #print_ok(self.prefix() + "update")
