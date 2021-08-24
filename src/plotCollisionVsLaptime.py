@@ -31,7 +31,8 @@ def plotFile(filename,marker,label):
 if __name__=='__main__':
     plotFile("../log/kinematics_results/debug_dict8.p",'+','MPPI (same injected noise)')
     plotFile("../log/kinematics_results/debug_dict9.p",'o','MPPI (same terminal covariance)')
-    plotFile("../log/kinematics_results/debug_dict10.p",'x','CCMPPI')
+    plotFile("../log/kinematics_results/debug_dict10.p",'x','CCMPPI-mixed')
+    plotFile("../log/kinematics_results/debug_dict11.p",'*','CCMPPI-pure')
     plt.xlabel("Laptime (s)")
     plt.ylabel("Collision")
     plt.legend()

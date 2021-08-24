@@ -103,7 +103,7 @@ class CcmppiCarController(CarController):
 
         if (algorithm == 'ccmppi'):
             self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
-            cc_ratio = 0.8
+            cc_ratio = 1.0
         elif (algorithm == 'mppi-same-injected'):
             ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
