@@ -156,7 +156,7 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(arg_list)
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         # add obstacles
-        self.additionalSetup()
+        #self.additionalSetup()
 
         return
 

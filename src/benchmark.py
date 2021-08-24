@@ -135,7 +135,8 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    for algorithm in ['ccmppi']:
         samples = 4096
         params = {'samples':samples, 'algorithm':algorithm}
 

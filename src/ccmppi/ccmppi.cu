@@ -16,12 +16,20 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 
-#define CAR_CAF %(Caf)s
-#define CAR_CAR %(Car)s
-#define CAR_M %(car_m)s
-#define CAR_IZ %(car_Iz)s
-#define CAR_LF %(car_lf)s
 #define CAR_LR %(car_lr)s
+#define CAR_LF %(car_lf)s
+#define CAR_L %(car_L)s
+#define CAR_DF %(car_Df)s
+#define CAR_DR %(car_Dr)s
+#define CAR_B %(car_B)s
+#define CAR_C %(car_C)s
+#define CAR_CM1 %(car_Cm1)s
+#define CAR_CM2 %(car_Cm2)s
+#define CAR_CR %(car_Cr)s
+#define CAR_CD %(car_Cd)s
+#define CAR_IZ %(car_Iz)s
+#define CAR_M %(car_m)s
+
 
 #define %(MODEL_NAME)s
 
@@ -498,130 +506,65 @@ void forward_kinematics(float* state, float* u){
 
 __device__
 void forward_dynamics(float* state, float* u){
-  // get global thread id
-  //int id = blockIdx.x * blockDim.x + threadIdx.x;
-  // replicate DynamicSimulator.advanceDYnamics
   float x = state[0];
   float y = state[1];
   float psi = state[2];
-  float vf = state[3];
-  float vs = state[4];
+  // vehicle frame forward (vf)
+  float vx = state[3];
+  float vy = state[4];
   float omega = state[5];
-  float vx = vf*cosf(psi)-vs*sinf(psi);
-  float vy = vf*sinf(psi)+vs*cosf(psi);
-  //float throttle = u[0];
-  //float steering = u[1];
-  float A[6*6],B[6*2],R[6*6],buffer[6*6];
-  float state_buffer[6],state_buffer2[6];
-  float sim_states[6];
-  float kinematic_state[4];
+  float throttle = u[0];
+  float steering = u[1];
+  float beta,d_omega,d_vx,d_vy;
+  float slip_f, slip_r, Ffy, Fry, Frx;
+  float vxg,vyg;
 
-  // fallback to kinematic model if velocity is too low to avoid singularity
-  /*
-  if (vf < 0.4){
-    kinematic_state[0] = x;
-    kinematic_state[1] = y;
-    kinematic_state[2] = vf;
-    kinematic_state[3] = psi;
-    forward_kinematics(kinematic_state, u);
-    state[0] = kinematic_state[0];
-    state[1] = kinematic_state[1];
-    state[2] = kinematic_state[3];
-    state[3] = kinematic_state[2];
-    state[4] = 0;
-    state[5] = 0;
-    return;
-  }
-  */
+  if (vx < 0.05){
+    beta = atanf(CAR_LR/CAR_L*tanf(steering));
+    d_vx = (( CAR_CM1 - CAR_CM2 * vx) * throttle - CAR_CR - CAR_CD * vx * vx);
+    vx = vx + d_vx * DT;
+    vy = sqrtf(vx*vx+vy*vy)*sinf(beta);
+    omega = vx/CAR_L*tanf(steering);
+  } else {
+    slip_f = -atanf((omega*CAR_LF + vy)/vx) + steering;
+    slip_r = atanf((omega*CAR_LR - vy)/vx);
 
+    Ffy = CAR_DF * sinf( CAR_C * atanf(CAR_B *slip_f)) * 9.8 * CAR_LR / (CAR_LR + CAR_LF) * CAR_M;
+    Fry = CAR_DR * sinf( CAR_C * atanf(CAR_B *slip_r)) * 9.8 * CAR_LF / (CAR_LR + CAR_LF) * CAR_M;
 
+    // motor model
+    Frx = (( CAR_CM1 - CAR_CM2 * vx) * throttle - CAR_CR - CAR_CD * vx * vx)*CAR_M;
 
-  sim_states[0] = x;
-  sim_states[1] = vx;
-  sim_states[2] = y;
-  sim_states[3] = vy;
-  sim_states[4] = psi;
-  sim_states[5] = omega;
+    // dynamics
+    d_vx = 1.0/CAR_M * (Frx - Ffy * sinf( steering ) + CAR_M * vy * omega);
+    d_vy = 1.0/CAR_M * (Fry + Ffy * cosf( steering ) - CAR_M * vx * omega);
+    d_omega = 1.0/CAR_IZ * (Ffy * CAR_LF * cosf( steering ) - Fry * CAR_LR);
 
+    // discretization
+    vx = vx + d_vx * DT;
+    vy = vy + d_vy * DT;
+    omega = omega + d_omega * DT ;
 
-  make_A(vf,A);// 6*6
-  make_B(vf,B);// 6*2
-  make_R(-psi,R);//6*6
-  /*
-  if (id==0){
-    printf("pre update: \n");
-    printf("car_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", x,y,psi,vf,vs,omega);
-    printf("sim_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", x,vx,y,vy,psi,omega);
-    printf("control = np.array([%%.4f, %%.4f])\n", u[0], u[1]);
-    print_matrix(A,6,6,"A");
-    print_matrix(B,6,2,"B");
-    print_matrix(R,6,6,"R(-psi)");
   }
-  */
-  matrix_multiply_helper( A, 0, R, 6, 6, 6, buffer);
-  /*
-  if (id==0){
-    print_matrix(buffer, 6, 6," A@R");
-  }
-  */
-  matrix_multiply_helper( buffer, 0, sim_states, 6, 6, 1, state_buffer);
-  /*
-  if (id==0){
-    print_matrix(state_buffer, 6, 1," A@R@sim_states");
-  }
-  */
-  matrix_multiply_helper( B, 0, u, 6, 2, 1, state_buffer2);
-  /*
-  if (id==0){
-    print_matrix(state_buffer2, 6, 1," B@u");
-  }
-  */
-  matrix_addition_helper( state_buffer, state_buffer2, 6,1, state_buffer);
-  /*
-  if (id==0){
-    print_matrix(state_buffer, 6, 1,"A@R@sim_states+ B@u");
-  }
-  */
-  make_R(psi,R);//6*6
-  /*
-  if (id==0){
-    print_matrix(R,6,6,"R(psi)");
-  }
-  */
-  matrix_multiply_helper(R, 0, state_buffer, 6, 6, 1, state_buffer2);
-  /*
-  if (id==0){
-    print_matrix(state_buffer, 6, 1,"R(A@R@sim_states+ B@u)");
-  }
-  */
-  matrix_multiply_scalar(state_buffer, DT, 6, 1);
-  /*
-  if (id==0){
-    print_matrix(state_buffer, 6, 1,"R(A@R@sim_states+ B@u)*dt");
-  }
-  */
-  matrix_addition_helper(state_buffer, sim_states, 6, 1, sim_states);
-  //x
-  state[0] = sim_states[0];
-  //y
-  state[1] = sim_states[2];
-  //psi
-  state[2] = sim_states[4];
-  //vf
-  state[3] = sim_states[1]*cosf(sim_states[4]) + sim_states[3]*sinf(sim_states[4]);
-  //vs
-  state[4] = -sim_states[1]*sinf(sim_states[4]) + sim_states[3]*cosf(sim_states[4]);
-  //omage
-  state[5] = sim_states[5];
-  /*
-  if (id==0){
-    printf("post update: \n");
-    printf("car_state = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", state[0], state[1], state[2], state[3], state[4], state[5]);
-    printf("sim_states = np.array([%%.4f, %%.4f, %%.4f, %%.4f, %%.4f, %%.4f])\n", sim_states[0], sim_states[1], sim_states[2], sim_states[3], sim_states[4], sim_states[5]);
-  }
-  */
+  // back to global frame
+  vxg = vx*cosf(psi)-vy*sinf(psi);
+  vyg = vx*sinf(psi)+vy*cosf(psi);
+
+  // update x,y, psi
+  x += vxg*DT;
+  y += vyg*DT;
+  psi += omega*DT + 0.5* d_omega * DT * DT;
+
+  state[0] = x;
+  state[1] = y;
+  state[2] = psi;
+  state[3] = vx;
+  state[4] = vy;
+  state[5] = omega;
+
 }
 
+/*
 //buffer: 6*2=12
 __device__
 void make_B(float vf, float* buffer){
@@ -643,13 +586,11 @@ void make_B(float vf, float* buffer){
   *(buffer+2*5+0) = 0;
   *(buffer+2*5+1) = 2*CAR_LF*CAR_CAF/CAR_IZ;
   // get global thread id
-  /*
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id==0){
     printf("debug= %%.4f\n",*(buffer+2));
     print_matrix(buffer,6,2,"B(make_B)");
   }
-  */
 
 }
 
@@ -748,6 +689,7 @@ void make_R(float angle,float* buffer){
   *(buffer+6*5+4) = 0;
   *(buffer+6*5+5) = 1;
 }
+*/
 
 __device__
 void print_matrix(float* mtx, int m, int n, char* text){
