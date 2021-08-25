@@ -23,7 +23,7 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/"
+        logFolder = "../log/dynamic/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1

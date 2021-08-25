@@ -22,8 +22,7 @@ class Visualization(Extension):
         cv2.waitKey(1)
 
     def postInit(self,):
-        pass
-        #self.saveBlankImg()
+        self.saveBlankImg()
 
     def saveBlankImg(self):
         img = self.img_track.copy()

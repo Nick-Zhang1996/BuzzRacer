@@ -5,6 +5,7 @@ from math import pi,radians,degrees
 
 
 from KinematicSimulator import KinematicSimulator
+from DynamicSimulator import DynamicSimulator
 
 from timeUtil import execution_timer
 from TrackFactory import TrackFactory
@@ -28,14 +29,15 @@ class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
         # state update rate
-        self.dt = 0.02
+        self.dt = 0.03
         self.params = params
 
         self.track = TrackFactory(name='full')
 
+        self.simulator = DynamicSimulator(self)
         #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -54,7 +56,6 @@ class Main():
         # named extensions
         self.visualization = Visualization(self)
         self.extensions.append(self.visualization)
-        self.simulator = KinematicSimulator(self)
         self.simulator.match_real_time = False
         self.collision_checker = CollisionChecker(self)
         # Laptimer
@@ -69,7 +70,8 @@ class Main():
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
-        #self.extensions.append(Gifsaver(self))
+        self.gifsaver = Gifsaver(self)
+        self.extensions.append(self.gifsaver)
         self.performance_tracker = PerformanceTracker(self)
         self.extensions.append(self.performance_tracker)
 
@@ -135,9 +137,9 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    for algorithm in ['ccmppi']:
-        samples = 4096
+    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    #for algorithm in ['ccmppi']:
+        samples = 4096*2
         params = {'samples':samples, 'algorithm':algorithm}
 
         experiment_count += 1
@@ -153,7 +155,7 @@ if __name__ == '__main__':
         collisions = experiment.car_total_collisions[0]
         control_effort = experiment.performance_tracker.mean_control_effort
         terminal_cov = experiment.performance_tracker.terminal_cov
-        text = "%s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no)
+        text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, experiment.gifsaver.log_no)
         print_info(text)
         with open(log_filename,'a') as f:
             f.write(text +"\n")

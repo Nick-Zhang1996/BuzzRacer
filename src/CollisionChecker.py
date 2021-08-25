@@ -6,7 +6,7 @@ class CollisionChecker(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
         self.collision_count = [0] * len(self.main.cars)
-        self.collision_by_lap_vec = [[] * len(self.main.cars)]
+        self.cumsum_collision_by_lap_vec = [[] * len(self.main.cars)]
 
     def update(self):
         for i in range(len(self.main.cars)):

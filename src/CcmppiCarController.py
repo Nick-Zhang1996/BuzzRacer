@@ -40,7 +40,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         # diagnal terms of control cost matrix u'Ru
@@ -51,7 +51,7 @@ class CcmppiCarController(CarController):
 
     # Hack
     def additionalSetup(self):
-        obstacle_count = 60
+        obstacle_count = 30
         filename = "obstacles.p"
         if (os.path.isfile(filename)):
             with open(filename, 'rb') as f:
@@ -110,7 +110,7 @@ class CcmppiCarController(CarController):
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         elif (algorithm == 'mppi-same-terminal-cov'):
-            ratio = 0.7
+            ratio = 0.4
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         print_info('[CcmppiCarController]: ' + algorithm)
@@ -125,7 +125,7 @@ class CcmppiCarController(CarController):
         self.prepareDiscretizedRaceline()
 
         arg_list = {'samples':4096,
-                'horizon': 15,
+                'horizon': 30,
                 'control_dim': 2,
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
@@ -156,7 +156,7 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(arg_list)
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         # add obstacles
-        #self.additionalSetup()
+        self.additionalSetup()
 
         return
 
@@ -499,6 +499,7 @@ class CcmppiCarController(CarController):
         img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
 
         # plot resultant trajectory from constant control
+        '''
         sim_states = states.copy()
         constant_uu = np.array([0.0, 0.0])
         debug_traj = []
@@ -514,6 +515,7 @@ class CcmppiCarController(CarController):
             x,y = coord
             img = self.car.main.track.drawPoint(img,(x,y),color=(0,0,255))
         traj = np.array(debug_traj)
+        '''
         #print(states.copy())
         #plt.plot(traj[:,0], traj[:,1])
         #plt.show()

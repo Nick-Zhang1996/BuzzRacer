@@ -433,11 +433,9 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  cost += dist*dist*500;
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*5;
+  cost += dist*dist*10;
   return cost;
-  // NOTE ignoring terminal cost
-  //return 0.0;
 }
 
 // NOTE potential improvement by reusing idx result from other functions
@@ -711,7 +709,7 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
   float dx = state[0]-opponent_pos[0];
   float dy = state[1]-opponent_pos[1];
   //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
+  float cost = (0.1 - sqrtf(dx*dx + dy*dy)) ;
   cost = cost>0? cost:0;
 
   return cost ;

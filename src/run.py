@@ -29,7 +29,7 @@ class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
         # state update rate
-        self.dt = 0.02
+        self.dt = 0.03
         self.params = params
 
         self.track = TrackFactory(name='full')
@@ -135,8 +135,8 @@ class Main():
 
 
 if __name__ == '__main__':
-    #params = {'samples':4096, 'algorithm':'mppi-same-injected'}
-    params = {'samples':4096, 'algorithm':'ccmppi'}
+    params = {'samples':4096*2, 'algorithm':'mppi-same-injected'}
+    #params = {'samples':4096*2, 'algorithm':'ccmppi'}
     experiment = Main(params)
     experiment.run()
     print_info("program complete")
