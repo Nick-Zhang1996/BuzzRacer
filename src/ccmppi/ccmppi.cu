@@ -16,6 +16,8 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 
+#define LAPTIME_PRIORITY %(laptime_priority)s
+
 #define MODE_CC 1
 #define MODE_NOCC 2
 #define MODE_ZERO_REF 3
@@ -375,7 +377,7 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3*LAPTIME_PRIORITY;
   //cost += dist*dist*100;
   cost += dist*dist*500;
   return cost;

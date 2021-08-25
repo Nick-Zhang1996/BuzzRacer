@@ -53,6 +53,7 @@ class CCMPPI:
         # new feature for Python 3.9
         #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
+        cuda_code_macros.update({"laptime_priority":arg_list['laptime_priority']})
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 

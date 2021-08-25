@@ -135,28 +135,28 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    for algorithm in ['ccmppi']:
-        samples = 4096
-        params = {'samples':samples, 'algorithm':algorithm}
+    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+        for laptime_priority in [1.0,0.1,10.0,100.0]:
+            samples = 4096
+            params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}
 
-        experiment_count += 1
+            experiment_count += 1
 
-        print_info("-------------- start one experiment ------------")
-        print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
-        experiment = Main(params)
-        experiment.run()
+            print_info("-------------- start one experiment ------------")
+            print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
+            experiment = Main(params)
+            experiment.run()
 
-        laptime = experiment.car_laptime_mean[0]
-        laps = experiment.car_total_laps[0]
-        laptime_stddev = experiment.car_laptime_stddev[0]
-        collisions = experiment.car_total_collisions[0]
-        control_effort = experiment.performance_tracker.mean_control_effort
-        terminal_cov = experiment.performance_tracker.terminal_cov
-        text = "%s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no)
-        print_info(text)
-        with open(log_filename,'a') as f:
-            f.write(text +"\n")
-        print_info("-------------- finish one experiment ------------")
+            laptime = experiment.car_laptime_mean[0]
+            laps = experiment.car_total_laps[0]
+            laptime_stddev = experiment.car_laptime_stddev[0]
+            collisions = experiment.car_total_collisions[0]
+            control_effort = experiment.performance_tracker.mean_control_effort
+            terminal_cov = experiment.performance_tracker.terminal_cov
+            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no)
+            print_info(text)
+            with open(log_filename,'a') as f:
+                f.write(text +"\n")
+            print_info("-------------- finish one experiment ------------")
 
     print_info("program complete")
