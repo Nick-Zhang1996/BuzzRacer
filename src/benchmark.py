@@ -139,6 +139,7 @@ if __name__ == '__main__':
     
     experiment_count = 0
     for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+        # 12 points
         for laptime_priority in [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]:
             samples = 4096
             params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}

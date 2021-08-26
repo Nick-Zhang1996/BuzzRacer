@@ -13,6 +13,8 @@ with open(filename, 'r') as f:
         entry = line.split(',')
         if (entry[-1].lstrip() == "True"):
             print("bad experiment, skipping")
+
+        entry = entry[:-1]
         if (entry[0].lstrip() == 'ccmppi'):
             ccmppi.append([float(val) for val in entry[1:]])
         if (entry[0].lstrip() == 'mppi-same-injected'):
