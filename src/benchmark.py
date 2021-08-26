@@ -23,6 +23,7 @@ from CollisionChecker import CollisionChecker
 from Optitrack import Optitrack
 from Visualization import Visualization
 from PerformanceTracker import PerformanceTracker
+from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
@@ -72,6 +73,8 @@ class Main():
         #self.extensions.append(Gifsaver(self))
         self.performance_tracker = PerformanceTracker(self)
         self.extensions.append(self.performance_tracker)
+        self.watchdog = Watchdog(self)
+        self.extensions.append(self.watchdog)
 
         for item in self.extensions:
             item.init()
@@ -136,7 +139,7 @@ if __name__ == '__main__':
     
     experiment_count = 0
     for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-        for laptime_priority in [1.0,0.1,10.0,100.0]:
+        for laptime_priority in [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]:
             samples = 4096
             params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}
 
@@ -153,7 +156,7 @@ if __name__ == '__main__':
             collisions = experiment.car_total_collisions[0]
             control_effort = experiment.performance_tracker.mean_control_effort
             terminal_cov = experiment.performance_tracker.terminal_cov
-            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no)
+            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered))
             print_info(text)
             with open(log_filename,'a') as f:
                 f.write(text +"\n")

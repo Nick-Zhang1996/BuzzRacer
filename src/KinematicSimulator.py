@@ -54,6 +54,7 @@ class KinematicSimulator(Simulator):
         x,y,v,heading = sim_states
         throttle = control[0]
         steering = control[1]
+
         dt = KinematicSimulator.dt
 
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))

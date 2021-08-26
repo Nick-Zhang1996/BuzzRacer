@@ -1,0 +1,39 @@
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
+       mppi-same-injected, 4096, 20, 7.1267, 120, 0.00112, 0.00686, 3.52372, 34, True
+       mppi-same-injected, 4096, 20, 6.4562, 235, 0.00097, 0.01526, 0.67496, 35, False
+       mppi-same-injected, 4096, 20, 5.0514, 186, 0.00098, 0.03600, 0.46523, 36, False
+       mppi-same-injected, 4096, 20, 4.6200, 146, 0.00098, 0.04887, 0.57417, 37, False
+       mppi-same-injected, 4096, 20, 4.2505, 105, 0.00093, 0.06172, 0.40584, 38, False
+       mppi-same-injected, 4096, 20, 4.1876, 102, 0.00098, 0.06091, 0.51420, 39, False
+       mppi-same-injected, 4096, 20, 3.8543, 82, 0.00105, 0.06917, 0.31894, 40, False
+       mppi-same-injected, 4096, 20, 3.4295, 111, 0.00132, 0.07270, 0.04029, 41, False
+       mppi-same-injected, 4096, 20, 3.3314, 143, 0.00175, 0.07257, 0.01320, 42, False
+       mppi-same-injected, 4096, 20, 3.2790, 181, 0.00237, 0.07105, 0.01571, 43, False
+       mppi-same-injected, 4096, 20, 3.2590, 242, 0.00340, 0.06905, 0.01688, 44, False
+       mppi-same-injected, 4096, 20, 3.2467, 334, 0.00376, 0.06863, 0.00943, 45, False
+   mppi-same-terminal-cov, 4096, 20, 7.5857, 128, 0.00095, 0.00454, 3.42037, 46, True
+   mppi-same-terminal-cov, 4096, 20, 7.2724, 238, 0.00085, 0.00732, 0.68339, 47, False
+   mppi-same-terminal-cov, 4096, 20, 6.0762, 226, 0.00097, 0.01526, 0.22311, 48, False
+   mppi-same-terminal-cov, 4096, 20, 5.6438, 230, 0.00094, 0.02077, 0.19180, 49, False
+   mppi-same-terminal-cov, 4096, 20, 5.1895, 205, 0.00096, 0.02847, 0.33390, 50, False
+   mppi-same-terminal-cov, 4096, 20, 4.3343, 146, 0.00094, 0.04886, 0.56265, 51, False
+   mppi-same-terminal-cov, 4096, 20, 3.9467, 92, 0.00091, 0.05629, 0.28124, 52, False
+   mppi-same-terminal-cov, 4096, 20, 3.4514, 119, 0.00119, 0.05848, 0.04167, 53, False
+   mppi-same-terminal-cov, 4096, 20, 3.3229, 138, 0.00146, 0.05756, 0.00933, 54, False
+   mppi-same-terminal-cov, 4096, 20, 3.2705, 173, 0.00198, 0.05663, 0.01588, 55, False
+   mppi-same-terminal-cov, 4096, 20, 3.2533, 239, 0.00281, 0.05588, 0.01553, 56, False
+   mppi-same-terminal-cov, 4096, 20, 3.2390, 354, 0.00322, 0.05571, 0.01571, 57, False
+                   ccmppi, 4096, 20, 2.9914, 63, 0.00137, 0.02328, 1.93894, 58, False
+                   ccmppi, 4096, 20, 2.8848, 69, 0.00130, 0.02312, 1.86246, 59, False
+                   ccmppi, 4096, 20, 2.6390, 65, 0.00135, 0.02364, 1.83170, 60, False
+                   ccmppi, 4096, 20, 3.1238, 53, 0.00138, 0.02212, 1.87540, 61, False
+                   ccmppi, 4096, 20, 2.5895, 60, 0.00136, 0.02366, 1.79324, 62, False
+                   ccmppi, 4096, 20, 3.0276, 66, 0.00142, 0.02319, 1.81771, 63, False
+                   ccmppi, 4096, 20, 3.0724, 76, 0.00145, 0.02174, 1.84384, 64, False
+                   ccmppi, 4096, 20, 2.8419, 81, 0.00158, 0.02334, 1.54381, 65, False
+                   ccmppi, 4096, 20, 3.5819, 125, 0.00191, 0.02539, 0.13814, 66, False
+                   ccmppi, 4096, 20, 3.3724, 206, 0.00245, 0.02580, 0.04116, 67, False
+                   ccmppi, 4096, 20, 3.3029, 259, 0.00334, 0.02678, 0.02250, 68, False
+                   ccmppi, 4096, 20, 3.2905, 351, 0.00373, 0.02692, 0.02278, 69, False

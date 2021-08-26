@@ -70,6 +70,17 @@ class RCPtrack(Track):
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
 
+    def isOutside(self,coord):
+        grace = 0.5
+        x,y = coord
+
+        # vertical, in y direction
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        return x>cols*self.scale+grace or y>rows*self.scale+grace or x<-grace or y<-grace
+
     def resolveLogname(self,):
 
         # setup log file

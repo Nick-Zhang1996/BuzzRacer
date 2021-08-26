@@ -24,6 +24,7 @@ from CollisionChecker import CollisionChecker
 from Optitrack import Optitrack
 from Visualization import Visualization
 from PerformanceTracker import PerformanceTracker
+from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
@@ -34,9 +35,9 @@ class Main():
 
         self.track = TrackFactory(name='full')
 
-        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -56,7 +57,7 @@ class Main():
         self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
         self.simulator.match_real_time = True
-        self.collision_checker = CollisionChecker(self)
+        #self.collision_checker = CollisionChecker(self)
         self.performance_tracker = PerformanceTracker(self)
 
         self.extensions = []
@@ -66,13 +67,15 @@ class Main():
         #self.extensions.append(CrosstrackErrorTracker(self))
         self.extensions.append(LapCounter(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        self.extensions.append(Logger(self))
-        self.extensions.append(self.collision_checker)
+        #self.extensions.append(Logger(self))
+        #self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
-        self.extensions.append(self.performance_tracker)
+        #self.extensions.append(self.performance_tracker)
+        self.watchdog = Watchdog(self)
+        self.extensions.append(self.watchdog)
 
         for item in self.extensions:
             item.init()

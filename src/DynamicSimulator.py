@@ -80,6 +80,7 @@ class DynamicSimulator(Simulator):
         sim_states = np.array([x,d_x,y,d_y,psi,d_psi])
 
         throttle, steering = control
+
         u = np.array([throttle,steering])
         # NOTE page 30 of book vehicle dynamics and control
 
