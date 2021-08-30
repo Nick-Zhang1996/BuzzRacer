@@ -25,7 +25,7 @@ class Watchdog(Extension):
                 if(car.laptimer.last_laptime < 2.0 or self.main.sim_t - car.laptimer.last_lap_ts > 20):
                     self.triggered = True
                     self.main.exit_request.set()
-                    print_warning(self.prefix()+"unreasonable laptime: %.2f, terminating experiment"%(self.laptimer.last_laptime))
+                    print_warning(self.prefix()+"unreasonable laptime: %.2f, terminating experiment"%(car.laptimer.last_laptime))
 
 
 

@@ -18,7 +18,13 @@ class PerformanceTracker(Extension):
         print_ok(self.prefix()+"terminal covariance = %.5f"%(terminal_cov))
         self.terminal_cov = terminal_cov
 
+
         mean_control_effort = np.mean(self.control_effort_vec)
         print_ok(self.prefix() + "mean control effort u'Ru = %.5f"%(mean_control_effort))
         self.mean_control_effort = mean_control_effort
+        for car in self.main.cars:
+            terminal_cov_mtx = np.mean(np.array(car.controller.terminal_cov_mtx_vec), axis=0)
+            theory_cov_mtx = np.mean(np.array(car.controller.theory_cov_mtx_vec), axis=0)
+            car.debug_dict['terminal_cov_mtx'] = terminal_cov_mtx
+            car.debug_dict['theory_cov_mtx'] = theory_cov_mtx
 

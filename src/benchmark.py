@@ -138,10 +138,14 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    for algorithm in ['mppi-same-injected']:
-        # 12 points
-        for laptime_priority in [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]:
+    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+        if algorithm == 'ccmppi':
+            #laptime_priorities = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]
+            laptime_priorities = np.hstack([np.linspace(0.4,1.6,7), np.linspace(2,10,9), np.linspace(10,100,10)])
+        else:
+            laptime_priorities = np.hstack([np.linspace(0.4,1.6,7), np.linspace(2,10,9), np.linspace(10,100,10)])
+
+        for laptime_priority in laptime_priorities:
             samples = 4096
             params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}
 
@@ -158,7 +162,7 @@ if __name__ == '__main__':
             collisions = experiment.car_total_collisions[0]
             control_effort = experiment.performance_tracker.mean_control_effort
             terminal_cov = experiment.performance_tracker.terminal_cov
-            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered))
+            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered,laptime_priority))
             print_info(text)
             with open(log_filename,'a') as f:
                 f.write(text +"\n")

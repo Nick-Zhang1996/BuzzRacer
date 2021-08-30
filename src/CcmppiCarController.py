@@ -39,6 +39,8 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
+        self.terminal_cov_mtx_vec = []
+        self.theory_cov_mtx_vec = []
         self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = True
 
@@ -301,6 +303,8 @@ class CcmppiCarController(CarController):
 
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
+        self.theory_cov_mtx = self.ccmppi.theory_cov_mtx
+        self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
 
         # for debug
         self.debug_states = states.copy()
@@ -407,6 +411,7 @@ class CcmppiCarController(CarController):
         cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
         self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
         self.terminal_cov_vec.append(self.terminal_xy_cov)
+        self.terminal_cov_mtx_vec.append(cov)
         return
 
     def plotDebug(self):

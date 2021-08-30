@@ -108,10 +108,15 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
-            Ks, As, Bs, ds = self.cc.cc(state)
+            #Ks, As, Bs, ds = self.cc.cc(state)
+            Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, return_sx = True , debug=True)
+            self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
+
         else:
             # effectively disable cc
             #print_warning("CC disabled")
+            Sx_nocc = self.cc.getNoCcSx(state)
+            self.theory_cov_mtx =  Sx_nocc[-4:-2,-4:-2]
             Ks = np.zeros([self.N*self.m*self.n])
             As = np.zeros([self.N*self.n*self.n])
             Bs = np.zeros([self.N*self.n*self.m])

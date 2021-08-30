@@ -492,6 +492,64 @@ class CCMPPI_KINEMATIC():
         else:
             return Ks, As, Bs, ds
 
+    def getNoCcSx(self, state):
+        n = self.n
+        N = self.N
+        m = self.m
+        l = self.l
+
+        # find where the car is in reference to reference trajectory
+        ref_xx = self.ref_traj[:,0]
+        ref_yy = self.ref_traj[:,2]
+
+        x,y,_,_ = state
+
+        dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
+        # start : index of closest ref point to car
+        start = np.argmin(dist_sqr)
+
+        # ref_traj: x,dx,y,dy,heading,dheading
+        # handle wrap around to prevent array out of bound at tail
+        ref_traj_wrapped = np.vstack([self.ref_traj, self.ref_traj[:self.N]])
+        ref_ctrl_wrapped = np.vstack([self.ref_ctrl, self.ref_ctrl[:self.N]])
+
+        x = ref_traj_wrapped[start:start+self.N,0]
+        vx = ref_traj_wrapped[start:start+self.N,1]
+        y = ref_traj_wrapped[start:start+self.N,2]
+        vy = ref_traj_wrapped[start:start+self.N,3]
+        heading = ref_traj_wrapped[start:start+self.N,4]
+        v = np.sqrt(vx*vx + vy*vy)
+
+        self.ref_state_vec = ref_state_vec = np.vstack([x,y,v,heading]).T
+        self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
+
+        # find reference throttle and steering
+
+        # As = [A0..A(N-1)]
+        # linearize dynamics around ref traj
+        # As = [A0..A(N-1)]
+        As = []
+        Bs = []
+        ds = []
+        for i in range(self.N):
+            # NOTE this gives discretized dynamics
+            A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
+            As.append(A)
+            Bs.append(B)
+            ds.append(d)
+
+
+        # assemble big matrices for batch dynamics
+        self.As = As = np.dstack(As)
+        self.Bs = Bs = np.dstack(Bs)
+        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
+
+
+        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
+
+        Sigma_0 = np.zeros([n,n])
+        Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
+        return Sx_nocc
 
     def simulate(self):
         if self.debug_info['model'] =='linear_kinematic':
