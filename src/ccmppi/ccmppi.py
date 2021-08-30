@@ -109,7 +109,7 @@ class CCMPPI:
         # CCMPPI specific, generate and pack K matrices
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
             #Ks, As, Bs, ds = self.cc.cc(state)
-            Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, return_sx = True , debug=True)
+            Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, return_sx = True , debug=False)
             self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
 
         else:

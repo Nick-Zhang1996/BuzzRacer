@@ -162,7 +162,7 @@ if __name__ == '__main__':
             collisions = experiment.car_total_collisions[0]
             control_effort = experiment.performance_tracker.mean_control_effort
             terminal_cov = experiment.performance_tracker.terminal_cov
-            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered,laptime_priority))
+            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),laptime_priority)
             print_info(text)
             with open(log_filename,'a') as f:
                 f.write(text +"\n")

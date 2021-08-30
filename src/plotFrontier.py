@@ -11,10 +11,10 @@ with open(filename, 'r') as f:
         if(line[0] == '#'):
             continue
         entry = line.split(',')
-        if (entry[-1].lstrip() == "True"):
+        if (entry[-2].lstrip() == "True"):
             print("bad experiment, skipping")
 
-        entry = entry[:-1]
+        entry = entry[:-2] + entry[-1:]
         if (entry[0].lstrip() == 'ccmppi'):
             ccmppi.append([float(val) for val in entry[1:]])
         if (entry[0].lstrip() == 'mppi-same-injected'):
@@ -26,6 +26,13 @@ with open(filename, 'r') as f:
 ccmppi = np.array(ccmppi)
 mppi_injected = np.array(mppi_injected)
 mppi_cov = np.array(mppi_cov)
+
+# circle same config
+index = 10
+print(index)
+plt.scatter(ccmppi[index,3], ccmppi[index,2],s=80,facecolor='none', edgecolor='r',label='same setting')
+plt.scatter(mppi_injected[index,3], mppi_injected[index,2],s=80,facecolor='none', edgecolor='r')
+plt.scatter(mppi_cov[index,3], mppi_cov[index,2],s=80,facecolor='none', edgecolor='r')
         
 plt.plot(ccmppi[:,3], ccmppi[:,2],'+',label='ccmppi')
 plt.plot(mppi_injected[:,3], mppi_injected[:,2],'o', label= 'mppi_injected')
