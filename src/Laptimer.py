@@ -11,6 +11,9 @@ class Laptimer(Extension):
         Extension.__init__(self,main)
 
     def init(self):
+        # in case the first expertiment fails
+        self.main.car_laptime_mean = [-1]
+        self.main.car_laptime_stddev = [-1]
         for car in self.main.cars:
             car.enableLaptimer = True
             if car.enableLaptimer:

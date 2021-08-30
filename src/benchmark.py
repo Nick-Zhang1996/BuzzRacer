@@ -138,7 +138,8 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    for algorithm in ['mppi-same-injected']:
         # 12 points
         for laptime_priority in [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]:
             samples = 4096
