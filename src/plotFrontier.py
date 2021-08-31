@@ -1,7 +1,7 @@
 # analyze csv log, plot peratio frontier
 import numpy as np
 import matplotlib.pyplot as plt
-filename = "log.txt"
+filename = "frontier.txt"
 
 mppi_injected = []
 mppi_cov = []
@@ -36,7 +36,7 @@ mppi_cov = mppi_cov[offset:]
 for i in range(25):
     index = i
     print(index)
-    print("index= %d, log no: %d, %d, %d (ccmppi, mppi_injected, mppi_cov)"%(index,ccmppi[index,7], mppi_injected[index,7], mppi_cov[index,7]))
+    print("index= %d,ratio=%.2f log no: %d, %d, %d (ccmppi, mppi_injected, mppi_cov)"%(index,ccmppi[index,-1],ccmppi[index,7], mppi_injected[index,7], mppi_cov[index,7]))
     plt.scatter(ccmppi[index,3], ccmppi[index,2],s=80,facecolor='none', edgecolor='r',label='same setting')
     plt.scatter(mppi_injected[index,3], mppi_injected[index,2],s=80,facecolor='none', edgecolor='r')
     plt.scatter(mppi_cov[index,3], mppi_cov[index,2],s=80,facecolor='none', edgecolor='r')

@@ -74,6 +74,8 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 // forward kinematics model by one step
 __device__
 void forward_kinematics( float* x, float* u);
+__device__
+void forward_kinematics_with_collision(float* state, float* u, float opponents_prediction[][HORIZON+1][2], int opponent_count);
 
 
 // calculate matrix multiplication
@@ -237,6 +239,8 @@ void _evaluate_control_sequence(
     */
     // step forward dynamics, update state x in place
     forward_kinematics(x, u);
+    // NOTE this only works with static obstacles
+    //forward_kinematics_with_collision(x, u, opponents_prediction, opponent_count);
 
     // evaluate step cost (crosstrack error and velocity deviation)
     // corresponds to q(x)
@@ -440,7 +444,49 @@ void forward_kinematics(float* state, float* u){
 
   }
 
+  float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
+  state[0] += dx;
+  state[1] += dy;
+  state[2] += dvelocity;
+  state[3] += dpsi;
+
+}
+
+// forward dynamics using kinematic model, taking collision into account
+// state: X,Y,v_forward,psi
+// control : throttle, steering (left +)
+__device__
+void forward_kinematics_with_collision(float* state, float* u, float opponents_prediction[][HORIZON+1][2], int opponent_count){
+  float throttle,steering;
+  float velocity, psi;
+
+  velocity = state[2];
+  // obstacle dynamics
+  for (int j=0; j<opponent_count; j++){
+    // NOTE only works with static obsttacle since we use prediction at step 0
+    if (evaluate_collision_cost(state,opponents_prediction[j][0]) > 0.001){
+      velocity *= 0.9;
+      break;
+    }
+  }
+
+
+  psi = state[3];
+
+  throttle = u[0];
+  steering = u[1];
+
+  float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
+  float dx = velocity * cosf(psi + beta) * DT;
+  float dy = velocity * sinf(psi + beta) * DT;
+  float dvelocity;
+  if (velocity > MAX_V){
+    dvelocity = -0.01;
+  } else {
+    dvelocity = throttle * DT;
+
+  }
 
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 

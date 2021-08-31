@@ -38,6 +38,7 @@ class KinematicSimulator(Simulator):
             car.sim_states = self.advanceDynamics(car.sim_states, (car.throttle, car.steering), car)
             x,y,v,heading = car.sim_states
             car.states = (x,y,heading,v,0,0)
+            #print_info(self.prefix()+str(v))
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
@@ -52,6 +53,11 @@ class KinematicSimulator(Simulator):
         steering = np.clip(throttle, -radians(27), radians(27))
         '''
         x,y,v,heading = sim_states
+        # slow down if car is in collision
+        '''
+        if (car.in_collision):
+            v *= 0.9
+        '''
         throttle = control[0]
         steering = control[1]
 

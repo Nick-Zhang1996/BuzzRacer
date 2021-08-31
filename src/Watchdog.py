@@ -15,11 +15,18 @@ class Watchdog(Extension):
             x = car.states[0]
             y = car.states[1]
             vf = car.states[3]
-            if (self.track.isOutside((x,y)) or vf < 0.05):
+            if (self.track.isOutside((x,y)) ):
                 car.in_track = False
                 self.triggered = True
                 self.main.exit_request.set()
                 print_warning(self.prefix()+"car outside track, terminating experiment")
+
+            if (vf < 0.05):
+                car.in_track = True
+                self.triggered = True
+                self.main.exit_request.set()
+                print_warning(self.prefix()+"car stopped, terminating experiment")
+
             # if laptime is unreasonable, halt
             if (car.laptimer.new_lap.is_set()):
                 if(car.laptimer.last_laptime < 2.0 or self.main.sim_t - car.laptimer.last_lap_ts > 20):

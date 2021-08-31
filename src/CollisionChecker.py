@@ -13,7 +13,10 @@ class CollisionChecker(Extension):
             car = self.main.cars[i]
             if (car.controller.isInObstacle()):
                 self.collision_count[i] += 1
+                car.in_collision = True
                 #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
+            else:
+                car.in_collision = False
             if (car.laptimer.new_lap.is_set()):
                 self.cumsum_collision_by_lap_vec[i].append(self.collision_count[i])
 

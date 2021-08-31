@@ -12,8 +12,11 @@ class Laptimer(Extension):
 
     def init(self):
         # in case the first expertiment fails
+        # FIXME sketchy
         self.main.car_laptime_mean = [-1]
         self.main.car_laptime_stddev = [-1]
+        self.main.car_total_laps = [0]
+
         for car in self.main.cars:
             car.enableLaptimer = True
             if car.enableLaptimer:

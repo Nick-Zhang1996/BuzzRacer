@@ -48,6 +48,7 @@ class CcmppiCarController(CarController):
         self.R_diag = [0.01, 0.01]
         # control effort u'Ru
         self.utru = 0
+        car.in_collision = False
         return
 
     # Hack

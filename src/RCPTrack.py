@@ -71,7 +71,7 @@ class RCPtrack(Track):
         self.last_u = None
 
     def isOutside(self,coord):
-        grace = 0.5
+        grace = 1.0
         x,y = coord
 
         # vertical, in y direction
