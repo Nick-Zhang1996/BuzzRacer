@@ -27,19 +27,26 @@ ccmppi = np.array(ccmppi)
 mppi_injected = np.array(mppi_injected)
 mppi_cov = np.array(mppi_cov)
 
+offset = 0
+ccmppi = ccmppi[offset:]
+mppi_injected = mppi_injected[offset:]
+mppi_cov = mppi_cov[offset:]
+
 # circle same config
-index = 10
-print(index)
-plt.scatter(ccmppi[index,3], ccmppi[index,2],s=80,facecolor='none', edgecolor='r',label='same setting')
-plt.scatter(mppi_injected[index,3], mppi_injected[index,2],s=80,facecolor='none', edgecolor='r')
-plt.scatter(mppi_cov[index,3], mppi_cov[index,2],s=80,facecolor='none', edgecolor='r')
-        
-plt.plot(ccmppi[:,3], ccmppi[:,2],'+',label='ccmppi')
-plt.plot(mppi_injected[:,3], mppi_injected[:,2],'o', label= 'mppi_injected')
-plt.plot(mppi_cov[:,3], mppi_cov[:,2], '*',label= 'mppi_cov')
-plt.title("Laptime ")
-plt.xlabel("collision")
-plt.ylabel("Laptime (s)")
-plt.legend()
-plt.show()
+for i in range(25):
+    index = i
+    print(index)
+    print("index= %d, log no: %d, %d, %d (ccmppi, mppi_injected, mppi_cov)"%(index,ccmppi[index,7], mppi_injected[index,7], mppi_cov[index,7]))
+    plt.scatter(ccmppi[index,3], ccmppi[index,2],s=80,facecolor='none', edgecolor='r',label='same setting')
+    plt.scatter(mppi_injected[index,3], mppi_injected[index,2],s=80,facecolor='none', edgecolor='r')
+    plt.scatter(mppi_cov[index,3], mppi_cov[index,2],s=80,facecolor='none', edgecolor='r')
+            
+    plt.plot(ccmppi[:,3], ccmppi[:,2],'+',label='ccmppi')
+    plt.plot(mppi_injected[:,3], mppi_injected[:,2],'o', label= 'mppi_injected')
+    plt.plot(mppi_cov[:,3], mppi_cov[:,2], '*',label= 'mppi_cov')
+    plt.title("Laptime ")
+    plt.xlabel("collision")
+    plt.ylabel("Laptime (s)")
+    plt.legend()
+    plt.show()
 

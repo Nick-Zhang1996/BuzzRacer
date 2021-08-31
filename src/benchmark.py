@@ -139,12 +139,9 @@ if __name__ == '__main__':
     
     experiment_count = 0
     for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-        if algorithm == 'ccmppi':
-            #laptime_priorities = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]
-            laptime_priorities = np.hstack([np.linspace(0.4,1.6,7), np.linspace(2,10,9), np.linspace(10,100,10)])
-        else:
-            laptime_priorities = np.hstack([np.linspace(0.4,1.6,7), np.linspace(2,10,9), np.linspace(10,100,10)])
-
+        #laptime_priorities = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]
+        #laptime_priorities = np.hstack([np.linspace(0.4,1.6,7), np.linspace(2,10,9), np.linspace(10,100,10)])
+        laptime_priorities = np.hstack([np.linspace(0.2,1.8,20)])
         for laptime_priority in laptime_priorities:
             samples = 4096
             params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}
