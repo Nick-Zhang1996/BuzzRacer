@@ -626,8 +626,11 @@ class RCPtrack(Track):
         if filename is None:
             filename = "raceline.p"
 
-        with open(filename, 'rb') as f:
-            save = pickle.load(f)
+        try:
+            with open(filename, 'rb') as f:
+                save = pickle.load(f)
+        except FileNotFoundError:
+            print_error("can't find "+filename+", run qpSmooth.py first")
 
         # restore save data
         self.grid_sequence = save['grid_sequence']
@@ -785,6 +788,124 @@ class RCPtrack(Track):
             wl = 1-deadzone-radius
             wr = radius - deadzone
         return min(wl,wr)
+
+    # given coordinate and heading, calculate precise boundary to left and right
+    # return a vector (dist_to_left, dist_to_right)
+    def preciseTrackBoundary(self,coord,heading):
+        heading = (heading + np.pi)%(2*np.pi) - np.pi
+        # figure out which grid the coord is in
+        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+
+        # e.g. 'WE','SE'
+        grid_type = self.track[nondim[0]][nondim[1]]
+
+        # change ref frame to tile local ref frame
+        x_local = coord[0]/self.scale - nondim[0]
+        y_local = coord[1]/self.scale - nondim[1]
+
+        # find the distance to track sides
+        # boundary/wall width / grid side length
+        deadzone = 0.087
+        straights = ['WE','NS']
+        turns = ['SE','SW','NE','NW']
+        if grid_type in straights:
+            if grid_type == 'WE':
+                # track section is staight, arranged horizontally
+                # remaining space on top (negative means coord outside track
+                grid_down = y_local - deadzone
+                grid_up = 1 - deadzone - y_local
+                if (heading > -np.pi/2 and heading < np.pi/2):
+                    left = grid_up / cos(heading)
+                    right = grid_down / cos(heading)
+                else:
+                    left = - grid_down / cos(heading)
+                    right = - grid_up / cos(heading)
+
+            if grid_type == 'NS':
+                # track section is staight, arranged vertically
+                # remaining space on left (negative means coord outside track
+                grid_left= x_local - deadzone
+                grid_right = 1 - deadzone - x_local
+                if (heading > 0 and heading < np.pi):
+                    left = grid_left/ sin(heading)
+                    right = grid_right/ sin(heading)
+                else:
+                    left = - grid_right/ sin(heading)
+                    right = - grid_left/ sin(heading)
+                    # TODO
+        elif grid_type in turns:
+            step_size = 0.01
+
+            # find left boundary
+            left = 0.0
+            flag_in_limit = True
+            while (flag_in_limit):
+                left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+                flag_in_limit = self.checkTrackBoundary(left_point) > 0
+                left += step_size
+
+            # find right boundary
+            right = 0.0
+            flag_in_limit = True
+            while (flag_in_limit):
+                right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+                flag_in_limit = self.checkTrackBoundary(right_point) > 0
+                right += step_size
+
+            # convert metric unit to dimensionless unit
+            left /= self.scale
+            right /= self.scale
+
+            '''
+            if grid_type == 'SE':
+                apex = (1,0)
+            if grid_type == 'SW':
+                apex = (0,0)
+            if grid_type == 'NE':
+                apex = (1,1)
+            if grid_type == 'NW':
+                apex = (0,1)
+            radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
+            grid_out = 1-deadzone-radius
+            grid_in = radius - deadzone
+
+
+
+            if grid_type == 'SE':
+                if (heading > -0.25*np.pi and heading < 0.75*np.pi):
+                    left = 0.1
+                    right = 0.1
+                else:
+                    left = 0.1
+                    right = 0.1
+            if grid_type == 'SW':
+                if (heading > -0.75*np.pi and heading < 0.25*np.pi):
+                    left = 0.1
+                    right = 0.1
+                else:
+                    left = 0.1
+                    right = 0.1
+            if grid_type == 'NE':
+                if (heading > 0.25*np.pi and heading < 1.25*np.pi):
+                    left = 0.1
+                    right = 0.1
+                else:
+                    left = 0.1
+                    right = 0.1
+            if grid_type == 'NW':
+                if (heading > 0.35*np.pi and heading < -0.25*np.pi):
+                    left = 0.1
+                    right = 0.1
+                else:
+                    left = 0.1
+                    right = 0.1
+            '''
+
+
+        return (left*self.scale,right*self.scale)
 
     # distance between start and end of path, 
     # must be sufficiently close
@@ -981,7 +1102,7 @@ class RCPtrack(Track):
 
     # draw a polynomial line defined in track space
     # points: a list of coordinates in format (x,y)
-    def drawPolyline(self,points,lineColor=(0,0,255), img=None):
+    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -1020,7 +1141,7 @@ class RCPtrack(Track):
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
-            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=3) 
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
 
         # plot reference points
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
@@ -1119,6 +1240,8 @@ class RCPtrack(Track):
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
         fun = lambda u: dist_2(splev(u%self.track_length_grid,self.raceline),coord)
         # last_u is the seq found last time, which should be a good estimate of where to start
+        # disable this functionality since it doesn't handle multiple cars
+        self.last_u = None
         if self.last_u is None:
             # the seq here starts from origin
             seq = -1
@@ -1129,7 +1252,7 @@ class RCPtrack(Track):
                     break
 
             if seq == -1:
-                print("error, coord not on track")
+                print("error, coord not on track, x = %.2f, y=%.2f"%(coord[0],coord[1]))
                 return None
 
             # the grid that contains the coord
@@ -1415,6 +1538,121 @@ class RCPtrack(Track):
         t.e()
         #return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
+
+    def getRefXYVheading(self, state, p, dt, reverse=False):
+        t = self.t
+
+        t.s()
+        if reverse:
+            print_error("reverse is not implemented")
+        # set wheelbase to 0 to get point closest to vehicle CG
+        t.s("local traj")
+        retval = self.localTrajectory(state,wheelbase=0.102/2.0,return_u=True)
+        t.e("local traj")
+        if retval is None:
+            return None,None,False
+
+        # parse return value from localTrajectory
+        (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+        if isnan(orientation):
+            return None,None,False
+
+        # calculate s value for projection ref points
+        t.s("find s")
+        s0 = self.uToS(u0).item()
+        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        der = splev(u0%self.track_length_grid,self.raceline,der=1)
+        heading0 = atan2(der[1],der[0])
+        t.e("find s")
+
+        t.s("curvature")
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+
+        dr = np.array(splev(u0%self.track_length_grid,self.raceline,der=1))
+        ddr = vec_curvature = np.array(splev(u0%self.track_length_grid,self.raceline,der=2))
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        t.e("curvature")
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+        u_vec = [u0]
+        s_vec = [s0]
+        k_vec = [curvature]
+        k_sign_vec = [cross_curvature]
+
+        v_vec = [v0]
+        xy_vec = [splev(s0%self.raceline_len_m, self.raceline_s)]
+
+
+        t.s("main loop")
+        for k in range(1,p+1):
+            s_k = s_vec[-1] + v_vec[-1] * dt
+            s_vec.append(s_k)
+            # find ref velocity for projection ref points
+            # TODO adjust ref velocity for current vehicle velocity
+            #v_k = self.targetVfromU(u_k%self.track_length_grid)
+            #v_k = self.sToV(s_k%self.raceline_len_m)
+            v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            v_vec.append(v_k)
+
+            xy_vec.append(splev(s_k%self.raceline_len_m, self.raceline_s))
+            
+        t.e("main loop")
+
+        #u_vec = np.array(u_vec)%self.track_length_grid
+        # find ref heading for projection ref points
+        t.s("psi")
+        #der = np.array(splev(u_vec,self.raceline,der=1))
+        s_vec = np.array(s_vec)%self.raceline_len_m
+        der = np.array(splev(s_vec,self.raceline_s,der=1))
+        heading_vec = np.arctan2(der[1,:],der[0,:])
+        t.e("psi")
+        # find ref coordinates for projection ref points
+
+        t.s("coord")
+        coord_vec = np.array(splev(s_vec,self.raceline_s)).T
+        t.e("coord")
+
+        t.s("K")
+
+        #norm_curvature = np.linalg.norm(vec_curvature,axis=1)
+        dr = np.array(splev(s_vec,self.raceline_s,der=1))
+        ddr = vec_curvature = np.array(splev(s_vec,self.raceline_s,der=2))
+
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+
+        # curvature needs to be signed to indicate whether signage target angular velocity
+        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        cross_curvature = der[0,:]*vec_curvature[1,:]-der[1,:]*vec_curvature[0,:]
+
+        #k_vec.append(norm_curvature)
+        #k_sign_vec.append(cross_curvature)
+        k_vec = curvature
+        k_sign_vec = cross_curvature
+
+
+
+
+        # TODO check dimension
+        k_signed_vec = np.copysign(k_vec,k_sign_vec)
+
+        x,y,heading,vf,vs,omega = state
+        e_heading = ((heading - heading0) + pi/2.0 ) % (2*pi) - pi/2.0
+        t.e("K")
+
+        t.e()
+        return np.array(xy_vec), np.array(v_vec), np.array(heading_vec)
         
     # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
     # Inputs:
@@ -1442,7 +1680,10 @@ class RCPtrack(Track):
 
         # calculate s value for projection ref points
         s0 = self.uToS(u0).item()
-        v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        # use optimal velocity
+        #v0 = self.targetVfromU(u0%self.track_length_grid).item()
+        # use actual velocity
+        v0 = state[3]
 
         _norm = lambda x:np.linalg.norm(x,axis=0)
 
@@ -1455,8 +1696,8 @@ class RCPtrack(Track):
             # find ref velocity for projection ref points
             # TODO adjust ref velocity for current vehicle velocity
 
-            # NOTE force v_k to be current velocity
             #v_k = self.sToV_lut(s_k%self.raceline_len_m)
+            # NOTE assume constant velocity
             v_k = v0
             v_vec.append(v_k)
 
@@ -1524,6 +1765,18 @@ class RCPtrack(Track):
         img = cv2.circle(img, src, 3, color,-1)
 
         return img
+
+    # draw a circle on canvas at coord
+    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
+        src = self.m2canvas(coord)
+        if src is None:
+            #print("Can't draw point -- outside track")
+            return img
+        radius_pix = int(radius_m / self.scale * self.resolution)
+        img = cv2.circle(img, src, radius_pix, color,-1)
+
+        return img
+
 
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
     def drawAcc(acc,img):

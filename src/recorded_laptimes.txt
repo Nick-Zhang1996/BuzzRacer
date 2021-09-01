@@ -1,0 +1,3 @@
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort
+mppi, 4096, 100, 3.9717, 445, 0.00120, ../log/plot_traj/full_state1.p
+ccmppi, 4096, 100, 3.6093, 374, 0.00132, ../log/plot_traj/full_state2.p

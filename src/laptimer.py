@@ -32,11 +32,13 @@ class Laptimer:
         self.timeout = 0.5
         self.hotzone_radius = 0.5
 
-    def update(self,coord):
+    def update(self,coord,current_time=None):
         # let the finish location be O
         # last position/coord be A
         # current position be B
-        if (time()<self.last_lap_ts+self.timeout):
+        if current_time is None:
+            current_time = time()
+        if ( current_time<self.last_lap_ts+self.timeout):
             return False
         coord = np.array(coord)
         OB = coord - self.finish
@@ -45,8 +47,8 @@ class Laptimer:
             return False
         OA = self.last_coord - self.finish
         if (np.dot(OA,self.finish_vec)*np.dot(OB,self.finish_vec) < 0):
-            self.last_laptime = time() - self.last_lap_ts
-            self.last_lap_ts = time()
+            self.last_laptime = current_time - self.last_lap_ts
+            self.last_lap_ts = current_time
 
             if (self.lap_count == 0 ):
                 self.lap_count += 1
