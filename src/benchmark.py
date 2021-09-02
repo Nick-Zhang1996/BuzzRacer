@@ -138,7 +138,8 @@ if __name__ == '__main__':
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
     
     experiment_count = 0
-    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    for algorithm in ['ccmppi']:
         #laptime_priorities = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]
         laptime_priorities_wide = np.hstack([ np.linspace(2,10,50), np.linspace(10,100,50)])
         laptime_priorities = np.hstack([np.linspace(0.2,2.0,50), laptime_priorities_wide])

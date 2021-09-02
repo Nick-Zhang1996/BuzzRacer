@@ -19,11 +19,9 @@ def plotTraj(track, filename, img, color, text):
     # font
     font = cv2.FONT_HERSHEY_SIMPLEX
     # org
-    org = (50, 50+offset)
+    org = (20, 50+offset)
     # fontScale
     fontScale = 1
-    # Blue color in BGR
-    color = (255, 0, 0)
     # Line thickness of 2 px
     thickness = 2
     # Using cv2.putText() method
