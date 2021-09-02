@@ -1,0 +1,13 @@
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count
+mppi, 128, 20, 4.7867, 247
+mppi, 256, 20, 4.3114, 185
+mppi, 512, 20, 4.0933, 123
+mppi, 1024, 20, 4.4886, 146
+mppi, 2048, 20, 4.2352, 124
+mppi, 4096, 20, 4.1952, 114
+ccmppi, 128, 20, 5.3448, 323
+ccmppi, 256, 20, 5.5838, 302
+ccmppi, 512, 20, 5.4324, 210
+ccmppi, 1024, 20, 4.6000, 155
+ccmppi, 2048, 20, 4.1229, 107
+ccmppi, 4096, 20, 4.9829, 161

@@ -1,4 +1,9 @@
 import numpy as np
+from enum import Enum, auto
+
+class ExperimentType(Enum):
+    Simulation = auto()
+    Realworld = auto()
 
 def print_error(*message):
     print('\033[91m', 'ERROR ', *message, '\033[0m')

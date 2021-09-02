@@ -1,0 +1,14 @@
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
+# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no
+       mppi-same-injected, 4096, 20, 4.7924, 167, 0.00099, 0.04575, 0.65757, 13
+       mppi-same-injected, 4096, 20, 7.4720, 113, 0.00072, 0.00429, 4.30227, 14
+       mppi-same-injected, 4096, 20, 3.3333, 145, 0.00174, 0.07271, 0.01285, 15
+       mppi-same-injected, 4096, 20, 3.2457, 349, 0.00376, 0.06858, 0.01761, 16
+   mppi-same-terminal-cov, 4096, 20, 6.2819, 233, 0.00097, 0.01273, 0.20255, 17
+   mppi-same-terminal-cov, 4096, 20, 8.7300, 64, 0.00017, 0.00074, 1.27000, 18
+   mppi-same-terminal-cov, 4096, 20, 3.3267, 134, 0.00150, 0.05776, 0.00943, 19
+   mppi-same-terminal-cov, 4096, 20, 3.2390, 355, 0.00326, 0.05547, 0.01444, 20
+                   ccmppi, 4096, 20, 2.9457, 70, 0.00137, 0.02106, 1.91186, 21
+                   ccmppi, 4096, 20, 3.0705, 64, 0.00133, 0.02207, 1.94834, 22
+                   ccmppi, 4096, 20, 3.3857, 123, 0.00191, 0.02486, 0.68098, 23
+                   ccmppi, 4096, 20, 3.2781, 340, 0.00367, 0.02696, 0.01735, 24

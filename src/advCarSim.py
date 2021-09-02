@@ -1,3 +1,4 @@
+# FIXME adapt to extension
 import numpy as np
 from math import sin,cos,tan,radians,degrees,pi
 import matplotlib.pyplot as plt
@@ -109,6 +110,7 @@ class advCarSim:
         omega = self.states[5]
         sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
         return sim_states
+
     def debug(self):
         data = np.array(self.states_hist)
         data_local = np.array(self.local_states_hist)
@@ -131,6 +133,38 @@ class advCarSim:
         print("omega")
         plt.plot(data[:,5])
         plt.show()
+# dynamic simulator
+    def initDynamicSimulation(self,car,init_state = (0.3*0.6,1.7*0.6,radians(90))):
+        car.new_state_update = Event()
+        car.new_state_update.set()
+        
+        x,y,heading = init_state
+        car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
+        # for keep track of time difference between simulation and reality
+        # this allows a real-time simulation
+        # here we only instantiate the variable, the actual value will be assigned in updateVisualization, since it takes quite a while to initialize the rest of the program
+        self.real_sim_dt = None
+
+        car.steering = steering = 0
+        car.throttle = throttle = 0
+
+        car.states = (x,y,heading,0,0,0)
+        car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        self.sim_dt = self.dt
+
+    def updateDynamicSimulation(self,car):
+        # update car
+        sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
+        # (x,y,theta,vforward,vsideway=0,omega)
+        car.states = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
+        if isnan(sim_states['heading']):
+            print("error")
+        #print(car.states)
+        #print("v = %.2f"%(sim_states['vf']))
+        car.new_state_update.set()
+
+    def stopDynamicSimulation(self,car):
+        return
 
 
 if __name__=='__main__':
