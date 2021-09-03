@@ -1,0 +1,4 @@
+add many random static obstacles
+test overtake duration
+limit top speed
+benchmark laptime with opponent after laptime converges

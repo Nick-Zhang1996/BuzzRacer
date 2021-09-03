@@ -83,6 +83,7 @@ class CCMPPI:
         # new feature for Python 3.9
         #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
+        cuda_code_macros.update({"laptime_priority":arg_list['laptime_priority']})
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
@@ -139,10 +140,15 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
-            Ks, As, Bs, ds = self.cc.cc(state)
+            #Ks, As, Bs, ds = self.cc.cc(state)
+            Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, return_sx = True , debug=False)
+            self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
+
         else:
             # effectively disable cc
             #print_warning("CC disabled")
+            Sx_nocc = self.cc.getNoCcSx(state)
+            self.theory_cov_mtx =  Sx_nocc[-4:-2,-4:-2]
             Ks = np.zeros([self.N*self.m*self.n])
             As = np.zeros([self.N*self.n*self.n])
             Bs = np.zeros([self.N*self.n*self.m])

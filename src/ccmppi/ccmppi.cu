@@ -32,6 +32,7 @@
 
 
 #define %(MODEL_NAME)s
+#define LAPTIME_PRIORITY %(laptime_priority)s
 
 #define MODE_CC 1
 #define MODE_NOCC 2
@@ -102,6 +103,8 @@ void forward_kinematics( float* x, float* u);
 __device__
 void forward_dynamics( float* x, float* u);
 #endif
+__device__
+void forward_kinematics_with_collision(float* state, float* u, float opponents_prediction[][HORIZON+1][2], int opponent_count);
 
 
 // calculate matrix multiplication
@@ -289,6 +292,8 @@ void _evaluate_control_sequence(
 #elif defined DYNAMIC_MODEL
     forward_dynamics(x, u);
 #endif
+    // NOTE this only works with static obstacles
+    //forward_kinematics_with_collision(x, u, opponents_prediction, opponent_count);
 
     // evaluate step cost (crosstrack error and velocity deviation)
     // corresponds to q(x)
@@ -433,8 +438,9 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*5;
-  cost += dist*dist*10;
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3*LAPTIME_PRIORITY;
+  //cost += dist*dist*100;
+  cost += dist*dist*500;
   return cost;
 }
 
@@ -493,6 +499,51 @@ void forward_kinematics(float* state, float* u){
 
   }
 
+  float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
+
+  state[0] += dx;
+  state[1] += dy;
+  state[2] += dvelocity;
+  state[3] += dpsi;
+
+}
+
+// forward dynamics using kinematic model, taking collision into account
+// state: X,Y,v_forward,psi
+// control : throttle, steering (left +)
+__device__
+void forward_kinematics_with_collision(float* state, float* u, float opponents_prediction[][HORIZON+1][2], int opponent_count){
+  float throttle,steering;
+  float velocity, psi;
+
+  velocity = state[2];
+  // obstacle dynamics
+  for (int j=0; j<opponent_count; j++){
+    // NOTE only works with static obsttacle since we use prediction at step 0
+    if (evaluate_collision_cost(state,opponents_prediction[j][0]) > 0.001){
+      velocity *= 0.9;
+      break;
+    }
+  }
+
+
+  psi = state[3];
+
+  throttle = u[0];
+  steering = u[1];
+
+  float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
+  float dx = velocity * cosf(psi + beta) * DT;
+  float dy = velocity * sinf(psi + beta) * DT;
+  float dvelocity;
+  if (velocity > MAX_V){
+    dvelocity = -0.01;
+  } else {
+    dvelocity = throttle * DT;
+
+  }
+
+>>>>>>> bd9b67f495fb8fdb730ca70d0fc96c647c66bc31
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
   state[0] += dx;

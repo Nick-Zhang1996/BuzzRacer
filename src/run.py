@@ -24,6 +24,7 @@ from CollisionChecker import CollisionChecker
 from Optitrack import Optitrack
 from Visualization import Visualization
 from PerformanceTracker import PerformanceTracker
+from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
@@ -74,6 +75,9 @@ class Main():
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
+        #self.extensions.append(self.performance_tracker)
+        self.watchdog = Watchdog(self)
+        self.extensions.append(self.watchdog)
 
         for item in self.extensions:
             item.init()

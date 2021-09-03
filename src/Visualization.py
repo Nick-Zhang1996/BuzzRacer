@@ -17,7 +17,7 @@ class Visualization(Extension):
     def init(self,):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
-        self.img_track = self.main.track.drawRaceline(img=self.img_track)
+        #self.img_track = self.main.track.drawRaceline(img=self.img_track)
         cv2.imshow('experiment',self.img_track)
         cv2.waitKey(1)
 
@@ -26,10 +26,13 @@ class Visualization(Extension):
 
     def saveBlankImg(self):
         img = self.img_track.copy()
-        obstacles = self.main.cars[0].controller.obstacles
-        # plot obstacles
-        for obs in obstacles:
-            img = self.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+        try:
+            obstacles = self.main.cars[0].controller.obstacles
+            # plot obstacles
+            for obs in obstacles:
+                img = self.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+        except AttributeError:
+            pass
         
         with open("track_img.p",'wb') as f:
             print_info(self.prefix()+"saved raw track background")

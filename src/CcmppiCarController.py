@@ -40,13 +40,16 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.terminal_cov_vec = []
-        self.plotDebugFlag = True
-        self.getEstimatedTerminalCovFlag = False
+        self.terminal_cov_mtx_vec = []
+        self.theory_cov_mtx_vec = []
+        self.plotDebugFlag = False
+        self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]
         # control effort u'Ru
         self.utru = 0
+        car.in_collision = False
         return
 
     # Hack
@@ -104,7 +107,7 @@ class CcmppiCarController(CarController):
 
         if (algorithm == 'ccmppi'):
             self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
-            cc_ratio = 0.8
+            cc_ratio = 1.0
         elif (algorithm == 'mppi-same-injected'):
             ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
@@ -134,6 +137,7 @@ class CcmppiCarController(CarController):
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v,
+                'laptime_priority':1.0,
                 'R_diag': self.R_diag}
         if (self.model == KinematicSimulator):
             arg_list['state_dim'] = 4
@@ -142,10 +146,12 @@ class CcmppiCarController(CarController):
             arg_list['state_dim'] = 6
             arg_list['model_name'] = DynamicSimulator
 
-
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
             print_info("ccmppi samples override to %d"%(arg_list['samples']))
+        if ('laptime_priority' in self.car.main.params.keys()):
+            arg_list['laptime_priority'] = self.car.main.params['laptime_priority']
+            print_info("ccmppi laptime_priority override to %d"%(arg_list['laptime_priority']))
 
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
@@ -309,6 +315,8 @@ class CcmppiCarController(CarController):
 
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
+        self.theory_cov_mtx = self.ccmppi.theory_cov_mtx
+        self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
 
         # for debug
         self.debug_states = states.copy()
@@ -416,6 +424,7 @@ class CcmppiCarController(CarController):
         cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
         self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
         self.terminal_cov_vec.append(self.terminal_xy_cov)
+        self.terminal_cov_mtx_vec.append(cov)
         return
 
     def plotDebug(self):
