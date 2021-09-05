@@ -1,4 +1,5 @@
 # universal entry point for running the car
+import argparse
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
@@ -133,48 +134,58 @@ class Main():
 
 
 if __name__ == '__main__':
+    # start with no. skip experiment, index start with 0
+    # e.g. skip = 3 means skip 0,1,2
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skip", help="number of experiments to skip", type=int, default=0)
+    args = parser.parse_args()
+    print_info("skipping %d experiments"%(args.skip))
+
     log_filename = "log.txt"
+    '''
     with open(log_filename,'a') as f:
         f.write("# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count, mean_control_effort, terminal_cov(position), laptime_stddev, log_no\n")
+    '''
     
     experiment_count = 0
-    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    for algorithm in ['ccmppi']:
-        #laptime_priorities = [0.5, 0.75, 0.9, 1.0, 1.2, 1.5, 2, 5, 10, 20, 50, 100]
-        laptime_priorities_wide = np.hstack([ np.linspace(2,10,50), np.linspace(10,100,50)])
-        laptime_priorities = np.hstack([np.linspace(0.2,2.0,50), laptime_priorities_wide])
-        for laptime_priority in laptime_priorities:
-            samples = 4096
-            params = {'samples':samples, 'algorithm':algorithm,'laptime_priority':laptime_priority}
+    alfas = np.hstack([np.linspace(0.4,0.6,3), np.linspace(0.8,0.9,2)])
+    betas = np.hstack([np.linspace(1,10,5)])
+    for alfa in alfas:
+        for beta in betas:
+            #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+            for algorithm in ['mppi-same-injected','ccmppi']:
+                samples = 4096
+                params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 
-            experiment_count += 1
-            if (experiment_count < 88):
-                continue
+                experiment_count += 1
+                if (experiment_count < args.skip):
+                    continue
 
-            print_info("-------------- start one experiment ------------")
-            print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
-            experiment = Main(params)
-            experiment.run()
+                print_info("-------------- start one experiment ------------")
+                print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
+                experiment = Main(params)
+                experiment.run()
 
-            try:
-                laptime = experiment.car_laptime_mean[0]
-                laps = experiment.car_total_laps[0]
-                laptime_stddev = experiment.car_laptime_stddev[0]
-                collisions = experiment.car_total_collisions[0]
-                control_effort = experiment.performance_tracker.mean_control_effort
-                terminal_cov = experiment.performance_tracker.terminal_cov
-            except (IndexError,AttributeError,IndexError) as e:
-                laptime = -1
-                laps = -1
-                laptime_stddev = -1
-                collisions = -1
-                control_effort = -1
-                terminal_cov = -1
-                print_warning(" bad experiment "+str(e))
-            text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),laptime_priority)
-            print_info(text)
-            with open(log_filename,'a') as f:
-                f.write(text +"\n")
-            print_info("-------------- finish one experiment ------------")
+                try:
+                    laptime = experiment.car_laptime_mean[0]
+                    laps = experiment.car_total_laps[0]
+                    laptime_stddev = experiment.car_laptime_stddev[0]
+                    collisions = experiment.car_total_collisions[0]
+                    control_effort = experiment.performance_tracker.mean_control_effort
+                    terminal_cov = experiment.performance_tracker.terminal_cov
+                except (IndexError,AttributeError,IndexError) as e:
+                    laptime = -1
+                    laps = -1
+                    laptime_stddev = -1
+                    collisions = -1
+                    control_effort = -1
+                    terminal_cov = -1
+                    print_warning(" bad experiment "+str(e))
+                text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),alfa,beta)
+                print_info(text)
+                with open(log_filename,'a') as f:
+                    f.write(text +"\n")
+                print_info("-------------- finish one experiment ------------")
 
     print_info("program complete")
+    exit(0)

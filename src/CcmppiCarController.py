@@ -138,14 +138,19 @@ class CcmppiCarController(CarController):
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v,
                 'R_diag': self.R_diag,
-                'laptime_priority':1.0}
+                'alfa':1.0,
+                'beta':1.0}
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
             print_info("ccmppi samples override to %d"%(arg_list['samples']))
-        if ('laptime_priority' in self.car.main.params.keys()):
-            arg_list['laptime_priority'] = self.car.main.params['laptime_priority']
-            print_info("ccmppi laptime_priority override to %d"%(arg_list['laptime_priority']))
+
+        if ('alfa' in self.car.main.params.keys()):
+            arg_list['alfa'] = self.car.main.params['alfa']
+            print_info("ccmppi alfa override to %d"%(arg_list['alfa']))
+        if ('beta' in self.car.main.params.keys()):
+            arg_list['beta'] = self.car.main.params['beta']
+            print_info("ccmppi beta override to %d"%(arg_list['beta']))
 
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']

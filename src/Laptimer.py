@@ -78,7 +78,7 @@ class _Laptimer:
         self.p1norm = lambda a:abs(a[0])+abs(a[1])
 
         # freeze laptimer for a certain time after a new lap to prevent immediate recounting
-        self.timeout = 0.5
+        self.timeout = 1.0
         self.hotzone_radius = 0.5
 
     def update(self,coord,current_time=None):
