@@ -148,12 +148,12 @@ if __name__ == '__main__':
     '''
     
     experiment_count = 0
-    alfas = np.hstack([np.linspace(0.4,0.6,3), np.linspace(0.8,0.9,2)])
-    betas = np.hstack([np.linspace(1,10,5)])
+    alfas = np.hstack([np.linspace(0.5,1.0,6)])
+    betas = np.hstack([np.linspace(1,10,10)])
     for alfa in alfas:
         for beta in betas:
-            #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-            for algorithm in ['mppi-same-injected','ccmppi']:
+            for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+            #for algorithm in ['mppi-same-injected','ccmppi']:
                 samples = 4096
                 params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 
