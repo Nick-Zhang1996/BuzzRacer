@@ -15,6 +15,7 @@ def plotTraj(track, filename, img, color, text):
     y = data[:,2]
     points = np.vstack([x,y]).T
     track.drawPolyline(points, img, lineColor=color,thickness=2)
+    return img
 
     # font
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -39,9 +40,11 @@ with open("track_img.p", 'rb') as f:
 
 track = TrackFactory(name='full')
 grayness = 180
-ccmppi_logno = 63
-mppi_injected_logno = 11
-mppi_cov_logno = 37
+
+ccmppi_logno = 1335
+mppi_cov_logno = 1334
+mppi_injected_logno = 1333
+
 offset = 0
 
 filename = "../log/kinematics_results/full_state"+str(ccmppi_logno)+".p"
@@ -58,5 +61,7 @@ img = np.array(img,dtype=np.uint8)
 
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+fig = plt.figure()
 plt.imshow(img)
+fig.savefig('out.png', bbox_inches='tight',transparent=True, pad_inches=0)
 plt.show()

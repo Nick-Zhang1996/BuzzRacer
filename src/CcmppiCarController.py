@@ -41,7 +41,7 @@ class CcmppiCarController(CarController):
         self.terminal_cov_vec = []
         self.terminal_cov_mtx_vec = []
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
@@ -101,6 +101,7 @@ class CcmppiCarController(CarController):
     def init(self):
 
         algorithm = 'ccmppi'
+        #algorithm = 'mppi-same-injected'
         if ('algorithm' in self.car.main.params.keys()):
             algorithm = self.car.main.params['algorithm']
 
