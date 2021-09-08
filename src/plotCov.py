@@ -11,9 +11,10 @@ def getCov(log_no):
         data = pickle.load(f)
         data = data[0]
 
+    cov = data['theory_cov_mtx']
+    return np.linalg.norm(cov)
+
     cov = data['terminal_cov_mtx']
-    #cov = data['theory_cov_mtx']
-    #return np.linalg.norm(cov)
     eigs = np.linalg.eig(cov)[0]**0.5
     return eigs[0]*eigs[1]*np.pi
 
