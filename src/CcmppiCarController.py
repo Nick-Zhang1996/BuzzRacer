@@ -158,7 +158,7 @@ class CcmppiCarController(CarController):
         self.samples_count = arg_list['samples']
         self.cc_ratio = arg_list['cc_ratio']
 
-        self.ccmppi = CCMPPI(arg_list)
+        self.ccmppi = CCMPPI(self,arg_list)
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         self.additionalSetup()
@@ -302,6 +302,7 @@ class CcmppiCarController(CarController):
 
         p.s("ccmppi")
         uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
+
         control = uu[0]
         throttle = control[0]
         steering = control[1]

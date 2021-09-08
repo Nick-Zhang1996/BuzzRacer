@@ -13,7 +13,8 @@ from timeUtil import execution_timer
 from ccmppi_kinematic import CCMPPI_KINEMATIC
 
 class CCMPPI:
-    def __init__(self,arg_list):
+    def __init__(self,parent,arg_list):
+        self.parent = parent
 
         self.K = arg_list['samples']
 
@@ -37,6 +38,8 @@ class CCMPPI:
         self.old_ref_control = np.zeros([self.T,self.m],dtype=np.float32)
         self.curand_kernel_n = 1024
         print_info("loading cuda module ...")
+        self.ref_traj = None
+        self.ref_ctrl = None
 
         import pycuda.autoinit
         global drv
@@ -110,7 +113,10 @@ class CCMPPI:
         # CCMPPI specific, generate and pack K matrices
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
             #Ks, As, Bs, ds = self.cc.cc(state)
-            Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, return_sx = True , debug=False)
+            if (self.ref_traj is None):
+                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.old_cc(state, return_sx = True , debug=False)
+            else:
+                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, self.ref_traj, self.ref_ctrl, return_sx = True , debug=False)
             self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
 
         else:
@@ -248,30 +254,17 @@ class CCMPPI:
         self.old_ref_control = ref_control.copy()
         p.e("post")
 
-        # DEBUG
-        # simulate same control sequence in CPU to simpler debugging
-        # No CC
-
-        '''
-        print("CPU sim of min cost control sequence")
-        i = min_cost_index
-        this_control_seq = control[i]
+        # generate ref_traj by simulating synthesized optimal control sequence 
         state = x0.copy()
         cost = 0.0
+        self.ref_traj = [state]
+        self.ref_ctrl = ref_control.copy()
         for k in range(self.N):
-            print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-            state = self.forwardKinematics(state,this_control_seq[k])
-            step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
-            cost += step_cost
-            print(step_cost, index, dist)
-        '''
-
-        # DEBUG
-        '''
-        self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-        self.cc.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
-        self.cc.visualizeOnTrack()
-        '''
+            #print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
+            state = self.parent.applyDiscreteDynamics(state,ref_control[k],self.dt)
+            self.ref_traj.append(state)
+        self.ref_traj = np.array(self.ref_traj)
+        self.ref_ctrl = np.array(self.ref_ctrl)
 
 
         # throttle, steering
