@@ -58,6 +58,7 @@ class CCMPPI:
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
         cuda_code_macros.update({"alfa":arg_list['alfa']})
         cuda_code_macros.update({"beta":arg_list['beta']})
+        cuda_code_macros.update({"use_raceline":"true" if arg_list['rcp_track'] else "false"})
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 

@@ -1,6 +1,7 @@
 from common import *
 from Track import Track
 from RCPTrack import RCPtrack
+from EmptyTrack import EmptyTrack
 from skidpad import Skidpad
 from math import radians
 def TrackFactory(name='full'):
@@ -12,7 +13,7 @@ def TrackFactory(name='full'):
         return
 
 def prepareEmptyTrack():
-    return None
+    return EmptyTrack()
 
 
 def prepareRcpTrack():

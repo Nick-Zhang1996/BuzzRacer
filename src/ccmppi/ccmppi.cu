@@ -15,6 +15,7 @@
 // control cost matrix R
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
+#define USE_RACELINE %(use_raceline)s
 
 #define ALFA %(alfa)s
 #define BETA %(beta)s
@@ -315,6 +316,7 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
 
   int idx = 0;
   float current_min = 1e6;
+  if (!USE_RACELINE){ *ret_idx=0; return;}
 
   int start, end;
   if (guess == -1){
@@ -373,6 +375,7 @@ __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
   int idx0,idx;
   float dist,cost;
+  if (!USE_RACELINE){ return 0.0;}
 
   // we don't need distance info for initial state, 
   //dist is put in as a dummy variable, it is immediately overritten

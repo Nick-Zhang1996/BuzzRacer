@@ -17,6 +17,7 @@ from timeUtil import execution_timer
 from ccmppi import CCMPPI
 from CarController import CarController
 from KinematicSimulator import KinematicSimulator
+from RCPTrack import RCPtrack
 import pickle
 
 class CcmppiCarController(CarController):
@@ -52,7 +53,7 @@ class CcmppiCarController(CarController):
         return
 
     # Hack
-    def additionalSetup(self):
+    def additionalSetupRcp(self):
         obstacle_count = 60
         filename = "obstacles.p"
         if (os.path.isfile(filename)):
@@ -75,6 +76,9 @@ class CcmppiCarController(CarController):
 
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles
+
+    def additionalSetupEmpty(self):
+        self.obstacles = np.array([0.6,0.5])
 
     # check if vehicle is currently in collision with obstacle
     def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
@@ -123,7 +127,6 @@ class CcmppiCarController(CarController):
         # control noise for MPPI exploration
         self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
 
-
         # discretize raceline for use in MPPI
         self.prepareDiscretizedRaceline()
 
@@ -153,6 +156,8 @@ class CcmppiCarController(CarController):
             arg_list['beta'] = self.car.main.params['beta']
             print_info("ccmppi beta override to %d"%(arg_list['beta']))
 
+        arg_list['rcp_track'] = isinstance(self.track,RCPtrack)
+
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
         self.samples_count = arg_list['samples']
@@ -161,12 +166,19 @@ class CcmppiCarController(CarController):
         self.ccmppi = CCMPPI(self,arg_list)
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.additionalSetup()
+        if (isinstance(self.track,RCPtrack)):
+            self.additionalSetupRcp()
+        else:
+            self.additionalSetupEmpty()
 
         return
 
 
     def prepareDiscretizedRaceline(self):
+        if (not isinstance(self.track,RCPtrack)):
+            self.discretized_raceline = np.zeros(1)
+            self.discretized_raceline_len = 0
+            return
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
@@ -279,7 +291,8 @@ class CcmppiCarController(CarController):
                 return ret
             else:
                 # parse return value from localTrajectory
-                (local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+                #(local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
+                (_,_,_,_,_,u0) = retval
                 # save for estimate at next step
                 self.last_s = track.uToS(u0).item()
         p.e("local traj")
