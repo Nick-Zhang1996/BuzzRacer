@@ -4,12 +4,16 @@ from RCPTrack import RCPtrack
 from skidpad import Skidpad
 from math import radians
 def TrackFactory(name='full'):
-    mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad}
+    mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}
     if (name in mapping):
         return mapping[name]()
     else:
         print_error("unknown track name")
         return
+
+def prepareEmptyTrack():
+    return None
+
 
 def prepareRcpTrack():
     # width 0.563, square tile side length 0.6
