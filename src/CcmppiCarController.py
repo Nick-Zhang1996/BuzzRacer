@@ -46,6 +46,7 @@ class CcmppiCarController(CarController):
         # control effort u'Ru
         self.utru = 0
         car.in_collision = False
+        self.car = car
         return
 
     # Hack
@@ -332,6 +333,8 @@ class CcmppiCarController(CarController):
             print_error("[Ccmppi] Attribute error " + str(e))
 
         p.e("debug")
+        self.car.debug_dict['theory_cov_mtx_vec'] = self.theory_cov_mtx_vec
+        self.car.debug_dict['terminal_cov_mtx_vec'] = self.terminal_cov_mtx_vec
         p.e()
         return True
 
