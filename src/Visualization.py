@@ -52,7 +52,7 @@ class Visualization(Extension):
             self.visualization_ts = time()
             cv2.imshow('experiment',self.visualization_img)
 
-            k = cv2.waitKey(0) & 0xFF
+            k = cv2.waitKey(1) & 0xFF
             if k == ord('q'):
                 # first time q is presed, slow down
                 if not self.main.slowdown.isSet():

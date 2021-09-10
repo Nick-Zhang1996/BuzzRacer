@@ -25,6 +25,7 @@ from Optitrack import Optitrack
 from Visualization import Visualization
 from PerformanceTracker import PerformanceTracker
 from Watchdog import Watchdog
+from StepCounter import StepCounter
 
 class Main():
     def __init__(self,params={}):
@@ -73,8 +74,9 @@ class Main():
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         self.extensions.append(Gifsaver(self))
-        #self.performance_tracker = PerformanceTracker(self)
-        #self.extensions.append(self.performance_tracker)
+        self.performance_tracker = PerformanceTracker(self)
+        self.extensions.append(self.performance_tracker)
+        self.extensions.append(StepCounter(self))
         #self.watchdog = Watchdog(self)
         #self.extensions.append(self.watchdog)
 

@@ -37,11 +37,16 @@ class CcmppiCarController(CarController):
         self.trajectory = []
 
         # DEBUG
-        self.terminal_cov_vec = []
-        self.terminal_cov_mtx_vec = []
         self.theory_cov_mtx_vec = []
         self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = True
+
+        self.pos_2_norm = None
+        self.state_2_norm = None
+        self.pos_area = None
+        self.pos_2_norm_vec = []
+        self.state_2_norm_vec = []
+        self.pos_area_vec = []
 
         # diagnal terms of control cost matrix u'Ru
         self.R_diag = [0.01, 0.01]
@@ -360,7 +365,6 @@ class CcmppiCarController(CarController):
 
         p.e("debug")
         self.car.debug_dict['theory_cov_mtx_vec'] = self.theory_cov_mtx_vec
-        self.car.debug_dict['terminal_cov_mtx_vec'] = self.terminal_cov_mtx_vec
         p.e()
         return True
 
@@ -476,7 +480,7 @@ class CcmppiCarController(CarController):
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
-        samples = 50
+        samples = 20
         index = random.sample(range(sampled_control.shape[0]), samples)
         samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
@@ -502,18 +506,20 @@ class CcmppiCarController(CarController):
 
         # calculate terminal covariance
         # terminal position covariance matrix,
-        xy_cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
-        norm2 = np.linalg.norm(xy_cov)
-        self.terminal_xy_cov = norm2
+        pos_cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        pos_2_norm = np.linalg.norm(pos_cov)
+        self.pos_2_norm = pos_2_norm
+        self.pos_2_norm_vec.append(pos_2_norm)
 
-        eigs = np.linalg.eig(xy_cov)[0]**0.5
-        area =  eigs[0]*eigs[1]*np.pi
+        eigs = np.linalg.eig(pos_cov)[0]**0.5
+        self.pos_area =  eigs[0]*eigs[1]*np.pi
+        self.pos_area_vec.append(self.pos_area)
 
         # terminal state covariance matrix,
         state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
-        norm2 = np.linalg.norm(state_cov)
-        self.terminal_cov_vec.append(norm2)
-        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.terminal_xy_cov, norm2, area))
+        self.state_2_norm = np.linalg.norm(state_cov)
+        self.state_2_norm_vec.append(self.state_2_norm)
+        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
 
         # DEBUG
         # apply the kth sampled control
