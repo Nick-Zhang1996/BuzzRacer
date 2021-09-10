@@ -38,7 +38,7 @@ class Main():
 
         Car.reset()
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(0.5,0.3,radians(90),1.5))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(1.0,0.25,radians(90),3))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -149,11 +149,13 @@ if __name__ == '__main__':
     '''
     
     experiment_count = 0
+    # progress
     alfa = 1
-    beta = 10
+    # collision
+    beta = 1
 
     #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    for algorithm in ['mppi-cov','ccmppi']:
+    for algorithm in ['narrow-mppi','narrow-ccmppi']:
         samples = 4096
         params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 

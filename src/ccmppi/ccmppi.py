@@ -41,6 +41,7 @@ class CCMPPI:
         self.ref_traj = None
         self.ref_ctrl = None
 
+
         import pycuda.autoinit
         global drv
         import pycuda.driver as drv
@@ -59,6 +60,8 @@ class CCMPPI:
         cuda_code_macros.update({"alfa":arg_list['alfa']})
         cuda_code_macros.update({"beta":arg_list['beta']})
         cuda_code_macros.update({"use_raceline":"true" if arg_list['rcp_track'] else "false"})
+        cuda_code_macros.update({"obstacle_radius":arg_list['obstacle_radius']})
+        print_info("[ccmppi]:"+str(cuda_code_macros))
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
@@ -255,16 +258,7 @@ class CCMPPI:
         p.e("post")
 
         # generate ref_traj by simulating synthesized optimal control sequence 
-        state = x0.copy()
-        cost = 0.0
-        self.ref_traj = [state]
-        self.ref_ctrl = ref_control.copy()
-        for k in range(self.N):
-            #print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-            state = self.parent.applyDiscreteDynamics(state,ref_control[k],self.dt)
-            self.ref_traj.append(state)
-        self.ref_traj = np.array(self.ref_traj)
-        self.ref_ctrl = np.array(self.ref_ctrl)
+        self.buildReferenceTrajectory(x0, ref_control)
 
 
         # throttle, steering
@@ -275,6 +269,21 @@ class CCMPPI:
         if isnan(ref_control[0,1]):
             print_error("cc-mppi fail to return valid control")
         return ref_control
+
+    # given initial state and control sequence, generate ref_traj and ref_ctrl
+    def buildReferenceTrajectory(self, x0, ctrl_sequence):
+        assert (ctrl_sequence.shape[0] == self.N)
+        assert (ctrl_sequence.shape[1] == self.m)
+        state = x0.copy()
+        self.ref_traj = [state]
+        self.ref_ctrl = ctrl_sequence.copy()
+        for k in range(self.N):
+            #print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
+            state = self.parent.applyDiscreteDynamics(state,self.ref_ctrl[k],self.dt)
+            self.ref_traj.append(state)
+        self.ref_traj = np.array(self.ref_traj)
+        self.ref_ctrl = np.array(self.ref_ctrl)
+        return
 
     def evalControl(self,state,candidate_control):
         candidate_control = np.array(candidate_control).reshape(-1,self.m)

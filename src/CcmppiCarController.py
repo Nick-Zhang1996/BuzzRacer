@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
         self.terminal_cov_vec = []
         self.terminal_cov_mtx_vec = []
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
@@ -74,12 +74,10 @@ class CcmppiCarController(CarController):
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles
 
-    def additionalSetupEmpty(self):
-        self.obstacles = obstacles = np.array([[0.5,0.5]])
-        self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
 
     # check if vehicle is currently in collision with obstacle
-    def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
+    def isInObstacle(self, get_obstacle_id=False):
+        dist = self.obstacle_radius
         x,y,heading,vf,vs,omega = self.car.states
         min_dist = 100.0
         for i in range(self.obstacles.shape[0]):
@@ -87,7 +85,7 @@ class CcmppiCarController(CarController):
             dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
             if (dist<min_dist):
                 min_dist = dist
-            if (dist < 0.1):
+            if (dist < self.obstacle_radius):
                 if (get_obstacle_id):
                     return (True,i)
                 else:
@@ -102,6 +100,7 @@ class CcmppiCarController(CarController):
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used
     def init(self):
 
+
         algorithm = 'ccmppi'
         #algorithm = 'mppi-same-injected'
         if ('algorithm' in self.car.main.params.keys()):
@@ -114,38 +113,53 @@ class CcmppiCarController(CarController):
             ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
-        elif (algorithm == 'mppi-cov'):
-            ratio = 0.6
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
         elif (algorithm == 'mppi-same-terminal-cov'):
             ratio = 0.7
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
+        if (algorithm == 'narrow-ccmppi'):
+            ratio = 0.25
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 1.0
+        elif (algorithm == 'narrow-mppi'):
+            ratio = 0.15
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+
+        self.control_dim = 2
+        self.state_dim = 4
+        self.horizon_steps = 15
+        self.samples_count = 4096
+        self.cc_ratio = cc_ratio
         print_info('[CcmppiCarController]: ' + algorithm)
+        self.obstacle_radius = 0.3
 
         self.track = self.car.main.track
         self.discretized_raceline_len = 1024
         # control noise for MPPI exploration
         self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
 
-        # discretize raceline for use in MPPI
-        self.prepareDiscretizedRaceline()
+        if (isinstance(self.track,RCPtrack)):
+            # discretize raceline for use in MPPI
+            self.prepareDiscretizedRaceline()
+        else:
+            self.prepareEmptyRaceline()
 
         arg_list = {'samples':4096,
-                'horizon': 15,
-                'state_dim': 4,
-                'control_dim': 2,
+                'horizon': self.horizon_steps,
+                'state_dim': self.state_dim,
+                'control_dim': self.control_dim,
                 'temperature': 0.2,
                 'dt': self.ccmppi_dt,
                 'noise_cov': self.noise_cov,
-                'cc_ratio': cc_ratio,
+                'cc_ratio': self.cc_ratio,
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
                 'max_v': self.car.main.simulator.max_v,
                 'R_diag': self.R_diag,
                 'alfa':1.0,
-                'beta':1.0}
+                'beta':1.0,
+                'obstacle_radius':self.obstacle_radius}
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
@@ -158,29 +172,36 @@ class CcmppiCarController(CarController):
             arg_list['beta'] = self.car.main.params['beta']
             print_info("ccmppi beta override to %d"%(arg_list['beta']))
 
-        arg_list['rcp_track'] = isinstance(self.track,RCPtrack)
-
-        self.control_dim = arg_list['control_dim']
-        self.horizon_steps = arg_list['horizon']
-        self.samples_count = arg_list['samples']
-        self.cc_ratio = arg_list['cc_ratio']
+        #arg_list['rcp_track'] = isinstance(self.track,RCPtrack)
+        arg_list['rcp_track'] = True
 
         self.ccmppi = CCMPPI(self,arg_list)
-
-        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
         if (isinstance(self.track,RCPtrack)):
+            # discretize raceline for use in MPPI
             self.additionalSetupRcp()
         else:
             self.additionalSetupEmpty()
 
+        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
+
         return
 
+    def prepareEmptyRaceline(self):
+        size = 400
+        self.discretized_raceline = np.zeros([size,6])
+        self.discretized_raceline[:,1] = np.linspace(-2,2,size)
+        self.discretized_raceline[:,0] = 1.0
+        self.discretized_raceline_len = size
+        return
+
+    def additionalSetupEmpty(self):
+        self.obstacles = obstacles = np.array([[1.0,0.73]])
+        self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
+        x,y,heading,vf,vs,omega = self.car.states
+        states = np.array([x,y,vf,heading])
+        self.ccmppi.buildReferenceTrajectory(states, np.zeros([self.horizon_steps,self.control_dim]))
 
     def prepareDiscretizedRaceline(self):
-        if (not isinstance(self.track,RCPtrack)):
-            self.discretized_raceline = np.zeros(1)
-            self.discretized_raceline_len = 0
-            return
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
@@ -323,11 +344,11 @@ class CcmppiCarController(CarController):
         p.s("debug")
 
         try:
+            self.plotObstacles()
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
-            self.plotObstacles()
             self.plotAlgorithm()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
@@ -369,11 +390,11 @@ class CcmppiCarController(CarController):
         img = self.car.main.visualization.visualization_img
         # plot obstacles
         for obs in self.obstacles:
-            img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
+            img = self.car.main.track.drawCircle(img, obs, self.obstacle_radius, color=(255,100,100))
         has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
         if (has_collided):
             # plot obstacle in collision red
-            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
+            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], self.obstacle_radius, color=(100,100,255))
 
         text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
         # font
@@ -435,27 +456,43 @@ class CcmppiCarController(CarController):
         # use only first 100
         samples = 100
         # randomly select 100
-        index = random.sample(range(sampled_control.shape[0]), samples)
-        sampled_control = sampled_control[index,:,:]
+        #index = random.sample(range(sampled_control.shape[0]), samples)
+        #sampled_control = sampled_control[index,:,:]
+        # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
+        rollout_state_vec = []
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
-        for k in range(samples):
+        for k in range(sampled_control.shape[0]):
             this_rollout_traj = []
+            this_state_traj = []
             sim_states = states.copy()
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
                 x,y,vf,heading = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
+                this_state_traj.append(sim_states)
             rollout_traj_vec.append(this_rollout_traj)
+            rollout_state_vec.append(this_state_traj)
         self.debug_dict['rollout_traj_vec'] = rollout_traj_vec
+        self.debug_dict['rollout_state_vec'] = rollout_state_vec
 
-        # calculate terminal covariance on position
-        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
-        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
-        self.terminal_cov_vec.append(self.terminal_xy_cov)
+        # calculate terminal covariance
+        # terminal position covariance matrix,
+        xy_cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        norm2 = np.linalg.norm(xy_cov)
+        self.terminal_xy_cov = norm2
+
+        eigs = np.linalg.eig(xy_cov)[0]**0.5
+        area =  eigs[0]*eigs[1]*np.pi
+
+        # terminal state covariance matrix,
+        state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
+        norm2 = np.linalg.norm(state_cov)
+        self.terminal_cov_vec.append(norm2)
+        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.2f"%(self.terminal_xy_cov, norm2, area))
 
         # DEBUG
         # apply the kth sampled control

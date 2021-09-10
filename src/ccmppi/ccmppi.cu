@@ -16,6 +16,7 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 #define USE_RACELINE %(use_raceline)s
+#define OBSTACLE_RADIUS %(obstacle_radius)s
 
 #define ALFA %(alfa)s
 #define BETA %(beta)s
@@ -507,9 +508,11 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[1]-opponent_pos[1];
-  //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  cost = cost>0? cost:0;
+  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
+  //gradient linear cost
+  //cost = cost>0? cost:0;
+  // constant cost
+  cost = cost>0? 10:0;
   cost *= BETA;
 
   return cost ;
