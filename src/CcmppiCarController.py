@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
         self.terminal_cov_vec = []
         self.terminal_cov_mtx_vec = []
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
@@ -315,6 +315,7 @@ class CcmppiCarController(CarController):
         self.car.throttle = throttle
         self.car.steering = steering
         p.s("debug")
+
         try:
             if (self.plotDebugFlag):
                 self.plotDebug()
@@ -322,10 +323,9 @@ class CcmppiCarController(CarController):
                 self.getEstimatedTerminalCov()
             self.plotObstacles()
             self.plotAlgorithm()
-            pass
-        except AttributeError:
-            print_warning("error")
-            pass
+        except AttributeError as e:
+            print_error("[Ccmppi] Attribute error " + str(e))
+
         p.e("debug")
         p.e()
         return True

@@ -58,8 +58,8 @@ class Main():
         self.visualization = Visualization(self)
         self.extensions.append(self.visualization)
         self.simulator = KinematicSimulator(self)
-        self.simulator.match_real_time = False
-        #self.collision_checker = CollisionChecker(self)
+        self.simulator.match_real_time = True
+        self.collision_checker = CollisionChecker(self)
         # Laptimer
         #self.laptimer = Laptimer(self)
         #self.extensions.append(self.laptimer)
@@ -116,8 +116,6 @@ class Main():
 
         self.new_state_update.wait()
         self.new_state_update.clear()
-        if (self.visualization.update_visualization.is_set):
-            print("is set")
 
         for car in self.cars:
             # call controller, send command to car in real experiment
@@ -154,7 +152,8 @@ if __name__ == '__main__':
     alfa = 1
     beta = 1
 
-    for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
+    for algorithm in ['mppi-same-injected','ccmppi']:
         samples = 4096
         params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 

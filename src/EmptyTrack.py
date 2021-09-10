@@ -130,12 +130,7 @@ class EmptyTrack(Track):
         cols = self.gridsize[1]
         res = self.resolution
 
-        # this gives smoother result, but difficult to relate u to actual grid
-        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
-
-        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
         # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0,self.track_length_grid,1000)
         points = np.array(points)
         x_new = points[:,0]
         y_new = points[:,1]

@@ -5,6 +5,7 @@ from time import time
 t0 = time()
 skip = 0
 command = "python3 benchmark.py --skip %d"%(skip)
+print_warning("skipping %d"%(skip))
 process = subprocess.Popen(command, shell=True, stdout=None)
 process.wait()
 
