@@ -68,11 +68,11 @@ class Main():
         # save experiment as a gif, this provides an easy to use visualization for presentation
         #self.logger = Logger(self)
         #self.extensions.append(self.logger)
-        #self.extensions.append(self.collision_checker)
+        self.extensions.append(self.collision_checker)
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
-        #self.extensions.append(Gifsaver(self))
+        self.extensions.append(Gifsaver(self))
         #self.performance_tracker = PerformanceTracker(self)
         #self.extensions.append(self.performance_tracker)
         #self.watchdog = Watchdog(self)

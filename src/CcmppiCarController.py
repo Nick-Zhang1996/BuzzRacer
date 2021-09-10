@@ -33,6 +33,8 @@ class CcmppiCarController(CarController):
 
         self.opponents = []
         self.opponent_prediction = []
+        # (x,y)
+        self.trajectory = []
 
         # DEBUG
         self.terminal_cov_vec = []
@@ -118,11 +120,11 @@ class CcmppiCarController(CarController):
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         if (algorithm == 'narrow-ccmppi'):
-            ratio = 0.25
+            ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 1.0
         elif (algorithm == 'narrow-mppi'):
-            ratio = 0.15
+            ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
 
@@ -132,7 +134,8 @@ class CcmppiCarController(CarController):
         self.samples_count = 4096
         self.cc_ratio = cc_ratio
         print_info('[CcmppiCarController]: ' + algorithm)
-        self.obstacle_radius = 0.3
+        self.obstacle_radius = 0.1
+        self.zero_ref_ratio = 0.2
 
         self.track = self.car.main.track
         self.discretized_raceline_len = 1024
@@ -159,7 +162,8 @@ class CcmppiCarController(CarController):
                 'R_diag': self.R_diag,
                 'alfa':1.0,
                 'beta':1.0,
-                'obstacle_radius':self.obstacle_radius}
+                'obstacle_radius':self.obstacle_radius,
+                'zero_ref_ratio': self.zero_ref_ratio}
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
@@ -350,6 +354,7 @@ class CcmppiCarController(CarController):
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
             self.plotAlgorithm()
+            self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
@@ -359,6 +364,7 @@ class CcmppiCarController(CarController):
         p.e()
         return True
 
+
     def plotAlgorithm(self):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
@@ -367,12 +373,13 @@ class CcmppiCarController(CarController):
         if (self.cc_ratio < 0.01):
             text = "MPPI"
         else:
-            text = "CCMPPI %.1f"%(self.cc_ratio)
+            #text = "CCMPPI %.1f"%(self.cc_ratio)
+            text = "CCMPPI"
 
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX
         # org
-        org = (50, 50)
+        org = (20, 50)
         # fontScale
         fontScale = 1
         # Blue color in BGR
@@ -400,7 +407,7 @@ class CcmppiCarController(CarController):
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX
         # org
-        org = (250, 50)
+        org = (200, 50)
         # fontScale
         fontScale = 1
         # Blue color in BGR
@@ -410,6 +417,20 @@ class CcmppiCarController(CarController):
         img = cv2.putText(img, text, org, font,
                            fontScale, color, thickness, cv2.LINE_AA)
         self.car.main.visualization.visualization_img = img
+
+    def plotTrajectory(self):
+
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+        x,y,_,_,_,_ = self.car.states
+        self.trajectory.append((x,y))
+        for coord in self.trajectory:
+            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
+        self.car.main.visualization.visualization_img = img
+        return
+
+
 
 
     def getEstimatedTerminalCov(self):
@@ -453,18 +474,18 @@ class CcmppiCarController(CarController):
         states = self.debug_states
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
-        # use only first 100
-        samples = 100
-        # randomly select 100
-        #index = random.sample(range(sampled_control.shape[0]), samples)
-        #sampled_control = sampled_control[index,:,:]
+        sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
+
+        samples = 50
+        index = random.sample(range(sampled_control.shape[0]), samples)
+        samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
         rollout_state_vec = []
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
-        for k in range(sampled_control.shape[0]):
+        for k in range(samples):
             this_rollout_traj = []
             this_state_traj = []
             sim_states = states.copy()
@@ -492,7 +513,7 @@ class CcmppiCarController(CarController):
         state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
         norm2 = np.linalg.norm(state_cov)
         self.terminal_cov_vec.append(norm2)
-        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.2f"%(self.terminal_xy_cov, norm2, area))
+        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.terminal_xy_cov, norm2, area))
 
         # DEBUG
         # apply the kth sampled control
@@ -522,14 +543,14 @@ class CcmppiCarController(CarController):
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
         for coords in coords_vec:
-            img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img)
+            img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img,thickness=1)
 
         # plot ideal trajectory (if car follow synthesized control)
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x,y = coord
             img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
-        img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img)
+        img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img,thickness=1)
 
         # plot opponent prediction
         '''

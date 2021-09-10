@@ -135,7 +135,7 @@ void evaluate_control_sequence(
 
   if (id <= int(CC_RATIO * SAMPLE_COUNT)){
     if (id <= int(CC_RATIO * SAMPLE_COUNT * ZERO_REF_CTRL_RATIO)){
-      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_ZERO_REF);
+      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_NOCC, MODE_ZERO_REF);
     } else {
       _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_REF);
     }
@@ -187,6 +187,7 @@ void _evaluate_control_sequence(
     x[i] = *(x0 + i);
     y[i] = 0;
   }
+
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
   }
