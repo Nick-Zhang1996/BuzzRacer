@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from common import *
 import pickle
 filename = "log.txt"
-filename = "fixed_fine_grid_search.txt"
+#filename = "fixed_fine_grid_search.txt"
 
 def getCov(log_no):
     filename = "../log/kinematics_results/debug_dict%d.p"%(log_no)

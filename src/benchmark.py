@@ -151,10 +151,10 @@ if __name__ == '__main__':
     # 3*60 = 180 : 789min
     #old_alfas = np.hstack([np.linspace(0.5,1.0,6)])
     #old_betas = np.hstack([np.linspace(1,10,10)])
-    old_alfas = np.hstack([np.linspace(0.5,1.0,6)])
-    old_betas = np.hstack([np.linspace(1,10,10)])
-    alfas = np.hstack([np.linspace(0.5,1.0,11)])
-    betas = np.hstack([np.linspace(1,10,19)])
+    old_alfas = []
+    old_betas = []
+    alfas = np.hstack([np.linspace(0.5,0.9,5)])
+    betas = np.hstack([np.linspace(1,6,6)])
 
     for alfa in alfas:
         for beta in betas:

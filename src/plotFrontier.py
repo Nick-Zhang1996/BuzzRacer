@@ -2,8 +2,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from common import *
-#filename = "log.txt"
-filename = "fixed_fine_grid_search.txt"
+filename = "log.txt"
+#filename = "fixed_fine_grid_search.txt"
 
 mppi_injected = []
 mppi_cov = []

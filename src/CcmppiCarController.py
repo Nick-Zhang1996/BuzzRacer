@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
         self.terminal_cov_vec = []
         self.terminal_cov_mtx_vec = []
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = True
 
         # diagnal terms of control cost matrix u'Ru
