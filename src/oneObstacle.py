@@ -34,10 +34,11 @@ class Main():
         self.params = params
 
         self.track = TrackFactory(name='empty')
+        #self.track = TrackFactory(name='full')
 
         Car.reset()
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(0.5,0.5,radians(90),1.0))
+        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(0.5,0.05,radians(90),1.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -115,6 +116,8 @@ class Main():
 
         self.new_state_update.wait()
         self.new_state_update.clear()
+        if (self.visualization.update_visualization.is_set):
+            print("is set")
 
         for car in self.cars:
             # call controller, send command to car in real experiment
@@ -163,27 +166,6 @@ if __name__ == '__main__':
         print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
         experiment = Main(params)
         experiment.run()
-
-        try:
-            laptime = experiment.car_laptime_mean[0]
-            laps = experiment.car_total_laps[0]
-            laptime_stddev = experiment.car_laptime_stddev[0]
-            collisions = experiment.car_total_collisions[0]
-            control_effort = experiment.performance_tracker.mean_control_effort
-            terminal_cov = experiment.performance_tracker.terminal_cov
-        except (IndexError,AttributeError,IndexError) as e:
-            laptime = -1
-            laps = -1
-            laptime_stddev = -1
-            collisions = -1
-            control_effort = -1
-            terminal_cov = -1
-            print_warning(" bad experiment "+str(e))
-        text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),alfa,beta)
-        print_info(text)
-        with open(log_filename,'a') as f:
-            f.write(text +"\n")
-        print_info("-------------- finish one experiment ------------")
 
     print_info("program complete")
     exit(0)

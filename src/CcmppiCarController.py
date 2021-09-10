@@ -27,10 +27,6 @@ class CcmppiCarController(CarController):
 
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
-        # given parameterized raceline x,y = R(s), this corresponds to raceline_s
-        # last_s is the last s such that R(last_s) is closest to vehicle
-        # used as a starting point for root finding
-        self.last_s = None
         self.p = execution_timer(True)
         self.wheelbase = car.wheelbase
         self.ccmppi_dt = car.main.dt
@@ -78,7 +74,7 @@ class CcmppiCarController(CarController):
         self.obstacles = obstacles
 
     def additionalSetupEmpty(self):
-        self.obstacles = np.array([0.6,0.5])
+        self.obstacles = np.array([[0.5,0.5]])
 
     # check if vehicle is currently in collision with obstacle
     def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
@@ -281,24 +277,7 @@ class CcmppiCarController(CarController):
             pass
         '''
 
-        p.s("local traj")
-        if self.last_s is None:
-            # use self.lr as wheelbase to use center of gravity in evaluation
-            retval = track.localTrajectory(states,wheelbase=self.car.lr,return_u=True)
-            if retval is None:
-                print_warning("[ctrlCcmppiWrapper:ctrlCar] localTrajectory returned None")
-                ret =  (0,0,False,debug_dict)
-                return ret
-            else:
-                # parse return value from localTrajectory
-                #(local_ctrl_pnt,offset,orientation,curvature,v_target,u0) = retval
-                (_,_,_,_,_,u0) = retval
-                # save for estimate at next step
-                self.last_s = track.uToS(u0).item()
-        p.e("local traj")
-
         p.s("prep")
-        s0 = self.last_s
         # vehicle state
         # vf: forward positive
         # vs: left positive
@@ -345,6 +324,7 @@ class CcmppiCarController(CarController):
             self.plotAlgorithm()
             pass
         except AttributeError:
+            print_warning("error")
             pass
         p.e("debug")
         p.e()

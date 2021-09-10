@@ -122,3 +122,63 @@ class EmptyTrack(Track):
         # y-axis positive direction in real world and cv plotting is reversed
         y_new = int(self.resolution*rows - y_new)
         return (x_new, y_new)
+    # draw a polynomial line defined in track space
+    # points: a list of coordinates in format (x,y)
+    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
+
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = self.resolution
+
+        # this gives smoother result, but difficult to relate u to actual grid
+        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
+
+        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        # x_new and y_new are in non-dimensional grid unit
+        u_new = np.linspace(0,self.track_length_grid,1000)
+        points = np.array(points)
+        x_new = points[:,0]
+        y_new = points[:,1]
+        # convert to visualization coordinate
+        x_new /= self.scale
+        x_new *= self.resolution
+        y_new /= self.scale
+        y_new *= self.resolution
+        y_new = self.resolution*rows - y_new
+
+        if img is None:
+            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
+
+        pts = np.vstack([x_new,y_new]).T
+        # for polylines, pts = pts.reshape((-1,1,2))
+        pts = pts.reshape((-1,2))
+        pts = pts.astype(np.int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        gs = self.resolution
+        pts[:,0] = np.clip(pts[:,0],0,gs*cols)
+        pts[:,1] = np.clip(pts[:,1],0,gs*rows)
+        for i in range(len(points)-1):
+            p1 = np.array(pts[i])
+            p2 = np.array(pts[i+1])
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
+
+        # plot reference points
+        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        '''
+        if not (points is None):
+            for point in points:
+                x = point[0]
+                y = point[1]
+                x /= self.scale
+                x *= self.resolution
+                y /= self.scale
+                y *= self.resolution
+                y = self.resolution*rows - y
+                
+                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        '''
+
+        return img
