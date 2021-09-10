@@ -74,7 +74,8 @@ class CcmppiCarController(CarController):
         self.obstacles = obstacles
 
     def additionalSetupEmpty(self):
-        self.obstacles = np.array([[0.5,0.5]])
+        self.obstacles = obstacles = np.array([[0.5,0.5]])
+        self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
 
     # check if vehicle is currently in collision with obstacle
     def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
@@ -110,6 +111,10 @@ class CcmppiCarController(CarController):
             cc_ratio = 1.0
         elif (algorithm == 'mppi-same-injected'):
             ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'mppi-cov'):
+            ratio = 0.6
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         elif (algorithm == 'mppi-same-terminal-cov'):

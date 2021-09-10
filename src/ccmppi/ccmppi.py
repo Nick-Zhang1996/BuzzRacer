@@ -236,7 +236,6 @@ class CCMPPI:
         # Calculate statistics of cost function
         cost = np.array(cost)
         beta = np.min(cost)
-        #print("overall best cost %.2f"%(beta))
         min_cost_index = np.argmin(cost)
 
         # calculate weights

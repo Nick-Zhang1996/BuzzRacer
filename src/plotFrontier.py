@@ -44,6 +44,13 @@ mask2 = np.bitwise_and(mppi_injected[:,9] > b_low_thresh, mppi_injected[:,9] < b
 mask = np.bitwise_and(mask1,mask2)
 mppi_injected = mppi_injected[mask] 
 
+mppi_mean_laptime = np.mean(mppi_injected[:,2])
+ccmppi_mean_laptime = np.mean(ccmppi[:,2])
+mppi_mean_collision = np.mean(mppi_injected[:,3])
+ccmppi_mean_collision = np.mean(ccmppi[:,3])
+print("mppi  : laptime %.3f, collision %.2f "%(mppi_mean_laptime, mppi_mean_collision))
+print("ccmppi: laptime %.3f, collision %.2f "%(ccmppi_mean_laptime, ccmppi_mean_collision))
+
 # plot all data
 plt.plot(ccmppi[:,3], ccmppi[:,2],'o',label='ccmppi')
 plt.plot(mppi_injected[:,3], mppi_injected[:,2],'o', label= 'MPPI 1')

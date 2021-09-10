@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from common import *
 import pickle
 filename = "log.txt"
+filename = "fixed_fine_grid_search.txt"
 
 def getCov(log_no):
     filename = "../log/kinematics_results/debug_dict%d.p"%(log_no)
@@ -20,7 +21,7 @@ def getCov(log_no):
 
 
 mppi_injected = []
-mppi_cov = []
+#mppi_cov = []
 ccmppi = []
 with open(filename, 'r') as f:
     for line in f:
@@ -37,13 +38,15 @@ with open(filename, 'r') as f:
             ccmppi.append([float(val) for val in entry[1:]])
         if (entry[0].lstrip() == 'mppi-same-injected'):
             mppi_injected.append([float(val) for val in entry[1:]])
+        '''
         if (entry[0].lstrip() == 'mppi-same-terminal-cov'):
             mppi_cov.append([float(val) for val in entry[1:]])
+        '''
 
 # algorithm, samples, car_total_laps, laptime_mean(s),  collision_count
 ccmppi = np.array(ccmppi)
 mppi_injected = np.array(mppi_injected)
-mppi_cov = np.array(mppi_cov)
+#mppi_cov = np.array(mppi_cov)
 
 # show terminal covariance in position as in log.txt
 '''
@@ -58,10 +61,10 @@ print("ccmppi:" + str(ccmppi_pos_cov))
 
 ccmppi_log_no = ccmppi[:,7]
 mppi_injected_log_no = mppi_injected[:,7]
-mppi_cov_log_no = mppi_cov[:,7]
+#mppi_cov_log_no = mppi_cov[:,7]
 
 mppi_injected_ratio = []
-mppi_cov_ratio = []
+#mppi_cov_ratio = []
 
 mppi_injected_cov_vec = []
 mppi_cov_cov_vec = []
@@ -73,18 +76,18 @@ for i in range(ccmppi.shape[0]):
         continue
     ccmppi_cov = getCov(ccmppi_log_no[i])
     mppi_injected_cov = getCov(mppi_injected_log_no[i])
-    mppi_cov_cov = getCov(mppi_cov_log_no[i])
+    #mppi_cov_cov = getCov(mppi_cov_log_no[i])
 
     mppi_injected_ratio.append(mppi_injected_cov/ccmppi_cov)
-    mppi_cov_ratio.append(mppi_cov_cov/ccmppi_cov)
+    #mppi_cov_ratio.append(mppi_cov_cov/ccmppi_cov)
 
     mppi_injected_cov_vec.append(mppi_injected_cov)
-    mppi_cov_cov_vec.append(mppi_cov_cov)
+    #mppi_cov_cov_vec.append(mppi_cov_cov)
     ccmppi_cov_vec.append(ccmppi_cov)
 
 print("position ellipse area (1sigma)")
 print("mppi1:"+str(np.mean(mppi_injected_cov_vec)))
-print("mppi2:"+str(np.mean(mppi_cov_cov_vec)))
+#print("mppi2:"+str(np.mean(mppi_cov_cov_vec)))
 print("ccmppi:"+str(np.mean(ccmppi_cov_vec)))
 plt.plot(mppi_injected_ratio, label='mppi 1 / ccmppi')
 #plt.plot(mppi_cov_ratio, label='mppi2 / ccmppi')
