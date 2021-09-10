@@ -151,8 +151,8 @@ if __name__ == '__main__':
     # 3*60 = 180 : 789min
     #old_alfas = np.hstack([np.linspace(0.5,1.0,6)])
     #old_betas = np.hstack([np.linspace(1,10,10)])
-    old_alfas = np.hstack([np.linspace(0.5,1.0,6)])
-    old_betas = np.hstack([np.linspace(1,10,10)])
+    old_alfas = []
+    old_betas = []
     alfas = np.hstack([np.linspace(0.5,1.0,11)])
     betas = np.hstack([np.linspace(1,10,19)])
 
@@ -161,7 +161,8 @@ if __name__ == '__main__':
             if (alfa in old_alfas and beta in old_betas):
                 continue
             #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-            for algorithm in ['mppi-same-injected','ccmppi']:
+            #for algorithm in ['mppi-same-injected','ccmppi']:
+            for algorithm in ['mppi-same-terminal-cov']:
                 samples = 4096
                 params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 
