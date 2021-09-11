@@ -13,6 +13,7 @@ class Visualization(Extension):
         self.frame_dt = 1.0/self.update_freq
         # NOTE
         self.frame_dt = 0.0
+        self.count = 0
 
     def final(self):
         cv2.destroyAllWindows()
@@ -75,15 +76,19 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.main.track.drawCar(img, car.states, car.steering)
                 self.visualization_img = img
+
     def final(self):
         img = self.img_track.copy()
         self.visualization_img = img
         self.update_visualization.set()
         self.main.cars[0].controller.plotObstacles()
         self.main.cars[0].controller.plotTrajectory()
-        img = cv2.cvtColor(self.visualization_img,cv2.COLOR_BGR2RGB)
-        plt.imshow(img)
-        plt.show()
+        img = self.visualization_img.copy()
+        filename = "./last_frame_"  + ".png"
+        cv2.imwrite(filename,img)
+        print_info(self.prefix()+"saved last frame at " + filename)
+        input("please rename file and continue")
+
 
 
 

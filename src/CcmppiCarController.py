@@ -132,6 +132,7 @@ class CcmppiCarController(CarController):
             ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
+        print_info("[Ccmppi]: Injected noise:" + str(self.noise_cov))
 
         self.control_dim = 2
         self.state_dim = 4
@@ -358,7 +359,6 @@ class CcmppiCarController(CarController):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
-            self.plotObstacles()
             #self.plotAlgorithm()
             self.plotTrajectory()
         except AttributeError as e:
@@ -520,7 +520,7 @@ class CcmppiCarController(CarController):
         state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
         self.state_2_norm = np.linalg.norm(state_cov)
         self.state_2_norm_vec.append(self.state_2_norm)
-        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
+        #print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
 
         # DEBUG
         # apply the kth sampled control
@@ -549,7 +549,7 @@ class CcmppiCarController(CarController):
         img = self.car.main.visualization.visualization_img
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
-        for coords in coords_vec:
+        for coords in coords_vec[:30]:
             img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img,thickness=1)
 
         # plot ideal trajectory (if car follow synthesized control)
