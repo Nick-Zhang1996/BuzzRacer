@@ -4,12 +4,15 @@ from common import *
 from Extension import Extension
 from threading import Event
 import pickle
+import matplotlib.pyplot as plt
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
         self.update_visualization = Event()
         self.update_freq = 100
         self.frame_dt = 1.0/self.update_freq
+        # NOTE
+        self.frame_dt = 0.0
 
     def final(self):
         cv2.destroyAllWindows()
@@ -18,8 +21,12 @@ class Visualization(Extension):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
         #self.img_track = self.main.track.drawRaceline(img=self.img_track)
-        cv2.imshow('experiment',self.img_track)
-        cv2.waitKey(1)
+        img = self.img_track.copy()
+        for car in self.main.cars:
+            img = self.main.track.drawCar(img, car.states, car.steering)
+            self.visualization_img = img
+        cv2.imshow('experiment',img)
+        cv2.waitKey(200)
 
     def postInit(self,):
         self.saveBlankImg()
@@ -68,4 +75,15 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.main.track.drawCar(img, car.states, car.steering)
                 self.visualization_img = img
+    def final(self):
+        img = self.img_track.copy()
+        self.visualization_img = img
+        self.update_visualization.set()
+        self.main.cars[0].controller.plotObstacles()
+        self.main.cars[0].controller.plotTrajectory()
+        img = cv2.cvtColor(self.visualization_img,cv2.COLOR_BGR2RGB)
+        plt.imshow(img)
+        plt.show()
+
+
 

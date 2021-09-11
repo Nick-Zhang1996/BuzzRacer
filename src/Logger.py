@@ -23,7 +23,7 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/laptop_kinematics_results/"
+        logFolder = "../log/const_kinematics_results/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1

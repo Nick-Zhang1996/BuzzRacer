@@ -16,6 +16,7 @@
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
 #define USE_RACELINE %(use_raceline)s
+#define OBSTACLE_RADIUS %(obstacle_radius)s
 
 #define ALFA %(alfa)s
 #define BETA %(beta)s
@@ -134,7 +135,7 @@ void evaluate_control_sequence(
 
   if (id <= int(CC_RATIO * SAMPLE_COUNT)){
     if (id <= int(CC_RATIO * SAMPLE_COUNT * ZERO_REF_CTRL_RATIO)){
-      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_ZERO_REF);
+      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_NOCC, MODE_ZERO_REF);
     } else {
       _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_REF);
     }
@@ -186,6 +187,7 @@ void _evaluate_control_sequence(
     x[i] = *(x0 + i);
     y[i] = 0;
   }
+
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
   }
@@ -507,11 +509,12 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[1]-opponent_pos[1];
-  //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  //cost = cost>0? cost:0;
-  cost = cost>0? 10:0;
 
+  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
+  //gradient linear cost
+  //cost = cost>0? cost:0;
+  // constant cost
+  cost = cost>0? 10:0;
   cost *= BETA;
 
   return cost ;

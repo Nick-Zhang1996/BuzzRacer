@@ -5,9 +5,9 @@ from math import sin,cos
 
 class EmptyTrack(Track):
     def __init__(self):
-        self.resolution = 200
+        self.resolution = 400
         self.gridsize = [1,1]
-        self.scale = 1.0
+        self.scale = 2.0
 
         # draw empty track
     def drawTrack(self):

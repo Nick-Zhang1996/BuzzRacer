@@ -34,6 +34,11 @@ a_low_thresh = 0.5
 a_high_thresh = 0.9
 b_low_thresh = 0
 b_high_thresh = 6
+
+a_low_thresh = 0
+a_high_thresh = 10
+b_low_thresh = 0
+b_high_thresh = 100
 mask1 = np.bitwise_and(ccmppi[:,8] > a_low_thresh, ccmppi[:,8] < a_high_thresh)
 mask2 = np.bitwise_and(ccmppi[:,9] > b_low_thresh, ccmppi[:,9] < b_high_thresh)
 mask = np.bitwise_and(mask1,mask2)

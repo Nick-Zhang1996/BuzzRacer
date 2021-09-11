@@ -17,8 +17,11 @@ class CollisionChecker(Extension):
                 #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
             else:
                 car.in_collision = False
-            if (car.laptimer.new_lap.is_set()):
-                self.cumsum_collision_by_lap_vec[i].append(self.collision_count[i])
+            try:
+                if (car.laptimer.new_lap.is_set()):
+                    self.cumsum_collision_by_lap_vec[i].append(self.collision_count[i])
+            except AttributeError:
+                pass
 
     def final(self):
         for i in range(len(self.main.cars)):
