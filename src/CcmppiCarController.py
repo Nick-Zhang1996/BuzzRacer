@@ -328,7 +328,7 @@ class CcmppiCarController(CarController):
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
             self.plotObstacles()
-            self.plotAlgorithm()
+            #self.plotAlgorithm()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
@@ -375,6 +375,8 @@ class CcmppiCarController(CarController):
             # plot obstacle in collision red
             img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
 
+        # FIXME
+        return
         text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -433,7 +435,7 @@ class CcmppiCarController(CarController):
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
-        samples = 100
+        samples = 10
         # randomly select 100
         index = random.sample(range(sampled_control.shape[0]), samples)
         sampled_control = sampled_control[index,:,:]

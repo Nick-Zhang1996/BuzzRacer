@@ -509,7 +509,9 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
   float dy = state[1]-opponent_pos[1];
   //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
   float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
-  cost = cost>0? cost:0;
+  //cost = cost>0? cost:0;
+  cost = cost>0? 10:0;
+
   cost *= BETA;
 
   return cost ;
