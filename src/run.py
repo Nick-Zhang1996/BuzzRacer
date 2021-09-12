@@ -57,7 +57,7 @@ class Main():
         self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
         self.simulator.match_real_time = True
-        #self.collision_checker = CollisionChecker(self)
+        self.collision_checker = CollisionChecker(self)
         self.performance_tracker = PerformanceTracker(self)
 
         self.extensions = []
@@ -137,7 +137,7 @@ class Main():
 
 
 if __name__ == '__main__':
-    params = {'samples':4096, 'use_cc':False}
+    params = {'samples':4096, 'algorithm':'mppi-same-injected'}
     experiment = Main(params)
     experiment.run()
     print_info("program complete")

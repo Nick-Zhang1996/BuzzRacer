@@ -12,12 +12,11 @@ def getCov(log_no):
         data = pickle.load(f)
         data = data[0]
 
-    cov = data['theory_cov_mtx']
-    return np.linalg.norm(cov)
-
-    cov = data['terminal_cov_mtx']
-    eigs = np.linalg.eig(cov)[0]**0.5
-    return eigs[0]*eigs[1]*np.pi
+    norm = np.mean(data['pos_2_norm_vec'])
+    norm = np.mean(data['state_2_norm_vec'])
+    norm = np.mean(data['theory_cov_mtx_vec'])
+    #norm = np.mean(data['pos_area_vec'])
+    return norm
 
 
 mppi_injected = []

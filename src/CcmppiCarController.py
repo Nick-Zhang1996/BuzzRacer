@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = True
 
         self.pos_2_norm = None
@@ -46,6 +46,7 @@ class CcmppiCarController(CarController):
         self.pos_area = None
         self.pos_2_norm_vec = []
         self.state_2_norm_vec = []
+        self.state_cov_vec = []
         self.pos_area_vec = []
 
         # diagnal terms of control cost matrix u'Ru
@@ -58,6 +59,7 @@ class CcmppiCarController(CarController):
 
     # Hack
     def additionalSetupRcp(self):
+        '''
         obstacle_count = 60
         filename = "obstacles.p"
         if (os.path.isfile(filename)):
@@ -77,6 +79,8 @@ class CcmppiCarController(CarController):
         track = self.car.main.track
         obstacles[:,0] *= track.gridsize[1]*track.scale
         obstacles[:,1] *= track.gridsize[0]*track.scale
+        '''
+        obstacles = np.array([[0,0]])
 
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles
@@ -359,12 +363,16 @@ class CcmppiCarController(CarController):
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
             self.plotAlgorithm()
-            self.plotTrajectory()
+            #self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
         p.e("debug")
         self.car.debug_dict['theory_cov_mtx_vec'] = self.theory_cov_mtx_vec
+        self.car.debug_dict['pos_2_norm_vec'] = self.pos_2_norm_vec
+        self.car.debug_dict['state_2_norm_vec'] = self.state_2_norm_vec
+        self.car.debug_dict['state_cov_vec'] = self.state_cov_vec
+        self.car.debug_dict['pos_area_vec'] = self.pos_area_vec
         p.e()
         return True
 
@@ -438,35 +446,56 @@ class CcmppiCarController(CarController):
 
 
     def getEstimatedTerminalCov(self):
+        # DEBUG
         # simulate where mppi think where the car will end up with
         states = self.debug_states
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
-        # use only first 100
+        # exclude zero_ref samples in cov calculation
+        sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
+
+        # sample on CPU only 100 samples
         samples = 100
-        # randomly select 100
         index = random.sample(range(sampled_control.shape[0]), samples)
-        sampled_control = sampled_control[index,:,:]
+        #samples = sampled_control.shape[0]
+        # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
+        rollout_state_vec = []
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
+            this_state_traj = []
             sim_states = states.copy()
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
                 x,y,vf,heading = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
+                this_state_traj.append(sim_states)
             rollout_traj_vec.append(this_rollout_traj)
+            rollout_state_vec.append(this_state_traj)
         self.debug_dict['rollout_traj_vec'] = rollout_traj_vec
+        self.debug_dict['rollout_state_vec'] = rollout_state_vec
 
-        # calculate terminal covariance on position
-        cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
-        self.terminal_xy_cov = np.mean([cov[0,0],cov[1,1]])
-        self.terminal_cov_vec.append(self.terminal_xy_cov)
-        self.terminal_cov_mtx_vec.append(cov)
+        # calculate terminal covariance
+        # terminal position covariance matrix,
+        pos_cov = np.cov(np.array(rollout_traj_vec)[:,-1,:].T)
+        pos_2_norm = np.linalg.norm(pos_cov)
+        self.pos_2_norm = pos_2_norm
+        self.pos_2_norm_vec.append(pos_2_norm)
+
+        eigs = np.linalg.eig(pos_cov)[0]**0.5
+        self.pos_area =  eigs[0]*eigs[1]*np.pi
+        self.pos_area_vec.append(self.pos_area)
+
+        # terminal state covariance matrix,
+        state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
+        self.state_2_norm = np.linalg.norm(state_cov)
+        self.state_2_norm_vec.append(self.state_2_norm)
+        self.state_cov_vec.append(state_cov)
+        #print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
         return
 
     def plotDebug(self):
@@ -478,10 +507,12 @@ class CcmppiCarController(CarController):
         states = self.debug_states
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
+        # skip zero ref trajectories
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
-        samples = 20
-        index = random.sample(range(sampled_control.shape[0]), samples)
+        #samples = 20
+        #index = random.sample(range(sampled_control.shape[0]), samples)
+        # plot all traj
         samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
