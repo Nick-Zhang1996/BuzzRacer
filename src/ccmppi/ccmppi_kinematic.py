@@ -404,6 +404,7 @@ class CCMPPI_KINEMATIC():
         Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
         #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 50
         Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
+        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 9000
 
         R = np.eye(m)
         R_bar = np.kron(np.eye(N, dtype=int), R)

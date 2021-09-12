@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from common import *
 filename = "log.txt"
-#filename = "fixed_fine_grid_search.txt"
+filename = "sat_fine_grid.txt"
 
 mppi_injected = []
 mppi_cov = []
@@ -82,13 +82,16 @@ mppi_mean_collision = np.mean(mppi_injected[:,3])
 ccmppi_mean_collision = np.mean(ccmppi[:,3])
 print("mppi  : laptime %.3f, collision %.2f "%(mppi_mean_laptime, mppi_mean_collision))
 print("ccmppi: laptime %.3f, collision %.2f "%(ccmppi_mean_laptime, ccmppi_mean_collision))
+mppi_mean_cov = np.mean(mppi_injected[:,5])
+ccmppi_mean_cov = np.mean(ccmppi[:,5])
+print("cov: mppi: %.5f, ccmppi: %.5f"%(mppi_mean_cov, ccmppi_mean_cov))
 
 # plot all data
 plt.plot(ccmppi[:,3], ccmppi[:,2],'o',label='ccmppi')
 plt.plot(mppi_injected[:,3], mppi_injected[:,2],'o', label= 'MPPI')
 #plt.plot(mppi_cov[:,3], mppi_cov[:,2], 'o',label= 'MPPI 2')
 
-plt.xlabel("collision")
+plt.xlabel("Number of collisions")
 plt.ylabel("Laptime (s)")
 plt.legend()
 plt.show()

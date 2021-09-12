@@ -39,7 +39,7 @@ class CcmppiCarController(CarController):
         # DEBUG
         self.theory_cov_mtx_vec = []
         self.plotDebugFlag = False
-        self.getEstimatedTerminalCovFlag = True
+        self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
         self.state_2_norm = None
@@ -59,7 +59,6 @@ class CcmppiCarController(CarController):
 
     # Hack
     def additionalSetupRcp(self):
-        '''
         obstacle_count = 60
         filename = "obstacles.p"
         if (os.path.isfile(filename)):
@@ -79,8 +78,7 @@ class CcmppiCarController(CarController):
         track = self.car.main.track
         obstacles[:,0] *= track.gridsize[1]*track.scale
         obstacles[:,1] *= track.gridsize[0]*track.scale
-        '''
-        obstacles = np.array([[0,0]])
+        #obstacles = np.array([[0,0]])
 
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles
@@ -510,10 +508,10 @@ class CcmppiCarController(CarController):
         # skip zero ref trajectories
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
-        #samples = 20
+        samples = 100
         #index = random.sample(range(sampled_control.shape[0]), samples)
         # plot all traj
-        samples = sampled_control.shape[0]
+        #samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
         rollout_state_vec = []

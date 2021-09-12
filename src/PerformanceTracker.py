@@ -14,6 +14,7 @@ class PerformanceTracker(Extension):
         return
 
     def final(self):
+        '''
         self.pos_2_norm = pos_2_norm = np.mean(self.car.controller.pos_2_norm_vec)
         print_ok(self.prefix()+"Position 2 norm = %.6f"%(pos_2_norm))
 
@@ -23,6 +24,8 @@ class PerformanceTracker(Extension):
         self.pos_area = pos_area = np.mean(self.car.controller.pos_area_vec)
         print_ok(self.prefix()+"1 sigma pos area= %.6f"%(pos_area))
         self.terminal_cov = pos_2_norm
+        '''
+        self.terminal_cov = 0
 
         mean_control_effort = np.mean(self.control_effort_vec)
         print_ok(self.prefix() + "mean control effort u'Ru = %.5f"%(mean_control_effort))

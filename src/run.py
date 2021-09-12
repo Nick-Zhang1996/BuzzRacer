@@ -73,7 +73,7 @@ class Main():
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
-        #self.extensions.append(self.performance_tracker)
+        self.extensions.append(self.performance_tracker)
         self.watchdog = Watchdog(self)
         self.extensions.append(self.watchdog)
 
@@ -137,7 +137,8 @@ class Main():
 
 
 if __name__ == '__main__':
-    params = {'samples':4096, 'algorithm':'mppi-same-injected'}
+    params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.9,'beta':1.0}
+    #params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':0.9,'beta':1.0}
     experiment = Main(params)
     experiment.run()
     print_info("program complete")
