@@ -5,7 +5,7 @@ from TrackFactory import TrackFactory
 from common import *
 import pickle
 import cv2
-filename = "log.txt"
+#filename = "log.txt"
 #filename = "sat_fine_grid.txt"
 filename = "combined.txt"
 
@@ -140,8 +140,8 @@ for index in [4]:
     plt.plot(ccmppi[:,3], ccmppi[:,2],'o',label='CCMPPI')
     plt.plot(mppi[:,3], mppi[:,2],'o', label= 'MPPI')
 
-    plt.scatter(ccmppi[index_cc,3], ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
-    plt.scatter(mppi[index_mppi,3], mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
+    plt.scatter(ccmppi[index_cc,3], ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='g',label='same setting', zorder=10)
+    plt.scatter(mppi[index_mppi,3], mppi[index_mppi,2],s=80,facecolor='none', edgecolor='g', zorder=10)
     plt.xlabel("Number of collisions")
     plt.ylabel("Laptime (s)")
     plt.legend()

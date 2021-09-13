@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -66,6 +66,10 @@ class CcmppiCarController(CarController):
                 obstacles = pickle.load(f)
             print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
             print_ok("[ccmppi]: loading obstacles at " + filename)
+            # NOTE remove clattered obstacles
+            mask = np.invert(np.bitwise_and(obstacles[:,0]>0.8, obstacles[:,1]>0.6))
+            obstacles = obstacles[mask,:]
+
         else:
             print_ok("[ccmppi]: new obstacles, count = %d"%(obstacle_count))
             obstacles = np.random.random((obstacle_count,2))
@@ -139,7 +143,7 @@ class CcmppiCarController(CarController):
 
         self.control_dim = 2
         self.state_dim = 4
-        self.horizon_steps = 15
+        self.horizon_steps = 20
         self.samples_count = 4096
         self.cc_ratio = cc_ratio
         print_info('[CcmppiCarController]: ' + algorithm)
@@ -623,9 +627,6 @@ class CcmppiCarController(CarController):
                 x,y = coord
                 img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
         '''
-
-
-
         self.car.main.visualization.visualization_img = img
         return
 
@@ -640,7 +641,6 @@ class CcmppiCarController(CarController):
         for opponent in self.opponents:
             traj = self.track.predictOpponent(opponent.state, self.horizon_steps, self.ccmppi_dt)
             self.opponent_prediction.append(traj)
-
 
 if __name__=="__main__":
     pass

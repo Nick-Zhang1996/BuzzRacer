@@ -155,6 +155,8 @@ if __name__ == '__main__':
     old_betas = []
     alfas = np.hstack([np.linspace(0.5,0.9,5)])
     betas = np.hstack([np.linspace(1,6,11)])
+    #alfas = np.hstack([np.linspace(0.7,0.9,2)])
+    #betas = np.hstack([np.linspace(50,150,3)])
 
     #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
     #for algorithm in ['mppi-same-injected']:

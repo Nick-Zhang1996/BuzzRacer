@@ -388,9 +388,7 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3*ALFA;
-  //cost += dist*dist*100;
-  //cost += dist*dist*500;
-  cost += dist*dist*5000;
+  cost += dist*dist*500;
   return cost;
   // NOTE ignoring terminal cost
   //return 0.0;
@@ -402,6 +400,7 @@ __device__
 float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate){
   int idx;
   float dist;
+  float invasion;
 
   // performance barrier FIXME
   find_closest_id(state,in_raceline,*u_estimate, RACELINE_SEARCH_RANGE, &idx,&dist);
@@ -415,15 +414,13 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    //cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
-    //cost = (dist +0.05> in_raceline[idx][4])? 0.25:0.0;
-    cost = 50.0*(dist +0.05 - in_raceline[idx][4]);
-    cost = (cost>0)?cost:0;
+    cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
+    //invasion = dist + 0.05 - in_raceline[idx][4];
+    //cost = (invasion>0)? (pow(1+invasion,4)*500+1500):0.0;
   } else {
-    //cost = (dist +0.05> in_raceline[idx][5])? 2000.0:0.0;
-    //cost = (dist +0.05> in_raceline[idx][5])? 0.25:0.0;
-    cost = 50.0*(dist +0.05 - in_raceline[idx][5]);
-    cost = (cost>0)?cost:0;
+    cost = (dist + 0.05> in_raceline[idx][5])? 2000.0:0.0;
+    //invasion = dist + 0.05 - in_raceline[idx][5];
+    //cost = (invasion>0)? (pow(1+invasion,4)*500+1500):0.0;
   }
 
   return cost;
