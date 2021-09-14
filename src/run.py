@@ -137,8 +137,9 @@ class Main():
 
 
 if __name__ == '__main__':
-    params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.9,'beta':1.0}
-    #params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':0.9,'beta':1.0}
+    # alfa: progress
+    params = {'samples':4096, 'algorithm':'ccmppi','alfa':2.0,'beta':1.0}
+    #params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':2.0,'beta':1.0}
     experiment = Main(params)
     experiment.run()
     print_info("program complete")

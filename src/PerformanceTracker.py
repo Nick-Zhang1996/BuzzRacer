@@ -31,3 +31,5 @@ class PerformanceTracker(Extension):
         print_ok(self.prefix() + "mean control effort u'Ru = %.5f"%(mean_control_effort))
         self.mean_control_effort = mean_control_effort
 
+        self.car.controller.p.summary()
+

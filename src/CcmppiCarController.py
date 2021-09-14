@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -67,8 +67,10 @@ class CcmppiCarController(CarController):
             print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
             print_ok("[ccmppi]: loading obstacles at " + filename)
             # NOTE remove clattered obstacles
+            '''
             mask = np.invert(np.bitwise_and(obstacles[:,0]>0.8, obstacles[:,1]>0.6))
             obstacles = obstacles[mask,:]
+            '''
 
         else:
             print_ok("[ccmppi]: new obstacles, count = %d"%(obstacle_count))
@@ -143,7 +145,7 @@ class CcmppiCarController(CarController):
 
         self.control_dim = 2
         self.state_dim = 4
-        self.horizon_steps = 20
+        self.horizon_steps = 15
         self.samples_count = 4096
         self.cc_ratio = cc_ratio
         print_info('[CcmppiCarController]: ' + algorithm)
@@ -311,7 +313,6 @@ class CcmppiCarController(CarController):
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
         # profiling
         p = self.p
-        p.s()
         '''
         try:
             self.predictOpponent()
@@ -321,7 +322,6 @@ class CcmppiCarController(CarController):
             pass
         '''
 
-        p.s("prep")
         # vehicle state
         # vf: forward positive
         # vs: left positive
@@ -334,16 +334,15 @@ class CcmppiCarController(CarController):
 
         # NOTE may need revision to use previous results
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
-        p.e("prep")
 
-        p.s("ccmppi")
+        p.s()
         uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
 
         control = uu[0]
         throttle = control[0]
         steering = control[1]
         #print_info("[wrapper:ccmppi.control] T= %.2f, S = %.2f"%(throttle,degrees(steering)) )
-        p.e("ccmppi")
+        p.e()
 
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
@@ -358,7 +357,6 @@ class CcmppiCarController(CarController):
 
         self.car.throttle = throttle
         self.car.steering = steering
-        p.s("debug")
 
         try:
             self.plotObstacles()
@@ -371,13 +369,11 @@ class CcmppiCarController(CarController):
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
-        p.e("debug")
         self.car.debug_dict['theory_cov_mtx_vec'] = self.theory_cov_mtx_vec
         self.car.debug_dict['pos_2_norm_vec'] = self.pos_2_norm_vec
         self.car.debug_dict['state_2_norm_vec'] = self.state_2_norm_vec
         self.car.debug_dict['state_cov_vec'] = self.state_cov_vec
         self.car.debug_dict['pos_area_vec'] = self.pos_area_vec
-        p.e()
         return True
 
 
