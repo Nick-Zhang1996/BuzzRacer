@@ -19,7 +19,7 @@ class Visualization(Extension):
     def init(self,):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
-        self.img_track = self.main.track.drawRaceline(img=self.img_track)
+        #self.img_track = self.main.track.drawRaceline(img=self.img_track)
         img = self.img_track.copy()
         for car in self.main.cars:
             img = self.main.track.drawCar(img, car.states, car.steering)

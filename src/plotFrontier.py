@@ -7,7 +7,8 @@ import pickle
 import cv2
 #filename = "log.txt"
 #filename = "sat_fine_grid.txt"
-filename = "combined.txt"
+#filename = "combined.txt"
+filename = "more_combined.txt"
 
 track = TrackFactory(name='full')
 def plotTraj(track, filename, img, color, text):
@@ -110,8 +111,8 @@ ccmppi_mean_cov = np.mean(ccmppi[:,5])
 print("cov: mppi: %.5f, ccmppi: %.5f"%(mppi_mean_cov, ccmppi_mean_cov))
 
 # plot all data
-plt.plot(ccmppi[:,3], ccmppi[:,2],'o',label='ccmppi')
-plt.plot(mppi[:,3], mppi[:,2],'o', label= 'MPPI')
+plt.plot(ccmppi[:,3], ccmppi[:,2],'o',color='cyan',label='CCMPPI')
+plt.plot(mppi[:,3], mppi[:,2],'o', color='orange',label= 'MPPI')
 
 plt.xlabel("Number of collisions")
 plt.ylabel("Laptime (s)")
@@ -137,11 +138,11 @@ for index in [4]:
     print("log index: ccmppi: %d,  mppi: %d"%(ccmppi[index_cc,7], mppi[index_mppi,7]))
 
     # plot frontier with circled settings
-    plt.plot(ccmppi[:,3], ccmppi[:,2],'o',label='CCMPPI')
-    plt.plot(mppi[:,3], mppi[:,2],'o', label= 'MPPI')
+    plt.plot(ccmppi[:,3], ccmppi[:,2],'o',color='cyan',label='CCMPPI')
+    plt.plot(mppi[:,3], mppi[:,2],'o', color='orange',label= 'MPPI')
 
-    plt.scatter(ccmppi[index_cc,3], ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='g',label='same setting', zorder=10)
-    plt.scatter(mppi[index_mppi,3], mppi[index_mppi,2],s=80,facecolor='none', edgecolor='g', zorder=10)
+    plt.scatter(ccmppi[index_cc,3], ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
+    plt.scatter(mppi[index_mppi,3], mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
     plt.xlabel("Number of collisions")
     plt.ylabel("Laptime (s)")
     plt.legend()

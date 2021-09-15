@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -409,7 +409,7 @@ class CcmppiCarController(CarController):
         img = self.car.main.visualization.visualization_img
         # plot obstacles
         for obs in self.obstacles:
-            img = self.car.main.track.drawCircle(img, obs, self.obstacle_radius, color=(255,100,100))
+            img = self.car.main.track.drawCircle(img, obs, self.obstacle_radius, color=(150,150,150))
         has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
         if (has_collided):
             # plot obstacle in collision red
