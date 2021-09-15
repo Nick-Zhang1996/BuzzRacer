@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
