@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -84,7 +84,8 @@ class CcmppiCarController(CarController):
         track = self.car.main.track
         obstacles[:,0] *= track.gridsize[1]*track.scale
         obstacles[:,1] *= track.gridsize[0]*track.scale
-        #obstacles = np.array([[0,0]])
+        # NOTE this effectively disables obstacles
+        obstacles = np.array([[0,0]])
 
         self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
         self.obstacles = obstacles

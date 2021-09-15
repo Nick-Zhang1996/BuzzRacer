@@ -367,10 +367,10 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  cost += dist*dist*10;
+  cost += dist*dist*30;
 
-  //return cost;
   return 0.0;
+  //return cost;
 }
 
 __device__
@@ -415,13 +415,13 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
-    //invasion = dist + 0.05 - in_raceline[idx][4];
-    //cost = (invasion>0)? (pow(1+invasion,4)*500+1500):0.0;
+    //cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
+    invasion = dist + 0.05 - in_raceline[idx][4];
+    cost = (invasion>0)? invasion*500 : 0.0;
   } else {
-    cost = (dist + 0.05> in_raceline[idx][5])? 2000.0:0.0;
-    //invasion = dist + 0.05 - in_raceline[idx][5];
-    //cost = (invasion>0)? (pow(1+invasion,4)*500+1500):0.0;
+    //cost = (dist + 0.05> in_raceline[idx][5])? 2000.0:0.0;
+    invasion = dist + 0.05 - in_raceline[idx][5];
+    cost = (invasion>0)? invasion*500 : 0.0;
   }
 
   return cost;
