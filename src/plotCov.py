@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from common import *
 import pickle
 filename = "log.txt"
-#filename = "fixed_fine_grid_search.txt"
+filename = "sat_fine_grid.txt"
 
 def getCov(log_no):
     filename = "../log/kinematics_results/debug_dict%d.p"%(log_no)
@@ -12,12 +12,11 @@ def getCov(log_no):
         data = pickle.load(f)
         data = data[0]
 
-    cov = data['theory_cov_mtx']
-    return np.linalg.norm(cov)
-
-    cov = data['terminal_cov_mtx']
-    eigs = np.linalg.eig(cov)[0]**0.5
-    return eigs[0]*eigs[1]*np.pi
+    norm = np.mean(data['pos_2_norm_vec'])
+    norm = np.mean(data['state_2_norm_vec'])
+    #norm = np.mean(data['theory_cov_mtx_vec'])
+    #norm = np.mean(data['pos_area_vec'])
+    return norm
 
 
 mppi_injected = []
@@ -85,7 +84,7 @@ for i in range(ccmppi.shape[0]):
     #mppi_cov_cov_vec.append(mppi_cov_cov)
     ccmppi_cov_vec.append(ccmppi_cov)
 
-print("position ellipse area (1sigma)")
+#print("position ellipse area (1sigma)")
 print("mppi1:"+str(np.mean(mppi_injected_cov_vec)))
 #print("mppi2:"+str(np.mean(mppi_cov_cov_vec)))
 print("ccmppi:"+str(np.mean(ccmppi_cov_vec)))
