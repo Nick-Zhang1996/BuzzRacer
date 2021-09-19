@@ -156,13 +156,12 @@ if __name__ == '__main__':
     alfa = 1
     # collision
     beta = 1
-
-    #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    #for algorithm in ['narrow-mppi','wide-mppi','wide-ccmppi']:
-    for algorithm in ['wide-ccmppi']:
-        samples = 4096
-        params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
-
+    algorithm = 'wide-ccmppi'
+    samples = 4096
+    Qfs = [0,10,40]
+    Qfs = np.linspace(0,50,51)
+    for qf in Qfs:
+        params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta,'Qf':qf}
         experiment_count += 1
         if (experiment_count < args.skip):
             continue

@@ -1,0 +1,25 @@
+[Entry] dark screen, CCMPPI - title/author
+Narrate: In this video, we introduce CCMPPI, a version of MPPI that utilizes a feedback matrix to alter distribution of sampled trajectory, and demonstrate simulation results where it outperforms the baseline MPPI. 
+
+[Show MPPI samle distribution with LARGE injected noise]
+In traditional MPPI, A large injected noise can result in inefficient sampling as a large portion of sampled trajectories are wasted due to high control early in the horizon. 
+[Show MPPI samle distribution with SMALL injected noise]
+However, a small injected noise suffers from insufficient exploration early in the horizon.
+
+[Show sampled trajectory in empty field, side by side, MPPI is expanding and CCMPPI is expanding-converging]
+Narrate: CC MPPI utilizes covariance control methods to generate a full-state feedback matrix K that stabilizes a piecewise-linearized system. Applying this feedback matrix in sampling process allows us to control the terminal covariance of sampled trajectories. Here we show sampled trajectories of two algorithms. MPPI on the left does not utilize covariance contro. and CCMPPI on the right does.The two algorithms use same injected noise. The effect of covariance control is obvious: it changes the shape of distribution of sampled trajectories.
+[Annotate converging sampling and terminal covariance]
+
+By changing cost on terminal covariance, we can calculate different matrix K that obtains different shapes of distribution
+[Vary Qf and change shape of CCMPPI]
+
+[Show slow mo video of MPPI/CCMPPI overtaking sudden obstacles]
+Narrate: Such distribution of sampled trajectory can be advantageous in various scenarios. In this example, we simulate an obstale that suddenly appears in front of a vehicle. While MPPI and CCMPPI are tuned to have similar terminal covariance, the wide distribution of CCMPPI allows it to discover a path the circumvents the obstacle, while MPPI can not. 
+
+[Show side by side experiment of MPPI/CCMPPI drive on track with obstacles]
+Even with sufficient sampling and equal injected noise, CCMPPI can still demonstrate an advantage in complex environments. As its unique sampling distribution allows it to find trajectories with lower cost. Here we show simulation of MPPI/CCMPPI driving a passenger vehicle on a race track riddled with many obstacles. Both controllers have tuning parameters and same cost function, which rewards a short and collision free path through the obstacles. 
+[Annotate MPPI/CCMPPI difference in progress / collision]
+
+[Show frontier dot plot]
+By varying relative cost between collision and progress, we generate a range of problems for the algorithms. We found that CCMPPI shows an advantage in most scenarios.
+
