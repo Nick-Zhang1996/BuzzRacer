@@ -6,6 +6,7 @@ from Extension import Extension
 from PIL import Image
 import cv2
 import os.path
+import matplotlib.pyplot as plt
 
 class Gifsaver(Extension):
     def __init__(self,main):
@@ -40,11 +41,21 @@ class Gifsaver(Extension):
 
     def postUpdate(self):
         self.count +=1
+        '''
         if (self.count == 1):
             img = self.main.visualization.visualization_img.copy()
             filename = "./first_frame_" + self.main.algorithm + ".png"
             cv2.imwrite(filename,img)
             print_info(self.prefix()+"saved first frame at "+filename)
+            plt.imshow(img)
+            plt.show()
+        '''
+        if (self.count == 1):
+            img = self.main.visualization.visualization_img.copy()
+            filename = "./ccmppi_Qf_" + str(int(self.main.params['Qf'])) + ".png"
+            cv2.imwrite(filename,img)
+            print_info(self.prefix()+"saved frame at "+filename)
+            self.main.exit_request.set()
 
         if (self.count == 2):
             img = self.main.visualization.visualization_img.copy()
@@ -55,8 +66,6 @@ class Gifsaver(Extension):
 
     def final(self):
         print_ok(self.prefix()+"saving final frame")
-
-
 
         print_ok("[Gifsaver]: saving gif.. This may take a while")
         gif_filename = "../gifs/sim"+str(self.log_no)+".gif"

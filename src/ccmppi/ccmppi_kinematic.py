@@ -26,7 +26,11 @@ from RCPTrack import RCPtrack
 from KinematicSimulator import KinematicSimulator
 
 class CCMPPI_KINEMATIC():
-    def __init__(self,dt, N, noise_cov, debug_info=None):
+    def __init__(self,dt, N, noise_cov, arg_list,debug_info=None):
+        if ('Qf' in arg_list.keys()):
+            self.Qf = arg_list['Qf']
+        else:
+            self.Qf = 3000
         # set time horizon
         self.N = N
         self.n = 4
@@ -402,9 +406,8 @@ class CCMPPI_KINEMATIC():
         #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
         # soft constraint Q matrix
         Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
-        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 50
-        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
-        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 9000
+        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
+        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * self.Qf
 
         R = np.eye(m)
         R_bar = np.kron(np.eye(N, dtype=int), R)

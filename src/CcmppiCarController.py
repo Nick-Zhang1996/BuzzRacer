@@ -1,4 +1,4 @@
-/ CCMPPI controller wrapper with kinematic bicycle model
+# CCMPPI controller wrapper with kinematic bicycle model
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './ccmppi/')
@@ -38,7 +38,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -136,8 +136,16 @@ class CcmppiCarController(CarController):
             ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 1.0
+        if (algorithm == 'wide-ccmppi'):
+            ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 1.0
         elif (algorithm == 'narrow-mppi'):
             ratio = 0.1
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'wide-mppi'):
+            ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         print_info("[Ccmppi]: Injected noise:" + str(self.noise_cov))
@@ -184,6 +192,10 @@ class CcmppiCarController(CarController):
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
             print_info("ccmppi samples override to %d"%(arg_list['samples']))
+
+        if ('Qf' in self.car.main.params.keys()):
+            arg_list['Qf'] = self.car.main.params['Qf']
+            print_info("ccmppi terminal cov cost Q_f override to %d"%(arg_list['Qf']))
 
         if ('alfa' in self.car.main.params.keys()):
             arg_list['alfa'] = self.car.main.params['alfa']
@@ -360,7 +372,8 @@ class CcmppiCarController(CarController):
         self.car.steering = steering
 
         try:
-            self.plotObstacles()
+            #self.plotObstacles()
+            self.plotQf()
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
@@ -500,10 +513,26 @@ class CcmppiCarController(CarController):
         self.state_cov_vec.append(state_cov)
         #print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
         return
+    def plotQf(self):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+
+        # plot two parallel lines
+        coords = [[1-0.3,-1],[1-0.3,2]]
+        img = self.car.main.track.drawPolyline(coords,lineColor=(200,100,100),img=img,thickness=10)
+        coords = [[1.3,-1],[1.3,2]]
+        img = self.car.main.track.drawPolyline(coords,lineColor=(200,100,100),img=img,thickness=10)
+
+        self.car.main.visualization.visualization_img = img
+        return
 
     def plotDebug(self):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
+        img = self.car.main.visualization.visualization_img
+
+
 
         # DEBUG
         # simulate where mppi think where the car will end up with
@@ -513,10 +542,10 @@ class CcmppiCarController(CarController):
         # skip zero ref trajectories
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
-        samples = 100
         #index = random.sample(range(sampled_control.shape[0]), samples)
+        #samples = 100
         # plot all traj
-        #samples = sampled_control.shape[0]
+        samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
         rollout_state_vec = []
@@ -579,53 +608,21 @@ class CcmppiCarController(CarController):
             coord = (x,y)
             self.debug_dict['ideal_traj'].append(coord)
 
-        img = self.car.main.visualization.visualization_img
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
         for coords in coords_vec:
             img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img,thickness=1)
 
         # plot ideal trajectory (if car follow synthesized control)
+        '''
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x,y = coord
             img = self.car.main.track.drawPoint(img,(x,y),color=(0,255,0))
         img = self.car.main.track.drawPolyline(coords,lineColor=(0,255,0),img=img,thickness=1)
-
-        # plot opponent prediction
-        '''
-        coords_vec = self.debug_dict[car.id]['opponent_prediction']
-        for coords in coords_vec:
-            for coord in coords:
-                x,y = coord
-                img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
-            img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,0),img=img)
         '''
 
-        '''
-        coords_vec = np.array(coords_vec)
-        for i in range(len(coords_vec)):
-            plt.plot(coords_vec[0,:,0], coords_vec[0,:,1])
-        plt.show()
-        '''
 
-        # TODO 
-        '''
-        if 'opponent' in self.debug_dict[0]:
-            x_ref = self.debug_dict[0]['opponent']
-            for coord in x_ref[0]:
-                x,y = coord
-                img = self.main.track.drawPoint(img,(x,y),color=(255,0,0))
-        '''
-
-        # plot reference trajectory following some alternative control sequence
-        '''
-        x_ref_alt = self.debug_dict[0]['x_ref_alt']
-        for samples in x_ref_alt:
-            for coord in samples:
-                x,y = coord
-                img = self.main.track.drawPoint(img,(x,y),color=(100,0,0))
-        '''
         self.car.main.visualization.visualization_img = img
         return
 

@@ -1,0 +1,5 @@
+MPPI with small/large injected noise
+MPPI with CCMPPI sampled trajectory profiles
+Varying Qf for CCMPPI to alter the shape
+slow mo video of MPPI/CCMPPI in overtaking obstacles
+running with obstacles
