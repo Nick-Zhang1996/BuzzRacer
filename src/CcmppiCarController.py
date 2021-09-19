@@ -1,4 +1,4 @@
-# CCMPPI controller wrapper with kinematic bicycle model
+/ CCMPPI controller wrapper with kinematic bicycle model
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './ccmppi/')
@@ -140,6 +140,7 @@ class CcmppiCarController(CarController):
             ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
+        print_info("[Ccmppi]: Injected noise:" + str(self.noise_cov))
 
         print("[CcmppiCarController]: injected noise" + str(self.noise_cov))
 
@@ -365,7 +366,7 @@ class CcmppiCarController(CarController):
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
             self.plotAlgorithm()
-            #self.plotTrajectory()
+            self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
@@ -415,6 +416,8 @@ class CcmppiCarController(CarController):
             # plot obstacle in collision red
             img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], self.obstacle_radius, color=(100,100,255))
 
+        # FIXME
+        return
         text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -436,10 +439,10 @@ class CcmppiCarController(CarController):
             return
         img = self.car.main.visualization.visualization_img
         x,y,_,_,_,_ = self.car.states
-        self.trajectory.append((x,y))
         for coord in self.trajectory:
             img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
         self.car.main.visualization.visualization_img = img
+        self.trajectory.append((x,y))
         return
 
 
@@ -520,7 +523,7 @@ class CcmppiCarController(CarController):
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
-        for k in range(samples):
+        for k in range(sampled_control.shape[0]):
             this_rollout_traj = []
             this_state_traj = []
             sim_states = states.copy()
@@ -550,7 +553,7 @@ class CcmppiCarController(CarController):
         state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
         self.state_2_norm = np.linalg.norm(state_cov)
         self.state_2_norm_vec.append(self.state_2_norm)
-        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
+        #print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
 
         # DEBUG
         # apply the kth sampled control
@@ -586,8 +589,8 @@ class CcmppiCarController(CarController):
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x,y = coord
-            img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
-        img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img,thickness=1)
+            img = self.car.main.track.drawPoint(img,(x,y),color=(0,255,0))
+        img = self.car.main.track.drawPolyline(coords,lineColor=(0,255,0),img=img,thickness=1)
 
         # plot opponent prediction
         '''
