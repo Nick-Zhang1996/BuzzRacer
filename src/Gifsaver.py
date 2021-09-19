@@ -40,11 +40,17 @@ class Gifsaver(Extension):
 
     def postUpdate(self):
         self.count +=1
-        if (self.count == 2):
+        if (self.count == 1):
             img = self.main.visualization.visualization_img.copy()
-            filename = "./first_frame_" + str(self.log_no) + ".png"
+            filename = "./first_frame_" + self.main.algorithm + ".png"
             cv2.imwrite(filename,img)
             print_info(self.prefix()+"saved first frame at "+filename)
+
+        if (self.count == 2):
+            img = self.main.visualization.visualization_img.copy()
+            filename = "./second_frame_" + self.main.algorithm + ".png"
+            cv2.imwrite(filename,img)
+            print_info(self.prefix()+"saved second frame at "+filename)
 
 
     def final(self):

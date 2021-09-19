@@ -431,10 +431,10 @@ class CcmppiCarController(CarController):
             return
         img = self.car.main.visualization.visualization_img
         x,y,_,_,_,_ = self.car.states
-        self.trajectory.append((x,y))
         for coord in self.trajectory:
             img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
         self.car.main.visualization.visualization_img = img
+        self.trajectory.append((x,y))
         return
 
 
@@ -483,14 +483,13 @@ class CcmppiCarController(CarController):
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
-        samples = 100
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
         rollout_state_vec = []
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
-        for k in range(samples):
+        for k in range(sampled_control.shape[0]):
             this_rollout_traj = []
             this_state_traj = []
             sim_states = states.copy()
@@ -549,15 +548,15 @@ class CcmppiCarController(CarController):
         img = self.car.main.visualization.visualization_img
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
-        for coords in coords_vec[:30]:
+        for coords in coords_vec:
             img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img,thickness=1)
 
         # plot ideal trajectory (if car follow synthesized control)
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x,y = coord
-            img = self.car.main.track.drawPoint(img,(x,y),color=(255,0,0))
-        img = self.car.main.track.drawPolyline(coords,lineColor=(100,0,100),img=img,thickness=1)
+            img = self.car.main.track.drawPoint(img,(x,y),color=(0,255,0))
+        img = self.car.main.track.drawPolyline(coords,lineColor=(0,255,0),img=img,thickness=1)
 
         # plot opponent prediction
         '''
