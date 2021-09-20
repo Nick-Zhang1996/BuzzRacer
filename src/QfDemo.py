@@ -159,7 +159,7 @@ if __name__ == '__main__':
     algorithm = 'wide-ccmppi'
     samples = 4096
     Qfs = [0,10,40]
-    Qfs = np.linspace(0,50,51)
+    Qfs = np.linspace(0,3,31)
     for qf in Qfs:
         params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta,'Qf':qf}
         experiment_count += 1
