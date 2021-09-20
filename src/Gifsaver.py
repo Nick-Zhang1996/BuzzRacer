@@ -55,13 +55,13 @@ class Gifsaver(Extension):
             cv2.imwrite(filename,img)
             print_info(self.prefix()+"saved frame at "+filename)
             self.main.exit_request.set()
-        '''
 
         if (self.count == 2):
             img = self.main.visualization.visualization_img.copy()
             filename = "./second_frame_" + self.main.algorithm + ".png"
             cv2.imwrite(filename,img)
             print_info(self.prefix()+"saved second frame at "+filename)
+        '''
 
 
     def final(self):

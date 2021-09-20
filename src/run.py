@@ -32,6 +32,7 @@ class Main():
         # state update rate
         self.dt = 0.02
         self.params = params
+        self.algorithm = params['algorithm']
 
         self.track = TrackFactory(name='full')
 
@@ -138,8 +139,8 @@ class Main():
 
 if __name__ == '__main__':
     # alfa: progress
-    #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':0.8,'beta':2.5}
+    params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
+    #params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':0.8,'beta':2.5}
     experiment = Main(params)
     experiment.run()
     print_info("program complete")

@@ -379,7 +379,7 @@ class CcmppiCarController(CarController):
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
             self.plotAlgorithm()
-            self.plotTrajectory()
+            #self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
@@ -431,6 +431,7 @@ class CcmppiCarController(CarController):
 
         # FIXME
         return
+
         text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -532,8 +533,6 @@ class CcmppiCarController(CarController):
             return
         img = self.car.main.visualization.visualization_img
 
-
-
         # DEBUG
         # simulate where mppi think where the car will end up with
         states = self.debug_states
@@ -543,16 +542,16 @@ class CcmppiCarController(CarController):
         sampled_control = sampled_control[int(self.samples_count*self.zero_ref_ratio)+1:,:]
 
         #index = random.sample(range(sampled_control.shape[0]), samples)
-        #samples = 100
+        samples = 100
         # plot all traj
-        samples = sampled_control.shape[0]
+        #samples = sampled_control.shape[0]
         # show all, NOTE serious barrier to performance
         rollout_traj_vec = []
         rollout_state_vec = []
         # states, sampled_control
         # DEBUG
         # plot sampled trajectories
-        for k in range(sampled_control.shape[0]):
+        for k in range(samples):
             this_rollout_traj = []
             this_state_traj = []
             sim_states = states.copy()

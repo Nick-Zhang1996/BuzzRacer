@@ -7,10 +7,10 @@ import cv2
 class LapCounter(Extension):
     def __init__(self, main):
         Extension.__init__(self,main)
-        self.plotLapCountFlag = True
+        self.plotLapCountFlag = False
 
     def init(self):
-        self.total_laps = 20
+        self.total_laps = 10
         print_ok("[LapCounter]: total %d laps"%(self.total_laps))
         self.main.car_total_laps = []
         for car in self.main.cars:
