@@ -158,8 +158,8 @@ if __name__ == '__main__':
     beta = 1
 
     #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    #for algorithm in ['narrow-mppi','wide-mppi','wide-ccmppi']:
-    for algorithm in ['wide-ccmppi']:
+    for algorithm in ['narrow-mppi','narrow-ccmppi']:
+    #for algorithm in ['wide-ccmppi']:
         samples = 4096
         params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 

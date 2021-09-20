@@ -372,8 +372,8 @@ class CcmppiCarController(CarController):
         self.car.steering = steering
 
         try:
-            #self.plotObstacles()
-            self.plotQf()
+            self.plotObstacles()
+            #self.plotQf()
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
@@ -614,13 +614,11 @@ class CcmppiCarController(CarController):
             img = self.car.main.track.drawPolyline(coords,lineColor=(200,200,200),img=img,thickness=1)
 
         # plot ideal trajectory (if car follow synthesized control)
-        '''
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x,y = coord
             img = self.car.main.track.drawPoint(img,(x,y),color=(0,255,0))
         img = self.car.main.track.drawPolyline(coords,lineColor=(0,255,0),img=img,thickness=1)
-        '''
 
 
         self.car.main.visualization.visualization_img = img
