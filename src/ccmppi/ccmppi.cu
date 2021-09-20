@@ -515,9 +515,9 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
   //gradient linear cost
-  //cost = cost>0? cost:0;
+  cost = cost>0? cost:0;
   // constant cost
-  cost = cost>0? 10:0;
+  //cost = cost>0? 10:0;
   cost *= BETA;
 
   return cost ;
