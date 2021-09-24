@@ -29,7 +29,7 @@ from Watchdog import Watchdog
 class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
-        self.dt = 0.03
+        self.dt = 0.02
         self.params = params
         self.new_state_update = Event()
 
@@ -52,30 +52,20 @@ class Main():
         self.slowdown_ts = 0
 
         # --- Extensions ---
-        # named extensions
+        self.extensions = []
         self.visualization = Visualization(self)
-        self.simulator = KinematicSimulator(self)
+        Optitrack(self)
+        #Gifsaver(self)
+        #self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
         #self.simulator.match_real_time = True
-        #self.collision_checker = CollisionChecker(self)
-        #self.performance_tracker = PerformanceTracker(self)
 
-        self.extensions = []
-        self.extensions.append(self.visualization)
+        #Gifsaver(self))
+
         # Laptimer
-        self.extensions.append(Laptimer(self))
-        #self.extensions.append(CrosstrackErrorTracker(self))
-        #self.extensions.append(LapCounter(self))
+        #Laptimer(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.extensions.append(Logger(self))
-        #self.extensions.append(self.collision_checker)
-
-        #self.extensions.append(Optitrack(self))
-        self.extensions.append(self.simulator)
-        #self.extensions.append(Gifsaver(self))
-        #self.extensions.append(self.performance_tracker)
-        #self.watchdog = Watchdog(self)
-        #self.extensions.append(self.watchdog)
+        #Logger(self)
 
         for item in self.extensions:
             item.init()
@@ -148,7 +138,7 @@ class Main():
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':0.5,'beta':1.0}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':10.0,'beta':10.0}
     experiment = Main(params)
     experiment.run()
     experiment.cars[0].controller.p.summary()

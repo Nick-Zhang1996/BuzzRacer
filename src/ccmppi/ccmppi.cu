@@ -358,25 +358,9 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   int idx;
   float dist, cost;
   cost = 0;
-  // velocity cost
-  //dv = state[2] - in_raceline[idx][3];
   // additional penalty on negative velocity 
-  if (state[2] < 0){
-    cost += 0.1;
-  }
 
-  // progress cost
-  //find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
-  // update estimate of closest index on raceline
-  //*last_u = idx;
-
-  // wrapping
-  // *0.01: convert index difference into length difference
-  // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
-  //cost += dist*dist*30;
-
-  return 0.0;
+  return -state[2];
 }
 
 __device__
@@ -454,13 +438,16 @@ void forward_kinematics(float* state, float* u){
 
   float dvelocity;
 
+  /*
   if (velocity > MAX_V){
     dvelocity = -0.01;
   } else {
     dvelocity = throttle * DT;
   }
+  */
 
-  //dvelocity = (( PARAM_CM1 - PARAM_CM2 * velocity) * throttle - PARAM_CR - PARAM_CD * velocity*velocity);
+  dvelocity = (( PARAM_CM1 - PARAM_CM2 * velocity) * throttle - PARAM_CR - PARAM_CD * velocity*velocity);
+  dvelocity *= DT;
 
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
