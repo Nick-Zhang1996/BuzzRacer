@@ -1,7 +1,8 @@
 from common import *
-from math import isnan,pi
+from math import isnan,pi,degrees,radians
 from CarController import CarController
 from PidController import PidController
+
 class StanleyCarController(CarController):
     def __init__(self, car):
         super().__init__(car)
@@ -70,7 +71,7 @@ class StanleyCarController(CarController):
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         # FIXME
-        v_target = min(v_target * 0.5, 1.2)
+        v_target = min(v_target, 2.5)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})

@@ -30,6 +30,7 @@ class CcmppiCarController(CarController):
         self.p = execution_timer(True)
         self.wheelbase = car.wheelbase
         self.ccmppi_dt = car.main.dt
+        KinematicSimulator.dt = car.main.dt
 
         self.opponents = []
         self.opponent_prediction = []
@@ -38,7 +39,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -174,12 +175,14 @@ class CcmppiCarController(CarController):
                 'cc_ratio': self.cc_ratio,
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
-                'max_v': self.car.main.simulator.max_v,
+                'max_v': 2.0,
                 'R_diag': self.R_diag,
                 'alfa':1.0,
                 'beta':1.0,
                 'obstacle_radius':self.obstacle_radius,
                 'zero_ref_ratio': self.zero_ref_ratio}
+
+        KinematicSimulator.max_v = 2.0
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
@@ -196,11 +199,14 @@ class CcmppiCarController(CarController):
         arg_list['rcp_track'] = True
 
         self.ccmppi = CCMPPI(self,arg_list)
+        '''
         if (isinstance(self.track,RCPtrack)):
             # discretize raceline for use in MPPI
             self.additionalSetupRcp()
         else:
             self.additionalSetupEmpty()
+        '''
+        self.additionalSetupEmpty()
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 
@@ -360,12 +366,12 @@ class CcmppiCarController(CarController):
         self.car.steering = steering
 
         try:
-            self.plotObstacles()
+            #self.plotObstacles()
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
-            self.plotAlgorithm()
+            #self.plotAlgorithm()
             #self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
@@ -551,7 +557,7 @@ class CcmppiCarController(CarController):
         state_cov = np.cov(np.array(rollout_state_vec)[:,-1,:].T)
         self.state_2_norm = np.linalg.norm(state_cov)
         self.state_2_norm_vec.append(self.state_2_norm)
-        print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
+        #print_info("[Ccmppi]: pos norm: %.3f, state norm: %.3f, area: %.4f"%(self.pos_2_norm, self.state_2_norm, self.pos_area))
 
         # DEBUG
         # apply the kth sampled control

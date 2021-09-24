@@ -15,14 +15,13 @@ class KinematicSimulator(Simulator):
         self.lr = 45e-3
         self.lf = 45e-3
         KinematicSimulator.max_v = 3.0
+        KinematicSimulator.dt = self.main.dt
 
     def init(self):
         super().init()
         self.cars = self.main.cars
-        KinematicSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
-        self.main.new_state_update = Event()
         self.main.new_state_update.set()
 
     # add a car to be KinematicSimulator
@@ -47,6 +46,7 @@ class KinematicSimulator(Simulator):
     def advanceDynamics(sim_states,control, car):
         lr = car.lr
         lf = car.lf
+        dt = KinematicSimulator.dt
         
         '''
         throttle = np.clip(throttle, -1.0, 1.0)
@@ -61,15 +61,21 @@ class KinematicSimulator(Simulator):
         throttle = control[0]
         steering = control[1]
 
-        dt = KinematicSimulator.dt
-
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
+        '''
         if (v > KinematicSimulator.max_v):
             dvdt = -0.01
         else:
             dvdt = throttle
+        '''
+        PARAM_CM1 = 6.03154
+        PARAM_CM2 = 0.96769
+        PARAM_CR  =(-0.20375)
+        PARAM_CD  =0.00000
+        dvdt = (( PARAM_CM1 - PARAM_CM2 * v) * throttle - PARAM_CR - PARAM_CD * v*v);
+
         dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt

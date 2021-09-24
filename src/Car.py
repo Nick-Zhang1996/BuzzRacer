@@ -1,4 +1,5 @@
 from common import *
+import serial
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
 class Car:
     car_count = 0
@@ -32,7 +33,7 @@ class Car:
         else:
             # TODO: address when controller can't find a valid solution
             self.controller.control()
-            #print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
+            print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
             #print_info(self.states)
 
 
@@ -58,6 +59,9 @@ class Car:
     def __del__(self):
         if ((not self.serial_port is None) and (not self.car_interface is None) and self.car_interface.is_open):
             self.car_interface.close()
+    def mapdata(self,x,a,b,c,d):
+        y=(x-a)/(b-a)*(d-c)+c
+        return int(y)
 
     @classmethod
     def reset(cls):

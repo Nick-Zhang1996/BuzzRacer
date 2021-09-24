@@ -21,6 +21,8 @@
 #define ALFA %(alfa)s
 #define BETA %(beta)s
 
+
+
 #define MODE_CC 1
 #define MODE_NOCC 2
 #define MODE_ZERO_REF 3
@@ -28,6 +30,11 @@
 
 #define PARAM_LR 0.036
 #define PARAM_L 0.09
+
+#define PARAM_CM1  6.03154
+#define PARAM_CM2  0.96769
+#define PARAM_CR  (-0.20375)
+#define PARAM_CD  0.00000
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -445,13 +452,16 @@ void forward_kinematics(float* state, float* u){
   float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
   float dx = velocity * cosf(psi + beta) * DT;
   float dy = velocity * sinf(psi + beta) * DT;
+
   float dvelocity;
+  /*
   if (velocity > MAX_V){
     dvelocity = -0.01;
   } else {
     dvelocity = throttle * DT;
-
   }
+  */
+  dvelocity = (( PARAM_CM1 - PARAM_CM2 * velocity) * throttle - PARAM_CR - PARAM_CD * velocity*velocity);
 
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 

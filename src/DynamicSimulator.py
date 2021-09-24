@@ -33,7 +33,6 @@ class DynamicSimulator(Simulator):
         DynamicSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
-        self.main.new_state_update = Event()
         self.main.new_state_update.set()
 
     # add a car to be DynamicSimu  
