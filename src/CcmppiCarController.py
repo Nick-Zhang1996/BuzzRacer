@@ -142,6 +142,9 @@ class CcmppiCarController(CarController):
             ratio = 0.1
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
+        elif (algorithm == 'mppi-experiment'):
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            cc_ratio = 0.0
 
         print("[CcmppiCarController]: injected noise" + str(self.noise_cov))
 

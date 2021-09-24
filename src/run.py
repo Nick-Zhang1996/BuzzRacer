@@ -2,7 +2,7 @@
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
-from time import time
+from time import time,sleep
 
 from KinematicSimulator import KinematicSimulator
 from DynamicSimulator import DynamicSimulator
@@ -29,8 +29,7 @@ from Watchdog import Watchdog
 class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
-        # state update rate
-        self.dt = 0.01
+        self.dt = 0.03
         self.params = params
         self.new_state_update = Event()
 
@@ -55,7 +54,7 @@ class Main():
         # --- Extensions ---
         # named extensions
         self.visualization = Visualization(self)
-        #self.simulator = KinematicSimulator(self)
+        self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
         #self.simulator.match_real_time = True
         #self.collision_checker = CollisionChecker(self)
@@ -71,8 +70,8 @@ class Main():
         #self.extensions.append(Logger(self))
         #self.extensions.append(self.collision_checker)
 
-        self.extensions.append(Optitrack(self))
-        #self.extensions.append(self.simulator)
+        #self.extensions.append(Optitrack(self))
+        self.extensions.append(self.simulator)
         #self.extensions.append(Gifsaver(self))
         #self.extensions.append(self.performance_tracker)
         #self.watchdog = Watchdog(self)
@@ -92,9 +91,12 @@ class Main():
         t = self.timer
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
+            ts = time()
             t.s()
             self.update()
             t.e()
+            while (time() - ts < self.dt):
+                sleep(0.001)
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
@@ -146,7 +148,8 @@ class Main():
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-same-injected','alfa':0.5,'beta':1.0}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':0.5,'beta':1.0}
     experiment = Main(params)
     experiment.run()
+    experiment.cars[0].controller.p.summary()
     print_info("program complete")
