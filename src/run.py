@@ -32,6 +32,7 @@ class Main():
         # state update rate
         self.dt = 0.02
         self.params = params
+        self.algorithm = params['algorithm']
 
         self.track = TrackFactory(name='full')
 

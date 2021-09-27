@@ -4,6 +4,7 @@ from common import *
 from Extension import Extension
 from threading import Event
 import pickle
+import matplotlib.pyplot as plt
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
@@ -12,6 +13,7 @@ class Visualization(Extension):
         self.frame_dt = 1.0/self.update_freq
         # NOTE
         self.frame_dt = 0.0
+        self.count = 0
 
     def final(self):
         cv2.destroyAllWindows()
@@ -74,4 +76,18 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.main.track.drawCar(img, car.states, car.steering)
                 self.visualization_img = img
+
+    def final(self):
+        img = self.img_track.copy()
+        self.visualization_img = img
+        self.update_visualization.set()
+        self.main.cars[0].controller.plotObstacles()
+        self.main.cars[0].controller.plotTrajectory()
+        img = self.visualization_img.copy()
+        filename = "./last_frame_" + self.main.algorithm + ".png"
+        cv2.imwrite(filename,img)
+        print_info(self.prefix()+"saved last frame at " + filename)
+
+
+
 

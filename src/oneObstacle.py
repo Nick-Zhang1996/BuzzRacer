@@ -33,6 +33,7 @@ class Main():
         # state update rate
         self.dt = 0.02
         self.params = params
+        self.algorithm = params['algorithm']
 
         self.track = TrackFactory(name='empty')
         #self.track = TrackFactory(name='full')
@@ -157,8 +158,8 @@ if __name__ == '__main__':
     beta = 1
 
     #for algorithm in ['mppi-same-injected','mppi-same-terminal-cov','ccmppi']:
-    #for algorithm in ['narrow-mppi','narrow-ccmppi']:
-    for algorithm in ['narrow-mppi']:
+    for algorithm in ['narrow-mppi','narrow-ccmppi']:
+    #for algorithm in ['wide-ccmppi']:
         samples = 4096
         params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 

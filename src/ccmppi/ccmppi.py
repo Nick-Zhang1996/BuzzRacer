@@ -30,7 +30,7 @@ class CCMPPI:
         discretized_raceline = arg_list['raceline']
         # kinematic simulator velocity cap
         max_v = arg_list['max_v']
-        self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
+        self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov,arg_list)
 
         self.p = execution_timer(True)
         self.debug_dict = {}

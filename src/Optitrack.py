@@ -155,6 +155,7 @@ class _Optitrack:
     # 1. does not include kalman filter update
     # 2. if an unseen id is found, it will be added to id list and an KF instance will be created for it
     def receiveRigidBodyFrameInit( self, optitrack_id, position, rotation ):
+        print("receiveRigidBodyFrameInit")
 
         if not (optitrack_id in self.optitrack_id_lookup):
             self.obj_count +=1
@@ -280,11 +281,9 @@ class _Optitrack:
 
 # test functionality
 if __name__ == '__main__':
-    op = Optitrack()
-    #for i in range(op.obj_count):
-    while True:
-        #op_id = op.getOptitrackId(i)
-        op_id = 2
+    op = _Optitrack()
+    for i in range(op.obj_count):
+        op_id = op.getOptitrackId(i)
         i = op.getInternalId(op_id)
         x2d,y2d,theta2d = op.getState2d(i)
         x,y,z,rx,ry,rz = op.getState(i)
