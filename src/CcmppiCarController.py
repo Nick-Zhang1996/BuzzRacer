@@ -39,7 +39,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = True
+        self.plotDebugFlag = False
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -151,7 +151,7 @@ class CcmppiCarController(CarController):
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
         elif (algorithm == 'mppi-experiment'):
-            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            self.noise_cov = np.diag([(self.throttle2acc(0.0,self.car.max_throttle))**2,radians(20.0)**2])
             cc_ratio = 0.0
 
         print("[CcmppiCarController]: injected noise" + str(self.noise_cov))
@@ -330,11 +330,11 @@ class CcmppiCarController(CarController):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     def control(self):
+        p = self.p
+        p.s()
         states = self.car.states
         track = self.car.main.track
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
-        # profiling
-        p = self.p
         '''
         try:
             self.predictOpponent()
@@ -357,36 +357,29 @@ class CcmppiCarController(CarController):
         # NOTE may need revision to use previous results
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
 
-        p.s()
         uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
 
         control = uu[0]
-        throttle = control[0]
+        acc_request = control[0]
         steering = control[1]
         #print_info("[wrapper:ccmppi.control] T= %.2f, S = %.2f"%(throttle,degrees(steering)) )
-        p.e()
 
         # record control energy
-        self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
-        self.theory_cov_mtx = self.ccmppi.theory_cov_mtx
-        self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
+        #self.utru = acc_request*acc_request*self.R_diag[0] + steering*steering*self.R_diag[1]
+        #self.theory_cov_mtx = self.ccmppi.theory_cov_mtx
+        #self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
 
         # for debug
-        self.debug_states = states.copy()
-        self.debug_uu = uu
+        #self.debug_states = states.copy()
+        #self.debug_uu = uu
 
-        self.debug_dict.update(debug_dict)
+        #self.debug_dict.update(debug_dict)
 
-        self.car.throttle = throttle
+        self.car.throttle = self.acc2throttle(vf, acc_request)
         self.car.steering = steering
 
         try:
-<<<<<<< HEAD
             self.plotObstacles()
-            #self.plotQf()
-=======
-            #self.plotObstacles()
->>>>>>> 919eb3a78207bf1795191a0d69a0aa2fa90fc985
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
@@ -401,8 +394,17 @@ class CcmppiCarController(CarController):
         self.car.debug_dict['state_2_norm_vec'] = self.state_2_norm_vec
         self.car.debug_dict['state_cov_vec'] = self.state_cov_vec
         self.car.debug_dict['pos_area_vec'] = self.pos_area_vec
+        p.e()
         return True
 
+    def acc2throttle(self, vel, acc):
+        throttle = acc/(6-vel) + 0.245
+        print_info("acc= %.2f, T = %.2f, v= %.1f"%(acc, throttle, vel))
+        return throttle
+
+    def throttle2acc(self, vel, throttle):
+        acc = (6-vel)*(throttle - 0.245)
+        return acc
 
     def plotAlgorithm(self):
         if (not self.car.main.visualization.update_visualization.is_set()):

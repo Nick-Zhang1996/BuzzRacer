@@ -64,18 +64,13 @@ class KinematicSimulator(Simulator):
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
+        '''
         if (v > KinematicSimulator.max_v):
             dvdt = -0.01
         else:
             dvdt = throttle
         '''
-        PARAM_CM1 = 6.03154
-        PARAM_CM2 = 0.96769
-        PARAM_CR  =(-0.20375)
-        PARAM_CD  =0.00000
-        dvdt = (( PARAM_CM1 - PARAM_CM2 * v) * throttle - PARAM_CR - PARAM_CD * v*v);
-        '''
-
+        dvdt = (6-v)*(throttle - 0.245)
         dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt

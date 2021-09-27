@@ -29,7 +29,7 @@ from Watchdog import Watchdog
 class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
-        self.dt = 0.02
+        self.dt = 0.03
         self.params = params
         self.algorithm = params['algorithm']
         self.new_state_update = Event()
@@ -56,9 +56,7 @@ class Main():
         self.extensions = []
         self.visualization = Visualization(self)
         Optitrack(self)
-        #Gifsaver(self)
         #self.simulator = KinematicSimulator(self)
-        #self.simulator = DynamicSimulator(self)
         #self.simulator.match_real_time = True
 
         #Gifsaver(self))
@@ -139,7 +137,7 @@ class Main():
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':10.0,'beta':10.0}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
     experiment = Main(params)
     experiment.run()
     experiment.cars[0].controller.p.summary()
