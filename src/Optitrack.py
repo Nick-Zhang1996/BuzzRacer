@@ -25,10 +25,7 @@ class Optitrack(Extension):
         main.experiment_type = ExperimentType.Realworld
 
     def init(self):
-        print_ok("[Optitrack]: in use")
-
-        self.vi = Optitrack(wheelbase=car.wheelbase)
-        self.new_state_update = self.vi.newState
+        self.vi = _Optitrack(self)
         for car in self.main.cars:
             car.internal_id = self.vi.getInternalId(car.optitrack_id)
             print_ok("[Optitrack]: Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))
@@ -41,6 +38,7 @@ class Optitrack(Extension):
             #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
             car.states = (x,y,theta,v,0,omega)
+        self.main.new_state_update.set()
 
     def final(self):
         self.vi.quit()
@@ -72,7 +70,8 @@ class Optitrack(Extension):
 
 
 class _Optitrack:
-    def __init__(self,wheelbase=102e-3,enableKF=True):
+    def __init__(self,base,enableKF=True):
+        self.base = base
         self.newState = Event()
         self.enableKF = Event()
         if enableKF:
@@ -83,7 +82,7 @@ class _Optitrack:
         # to be used in Kalman filter update
         # action = (steering in rad left positive, longitudinal acc (m/s2))
         self.action = (0,0)
-        self.wheelbase = wheelbase
+        self.wheelbase = 102e-3
 
         # This will create a new NatNet client
         self.streamingClient = NatNetClient()
@@ -226,7 +225,8 @@ class _Optitrack:
             # kf.getState() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].getState()
         self.state_lock.release()
-        self.updateCarStates()
+        if not self.base is None:
+            self.base.updateCarStates()
         self.newState.set()
         #print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         #print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
@@ -281,9 +281,11 @@ class _Optitrack:
 
 # test functionality
 if __name__ == '__main__':
-    op = _Optitrack()
-    for i in range(op.obj_count):
-        op_id = op.getOptitrackId(i)
+    op = _Optitrack(None)
+    #for i in range(op.obj_count):
+    while True:
+        #op_id = op.getOptitrackId(i)
+        op_id = 2
         i = op.getInternalId(op_id)
         x2d,y2d,theta2d = op.getState2d(i)
         x,y,z,rx,ry,rz = op.getState(i)

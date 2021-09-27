@@ -30,6 +30,7 @@ class CcmppiCarController(CarController):
         self.p = execution_timer(True)
         self.wheelbase = car.wheelbase
         self.ccmppi_dt = car.main.dt
+        KinematicSimulator.dt = car.main.dt
 
         self.opponents = []
         self.opponent_prediction = []
@@ -38,7 +39,7 @@ class CcmppiCarController(CarController):
 
         # DEBUG
         self.theory_cov_mtx_vec = []
-        self.plotDebugFlag = False
+        self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
         self.pos_2_norm = None
@@ -149,7 +150,9 @@ class CcmppiCarController(CarController):
             ratio = 1.0
             self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
             cc_ratio = 0.0
-        print_info("[Ccmppi]: Injected noise:" + str(self.noise_cov))
+        elif (algorithm == 'mppi-experiment'):
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            cc_ratio = 0.0
 
         print("[CcmppiCarController]: injected noise" + str(self.noise_cov))
 
@@ -183,12 +186,14 @@ class CcmppiCarController(CarController):
                 'cc_ratio': self.cc_ratio,
                 'raceline': self.discretized_raceline,
                 'cuda_filename': "ccmppi/ccmppi.cu",
-                'max_v': self.car.main.simulator.max_v,
+                'max_v': 2.0,
                 'R_diag': self.R_diag,
                 'alfa':1.0,
                 'beta':1.0,
                 'obstacle_radius':self.obstacle_radius,
                 'zero_ref_ratio': self.zero_ref_ratio}
+
+        KinematicSimulator.max_v = 2.0
 
         if ('samples' in self.car.main.params.keys()):
             arg_list['samples'] = self.car.main.params['samples']
@@ -209,11 +214,14 @@ class CcmppiCarController(CarController):
         arg_list['rcp_track'] = True
 
         self.ccmppi = CCMPPI(self,arg_list)
+        '''
         if (isinstance(self.track,RCPtrack)):
             # discretize raceline for use in MPPI
             self.additionalSetupRcp()
         else:
             self.additionalSetupEmpty()
+        '''
+        self.additionalSetupEmpty()
 
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
 
@@ -373,13 +381,17 @@ class CcmppiCarController(CarController):
         self.car.steering = steering
 
         try:
+<<<<<<< HEAD
             self.plotObstacles()
             #self.plotQf()
+=======
+            #self.plotObstacles()
+>>>>>>> 919eb3a78207bf1795191a0d69a0aa2fa90fc985
             if (self.plotDebugFlag):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
-            self.plotAlgorithm()
+            #self.plotAlgorithm()
             #self.plotTrajectory()
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))

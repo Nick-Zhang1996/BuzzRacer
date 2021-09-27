@@ -10,7 +10,6 @@ import pickle
 class Logger(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0
@@ -23,7 +22,7 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/kinematics_results/"
+        logFolder = "../log/sept24/"
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
