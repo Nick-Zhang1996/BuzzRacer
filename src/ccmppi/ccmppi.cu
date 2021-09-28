@@ -347,12 +347,16 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   float dist, cost;
   cost = 0;
   // penalty on negative velocity 
-  cost += -state[2];
+  //cost += -state[2];
 
   find_closest_id(state,in_raceline,-1,0,&idx0,&dist);
   find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
-  cost += dist*dist*10;
-
+  if (state[2]>0){
+    cost += 0.1*(in_raceline[idx][RACELINE_V] - state[2])*(in_raceline[idx][RACELINE_V] - state[2]);
+  } else {
+    cost += -0.1;
+  }
+  cost += dist*dist;
   return cost;
 }
 
@@ -372,7 +376,7 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
   cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*ALFA;
   cost += dist*dist*500;
-  return cost;
+  return 0.0;
 }
 
 // NOTE potential improvement by reusing idx result from other functions

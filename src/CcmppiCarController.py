@@ -158,7 +158,7 @@ class CcmppiCarController(CarController):
 
         self.control_dim = 2
         self.state_dim = 4
-        self.horizon_steps = 15
+        self.horizon_steps = 30
         self.samples_count = 4096
         self.cc_ratio = cc_ratio
         print_info('[CcmppiCarController]: ' + algorithm)
@@ -248,6 +248,7 @@ class CcmppiCarController(CarController):
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
         heading_vec = np.arctan2(drr[1],drr[0])
         vv = self.track.sToV(ss) 
+        vv *= 0.5
 
         # parameter, distance along track
         self.ss = ss
@@ -370,10 +371,10 @@ class CcmppiCarController(CarController):
         #self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
 
         # for debug
-        #self.debug_states = states.copy()
-        #self.debug_uu = uu
+        self.debug_states = states.copy()
+        self.debug_uu = uu
 
-        #self.debug_dict.update(debug_dict)
+        self.debug_dict.update(debug_dict)
 
         self.car.throttle = self.acc2throttle(vf, acc_request)
         self.car.steering = steering
