@@ -29,7 +29,7 @@ from Watchdog import Watchdog
 class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
-        self.dt = 0.03
+        self.dt = 0.01
         self.params = params
         self.algorithm = params['algorithm']
         self.new_state_update = Event()
@@ -37,8 +37,8 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -64,7 +64,7 @@ class Main():
         # Laptimer
         #Laptimer(self))
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        Logger(self)
 
         for item in self.extensions:
             item.init()
@@ -84,8 +84,6 @@ class Main():
             t.s()
             self.update()
             t.e()
-            while (time() - ts < self.dt):
-                sleep(0.001)
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
@@ -140,5 +138,5 @@ if __name__ == '__main__':
     params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
     experiment = Main(params)
     experiment.run()
-    experiment.cars[0].controller.p.summary()
+    #experiment.cars[0].controller.p.summary()
     print_info("program complete")

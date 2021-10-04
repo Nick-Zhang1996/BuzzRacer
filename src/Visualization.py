@@ -81,8 +81,8 @@ class Visualization(Extension):
         img = self.img_track.copy()
         self.visualization_img = img
         self.update_visualization.set()
-        self.main.cars[0].controller.plotObstacles()
-        self.main.cars[0].controller.plotTrajectory()
+        #self.main.cars[0].controller.plotObstacles()
+        #self.main.cars[0].controller.plotTrajectory()
         img = self.visualization_img.copy()
         filename = "./last_frame_" + self.main.algorithm + ".png"
         cv2.imwrite(filename,img)
