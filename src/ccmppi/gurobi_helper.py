@@ -20,9 +20,9 @@ def gurobi_trAXB(A,B,vecX):
     m = A.shape[1]
     n = B.shape[0]
     # matrix.flatten('F') is vec(matrix)
-    #retval = (A.T.flatten('F').T @ np.kron(B.T,np.eye(m))) @ vecX
-    val = (A.T.flatten('F').T @ np.kron(B.T,np.eye(m)))
-    retval = sum( (val[i] * vecX[i]) for i in range(n*m))
+    retval = (A.T.flatten('F').T @ np.kron(B.T,np.eye(m))) @ vecX
+    #val = (A.T.flatten('F').T @ np.kron(B.T,np.eye(m)))
+    #retval = sum( (val[i] * vecX[i]) for i in range(n*m))
     return retval
 
 def gurobi_trAXB_alt(A,B,vecX):
@@ -31,9 +31,9 @@ def gurobi_trAXB_alt(A,B,vecX):
     p = A.shape[0]
     m = A.shape[1]
     n = B.shape[0]
-    #retval = (np.eye(m).flatten('F').T @ np.kron( (B@A).T, np.eye(m) )) @ vecX
-    val = (np.eye(m).flatten('F').T @ np.kron( (B@A).T, np.eye(m) ))
-    retval = sum((val[i] * vecX[i]) for i in range(n*m))
+    retval = (np.eye(m).flatten('F').T @ np.kron( (B@A).T, np.eye(m) )) @ vecX
+    #val = (np.eye(m).flatten('F').T @ np.kron( (B@A).T, np.eye(m) ))
+    #retval = sum((val[i] * vecX[i]) for i in range(n*m))
     return retval
 
 # express tr(A.T @ X.T @ Q @ X @ A)
