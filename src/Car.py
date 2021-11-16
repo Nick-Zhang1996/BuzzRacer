@@ -17,6 +17,8 @@ class Car:
         if (Car.main.experiment_type == ExperimentType.Realworld):
             self.initSerialInterface()
         self.controller.init()
+    def finish(self):
+        self.controller.finish()
 
     def initSerialInterface(self):
         try:

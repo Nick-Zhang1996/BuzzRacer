@@ -98,6 +98,8 @@ class CCMPPI:
         sleep(0.01)
 
         return
+    def finish(self):
+        self.cc.finish()
 
     # given state, apply CCMPPI and find control
     # state: current plant state

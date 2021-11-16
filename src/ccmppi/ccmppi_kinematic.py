@@ -4,6 +4,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from gurobi_helper import vec, unvec, gurobi_trAXB, gurobi_matrix_quad
 
+
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
@@ -28,9 +29,11 @@ from Car import Car
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
 from KinematicSimulator import KinematicSimulator
+from timeUtil import execution_timer
 
 class CCMPPI_KINEMATIC():
     def __init__(self,dt, N, noise_cov, arg_list,debug_info=None):
+        self.t = execution_timer(True)
         if ('Qf' in arg_list.keys()):
             self.Qf = arg_list['Qf']
         else:
@@ -62,6 +65,9 @@ class CCMPPI_KINEMATIC():
         #self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
         
         np.random.seed()
+    def finish(self):
+        print("CCMPPI_KINEMATIC")
+        self.t.summary()
 
     def setupParam(self):
         # dimension
@@ -352,7 +358,7 @@ class CCMPPI_KINEMATIC():
     # ref_state_vec: N*[x,y,v,heading]
     # ref_ctrl_vec: N*[throttle, steering]
     # cvxpy version, new formulation
-    def cc(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
+    def cc_cvxpy(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
         n = self.n
         N = self.N
         m = self.m
@@ -646,7 +652,9 @@ class CCMPPI_KINEMATIC():
     # ref_state_vec: N*[x,y,v,heading]
     # ref_ctrl_vec: N*[throttle, steering]
     # gurobi version
-    def gurobi_cc(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
+    def cc(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
+        t = self.t
+        t.s()
         n = self.n
         N = self.N
         m = self.m
@@ -704,7 +712,9 @@ class CCMPPI_KINEMATIC():
         #Q = np.eye(n)
         #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
         # soft constraint Q matrix
-        Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
+        #Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
+        # to make Q_bar strictly positive definite
+        Q_bar = np.eye((N+1)*self.n)
         #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
         Q_bar[-self.n:, -self.n:] = np.eye(self.n) * self.Qf
 
@@ -735,7 +745,7 @@ class CCMPPI_KINEMATIC():
         '''
 
         model = gp.Model("cc")
-        #m.setParam(GRB.Param.OutputFlag, 0)
+        model.setParam(GRB.Param.OutputFlag, 0)
         #K = model.addMVar(shape=(m*N,n*(N+1)), lb=-GRB.INFINITY, ub=GRB.INFINITY)
         vecK = model.addMVar(shape=(m*N * n*(N+1)), lb=-GRB.INFINITY, ub=GRB.INFINITY,name='vecK')
         # constraint value to be zero
@@ -759,19 +769,22 @@ class CCMPPI_KINEMATIC():
 
         model.setObjective( obj )
 
-        #sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
-        # hard constraint, cvxpy doesn't respect this for some reasons
-        #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
             
-        # DEBUG veirfy constraint
-        '''
-        test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
-        if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
-            print_warning("[cc] constraint not satisfied")
-        '''
         model.optimize()
         K = unvec(vecK.x, (m*N, n*(N+1)))
-        self.Ks = [ K[m*i:m*(i+1), n*i:n*(i+1)] for i in range(N) ]
+        self.Ks = Ks = [ K[m*i:m*(i+1), n*i:n*(i+1)] for i in range(N) ]
+
+        # re -evaluate objective function
+        vecK = vecK.x
+        obj = gurobi_trAXB(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
+        obj += gurobi_matrix_quad(D, Q_bar_sqrt @ B, vecK)
+        #obj += D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D
+        obj += gurobi_trAXB( D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
+        obj += gurobi_matrix_quad(D, R_bar_sqrt, vecK)
+        print("difference : ")
+        print(obj - model.ObjVal)
+        print("real obj")
+        print(obj + np.trace(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D))
 
         As = np.swapaxes(As,0,2)
         As = np.swapaxes(As,1,2)
@@ -781,6 +794,8 @@ class CCMPPI_KINEMATIC():
 
         ds = np.swapaxes(ds,0,2)
         ds = np.swapaxes(ds,1,2)
+
+        t.e()
 
         # return terminal covariance, theoretical values with and without cc
         if (return_sx):

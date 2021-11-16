@@ -25,7 +25,6 @@ from scipy.integrate import solve_ivp
 from time import sleep,time
 import cv2
 from PIL import Image
-from car import Car
 from Track import Track
 import pickle
 from common import *

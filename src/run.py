@@ -28,7 +28,6 @@ from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
-        self.timer = execution_timer(True)
         # state update rate
         self.dt = 0.02
         self.params = params
@@ -73,7 +72,7 @@ class Main():
 
         #self.extensions.append(Optitrack(self))
         self.extensions.append(self.simulator)
-        self.extensions.append(Gifsaver(self))
+        #self.extensions.append(Gifsaver(self))
         self.extensions.append(self.performance_tracker)
         self.watchdog = Watchdog(self)
         self.extensions.append(self.watchdog)
@@ -89,12 +88,9 @@ class Main():
 
     # run experiment until user press q in visualization window
     def run(self):
-        t = self.timer
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
-            t.s()
             self.update()
-            t.e()
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
@@ -103,6 +99,8 @@ class Main():
             item.final()
         for item in self.extensions:
             item.postFinal()
+        for car in self.cars:
+            car.finish()
 
 
     # run the control/visualization update

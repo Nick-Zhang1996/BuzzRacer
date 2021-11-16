@@ -1,0 +1,32 @@
+[92m track and raceline loaded [0m
+[96m [main] total cars: 1 [0m
+[92m [Visualization]: in use [0m
+[92m [KinematicSimulator]: in use [0m
+[92m [KinematicSimulator]: real/sim time ratio = 1.0  [0m
+[92m [CollisionChecker]: in use [0m
+[92m [PerformanceTracker]: in use [0m
+[92m [Laptimer]: in use [0m
+[92m [LapCounter]: in use [0m
+[92m [Gifsaver]: in use [0m
+[92m [Watchdog]: in use [0m
+[92m [LapCounter]: total 10 laps [0m
+[92m [KinematicSimulator]: match_real_time: True [0m
+[96m [Ccmppi]: Injected noise:[[ 0.4900  0.0000]
+ [ 0.0000  0.1218]] [0m
+[CcmppiCarController]: injected noise[[ 0.4900  0.0000]
+ [ 0.0000  0.1218]]
+[96m [CcmppiCarController]: ccmppi [0m
+[96m ccmppi samples override to 4096 [0m
+[96m ccmppi alfa override to 0 [0m
+[96m ccmppi beta override to 2 [0m
+[92m track and raceline loaded [0m
+[96m  reference laptime 8.59s  [0m
+[96m loading cuda module ... [0m
+[96m [ccmppi]:{'SAMPLE_COUNT': 4096, 'HORIZON': 15, 'CONTROL_DIM': 2, 'STATE_DIM': 4, 'RACELINE_LEN': 1024, 'TEMPERATURE': 0.2, 'DT': 0.02, 'CC_RATIO': 1.0, 'ZERO_REF_CTRL_RATIO': 0.2, 'MAX_V': 3.0, 'R1': 0.01, 'R2': 0.01, 'CURAND_KERNEL_N': 1024, 'alfa': 0.8, 'beta': 2.5, 'use_raceline': 'true', 'obstacle_radius': 0.1} [0m
+cuda block size 512, grid size 8
+[96m registers used each kernel in eval_ctrl= 62 [0m
+[92m [ccmppi]: reuse obstacles, count = 60 [0m
+[92m [ccmppi]: loading obstacles at obstacles.p [0m
+[96m [Visualization]: saved raw track background [0m
+[96m running ... press q to quit [0m
+[96m [Gifsaver]: saved first frame at ./first_frame_ccmppi.png [0m

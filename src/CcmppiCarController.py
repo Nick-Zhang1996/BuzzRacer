@@ -27,7 +27,6 @@ class CcmppiCarController(CarController):
 
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
-        self.p = execution_timer(True)
         self.wheelbase = car.wheelbase
         self.ccmppi_dt = car.main.dt
 
@@ -56,6 +55,8 @@ class CcmppiCarController(CarController):
         car.in_collision = False
         self.car = car
         return
+    def finish(self):
+        self.ccmppi.finish()
 
     # Hack
     def additionalSetupRcp(self):
@@ -348,14 +349,12 @@ class CcmppiCarController(CarController):
         # NOTE may need revision to use previous results
         ref_control = np.zeros([self.horizon_steps,self.control_dim])
 
-        p.s()
         uu = self.ccmppi.control(states.copy(),self.opponent_prediction,self.control_limit)
 
         control = uu[0]
         throttle = control[0]
         steering = control[1]
         #print_info("[wrapper:ccmppi.control] T= %.2f, S = %.2f"%(throttle,degrees(steering)) )
-        p.e()
 
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
