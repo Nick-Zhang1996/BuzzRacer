@@ -1,8 +1,8 @@
 # CCMPPI for kinematic bicycle model
 # using model in Ji's paper
 import gurobipy as gp
-from gurobipy import GRB
-from gurobi_helper import vec, unvec, gurobi_trAXB, gurobi_matrix_quad
+from gurobipy import GRB,quicksum
+from gurobi_helper import vec, unvec, gurobi_trAXB, gurobi_matrix_quad,gurobi_trAXQYB
 
 
 import os
@@ -34,6 +34,7 @@ from timeUtil import execution_timer
 class CCMPPI_KINEMATIC():
     def __init__(self,dt, N, noise_cov, arg_list,debug_info=None):
         self.t = execution_timer(True)
+        self.t2 = execution_timer(True)
         if ('Qf' in arg_list.keys()):
             self.Qf = arg_list['Qf']
         else:
@@ -49,7 +50,6 @@ class CCMPPI_KINEMATIC():
         self.v = None
 
         self.dt = dt
-        #self.Sigma_epsilon = np.diag([0.2,radians(20)])
         self.Sigma_epsilon = noise_cov
         # terminal covariance constrain
         # not needed with soft constraint
@@ -65,9 +65,14 @@ class CCMPPI_KINEMATIC():
         #self.getRefTraj("/home/nick/rcvip/log/ref_traj/full_state1.p",show=False)
         
         np.random.seed()
+        self.buildCostMatrix()
+        self.buildGurobiModel()
+
     def finish(self):
         print("CCMPPI_KINEMATIC")
         self.t.summary()
+        print("CCMPPI_KINEMATIC/buildObjective")
+        self.t2.summary()
 
     def setupParam(self):
         # dimension
@@ -349,299 +354,6 @@ class CCMPPI_KINEMATIC():
         D = np.vstack(D)
         return A,B,C,d,D
 
-    # apply covariance control
-    #
-    # input:
-    #   state: (x,y,v,heading)
-    # return: N K matrices of size (n,m)
-    # this new version uses given reference trajectory, from optimum trajectory in last solution
-    # ref_state_vec: N*[x,y,v,heading]
-    # ref_ctrl_vec: N*[throttle, steering]
-    # cvxpy version, new formulation
-    def cc_cvxpy(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
-        n = self.n
-        N = self.N
-        m = self.m
-        l = self.l
-
-        # find where the car is in reference to reference trajectory
-        ref_xx = ref_state_vec[:,0]
-        ref_yy = ref_state_vec[:,1]
-
-        x,y,_,_ = state
-
-        dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
-        # start : index of closest ref point to car
-        start = np.argmin(dist_sqr)
-
-        # As = [A0..A(N-1)]
-        # linearize dynamics around ref traj
-        # As = [A0..A(N-1)]
-        As = []
-        Bs = []
-        ds = []
-        for i in range(self.N):
-            # NOTE this gives discretized dynamics
-            A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
-            As.append(A)
-            Bs.append(B)
-            ds.append(d)
-
-
-        # assemble big matrices for batch dynamics
-        self.As = As = np.dstack(As)
-        self.Bs = Bs = np.dstack(Bs)
-        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
-
-        # NOTE ds, the offset,  is calculated off reference trajectory
-        # additional offsert may need to be added to account for difference between
-        # actual state and reference state
-        #state_diff = state - self.ref_state_vec[0]
-        #state_diff = state_diff.reshape(4,1)
-        #ds[:3,:,0] += state_diff[:3]
-        #ds[:2,:,0] += state_diff[:2]
-        #ds[:,:,0] += state_diff
-
-        if (debug):
-            print_info("[cc] ref state x0 (x,y,v,heading)")
-            print(ref_state_vec[0])
-            print_info("[cc] actual state x0")
-            print(state)
-            #print_info("[cc] state diff")
-            #print(state_diff.flatten())
-
-        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
-
-        # cost matrix 
-        #Q = np.eye(n)
-        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        # soft constraint Q matrix
-        Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
-        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
-        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * self.Qf
-
-        R = np.eye(m)
-        R_bar = np.kron(np.eye(N, dtype=int), R)
-
-        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
-        R_bar_sqrt = R_bar
-        Q_bar_sqrt = Q_bar
-
-        # terminal covariance constrain
-        # not needed with soft constraint
-        #sigma_f = self.sigma_f
-
-        # setup cvxpy
-        I = np.eye(n*(N+1))
-        E_N = np.zeros((n,n*(N+1)))
-        E_N[:,n*(N):] = np.eye(n)
-
-        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
-        Ks = [cp.Variable((m,n)) for i in range(N)]
-        # K dim: mN x n(N+1)
-        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
-        for i in range(1,N):
-            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            K = cp.vstack([K, line])
-
-        #objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
-        # new formulation
-        vecK = cp.vec(K)
-        obj = gurobi_trAXB(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, Q_bar_sqrt @ B, vecK)
-        #obj += D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D
-        obj += gurobi_trAXB( D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, R_bar_sqrt @ R_bar_sqrt, vecK)
-
-        #sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
-        # hard constraint, cvxpy doesn't respect this for some reasons
-        #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
-        constraints = []
-        prob = cp.Problem(cp.Minimize(obj), constraints)
-
-        J = prob.solve()
-
-        Ks = np.array([val.value for val in Ks])
-
-        if (debug):
-            print_info("[cc] Problem status")
-            print(prob.status)
-            
-        # DEBUG veirfy constraint
-        '''
-        test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
-        if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
-            print_warning("[cc] constraint not satisfied")
-        '''
-
-        self.Ks = Ks
-
-        As = np.swapaxes(As,0,2)
-        As = np.swapaxes(As,1,2)
-
-        Bs = np.swapaxes(Bs,0,2)
-        Bs = np.swapaxes(Bs,1,2)
-
-        ds = np.swapaxes(ds,0,2)
-        ds = np.swapaxes(ds,1,2)
-
-        # return terminal covariance, theoretical values with and without cc
-        if (return_sx):
-            reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
-            for i in range(1,N):
-                line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-                reconstruct_K = np.vstack([reconstruct_K, line])
-            Sigma_0 = np.zeros([n,n])
-            #Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
-            Sx_cc = (I + B@reconstruct_K ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@reconstruct_K ).T
-            Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
-            return Ks, As, Bs, ds, Sx_cc, Sx_nocc
-        else:
-            return Ks, As, Bs, ds
-
-    # apply covariance control
-    #
-    # input:
-    #   state: (x,y,v,heading)
-    # return: N K matrices of size (n,m)
-    # this new version uses given reference trajectory, from optimum trajectory in last solution
-    # ref_state_vec: N*[x,y,v,heading]
-    # ref_ctrl_vec: N*[throttle, steering]
-    # cvxpy version
-    def cvxpy_cc(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
-        n = self.n
-        N = self.N
-        m = self.m
-        l = self.l
-
-        # find where the car is in reference to reference trajectory
-        ref_xx = ref_state_vec[:,0]
-        ref_yy = ref_state_vec[:,1]
-
-        x,y,_,_ = state
-
-        dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
-        # start : index of closest ref point to car
-        start = np.argmin(dist_sqr)
-
-        # As = [A0..A(N-1)]
-        # linearize dynamics around ref traj
-        # As = [A0..A(N-1)]
-        As = []
-        Bs = []
-        ds = []
-        for i in range(self.N):
-            # NOTE this gives discretized dynamics
-            A,B,d = self.linearize(ref_state_vec[i,:],ref_ctrl_vec[i,:])
-            As.append(A)
-            Bs.append(B)
-            ds.append(d)
-
-
-        # assemble big matrices for batch dynamics
-        self.As = As = np.dstack(As)
-        self.Bs = Bs = np.dstack(Bs)
-        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
-
-        # NOTE ds, the offset,  is calculated off reference trajectory
-        # additional offsert may need to be added to account for difference between
-        # actual state and reference state
-        #state_diff = state - self.ref_state_vec[0]
-        #state_diff = state_diff.reshape(4,1)
-        #ds[:3,:,0] += state_diff[:3]
-        #ds[:2,:,0] += state_diff[:2]
-        #ds[:,:,0] += state_diff
-
-        if (debug):
-            print_info("[cc] ref state x0 (x,y,v,heading)")
-            print(ref_state_vec[0])
-            print_info("[cc] actual state x0")
-            print(state)
-            #print_info("[cc] state diff")
-            #print(state_diff.flatten())
-
-        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
-
-        # cost matrix 
-        #Q = np.eye(n)
-        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        # soft constraint Q matrix
-        Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
-        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
-        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * self.Qf
-
-        R = np.eye(m)
-        R_bar = np.kron(np.eye(N, dtype=int), R)
-
-        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
-        R_bar_sqrt = R_bar
-        Q_bar_sqrt = Q_bar
-
-        # terminal covariance constrain
-        # not needed with soft constraint
-        #sigma_f = self.sigma_f
-
-        # setup cvxpy
-        I = np.eye(n*(N+1))
-        E_N = np.zeros((n,n*(N+1)))
-        E_N[:,n*(N):] = np.eye(n)
-
-        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
-        Ks = [cp.Variable((m,n)) for i in range(N)]
-        # K dim: mN x n(N+1)
-        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
-        for i in range(1,N):
-            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            K = cp.vstack([K, line])
-
-        objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
-
-        # TODO verify with Ji
-        sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
-        # hard constraint, cvxpy doesn't respect this for some reasons
-        #constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
-        constraints = []
-        prob = cp.Problem(objective, constraints)
-
-        J = prob.solve()
-
-        Ks = np.array([val.value for val in Ks])
-
-        if (debug):
-            print_info("[cc] Problem status")
-            print(prob.status)
-            
-        # DEBUG veirfy constraint
-        '''
-        test_mtx = np.block([[sigma_f, E_N @(I+B@K.value)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K.value).T@E_N.T, I ]])
-        if not (np.all(np.linalg.eigvals(test_mtx) > 0)):
-            print_warning("[cc] constraint not satisfied")
-        '''
-
-        self.Ks = Ks
-
-        As = np.swapaxes(As,0,2)
-        As = np.swapaxes(As,1,2)
-
-        Bs = np.swapaxes(Bs,0,2)
-        Bs = np.swapaxes(Bs,1,2)
-
-        ds = np.swapaxes(ds,0,2)
-        ds = np.swapaxes(ds,1,2)
-
-        # return terminal covariance, theoretical values with and without cc
-        if (return_sx):
-            reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
-            for i in range(1,N):
-                line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-                reconstruct_K = np.vstack([reconstruct_K, line])
-            Sigma_0 = np.zeros([n,n])
-            #Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
-            Sx_cc = (I + B@reconstruct_K ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@reconstruct_K ).T
-            Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
-            return Ks, As, Bs, ds, Sx_cc, Sx_nocc
-        else:
-            return Ks, As, Bs, ds
 
     # apply covariance control
     #
@@ -652,7 +364,7 @@ class CCMPPI_KINEMATIC():
     # ref_state_vec: N*[x,y,v,heading]
     # ref_ctrl_vec: N*[throttle, steering]
     # gurobi version
-    def cc(self, state, ref_state_vec, ref_ctrl_vec, return_sx=False, debug=False):
+    def cc(self, state, ref_state_vec, ref_ctrl_vec):
         t = self.t
         t.s()
         n = self.n
@@ -660,6 +372,101 @@ class CCMPPI_KINEMATIC():
         m = self.m
         l = self.l
 
+        t.s("buildLinearDynamics")
+        As,Bs,ds = self.buildLinearDynamics(state, ref_state_vec, ref_ctrl_vec)
+        t.e("buildLinearDynamics")
+        t.s("buildObjective")
+        obj = self.buildObjective(As, Bs)
+        t.e("buildObjective")
+        t.s("setObjective")
+        self.model.setObjective( obj )
+        t.e("setObjective")
+        t.s("optimize")
+        self.model.optimize()
+        t.e("optimize")
+        Ks = [unvec(self.vecKs[i].x, (m,n)) for i in range(self.N)]
+        t.e()
+
+        return Ks, As, Bs, ds
+
+
+
+    def buildObjective(self, As, Bs):
+        t = self.t2
+        t.s()
+
+        # eq.15
+        obj = []
+        N = self.N
+        for j in range(N-2):
+            for m in range(j+1,N):
+                for n in range(j+1,N):
+                    t.s("getB")
+                    A = self.getBk0k1(As,Bs,m-1,j).T
+                    Qx = self.getBk0k1(As,Bs,N-1,m).T @ self.Q_half
+                    Qy = self.Q_half @ self.getBk0k1(As,Bs,N-1,n)
+                    B = self.getBk0k1(As,Bs,n-1,j) @ self.Sigma_epsilon
+                    t.e("getB")
+                    t.s("make gurobi exp")
+                    obj.append(gurobi_trAXQYB(A,Qx,Qy,B,self.vecKs[m],self.vecKs[n]))
+                    t.e("make gurobi exp")
+            for i in range(j+1, N):
+                t.s("getB")
+                A = (self.getBk0k1(As,Bs,N-1,i).T @ self.Q @ self.getBk0k1(As,Bs,N-1,j) @ self.Sigma_epsilon).T
+                B = self.getBk0k1(As,Bs, i-1,j)
+                t.e("getB")
+                t.e("make gurobi exp")
+                obj.append(2*gurobi_trAXB(A,B,self.vecKs[i]))
+                t.e("make gurobi exp")
+        # TODO
+        # eq16
+        for i in range(N):
+            for m in range(i):
+                for n in range(i):
+                    pass
+        t.s("sum")
+        obj = sum(obj)
+        t.e("sum")
+
+        t.e()
+        return obj
+
+
+    def getAk0k1(self,As, k0, k1):
+        retval = As[k1]
+        for i in range(k1+1, k0+1):
+            retval = As[i] @ retval
+        return retval
+
+    def getBk0k1(self,As,Bs, k0, k1):
+        if (k0==k1):
+            return Bs[k0]
+        else:
+            return self.getAk0k1(As, k0, k1+1) @ Bs[k1]
+
+    def getCk0k1(self, As, k0, k1):
+        if (k0==k1):
+            return np.eye(self.n)
+        else:
+            return self.getAk0k1(As, k0, k1+1)
+
+    def buildGurobiModel(self):
+        model = gp.Model("cc")
+        # suppress gurobi output
+        model.setParam(GRB.Param.OutputFlag, 0)
+        vecKs = [model.addMVar(shape=(self.m*self.n), lb=-GRB.INFINITY, ub=GRB.INFINITY,name='vecK') for i in range(self.N)]
+
+        self.model = model
+        self.vecKs = vecKs
+
+    def buildCostMatrix(self):
+        self.Q = np.eye(self.n)*self.Qf
+        self.Q_half = np.eye(self.n)*(self.Qf**0.5)
+        self.R = np.eye(self.m)
+        self.R_half = np.eye(self.m)
+
+    def buildLinearDynamics(self,state, ref_state_vec, ref_ctrl_vec):
+        # prepare dynamics
         # find where the car is in reference to reference trajectory
         ref_xx = ref_state_vec[:,0]
         ref_yy = ref_state_vec[:,1]
@@ -682,134 +489,8 @@ class CCMPPI_KINEMATIC():
             As.append(A)
             Bs.append(B)
             ds.append(d)
+        return As,Bs,ds
 
-
-        # assemble big matrices for batch dynamics
-        self.As = As = np.dstack(As)
-        self.Bs = Bs = np.dstack(Bs)
-        self.ds = ds = np.dstack(ds).reshape((self.n,1,self.N))
-
-        # NOTE ds, the offset,  is calculated off reference trajectory
-        # additional offsert may need to be added to account for difference between
-        # actual state and reference state
-        #state_diff = state - self.ref_state_vec[0]
-        #state_diff = state_diff.reshape(4,1)
-        #ds[:3,:,0] += state_diff[:3]
-        #ds[:2,:,0] += state_diff[:2]
-        #ds[:,:,0] += state_diff
-
-        if (debug):
-            print_info("[cc] ref state x0 (x,y,v,heading)")
-            print(ref_state_vec[0])
-            print_info("[cc] actual state x0")
-            print(state)
-            #print_info("[cc] state diff")
-            #print(state_diff.flatten())
-
-        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None, self.Sigma_epsilon)
-
-        # cost matrix 
-        #Q = np.eye(n)
-        #Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
-        # soft constraint Q matrix
-        #Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
-        # to make Q_bar strictly positive definite
-        Q_bar = np.eye((N+1)*self.n)
-        #Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
-        Q_bar[-self.n:, -self.n:] = np.eye(self.n) * self.Qf
-
-        R = np.eye(m)
-        R_bar = np.kron(np.eye(N, dtype=int), R)
-
-        # technically incorrect, but we can just specify R_bar_1/2 instead of R_bar
-        R_bar_sqrt = R_bar
-        Q_bar_sqrt = Q_bar
-
-        # terminal covariance constrain
-        # not needed with soft constraint
-        #sigma_f = self.sigma_f
-
-        # setup cvxpy
-        I = np.eye(n*(N+1))
-        E_N = np.zeros((n,n*(N+1)))
-        E_N[:,n*(N):] = np.eye(n)
-
-        # assemble K as a diagonal block matrix with K_0..K_N-1 as var
-        '''
-        Ks = [cp.Variable((m,n)) for i in range(N)]
-        # K dim: mN x n(N+1)
-        K = cp.hstack([Ks[0], np.zeros((m,(N)*n))])
-        for i in range(1,N):
-            line = cp.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-            K = cp.vstack([K, line])
-        '''
-
-        model = gp.Model("cc")
-        model.setParam(GRB.Param.OutputFlag, 0)
-        #K = model.addMVar(shape=(m*N,n*(N+1)), lb=-GRB.INFINITY, ub=GRB.INFINITY)
-        vecK = model.addMVar(shape=(m*N * n*(N+1)), lb=-GRB.INFINITY, ub=GRB.INFINITY,name='vecK')
-        # constraint value to be zero
-        for i in range(N):
-            #model.addConstr( K[m*i:m*(i+1), :n*i] == 0 )
-            #model.addConstr( K[m*i:m*(i+1), n*(i+1):] == 0 )
-            for p in range(m*i,m*(i+1)):
-                for q in range(n*i):
-                    #model.addConstr( K[p,q] == 0)
-                    model.addConstr( vecK[p + q*m*N] == 0)
-                for q in range(n*(i+1),n*(N+1)):
-                    #model.addConstr( K[p,q] == 0)
-                    model.addConstr( vecK[p + q*m*N] == 0)
-
-        #objective = cp.Minimize(cp.norm(cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D )))
-        obj = gurobi_trAXB(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, Q_bar_sqrt @ B, vecK)
-        #obj += D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D
-        obj += gurobi_trAXB( D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, R_bar_sqrt, vecK)
-
-        model.setObjective( obj )
-
-            
-        model.optimize()
-        K = unvec(vecK.x, (m*N, n*(N+1)))
-        self.Ks = Ks = [ K[m*i:m*(i+1), n*i:n*(i+1)] for i in range(N) ]
-
-        # re -evaluate objective function
-        vecK = vecK.x
-        obj = gurobi_trAXB(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, Q_bar_sqrt @ B, vecK)
-        #obj += D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D
-        obj += gurobi_trAXB( D.T @ Q_bar_sqrt @ Q_bar_sqrt @ B, D, vecK)
-        obj += gurobi_matrix_quad(D, R_bar_sqrt, vecK)
-        print("difference : ")
-        print(obj - model.ObjVal)
-        print("real obj")
-        print(obj + np.trace(D.T @ Q_bar_sqrt @ Q_bar_sqrt @ D))
-
-        As = np.swapaxes(As,0,2)
-        As = np.swapaxes(As,1,2)
-
-        Bs = np.swapaxes(Bs,0,2)
-        Bs = np.swapaxes(Bs,1,2)
-
-        ds = np.swapaxes(ds,0,2)
-        ds = np.swapaxes(ds,1,2)
-
-        t.e()
-
-        # return terminal covariance, theoretical values with and without cc
-        if (return_sx):
-            reconstruct_K = np.hstack([Ks[0], np.zeros((m,(N)*n))])
-            for i in range(1,N):
-                line = np.hstack([ np.zeros((m,n*i)), Ks[i], np.zeros((m,(N-i)*n)) ])
-                reconstruct_K = np.vstack([reconstruct_K, line])
-            Sigma_0 = np.zeros([n,n])
-            #Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
-            Sx_cc = (I + B@reconstruct_K ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@reconstruct_K ).T
-            Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T )
-            return Ks, As, Bs, ds, Sx_cc, Sx_nocc
-        else:
-            return Ks, As, Bs, ds
 
     # apply covariance control
     #
@@ -1364,6 +1045,7 @@ class CCMPPI_KINEMATIC():
         plt.imshow(img)
         plt.show()
 
+    # NOTE obsolete
     def visualizeConfidenceEllipse(self):
         # x,y,heading, v
         state = self.debug_info['x0'].copy()

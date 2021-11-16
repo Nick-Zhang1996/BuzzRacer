@@ -8,6 +8,21 @@ def vec(var):
     return vec.flatten('F')
 def unvec(var,shape):
     return var.reshape(shape,order='F')
+
+#untested
+# express (tr(AX'Qx Qy Y B)) in vecX(m*n) and vecY(m*n)
+# A: p*n
+# Qx m*q
+# Qy q*m
+# B: n*p
+def gurobi_trAXQYB(A,Qx,Qy,B,vecX,vecY):
+    assert (A.shape[0] == B.shape[1])
+    assert (A.shape[1] == B.shape[0])
+    assert (Qx.shape[1] == Qy.shape[0])
+    assert (Qx.shape[0] == Qy.shape[1])
+    return vecX @ (np.kron(A, Qx.T).T @ (np.kron(B.T, Qy))) @ vecY
+
+
 # express tr(AXB) in gurobi acceptable form
 # A: p*m np matrix
 # B: n*p np matrix
@@ -44,6 +59,37 @@ def gurobi_trAXB_alt(A,B,vecX):
 def gurobi_matrix_quad(A, Q_sqrt, vecX):
     temp = np.kron(A.T, Q_sqrt)
     return vecX @ (temp.T @ temp) @ vecX
+
+def test_bilinear():
+    m = 2
+    n = 3
+    p = 4
+    q = 5
+    name = "quad"
+    model = gp.Model(name)
+    # supress output
+    #model.setParam(GRB.Param.OutputFlag, 0)
+    x_lb = np.random.rand(m*n)
+    y_lb = np.random.rand(m*n)
+    vecX = model.addMVar(shape=(m*n),lb=x_lb, ub=GRB.INFINITY, name='vecX')
+    vecY = model.addMVar(shape=(m*n),lb=y_lb, ub=GRB.INFINITY, name='vecY')
+    A = np.random.rand(p,n)
+    Qx = np.random.rand(m,q)
+    Qy = np.random.rand(q,m)
+    B = np.random.rand(n,p)
+
+    obj = gurobi_trAXQYB(A,Qx,Qy,B,vecX,vecY)
+    model.setObjective(obj, GRB.MINIMIZE)
+    model.optimize()
+
+    # test numerival value
+    vecX = vecX.x
+    vecY = vecY.x
+    X = unvec(vecX,(m,n))
+    Y = unvec(vecY,(m,n))
+    # ground truth
+    err = gurobi_trAXQYB(A,Qx,Qy,B,vecX,vecY) - np.trace(A @ X.T @ Qx @ Qy @ Y @ B)
+    print("error %.6f"%err)
 
 def test_quad_fun():
     m = 2
@@ -126,6 +172,9 @@ if __name__=="__1main__":
     test_AXB_fun(A,B,"1",gurobi_trAXB)
     test_AXB_fun(A,B,"2",gurobi_trAXB_alt)
 
+
+
 if __name__=="__main__":
-    test_quad_fun()
+    #test_quad_fun()
+    test_bilinear()
 

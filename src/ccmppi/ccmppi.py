@@ -120,16 +120,13 @@ class CCMPPI:
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
             #Ks, As, Bs, ds = self.cc.cc(state)
             if (self.ref_traj is None):
-                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.static_ref_cc(state, return_sx = True , debug=False)
+                Ks, As, Bs, ds = self.cc.static_ref_cc(state)
             else:
-                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, self.ref_traj, self.ref_ctrl, return_sx = True , debug=False)
-            self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
+                Ks, As, Bs, ds = self.cc.cc(state, self.ref_traj, self.ref_ctrl)
 
         else:
             # effectively disable cc
             #print_warning("CC disabled")
-            Sx_nocc = self.cc.getNoCcSx(state)
-            self.theory_cov_mtx =  Sx_nocc[-4:-2,-4:-2]
             Ks = np.zeros([self.N*self.m*self.n])
             As = np.zeros([self.N*self.n*self.n])
             Bs = np.zeros([self.N*self.n*self.m])
