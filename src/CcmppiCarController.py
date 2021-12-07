@@ -36,7 +36,6 @@ class CcmppiCarController(CarController):
         self.trajectory = []
 
         # DEBUG
-        self.theory_cov_mtx_vec = []
         self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
@@ -326,7 +325,6 @@ class CcmppiCarController(CarController):
         track = self.car.main.track
         debug_dict = {'ideal_traj':[], 'rollout_traj_vec':[]}
         # profiling
-        p = self.p
         '''
         try:
             self.predictOpponent()
@@ -358,8 +356,6 @@ class CcmppiCarController(CarController):
 
         # record control energy
         self.utru = throttle*throttle*self.R_diag[0] + steering*steering*self.R_diag[1]
-        self.theory_cov_mtx = self.ccmppi.theory_cov_mtx
-        self.theory_cov_mtx_vec.append(self.theory_cov_mtx)
 
         # for debug
         self.debug_states = states.copy()
@@ -382,7 +378,6 @@ class CcmppiCarController(CarController):
         except AttributeError as e:
             print_error("[Ccmppi] Attribute error " + str(e))
 
-        self.car.debug_dict['theory_cov_mtx_vec'] = self.theory_cov_mtx_vec
         self.car.debug_dict['pos_2_norm_vec'] = self.pos_2_norm_vec
         self.car.debug_dict['state_2_norm_vec'] = self.state_2_norm_vec
         self.car.debug_dict['state_cov_vec'] = self.state_cov_vec
