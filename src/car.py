@@ -127,7 +127,7 @@ class Car:
     # state: x,y,heading,vf(forward speed),vs(sideway speed),omega
     def updateCar(self,state,throttle,steering,dt):
         # wheelbase, in meter
-        # heading of pi/2, i.e. vehile central axis aligned with y axis,
+        # heading of pi/2, i.e. vehicle central axis aligned with y axis,
         # means theta = 0 (the x axis of car and world frame is aligned)
         # experimental acceleration model
         v = max(state[3]+(throttle-0.2)*4*dt,0)

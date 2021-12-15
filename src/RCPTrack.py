@@ -634,7 +634,8 @@ class RCPtrack(Track):
 
     def load(self,filename=None):
         if filename is None:
-            filename = "raceline.p"
+            filename = "/home/caleb/Documents/GitHub/RC-VIP/src/raceline.p"
+            # TODO make this path not absolute
 
         try:
             with open(filename, 'rb') as f:
@@ -1151,10 +1152,13 @@ class RCPtrack(Track):
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
-            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness)
+            radius = 10
+            if i % 5 == 0 and lineColor == (255, 0, 255):
+                img = cv2.circle(img, tuple(p1),radius, color=(0,0,0))
 
         # plot reference points
-        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        # img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3)
         '''
         if not (points is None):
             for point in points:

@@ -6,6 +6,9 @@ from math import pi,radians,degrees
 
 from KinematicSimulator import KinematicSimulator
 from DynamicSimulator import DynamicSimulator
+from src.LTIDynamicSimulator import LTIDynamicSimulator
+from src.LTIKinematicSimulator import LTIKinematicSimulator
+from src.LTIVarParamKinematicSimulator import LTIVarParamKinematicSimulator
 
 from timeUtil import execution_timer
 from TrackFactory import TrackFactory
@@ -28,6 +31,10 @@ from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
+
+        self.controlArr = np.zeros((1,2))
+        self.stateArr = np.zeros((1,6))
+
         self.timer = execution_timer(True)
         # state update rate
         self.dt = 0.03
@@ -36,7 +43,11 @@ class Main():
         self.track = TrackFactory(name='full')
 
         self.simulator = KinematicSimulator(self)
-        #self.simulator = DynamicSimulator(self)
+        # self.simulator = DynamicSimulator(self)
+        # self.simulator = LTIKinematicSimulator(self)
+        # self.simulator = LTIDynamicSimulator(self)
+        # self.simulator = LTIVarParamKinematicSimulator(self)
+
         Car.reset()
         car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
@@ -98,6 +109,8 @@ class Main():
             t.e()
         # exit point
         print_info("Exiting ...")
+        np.save("controlValues", self.controlArr)
+        np.save("stateValues", self.stateArr)
         for item in self.extensions:
             item.preFinal()
         for item in self.extensions:
@@ -124,6 +137,8 @@ class Main():
         for car in self.cars:
             # call controller, send command to car in real experiment
             car.control()
+            self.controlArr = np.append(self.controlArr, [[car.throttle, car.steering]], axis=0)
+            self.stateArr = np.append(self.stateArr, [car.states], axis=0)
 
         # -- Extension update -- 
         for item in self.extensions:

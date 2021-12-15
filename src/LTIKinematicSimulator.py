@@ -1,5 +1,15 @@
+# This is a (partially) linearized version of KinematicSimulator.py
+# The small angle assumption cannot be made and therefore sin(heading) and cos(heading) remain nonlinear
+
+# Also, the reference frame for these derivations is based at the middle of rear axle of the vehicle, unlike
+# KinematicSimulator.py
+
+# Linear Time Invariant Car Model
+# This model is a result of linearizing the Kinematic Bicycle Model
+
 # refer to paper
 # The Kinematic Bicycle Model: a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles?
+
 import numpy as np
 from math import radians
 from common import *
@@ -7,7 +17,7 @@ from threading import Event
 from Simulator import Simulator
 
 
-class KinematicSimulator(Simulator):
+class LTIKinematicSimulator(Simulator):
 
     def __init__(self, main):
         super().__init__(main)
@@ -15,12 +25,13 @@ class KinematicSimulator(Simulator):
         # for when a specific car instance is not specified
         self.lr = 45e-3
         self.lf = 45e-3
-        KinematicSimulator.max_v = 3.0
+        LTIKinematicSimulator.max_v = 3.0
+        LTIKinematicSimulator.v_0 = 2.0  # need to provide a better value
 
     def init(self):
         super().init()
         self.cars = self.main.cars
-        KinematicSimulator.dt = self.main.dt
+        LTIKinematicSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
         self.main.new_state_update = Event()
@@ -49,6 +60,7 @@ class KinematicSimulator(Simulator):
     def advanceDynamics(sim_states, control, car):
         lr = car.lr
         lf = car.lf
+        v_0 = LTIKinematicSimulator.v_0
 
         '''
         throttle = np.clip(throttle, -1.0, 1.0)
@@ -63,19 +75,24 @@ class KinematicSimulator(Simulator):
         throttle = control[0]
         steering = control[1]
 
-        dt = KinematicSimulator.dt
+        dt = LTIKinematicSimulator.dt
 
-        beta = np.arctan(np.tan(steering) * lr / (lf + lr))
-        dXdt = v * np.cos(heading + beta)
-        dYdt = v * np.sin(heading + beta)
-        if (v > KinematicSimulator.max_v):
+
+        # Linear equations of motion
+        if (v > LTIKinematicSimulator.max_v):
             dvdt = -0.01
         else:
             dvdt = throttle
-        dheadingdt = v / lr * np.sin(beta)
+        dheadingdt = LTIKinematicSimulator.v_0 / (lf + lr) * steering
 
-        x += dt * dXdt
-        y += dt * dYdt
-        v += dt * dvdt
-        heading += dt * dheadingdt
+        v += dvdt * dt
+        heading += dheadingdt * dt
+
+        # Non linear equations for coordinate transform
+        # dxdt and dydt are non-linear, but the small angle approx does not work for heading
+        dxdt = v * np.cos(heading)
+        dydt = v * np.sin(heading)
+
+        x += dt * dxdt
+        y += dt * dydt
         return np.array([x, y, v, heading])

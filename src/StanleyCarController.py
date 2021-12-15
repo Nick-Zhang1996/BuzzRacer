@@ -95,9 +95,9 @@ class StanleyCarController(CarController):
             elif (steering<-self.car.max_steering_right):
                 steering = -self.car.max_steering_right
             if (v_override is None):
-                throttle = self.calcThrottle(state,v_target)
+                throttle = self.calcThrottle(state, v_target)
             else:
-                throttle = self.calcThrottle(state,v_override)
+                throttle = self.calcThrottle(state, v_override)
 
             ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
 
