@@ -280,21 +280,20 @@ class _Optitrack:
 # test functionality
 if __name__ == '__main__':
     op = _Optitrack(None)
-    #for i in range(op.obj_count):
     while True:
-        #op_id = op.getOptitrackId(i)
-        op_id = 2
-        i = op.getInternalId(op_id)
-        x2d,y2d,theta2d = op.getState2d(i)
-        x,y,z,rx,ry,rz = op.getState(i)
-        (kf_x,kf_y,kf_v,kf_theta,kf_omega) = op.getKFstate(i)
-        print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
-        print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
-        print("2d state: %0.2f,%0.2f, heading= %0.2f"%(x2d,y2d,degrees(theta2d)))
-        print("rx: %0.2f, ry: %0.2f, rz: %0.2f"%(degrees(rx),degrees(ry),degrees(rz)))
-        #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
-        print("\n")
-        sleep(0.05)
+        for i in range(op.obj_count):
+            op_id = op.getOptitrackId(i)
+            i = op.getInternalId(op_id)
+            x2d,y2d,theta2d = op.getState2d(i)
+            x,y,z,rx,ry,rz = op.getState(i)
+            (kf_x,kf_y,kf_v,kf_theta,kf_omega) = op.getKFstate(i)
+            print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
+            print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
+            print("2d state: %0.2f,%0.2f, heading= %0.2f"%(x2d,y2d,degrees(theta2d)))
+            print("rx: %0.2f, ry: %0.2f, rz: %0.2f"%(degrees(rx),degrees(ry),degrees(rz)))
+            #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
+            print("\n")
+            sleep(0.05)
 
     input("press enter to stop\n")
     op.quit()
