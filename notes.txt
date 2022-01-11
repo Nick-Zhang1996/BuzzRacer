@@ -1,9 +1,0 @@
-run.py 
-        handles visualization, manage different source (vicon/sim)
-        and controller (MPC, MPPI, others)
--> ctrlCcmppiWrapper.py(Car subclass) 
-        Each controller has a wrapper classs that provides same api (ctrlCar())
--> ccmppi.py 
-        handles main ccmppi logic, call CUDA functions
--> ccmppi_kinematic.py / ccmppi.cu
-        covariance control algorithm / cuda code
