@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from Simulator import Simulator
 from common import *
 from threading import Event,Lock
-from KinematicSimulator import KinematicSimulator
+from simulator.KinematicSimulator import KinematicSimulator
 
 class DynamicSimulator(Simulator):
     def __init__(self,main):
