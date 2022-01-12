@@ -21,9 +21,6 @@ from PIL import Image
 
 from collections import namedtuple
 
-
-
-
 def loadLog(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):

@@ -8,7 +8,7 @@ from time import time,sleep
 import extension
 from extension import KinematicSimulator,DynamicSimulator
 from extension import Gifsaver, Laptimer
-from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
+#from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
 from track import TrackFactory
@@ -47,10 +47,10 @@ class Main():
         self.extensions = []
         self.visualization = extension.Visualization(self)
         Optitrack(self)
-        #self.simulator = KinematicSimulator(self)
+        #self.simulator = DynamicSimulator(self)
         #self.simulator.match_time = True
 
-        Gifsaver(self)
+        #Gifsaver(self)
 
         # Laptimer
         Laptimer(self)

@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import os
-sys.path.append(os.path.abspath('../../src/'))
+thisdir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(thisdir))
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 from math import pi,degrees,radians,sin,cos,tan,atan
 from scipy.signal import savgol_filter
 
-from RCPTrack import RCPtrack
+from track import RCPTrack
 import cv2
 from time import sleep
 
@@ -23,7 +24,7 @@ saveGif = False
 gifs = []
 
 if (len(sys.argv) != 2):
-    filename = "../log/jan3/full_state1.p"
+    filename = "../../log/jan12/full_state1.p"
     print_info("using %s"%(filename))
     #print_error("Specify a log to load")
 else:
