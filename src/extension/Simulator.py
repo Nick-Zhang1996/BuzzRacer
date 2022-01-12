@@ -11,9 +11,9 @@ from time import time,sleep
 class Simulator(Extension):
     def __init__(self,main):
         super().__init__(main)
-        self.match_real_time = True
+        self.match_time = True
         self.t0 = None
-        self.real_sim_time_ratio = 3.0
+        self.real_sim_time_ratio = 1.0
         print_ok(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
@@ -28,10 +28,10 @@ class Simulator(Extension):
 
         self.main.experiment_type = ExperimentType.Simulation
         self.main.sim_t = 0
-        print_ok(self.prefix() + "match_real_time: " + str(self.match_real_time))
+        print_ok(self.prefix() + "match_time: " + str(self.match_time))
 
     def matchRealTime(self):
-        if (not self.match_real_time):
+        if (not self.match_time):
             return
         if (self.t0 is None):
             self.t0 = time()

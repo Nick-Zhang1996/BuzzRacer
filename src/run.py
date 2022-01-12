@@ -46,9 +46,9 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         self.visualization = extension.Visualization(self)
-        #Optitrack(self)
-        self.simulator = KinematicSimulator(self)
-        self.simulator.match_real_time = True
+        Optitrack(self)
+        #self.simulator = KinematicSimulator(self)
+        #self.simulator.match_time = True
 
         #Gifsaver(self))
 
@@ -68,13 +68,10 @@ class Main():
 
     # run experiment until user press q in visualization window
     def run(self):
-        t = self.timer
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
             ts = time()
-            t.s()
             self.update()
-            t.e()
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
@@ -99,6 +96,7 @@ class Main():
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
     # client (this function) need to unset that event
     def update(self,):
+        t = self.timer
         # -- Extension update -- 
         for item in self.extensions:
             item.preUpdate()
@@ -106,6 +104,7 @@ class Main():
         self.new_state_update.wait()
         self.new_state_update.clear()
 
+        t.s()
         for car in self.cars:
             # call controller, send command to car in real experiment
             car.control()
@@ -115,6 +114,7 @@ class Main():
             item.update()
         for item in self.extensions:
             item.postUpdate()
+        t.e()
         
 
     # call before exiting
@@ -129,5 +129,6 @@ if __name__ == '__main__':
     params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
     experiment = Main(params)
     experiment.run()
+    experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
     print_info("program complete")

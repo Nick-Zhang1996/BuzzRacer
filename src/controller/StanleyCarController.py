@@ -70,8 +70,7 @@ class StanleyCarController(CarController):
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        # FIXME
-        v_target = min(v_target, 2.5)
+        v_target = min(v_target*0.7, 2.0)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
