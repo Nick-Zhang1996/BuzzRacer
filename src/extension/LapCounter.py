@@ -1,5 +1,5 @@
 # lapcounter to set quit flag after a certain number of laps
-from Extension import *
+from extension.Extension import *
 from threading import Thread,Event
 from common import *
 import cv2

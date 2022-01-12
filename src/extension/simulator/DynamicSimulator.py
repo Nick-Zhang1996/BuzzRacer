@@ -1,5 +1,10 @@
 # dynamic simulator of a passenger vehicle
 # page 30 of book vehicle dynamics and control
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from extension import Simulator
+
 import numpy as np
 from math import sin,cos,tan,radians,degrees,pi
 import matplotlib.pyplot as plt

@@ -1,14 +1,17 @@
 # interface for Optitrack Motive stream via NatNet SDK library
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from third_party.NatNetClient import NatNetClient
 
-from NatNetClient import NatNetClient
 from time import time,sleep
 from threading import Event,Lock
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 import numpy as np
 from math import pi,degrees,atan2
 from scipy.spatial.transform import Rotation
-from Extension import Extension
+from extension.Extension import Extension
 
 class Optitrack(Extension):
     def __init__(self, main):

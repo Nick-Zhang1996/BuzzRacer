@@ -1,7 +1,7 @@
 import cv2
 from time import sleep,time
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 from threading import Event
 import pickle
 import matplotlib.pyplot as plt
@@ -83,10 +83,10 @@ class Visualization(Extension):
         self.update_visualization.set()
         #self.main.cars[0].controller.plotObstacles()
         #self.main.cars[0].controller.plotTrajectory()
-        img = self.visualization_img.copy()
-        filename = "./last_frame_" + self.main.algorithm + ".png"
-        cv2.imwrite(filename,img)
-        print_info(self.prefix()+"saved last frame at " + filename)
+        #img = self.visualization_img.copy()
+        #filename = "./last_frame_" + self.main.algorithm + ".png"
+        #cv2.imwrite(filename,img)
+        #print_info(self.prefix()+"saved last frame at " + filename)
 
 
 

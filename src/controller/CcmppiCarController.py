@@ -16,8 +16,8 @@ from common import *
 from timeUtil import execution_timer
 from ccmppi import CCMPPI
 from CarController import CarController
-from KinematicSimulator import KinematicSimulator
-from RCPTrack import RCPtrack
+from extension.simulator.KinematicSimulator import KinematicSimulator
+from track import RCPTrack
 import pickle
 
 class CcmppiCarController(CarController):
@@ -170,7 +170,7 @@ class CcmppiCarController(CarController):
         # control noise for MPPI exploration
         self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
 
-        if (isinstance(self.track,RCPtrack)):
+        if (isinstance(self.track,RCPTrack)):
             # discretize raceline for use in MPPI
             self.prepareDiscretizedRaceline()
         else:
@@ -210,12 +210,12 @@ class CcmppiCarController(CarController):
             arg_list['beta'] = self.car.main.params['beta']
             print_info("ccmppi beta override to %d"%(arg_list['beta']))
 
-        #arg_list['rcp_track'] = isinstance(self.track,RCPtrack)
+        #arg_list['rcp_track'] = isinstance(self.track,RCPTrack)
         arg_list['rcp_track'] = True
 
         self.ccmppi = CCMPPI(self,arg_list)
         '''
-        if (isinstance(self.track,RCPtrack)):
+        if (isinstance(self.track,RCPTrack)):
             # discretize raceline for use in MPPI
             self.additionalSetupRcp()
         else:
@@ -319,7 +319,7 @@ class CcmppiCarController(CarController):
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
 #   state: (x,y,heading,v_forward,v_sideway,omega)
-#   track: track object, can be RCPtrack or skidpad
+#   track: track object, can be RCPTrack or skidpad
 #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
 
 # output:

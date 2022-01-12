@@ -1,7 +1,7 @@
 # handles logging
 import numpy as np
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 
 import os.path
 from time import time

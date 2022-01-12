@@ -25,8 +25,8 @@ from scipy.integrate import solve_ivp
 from time import sleep,time
 import cv2
 from PIL import Image
-from car import Car
-from Track import Track
+from track.car import Car
+from track.Track import Track
 import pickle
 from common import *
 from bisect import bisect
@@ -55,7 +55,7 @@ class Node:
         self.entry = entry
         return
 
-class RCPtrack(Track):
+class RCPTrack(Track):
     def __init__(self):
         self.t = execution_timer(True)
         # resolution : pixels per grid side length
@@ -1794,6 +1794,6 @@ class RCPtrack(Track):
         pass
     
 if __name__ == "__main__":
-    fulltrack = RCPtrack()
+    fulltrack = RCPTrack()
     fulltrack.prepareTrack()
 

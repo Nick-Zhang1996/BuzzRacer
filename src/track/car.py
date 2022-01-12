@@ -70,7 +70,7 @@ class Car:
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
 #   state: (x,y,heading,v_forward,v_sideway,omega)
-#   track: track object, can be RCPtrack or skidpad
+#   track: track object, can be RCPTrack or skidpad
 #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
 #   reverse: true if running in opposite direction of raceline init direction
 

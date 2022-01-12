@@ -1,5 +1,5 @@
 from common import *
-from Extension import Extension
+from extension import Extension
 from time import time,sleep
 # base class for all simulators
 # contains code for aligning simulator time with real time

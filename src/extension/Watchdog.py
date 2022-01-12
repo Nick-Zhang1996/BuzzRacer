@@ -1,5 +1,5 @@
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 
 class Watchdog(Extension):
     def __init__(self,main):

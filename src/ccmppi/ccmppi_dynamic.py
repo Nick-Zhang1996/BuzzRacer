@@ -7,7 +7,7 @@ import sys
 import os
 from common import *
 from laptimer import Laptimer
-from RCPTrack import RCPtrack
+from RCPTrack import RCPTrack
 from math import pi,radians,degrees,asin,acos,isnan
 from ethCarSim import ethCarSim
 from time import time
@@ -16,7 +16,7 @@ import cvxpy as cp
 from cvxpy.atoms.affine.trace import trace 
 from cvxpy.atoms.affine.transpose import transpose
 
-from RCPTrack import RCPtrack
+from RCPTrack import RCPTrack
 
 class CCMPPI():
     def __init__(self):
@@ -56,7 +56,7 @@ class CCMPPI():
     def loadTrack(self):
         # full RCP track
         # NOTE load track instead of re-constructing
-        fulltrack = RCPtrack()
+        fulltrack = RCPTrack()
         # for laptimer
         fulltrack.startPos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)

@@ -1,7 +1,7 @@
 # draw trajectory 
 import numpy as np
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 
 import cv2
 import os.path
@@ -16,6 +16,7 @@ class TrajectoryPlotter(Extension):
         self.resolveLogname()
 
     def prepareGif(self):
+        pass
 
     def resolveLogname(self,):
         # setup log file

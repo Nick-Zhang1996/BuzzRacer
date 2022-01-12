@@ -1,5 +1,5 @@
 # laptimer
-from Extension import *
+from extension.Extension import *
 from threading import Thread,Event
 from math import sin,cos
 import numpy as np

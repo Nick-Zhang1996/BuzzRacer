@@ -4,27 +4,18 @@ from threading import Event,Lock
 from math import pi,radians,degrees
 from time import time,sleep
 
-from KinematicSimulator import KinematicSimulator
-from DynamicSimulator import DynamicSimulator
+# Extensions
+import extension
+from extension import KinematicSimulator,DynamicSimulator
+from extension import Gifsaver, Laptimer
+from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from timeUtil import execution_timer
-from TrackFactory import TrackFactory
+from track import TrackFactory
 
 from Car import Car
 from StanleyCarController import StanleyCarController
 from CcmppiCarController import CcmppiCarController
-
-# Extensions
-from Laptimer import Laptimer
-from CrosstrackErrorTracker import CrosstrackErrorTracker
-from Gifsaver import Gifsaver
-from Logger import Logger
-from LapCounter import LapCounter
-from CollisionChecker import CollisionChecker
-from Optitrack import Optitrack
-from Visualization import Visualization
-from PerformanceTracker import PerformanceTracker
-from Watchdog import Watchdog
 
 class Main():
     def __init__(self,params={}):
@@ -54,17 +45,17 @@ class Main():
 
         # --- Extensions ---
         self.extensions = []
-        self.visualization = Visualization(self)
-        Optitrack(self)
-        #self.simulator = KinematicSimulator(self)
-        #self.simulator.match_real_time = True
+        self.visualization = extension.Visualization(self)
+        #Optitrack(self)
+        self.simulator = KinematicSimulator(self)
+        self.simulator.match_real_time = True
 
         #Gifsaver(self))
 
         # Laptimer
-        #Laptimer(self))
+        Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        Logger(self)
+        #Logger(self)
 
         for item in self.extensions:
             item.init()

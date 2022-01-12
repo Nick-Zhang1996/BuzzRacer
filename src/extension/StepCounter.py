@@ -1,4 +1,4 @@
-from Extension import Extension
+from extension.Extension import Extension
 class StepCounter(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)

@@ -1,8 +1,8 @@
 from common import *
-from Track import Track
-from RCPTrack import RCPtrack
-from EmptyTrack import EmptyTrack
-from skidpad import Skidpad
+from track.Track import Track
+from track.RCPTrack import RCPTrack
+from track.EmptyTrack import EmptyTrack
+from track.Skidpad import Skidpad
 from math import radians
 def TrackFactory(name='full'):
     mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}
@@ -21,7 +21,7 @@ def prepareRcpTrack():
 
     # full RCP track
     # NOTE load track instead of re-constructing
-    fulltrack = RCPtrack()
+    fulltrack = RCPTrack()
     fulltrack.startPos = (0.6*3.5,0.6*1.75)
     fulltrack.startDir = radians(90)
     fulltrack.load()
@@ -73,7 +73,7 @@ def prepareSkidpad():
 def prepareRcpTrackSmall():
     # current track setup in mk103, L shaped
     # width 0.563, length 0.6
-    mk103 = RCPtrack()
+    mk103 = RCPTrack()
     mk103.initTrack('uuruurddddll',(5,3),scale=0.57)
     # add manual offset for each control points
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0]

@@ -1,7 +1,7 @@
 # save a gif image
 import numpy as np
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 
 from PIL import Image
 import cv2

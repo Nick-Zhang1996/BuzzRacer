@@ -1,6 +1,6 @@
 import numpy as np
 from common import *
-from Extension import Extension
+from extension.Extension import Extension
 
 class CollisionChecker(Extension):
     def __init__(self,main):

@@ -1,10 +1,14 @@
 # refer to paper
 # The Kinematic Bicycle Model: a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles?
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from extension import Simulator
+
 import numpy as np
 from math import radians
 from common import *
 from threading import Event
-from Simulator import Simulator
 
 class KinematicSimulator(Simulator):
 

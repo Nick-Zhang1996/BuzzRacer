@@ -25,8 +25,8 @@ from cvxpy.atoms.affine.transpose import transpose
 from common import *
 from Car import Car
 from laptimer import Laptimer
-from RCPTrack import RCPtrack
-from KinematicSimulator import KinematicSimulator
+from track.RCPTrack import RCPTrack
+from extension.simulator.KinematicSimulator import KinematicSimulator
 
 class CCMPPI_KINEMATIC():
     def __init__(self,dt, N, noise_cov, arg_list,debug_info=None):
@@ -84,7 +84,7 @@ class CCMPPI_KINEMATIC():
     def loadTrack(self):
         # full RCP track
         # NOTE load track instead of re-constructing
-        fulltrack = RCPtrack()
+        fulltrack = RCPTrack()
         # for laptimer
         fulltrack.startPos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)
@@ -129,7 +129,7 @@ class CCMPPI_KINEMATIC():
         '''
 
         # search for log_no lap
-        self.track = RCPtrack()
+        self.track = RCPTrack()
         self.track.startPos = (0.6*3.5,0.6*1.75)
         self.track.startDir = radians(90)
         self.track.load()
@@ -1159,7 +1159,7 @@ class CCMPPI_KINEMATIC():
         nocc_states_vec = ret_dict['nocc_states_vec']
 
         # prepare track map
-        track = RCPtrack()
+        track = RCPTrack()
         track.startPos = (0.6*3.5,0.6*1.75)
         track.startDir = radians(90)
         track.load()
