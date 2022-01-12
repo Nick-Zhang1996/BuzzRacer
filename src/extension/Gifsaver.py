@@ -27,7 +27,7 @@ class Gifsaver(Extension):
         # setup log file
         # log file will record state of the vehicle for later analysis
         logFolder = "../gifs/"
-        logPrefix = "sim"
+        logPrefix = "test"
         logSuffix = ".gif"
         no = 1
         while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
@@ -41,6 +41,7 @@ class Gifsaver(Extension):
 
     def postUpdate(self):
         self.count +=1
+        '''
         if (self.count == 1):
             img = self.main.visualization.visualization_img.copy()
             filename = "./first_frame_" + self.main.algorithm + ".png"
@@ -48,7 +49,6 @@ class Gifsaver(Extension):
             print_info(self.prefix()+"saved first frame at "+filename)
             plt.imshow(img)
             plt.show()
-        '''
         if (self.count == 1):
             img = self.main.visualization.visualization_img.copy()
             filename = "./Qfstudy/ccmppi_Qf_" + str(self.main.params['Qf']) + ".png"
@@ -68,7 +68,7 @@ class Gifsaver(Extension):
         print_ok(self.prefix()+"saving final frame")
 
         print_ok("[Gifsaver]: saving gif.. This may take a while")
-        gif_filename = "../gifs/sim"+str(self.log_no)+".gif"
+        gif_filename = "../gifs/test"+str(self.log_no)+".gif"
         # TODO better way of determining duration
         self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 30,loop=0)
         print_ok("[Gifsaver]: gif saved at "+gif_filename)

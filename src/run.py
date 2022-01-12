@@ -50,7 +50,7 @@ class Main():
         #self.simulator = KinematicSimulator(self)
         #self.simulator.match_time = True
 
-        #Gifsaver(self))
+        Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
