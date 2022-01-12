@@ -2,43 +2,35 @@
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
-
-
-from KinematicSimulator import KinematicSimulator
-from DynamicSimulator import DynamicSimulator
-
-from timeUtil import execution_timer
-from TrackFactory import TrackFactory
-
-from Car import Car
-from StanleyCarController import StanleyCarController
-from CcmppiCarController import CcmppiCarController
+from time import time,sleep
 
 # Extensions
-from Laptimer import Laptimer
-from CrosstrackErrorTracker import CrosstrackErrorTracker
-from Gifsaver import Gifsaver
-from Logger import Logger
-from LapCounter import LapCounter
-from CollisionChecker import CollisionChecker
-from Optitrack import Optitrack
-from Visualization import Visualization
-from PerformanceTracker import PerformanceTracker
-from Watchdog import Watchdog
+import extension
+from extension import KinematicSimulator,DynamicSimulator
+from extension import Gifsaver, Laptimer
+from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
+
+from util.timeUtil import execution_timer
+from track import TrackFactory
+
+from Car import Car
+from controller import StanleyCarController
+from controller import CcmppiCarController
 
 class Main():
     def __init__(self,params={}):
         self.timer = execution_timer(True)
-        # state update rate
-        self.dt = 0.03
+        self.dt = 0.01
         self.params = params
+        self.algorithm = params['algorithm']
+        self.new_state_update = Event()
 
         self.track = TrackFactory(name='full')
 
         self.simulator = KinematicSimulator(self)
         #self.simulator = DynamicSimulator(self)
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 0.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -54,30 +46,18 @@ class Main():
         self.slowdown_ts = 0
 
         # --- Extensions ---
-        # named extensions
-        self.visualization = Visualization(self)
-        self.simulator.match_real_time = True
-        self.collision_checker = CollisionChecker(self)
-        #self.performance_tracker = PerformanceTracker(self)
-        #self.extensions.append(self.performance_tracker)
-
         self.extensions = []
-        self.extensions.append(self.visualization)
-        # Laptimer
-        self.extensions.append(Laptimer(self))
-        #self.extensions.append(CrosstrackErrorTracker(self))
-        self.extensions.append(LapCounter(self))
-        # save experiment as a gif, this provides an easy to use visualization for presentation
-        #self.logger = Logger(self)
-        #self.extensions.append(self.logger)
-        #self.extensions.append(self.collision_checker)
+        self.visualization = extension.Visualization(self)
+        #Optitrack(self)
+        self.simulator = KinematicSimulator(self)
+        self.simulator.match_real_time = True
 
-        #self.extensions.append(Optitrack(self))
-        self.extensions.append(self.simulator)
-        #self.extensions.append(Gifsaver(self))
-        #self.extensions.append(self.performance_tracker)
-        self.watchdog = Watchdog(self)
-        self.extensions.append(self.watchdog)
+        #Gifsaver(self))
+
+        # Laptimer
+        Laptimer(self)
+        # save experiment as a gif, this provides an easy to use visualization for presentation
+        #Logger(self)
 
         for item in self.extensions:
             item.init()
@@ -93,6 +73,7 @@ class Main():
         t = self.timer
         print_info("running ... press q to quit")
         while not self.exit_request.isSet():
+            ts = time()
             t.s()
             self.update()
             t.e()
@@ -104,6 +85,12 @@ class Main():
             item.final()
         for item in self.extensions:
             item.postFinal()
+
+    def time(self):
+        if self.experiment_type == ExperimentType.Simulation:
+            return self.sim_t
+        else:
+            return time()
 
 
     # run the control/visualization update
@@ -139,8 +126,10 @@ class Main():
 
 
 if __name__ == '__main__':
-    params = {'samples':4096*2, 'algorithm':'mppi-same-injected'}
-    #params = {'samples':4096*2, 'algorithm':'ccmppi'}
+    # alfa: progress
+    #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
     experiment = Main(params)
     experiment.run()
+    #experiment.cars[0].controller.p.summary()
     print_info("program complete")

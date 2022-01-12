@@ -1,6 +1,0 @@
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count
-ccmppi, 1024, 2, 5.5800, 36
-ccmppi, 2048, 2, 5.5133, 39
-mppi, 1024, 2, 5.0200, 38
-mppi, 2048, 2, 4.7933, 28
