@@ -1,8 +1,10 @@
 # CCMPPI controller wrapper with kinematic bicycle model
+'''
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './ccmppi/')
 sys.path.append(base_dir)
+'''
 
 import cv2
 import numpy as np
@@ -13,9 +15,9 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import random
 
 from common import *
-from timeUtil import execution_timer
-from ccmppi import CCMPPI
-from CarController import CarController
+from util.timeUtil import execution_timer
+from controller.ccmppi.ccmppi import CCMPPI
+from controller.CarController import CarController
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from track import RCPTrack
 import pickle

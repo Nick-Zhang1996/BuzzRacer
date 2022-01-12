@@ -1,7 +1,7 @@
 from common import *
 from math import isnan,pi,degrees,radians
-from CarController import CarController
-from PidController import PidController
+from controller.CarController import CarController
+from controller.PidController import PidController
 
 class StanleyCarController(CarController):
     def __init__(self, car):

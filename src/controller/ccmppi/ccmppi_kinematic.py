@@ -24,7 +24,8 @@ from cvxpy.atoms.affine.transpose import transpose
 
 from common import *
 from Car import Car
-from laptimer import Laptimer
+#from laptimer import Laptimer
+from extension.Laptimer import _Laptimer as Laptimer
 from track.RCPTrack import RCPTrack
 from extension.simulator.KinematicSimulator import KinematicSimulator
 

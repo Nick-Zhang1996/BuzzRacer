@@ -10,12 +10,12 @@ from extension import KinematicSimulator,DynamicSimulator
 from extension import Gifsaver, Laptimer
 from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
-from timeUtil import execution_timer
+from util.timeUtil import execution_timer
 from track import TrackFactory
 
 from Car import Car
-from StanleyCarController import StanleyCarController
-from CcmppiCarController import CcmppiCarController
+from controller import StanleyCarController
+from controller import CcmppiCarController
 
 class Main():
     def __init__(self,params={}):

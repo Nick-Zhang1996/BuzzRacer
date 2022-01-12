@@ -5,7 +5,7 @@ from math import cos,sin,pi,atan2,radians,degrees,tan
 import matplotlib.pyplot as plt
 
 from track.Track import Track
-from track.car import Car
+#from track.car import Car
 
 class Skidpad(Track):
     def __init__(self):
@@ -129,6 +129,9 @@ class Skidpad(Track):
 
 
 if __name__ == "__main__":
+    pass
+'''
+if __name__ == "__main__":
     sp = Skidpad()
     sp.initSkidpad(radius=1,velocity=1)
     car = Car()
@@ -144,11 +147,9 @@ if __name__ == "__main__":
     # visualize raceline
     img_track = sp.drawTrack()
     img_track_car = sp.drawCar(img_track.copy(),state,radians(20))
-    '''
     img_track_car = cv2.cvtColor(img_track_car, cv2.COLOR_BGR2RGB)
     plt.imshow(img_track_car)
     plt.show()
-    '''
 
     cv2.imshow('car',img_track_car)
 
@@ -165,3 +166,4 @@ if __name__ == "__main__":
     cv2.destroyAllWindows()
     pass
 
+'''

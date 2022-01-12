@@ -9,8 +9,8 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
 from common import *
-from timeUtil import execution_timer
-from ccmppi_kinematic import CCMPPI_KINEMATIC
+from util.timeUtil import execution_timer
+from ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
 
 class CCMPPI:
     def __init__(self,parent,arg_list):

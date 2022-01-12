@@ -25,12 +25,12 @@ from scipy.integrate import solve_ivp
 from time import sleep,time
 import cv2
 from PIL import Image
-from track.car import Car
+#from track.car import Car
 from track.Track import Track
 import pickle
 from common import *
 from bisect import bisect
-from timeUtil import execution_timer
+from util.timeUtil import execution_timer
 
 # debugging
 K_vec = [] # curvature
@@ -634,11 +634,13 @@ class RCPTrack(Track):
         print_ok("track and raceline saved")
 
     def load(self,filename=None):
+        # get data folder abs path
+        thisdir = os.path.dirname(os.path.abspath(__file__))
+        basedir = os.path.dirname(thisdir)
         if filename is None:
             filename = "raceline.p"
-
         try:
-            with open(filename, 'rb') as f:
+            with open(basedir+'/data/'+filename, 'rb') as f:
                 save = pickle.load(f)
         except FileNotFoundError:
             print_error("can't find "+filename+", run qpSmooth.py first")
