@@ -628,7 +628,7 @@ class RCPTrack(Track):
         save['min_v'] = self.min_v
         save['max_v'] = self.max_v
 
-        with open(filename, 'wb') as f:
+        with open('./data/'+filename, 'wb') as f:
             pickle.dump(save,f)
         print_ok("track and raceline saved")
 

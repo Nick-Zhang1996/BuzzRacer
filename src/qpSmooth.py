@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 
 from time import time
 from common import *
-from RCPTrack import RCPtrack
+from track.RCPTrack import RCPTrack
 
 
-class QpSmooth(RCPtrack):
-    # track: RCPtrack object
+class QpSmooth(RCPTrack):
+    # track: RCPTrack object
     def __init__(self):
-        RCPtrack.__init__(self)
+        RCPTrack.__init__(self)
         warnings.simplefilter("error")
         return
 
@@ -842,7 +842,7 @@ if __name__ == "__main__":
     val = qp.optimizePath()
 
     # load and show
-    fulltrack = RCPtrack()
+    fulltrack = RCPTrack()
     print("-----------------")
     print_info("testing loading")
     fulltrack.load()

@@ -16,7 +16,10 @@ import random
 
 from common import *
 from util.timeUtil import execution_timer
-from controller.ccmppi.ccmppi import CCMPPI
+try:
+    from controller.ccmppi.ccmppi import CCMPPI
+except ModuleNotFoundError as e:
+    print("gurobipy unavailable, skipping ccmppi")
 from controller.CarController import CarController
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from track import RCPTrack
