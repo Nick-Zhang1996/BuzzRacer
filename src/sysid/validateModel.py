@@ -499,7 +499,7 @@ def addAlgorithmName(img,step_fun):
 
 def run():
     # setting
-    lookahead_steps = 100
+    lookahead_steps = 50
     saveGif = False
     gifs = []
 
