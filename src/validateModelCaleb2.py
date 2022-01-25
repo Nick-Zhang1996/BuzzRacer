@@ -223,8 +223,11 @@ def step_LTIKinematic(state, control, currentState, currentControl, nextRefTrajS
     # "delta*" variables are in the standard form used in linearization
     x0, y0, heading0, v_forward0, v_sideways0, omega0 = currentState
     x, y, heading, v_forward, v_sideways, omega = state
-    deltax = x - x0
-    deltay = y - y0
+
+    # End of semester caleb:
+    # so you don't need deltax to predict anything but if you did, deltax and deltay should have a coord transform
+    deltax = 0#x - x0
+    deltay = 0#y - y0
     deltahead = heading - heading0
     deltav = v_forward - v_forward0
 

@@ -309,11 +309,11 @@ def step_LTVDynamic(state, control, refTrajState, nextRefTrajState, dt=0.01):
     frontDen = vfRef ** 2 + v_y_f ** 2
     rearDen = vfRef ** 2 + v_y_r ** 2
 
-    if frontDen < 10 ** -2:
-        frontDen = 10 ** -2
-
-    if rearDen < 10 ** -2:
-        rearDen = 10 ** -2
+    # if frontDen < 10 ** -2:
+    #     frontDen = 10 ** -2
+    #
+    # if rearDen < 10 ** -2:
+    #     rearDen = 10 ** -2
 
     # print(frontDen, rearDen)
 
@@ -393,10 +393,12 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
     scaleToForce = 0.5  # Scale throttle command to force
     Cf = mu * (scaleToForce * control[0] * h + m * g * lf) / L
     Cr = mu * (-scaleToForce * control[0] * h + m * g * lr) / L
-    print('Cf: {0:.3f},  Cr: {1:.3f}', Cf, Cr)
+    # print('Cf: {0:.3f},  Cr: {1:.3f}', Cf, Cr)
     I = 0.00278  # MMOI, todo estimate MMOI
 
     # convenience parameters
+    # Cf /= 5
+    # Cr /= 5
     coeff = 2 * Cf / m
     coefr = 2 * Cr / m
 
@@ -432,11 +434,14 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
     A[5][3] = 2 * Cf * lf / I * vfRef * np.cos(steerRef) / frontDen - 2 * Cr * lf / I * vfRef / rearDen
     A[5][5] = 2 * Cf * lf ** 2 / I * vfRef * np.cos(steerRef) / frontDen + 2 * Cr * lr ** 2 / I * vfRef / rearDen
 
-    # Need to do a rotation to get into tangent (x) / normal (y) frame of trajectory
-    # phi measured from x axis pointing right?
-    xDelta = (x - xRef) * np.cos(headingRef) + (y - yRef) * np.sin(headingRef)
-    yDelta = (x - xRef) * -np.sin(headingRef) + (y - yRef) * np.cos(headingRef)
-    headingDelta = heading - headingRef
+    # Delta refers to error from the current reference traj. state. Position does not play a role in dynamics, so
+    # xDelta, yDelta, and headingDelta can simply be set to zero for efficiency with no effect on the outcome.
+    # Additionally, v_sideways and v_forward for both the car and the reference state are in their respective frames
+    # That is, there is no conversion of v_sideways and v_forward of the car into the reference trajectory frame.
+
+    xDelta = 0  # (x - xRef) * np.cos(headingRef) + (y - yRef) * np.sin(headingRef)
+    yDelta = 0  # (x - xRef) * -np.sin(headingRef) + (y - yRef) * np.cos(headingRef)
+    headingDelta = 0  # heading - headingRef
     deltaState = (xDelta, v_forward - vfRef, yDelta, v_sideways - vsRef, headingDelta, omega - omegaRef)
 
     B = np.zeros((6, 2))  # todo fill b matrix. Can be zero for now because control is zero
@@ -445,353 +450,74 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
 
     deltaStateDot = np.matmul(A, deltaState) + np.matmul(B, deltaControl)
 
+    print(deltaStateDot)
+
     deltaState += deltaStateDot * dt
 
     # rotate back into global coordinates
-    deltax = deltaState[0]
-    deltay = deltaState[2]
-    totalHead = deltaState[4] + headingRef
-    globalXDelta = deltax * np.cos(totalHead) - deltay * np.sin(totalHead)
-    globalYDelta = deltax * np.sin(totalHead) + deltay * np.cos(totalHead)
+    # deltax = deltaState[0]
+    # deltay = deltaState[2]
+    # totalHead = deltaState[4] + headingRef
+    # globalXDelta = deltax * np.cos(totalHead) - deltay * np.sin(totalHead)
+    # globalYDelta = deltax * np.sin(totalHead) + deltay * np.cos(totalHead)
 
     nextxRef, nextyRef, nextheadingRef, nextvfRef, nextvsRef, nextomegaRef = nextRefTrajState
-    x = globalXDelta + nextxRef
-    y = globalYDelta + nextyRef
-    heading = deltaState[4] + nextheadingRef
+    x += (v_forward * np.cos(heading) - v_sideways * np.sin(heading)) * dt
+    y += (v_forward * np.sin(heading) + v_sideways * np.cos(heading)) * dt
+    heading += omega * dt
     v_forward = deltaState[1] + nextvfRef
     v_sideways = deltaState[3] + nextvsRef
-    omega = deltaStateDot[3] + nextomegaRef
+    omega = deltaState[5] + nextomegaRef
+
+
+    # x = globalXDelta + nextxRef
+    # y = globalYDelta + nextyRef
+    # heading = deltaState[4] + nextheadingRef
+    # v_forward = deltaState[1] + nextvfRef
+    # v_sideways = deltaState[3] + nextvsRef
+    # omega = deltaStateDot[3] + nextomegaRef
 
     return (x, y, heading, v_forward, v_sideways, omega), {}
 
-
-# old, kinematic model with correction
-# def step_kinematic_heuristic(state,control,dt=0.01):
-#     # constants
-#     L = 0.102
-#     lr = 0.036
-#     # convert to local frame
-#     x,vxg,y,vyg,heading,omega = tuple(state)
-#     steering,throttle = tuple(control)
-#     vx = vxg*cos(heading) + vyg*sin(heading)
-#     vy = -vxg*sin(heading) + vyg*cos(heading)
-#
-#     # some convenience variables
-#     R = L/tan(steering)
-#     beta = atan(lr/R)
-#     norm = lambda a,b:(a**2+b**2)**0.5
-#
-#     #advance model
-#     vx = max(0.0,vx + (throttle - 0.24)*7.0*dt)
-#     #vx = vx + (throttle)*7.0*dt
-#     vy = norm(vx,vy)*sin(beta)
-#     assert vy*steering>0
-#
-#     # NOTE heuristics
-#     vy -= 0.68*vx*steering
-#
-#
-#     # NOTE where to put this
-#     omega = vx/R
-#
-#     # back to global frame
-#     vxg = vx*cos(heading)-vy*sin(heading)
-#     vyg = vx*sin(heading)+vy*cos(heading)
-#
-#     # apply updates
-#     x += vxg*dt
-#     y += vyg*dt
-#     heading += omega*dt
-#
-#     return (x,vxg,y,vyg,heading,omega ),{}
-
-# dynamic model with heuristically selected parameters
-# def step_dynamics(state,control,dt=0.01):
-#     # constants
-#     lf = 0.09-0.036
-#     lr = 0.036
-#     # convert to local frame
-#     # x,vxg,y,vyg,heading,omega = tuple(state)
-#     x, vxg, y, vyg, heading, omega = (state[0][0], state[0][1], state[0][2], state[0][3], state[0][4], state[0][5])
-#     steering,throttle = tuple(control)
-#     # forward
-#     vx = vxg*cos(heading) + vyg*sin(heading)
-#     # lateral, left +
-#     vy = -vxg*sin(heading) + vyg*cos(heading)
-#
-#     # TODO handle vx->0
-#     # for small velocity, use kinematic model
-#     slip_f = -np.arctan((omega*lf + vy)/vx) + steering
-#     slip_r = np.arctan((omega*lr - vy)/vx)
-#     # we call these acc but they are forces normalized by mass
-#     # TODO consider longitudinal load transfer
-#     lateral_acc_f = tireCurve(slip_f) * 9.8 * lr / (lr + lf)
-#     lateral_acc_r = tireCurve(slip_r) * 9.8 * lf / (lr + lf)
-#     # TODO use more comprehensive model
-#     forward_acc_r = (throttle - 0.24)*7.0
-#
-#     ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
-#     ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
-#
-#     vx += ax * dt
-#     vy += ay * dt
-#
-#     # leading coeff = m/Iz
-#     d_omega = 12.0/(0.1**2+0.1**2)*(lateral_acc_f * lf * cos(steering) - lateral_acc_r * lr )
-#     omega += d_omega * dt
-#
-#     # back to global frame
-#     vxg = vx*cos(heading)-vy*sin(heading)
-#     vyg = vx*sin(heading)+vy*cos(heading)
-#
-#     # apply updates
-#     # TODO add 1/2 a t2
-#     x += vxg*dt
-#     y += vyg*dt
-#     heading += omega*dt + 0.5* d_omega * dt * dt
-#
-#     retval = (x,vxg,y,vyg,heading,omega )
-#     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":lateral_acc_f, "lateral_acc_r":lateral_acc_r, 'ax':ax}
-#     return retval, debug_dict
-
-# model with parameter from ukf
-# def step_ukf(state, control, dt=0.01):
-#     # constants
-#     lf = 0.09 - 0.036
-#     lr = 0.036
-#     L = 0.09
-#
-#     Df = 3.93731
-#     Dr = 6.23597
-#     C = 2.80646
-#     B = 0.51943
-#     Cm1 = 6.03154
-#     Cm2 = 0.96769
-#     Cr = -0.20375
-#     Cd = 0.00000
-#     Iz = 0.00278
-#     m = 0.1667
-#
-#     # convert to local frame
-#     x, vxg, y, vyg, heading, omega = tuple(state)
-#     steering, throttle = tuple(control)
-#     # forward
-#     vx = vxg * cos(heading) + vyg * sin(heading)
-#     # lateral, left +
-#     vy = -vxg * sin(heading) + vyg * cos(heading)
-#
-#     # for small velocity, use kinematic model
-#     if vx < 0.05:
-#         beta = atan(lr / L * tan(steering))
-#         norm = lambda a, b: (a ** 2 + b ** 2) ** 0.5
-#         # motor model
-#         d_vx = ((Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
-#         vx = vx + d_vx * dt
-#         vy = norm(vx, vy) * sin(beta)
-#         d_omega = 0.0
-#         omega = vx / L * tan(steering)
-#
-#         slip_f = 0
-#         slip_r = 0
-#         Ffy = 0
-#         Fry = 0
-#
-#     else:
-#         slip_f = -np.arctan((omega * lf + vy) / vx) + steering
-#         slip_r = np.arctan((omega * lr - vy) / vx)
-#
-#         Ffy = Df * np.sin(C * np.arctan(B * slip_f)) * 9.8 * lr / (lr + lf) * m
-#         Fry = Dr * np.sin(C * np.arctan(B * slip_r)) * 9.8 * lf / (lr + lf) * m
-#
-#         # motor model
-#         Frx = ((Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx) * m
-#
-#         # Dynamics
-#         d_vx = 1.0 / m * (Frx - Ffy * np.sin(steering) + m * vy * omega)
-#         d_vy = 1.0 / m * (Fry + Ffy * np.cos(steering) - m * vx * omega)
-#         d_omega = 1.0 / Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
-#
-#         # discretization
-#         vx = vx + d_vx * dt
-#         vy = vy + d_vy * dt
-#         omega = omega + d_omega * dt
-#
-#         # back to global frame
-#     vxg = vx * cos(heading) - vy * sin(heading)
-#     vyg = vx * sin(heading) + vy * cos(heading)
-#
-#     # apply updates
-#     # TODO add 1/2 a t2
-#     x += vxg * dt
-#     y += vyg * dt
-#     heading += omega * dt + 0.5 * d_omega * dt * dt
-#
-#     retval = (x, vxg, y, vyg, heading, omega)
-#     debug_dict = {"slip_f": slip_f, "slip_r": slip_r, "lateral_acc_f": Ffy / m, "lateral_acc_r": Fry / m, 'ax': d_vx}
-#     return retval, debug_dict
-#
-#
-# # model with parameter from ukf
-# def step_ukf_linear(state, control, dt=0.01):
-#     # constants
-#     lf = 0.09 - 0.036
-#     lr = 0.036
-#     L = 0.09
-#
-#     '''
-#     Df = 3.93731
-#     Dr = 6.23597
-#     C = 2.80646
-#     B = 0.51943
-#     '''
-#     # Cm1 = 6.03154
-#     Cm2 = 0.96769
-#     # Cr = -0.20375
-#     Cm1 = 9.23154
-#     Cr = 0.0
-#     Cd = 0.00000
-#     # Iz = 0.00278
-#     m = 0.1667
-#     Iz = m * (0.1 ** 2 + 0.1 ** 2) / 12.0 * 6.0
-#     K = 5.0
-#
-#     # convert to local frame
-#     x, vxg, y, vyg, heading, omega = tuple(state)
-#     steering, throttle = tuple(control)
-#     # forward
-#     vx = vxg * cos(heading) + vyg * sin(heading)
-#     # lateral, left +
-#     vy = -vxg * sin(heading) + vyg * cos(heading)
-#
-#     # for small velocity, use kinematic model
-#     if vx < 0.05:
-#         beta = atan(lr / L * tan(steering))
-#         norm = lambda a, b: (a ** 2 + b ** 2) ** 0.5
-#         # motor model
-#         d_vx = ((Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
-#         vx = vx + d_vx * dt
-#         vy = norm(vx, vy) * sin(beta)
-#         d_omega = 0.0
-#         omega = vx / L * tan(steering)
-#
-#         slip_f = 0
-#         slip_r = 0
-#         Ffy = 0
-#         Fry = 0
-#
-#     else:
-#         slip_f = -np.arctan((omega * lf + vy) / vx) + steering
-#         slip_r = np.arctan((omega * lr - vy) / vx)
-#
-#         # tire model -- pacejka model
-#         # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-#         # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-#
-#         Ffy = K * slip_f * 9.8 * lr / (lr + lf) * m
-#         Fry = K * slip_r * 9.8 * lf / (lr + lf) * m
-#
-#         # motor model
-#         Frx = ((Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx) * m
-#
-#         # Dynamics
-#         d_vx = 1.0 / m * (Frx - Ffy * np.sin(steering) + m * vy * omega)
-#         d_vy = 1.0 / m * (Fry + Ffy * np.cos(steering) - m * vx * omega)
-#         d_omega = 1.0 / Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
-#
-#         # discretization
-#         vx = vx + d_vx * dt
-#         vy = vy + d_vy * dt
-#         omega = omega + d_omega * dt
-#
-#         # back to global frame
-#     vxg = vx * cos(heading) - vy * sin(heading)
-#     vyg = vx * sin(heading) + vy * cos(heading)
-#
-#     # apply updates
-#     # TODO add 1/2 a t2
-#     x += vxg * dt
-#     y += vyg * dt
-#     heading += omega * dt + 0.5 * d_omega * dt * dt
-#
-#     retval = (x, vxg, y, vyg, heading, omega)
-#     debug_dict = {"slip_f": slip_f, "slip_r": slip_r, "lateral_acc_f": Ffy / m, "lateral_acc_r": Fry / m, 'ax': d_vx}
-#     return retval, debug_dict
 
 # Now thinking that all the real data is coming with global vx and vy...
 def step_Nonlinear(state, control, dt=0.01):
     lf = 0.09 - 0.036
     lr = 0.036
+    # lf = 0.045
+    # lr = 0.045
     L = lr + lf
     h = 0.01
-    m = 0.1667
-    I = 0.00278
+    m = 0.1667 * 1.5
+    I = 0.00278 * 0.1
     g = 9.81
 
-    mu = 1
-    scaleToForce = 1  # Scale throttle command to force
-    Cf = 0.5 * mu * (scaleToForce * control[0] * h + m * g * lr) / L
-    Cr = 0.5 * mu * (-scaleToForce * control[0] * h + m * g * lf) / L
-
-    coefLimit = 1
-    if Cf > coefLimit:
-        Cf = coefLimit
-    elif (Cf < -coefLimit):
-        Cf = -coefLimit
-
-    if Cr > coefLimit:
-        Cr= coefLimit
-    elif Cr < -coefLimit:
-        Cr = -coefLimit
-
-    # print("Cf: {0:.3f}, Cr: {1:.3f}".format(Cf, Cr))
-
     xG, yG, heading, vf, vs, omega = state
-    # print(state)
-    th, st = control
-
-    th = th * scaleToForce
-
-    # convert velocities to vehicle frame
-    # vf = vxG * np.cos(heading) + vyG * np.sin(heading)
-    # print(vf)
-    # vs = -vxG * np.sin(heading) + vyG * np.cos(heading)
-    # print(vs)
-
-    # vfc = (vs + lf * omega) * np.cos(st) - vf * np.sin(st)
-    # vfl = (vs + lf * omega) * np.sin(st) + vf * np.cos(st)
-
-    # print('vfc: {0:.3f}, vfl: {1:.3f}'.format(vfc, vfl))
-
-    # frontslip = np.arctan(((vs + lf * omega) * np.cos(st) - vf * np.sin(st)) / (
-    #         (vs + lf * omega) * np.sin(st) + vf * np.cos(st)))
-
-    frontslip = Cf * (np.arctan2(vs + lf * omega, vf) - st) #NOTE THAT THIS NOW HAS COEFF ON FRONT
-
-    # print(((vs + lf * omega) * np.cos(st) - vf * np.sin(st)))
-    # print((vs + lf * omega) * np.sin(st) + vf * np.cos(st))
-
-    # frontslip = (vs + lf * omega) / vf - st
-
-    # rearslip = np.arctan((vs - lr * omega) / vf)
-
-    rearslip = Cr * np.arctan2(vs - lr * omega, vf)
-
-    print("frontslip: {0:.3f}, rearslip: {1:.3f}".format(frontslip, rearslip)) # NOTE THAT ...
-
-
-
-    # xddot = vs * omega - 2 / m * Cf * frontslip * np.sin(st) + th / m
-    xddot = vs * omega - 2 / m * tireCurve(frontslip) * (lr/L * m*g)* np.sin(st) + th / m
-
-    print(tireCurve(frontslip))
-
-    # yddot = -vf * omega + 2 / m * Cf * frontslip * np.cos(st) + 2 / m * Cr * rearslip
-    yddot = -vf * omega + 2 / m * tireCurve(frontslip) * (lr/L * m*g)* np.cos(st) + 2 / m * tireCurve(rearslip) * (lf/L * m*g)
-
-    phiddot = 2 * lf / I * Cf * frontslip * np.cos(st) - 2 * lr / I * Cr * rearslip
-
-    print((xddot, yddot, phiddot))
+    print(state)
     print(control)
+    throt, steer = control
+    scaleToForce = 0.8  # Scale throttle command to force
+    throt = throt * scaleToForce
+
+    frontslip = np.arctan2(vs + lf * omega, vf) - steer
+    rearslip = np.arctan2(vs - lr * omega, vf)
+
+    frontFriction = saturationTireModel(frontslip)
+    rearFriction = saturationTireModel(rearslip)
+
+    Wf = 0.5 * (scaleToForce * throt * h + m * g * lr) / L  # 0.25 * m * g #
+    Wr = 0.5 * (-scaleToForce * throt * h + m * g * lf) / L  # 0.25 * m * g #
+
+    Ffx = -Wf * frontFriction * np.sin(steer)   # Ffx = Ffl * cos(steer) - Ffc * sin(steer); Ffl = 0, Ffc = mu * N
+    Ffy = Wf * frontFriction * np.cos(steer)    # Ffy = Ffl * sin(steer) + Ffc * cos(steer); Ffl = 0, Ffc = mu * N
+    Frx = throt / 2                          # Frx = Frl * cos(0) + Frc * sin(0); Frl = throttle, sin(0) = 0
+    Fry = Wr * rearFriction                     # Fry = Frl * sin(0) + Frc * cos(0); sin(0) = 0, Frc = mu * N
+
+    xddot = vs * omega + 2 / m * (Ffx + Frx)
+
+    yddot = -vf * omega + 2 / m * (Ffy + Fry)
+
+    phiddot = 2 / I * (lf * Ffy - lr * Fry)
 
     # convert back to global
     vxG = vf * np.cos(heading) - vs * np.sin(heading)
@@ -807,20 +533,20 @@ def step_Nonlinear(state, control, dt=0.01):
 
     # heading += omega * dt  # where should this be
 
-    print(omega)
     print("")
-
-    # # convert back to global
-    # vxG = vf * np.cos(heading) - vs * np.sin(heading)
-    # vyG = vf * np.sin(heading) + vs * np.cos(heading)
-
-    # xG += vxG * dt
-    # yG += vyG * dt
 
     return (xG, yG, heading, vf, vs, omega), {"slip_f": frontslip, "slip_r": rearslip, "-vf*omega": -vf*omega,
                                               "vs*omega": vs*omega, "xddot": xddot, "yddot": yddot, "phiddot": phiddot,
-                                              "slip_f_force": 2 / m * tireCurve(frontslip),
-                                              "slip_r_force": 2 / m * tireCurve(rearslip)}
+                                              "slip_f_force": Wf * frontFriction,
+                                              "slip_r_force": Wr * rearFriction}
+
+
+def saturationTireModel(slip):
+    slope = -1
+    frictionCoef = slope * slip
+    frictionCoef = np.clip(frictionCoef, -1, 1)
+    print("Friction Coef: {0:.3f}".format(frictionCoef))
+    return frictionCoef
 
 
 def test():
@@ -900,7 +626,7 @@ def run():
     cv2.imshow('validate', img_track)
     cv2.waitKey(10)
 
-    lookahead_steps = 100
+    lookahead_steps = 200
     debug_dict_hist = {"slip_f": [[]], "slip_r": [[]], "vs*omega": [[]], "-vf*omega": [[]], "xddot": [[]],
                        "yddot": [[]], "phiddot": [[]], "slip_f_force": [[]], "slip_r_force": [[]]}
     if not fullsim:
@@ -974,7 +700,7 @@ def run():
 
         if fullsim:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
-            state = (xActual[i], yActual[i], headingActual[i]+1, vxActual[i], vyActual[i], omegaActual[i])
+            state = (xActual[i], yActual[i], headingActual[i], vxActual[i], vyActual[i], omegaActual[i])
             control = (throttle[i], steering[i])
         else:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
@@ -997,9 +723,9 @@ def run():
                                 omegaActual[j - 1])
                 nextRefTrajState = (xActual[j], yActual[j], headingActual[j], vxActual[j], vyActual[j],
                                     omegaActual[j])
-            # else:
-            # refTrajState = nonlinear_states[j - (i + 1)]
-            # nextRefTrajState = nonlinear_states[j - i]
+            else:
+                refTrajState = nonlinear_states[j - (i + 1)]
+                nextRefTrajState = nonlinear_states[j - i]
 
             state, debug_dict = step_fun2(state, control, refTrajState, nextRefTrajState)
             # state, debug_dict = step_fun2(state, control)
