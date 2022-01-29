@@ -2,6 +2,7 @@
 import numpy as np
 from common import *
 from extension.Extension import Extension
+from datetime import date
 
 import os.path
 from time import time
@@ -22,7 +23,18 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/jan12/"
+        #logFolder = "../log/jan12/"
+
+        # create a folder using date and type of experiment
+        today = date.today()
+        try: 
+            self.main.simulator
+            logFolder = '../log/' + today.strftime("%B %d, %Y") + ' Simulator' + '/'
+        except AttributeError:
+            logFolder = '../log/' + today.strftime("%B %d, %Y") + ' Experiment' + '/'
+
+        if not os.path.exists(logFolder):
+            os.makedirs(logFolder)
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
