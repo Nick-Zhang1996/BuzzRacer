@@ -397,8 +397,8 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
     I = 0.00278  # MMOI, todo estimate MMOI
 
     # convenience parameters
-    # Cf /= 5
-    # Cr /= 5
+    # Cf /= 10
+    # Cr /= 10
     coeff = 2 * Cf / m
     coefr = 2 * Cr / m
 
@@ -434,14 +434,19 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
     A[5][3] = 2 * Cf * lf / I * vfRef * np.cos(steerRef) / frontDen - 2 * Cr * lf / I * vfRef / rearDen
     A[5][5] = 2 * Cf * lf ** 2 / I * vfRef * np.cos(steerRef) / frontDen + 2 * Cr * lr ** 2 / I * vfRef / rearDen
 
-    # Delta refers to error from the current reference traj. state. Position does not play a role in dynamics, so
-    # xDelta, yDelta, and headingDelta can simply be set to zero for efficiency with no effect on the outcome.
-    # Additionally, v_sideways and v_forward for both the car and the reference state are in their respective frames
-    # That is, there is no conversion of v_sideways and v_forward of the car into the reference trajectory frame.
+    # No longer sure about the below: (1/25/22)
+    # # Delta refers to error from the current reference traj. state. Position does not play a role in dynamics, so
+    # # xDelta, yDelta, and headingDelta can simply be set to zero for efficiency with no effect on the outcome.
+    # # Additionally, v_sideways and v_forward for both the car and the reference state are in their respective frames
+    # # That is, there is no conversion of v_sideways and v_forward of the car into the reference trajectory frame.
+    #
+    # xDelta = 0  # (x - xRef) * np.cos(headingRef) + (y - yRef) * np.sin(headingRef)
+    # yDelta = 0  # (x - xRef) * -np.sin(headingRef) + (y - yRef) * np.cos(headingRef)
+    # headingDelta = 0  # heading - headingRef
 
-    xDelta = 0  # (x - xRef) * np.cos(headingRef) + (y - yRef) * np.sin(headingRef)
-    yDelta = 0  # (x - xRef) * -np.sin(headingRef) + (y - yRef) * np.cos(headingRef)
-    headingDelta = 0  # heading - headingRef
+    xDelta = (x - xRef) * np.cos(headingRef) + (y - yRef) * np.sin(headingRef)
+    yDelta = (x - xRef) * -np.sin(headingRef) + (y - yRef) * np.cos(headingRef)
+    headingDelta = heading - headingRef
     deltaState = (xDelta, v_forward - vfRef, yDelta, v_sideways - vsRef, headingDelta, omega - omegaRef)
 
     B = np.zeros((6, 2))  # todo fill b matrix. Can be zero for now because control is zero
@@ -450,7 +455,7 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
 
     deltaStateDot = np.matmul(A, deltaState) + np.matmul(B, deltaControl)
 
-    print(deltaStateDot)
+    # print(deltaStateDot)
 
     deltaState += deltaStateDot * dt
 
@@ -461,14 +466,24 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
     # globalXDelta = deltax * np.cos(totalHead) - deltay * np.sin(totalHead)
     # globalYDelta = deltax * np.sin(totalHead) + deltay * np.cos(totalHead)
 
+    nextxDelta, nextvfDelta, nextyDelta, nextvsDelta, nextheadingDelta, nextomegaDelta = deltaState
     nextxRef, nextyRef, nextheadingRef, nextvfRef, nextvsRef, nextomegaRef = nextRefTrajState
-    x += (v_forward * np.cos(heading) - v_sideways * np.sin(heading)) * dt
-    y += (v_forward * np.sin(heading) + v_sideways * np.cos(heading)) * dt
-    heading += omega * dt
+
+    xRefChange = nextxRef - xRef
+    yRefChange = nextyRef - yRef
+    nextxRefAdjusted = xRef + np.cos(headingDelta) * xRefChange - np.sin(headingDelta) * yRefChange
+    nextyRefAdjusted = yRef + np.sin(headingDelta) * xRefChange + np.cos(headingDelta) * yRefChange
+    nextheadingRefAdjusted = nextheadingRef + nextheadingDelta
+    x = nextxRefAdjusted + np.cos(nextheadingRefAdjusted) * nextxDelta - np.sin(nextheadingRefAdjusted) * nextyDelta
+    y = nextyRefAdjusted + np.sin(nextheadingRefAdjusted) * nextxDelta + np.cos(nextheadingRefAdjusted) * nextyDelta
+    # no longer sure about below 1/25/22
+    # heading += omega * dt
+    heading = deltaState[4] + nextheadingRef
     v_forward = deltaState[1] + nextvfRef
     v_sideways = deltaState[3] + nextvsRef
     omega = deltaState[5] + nextomegaRef
 
+    print("heading delta: ", nextheadingRefAdjusted)
 
     # x = globalXDelta + nextxRef
     # y = globalYDelta + nextyRef
@@ -690,7 +705,7 @@ def run():
 
         nonlinear_future_traj = np.vstack([nonlinear_states[:, 0], nonlinear_states[:, 1]]).T
         # GREEN
-        img = track.drawPolyline(nonlinear_future_traj, lineColor=(0, 255, 0), img=img)
+        # img = track.drawPolyline(nonlinear_future_traj, lineColor=(0, 255, 0), img=img)
 
         # debug_dict_hist is 2 level nested list
         # first dim is time step
@@ -700,7 +715,8 @@ def run():
 
         if fullsim:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
-            state = (xActual[i], yActual[i], headingActual[i], vxActual[i], vyActual[i], omegaActual[i])
+            noise = np.random.normal(0, 0.15, None)
+            state = (xActual[i], yActual[i], headingActual[i]+1, vxActual[i], vyActual[i], omegaActual[i])
             control = (throttle[i], steering[i])
         else:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
