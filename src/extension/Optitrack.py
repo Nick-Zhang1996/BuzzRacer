@@ -283,6 +283,7 @@ class _Optitrack:
 # test functionality
 if __name__ == '__main__':
     op = _Optitrack(None)
+    print("obj count = %d"%(op.obj_count))
     while True:
         for i in range(op.obj_count):
             op_id = op.getOptitrackId(i)

@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer
+from extension import Gifsaver, Laptimer,Optitrack
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
