@@ -1750,7 +1750,7 @@ class RCPTrack(Track):
 #  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
 # NOTE: this function modifies img, if you want to recycle base img, send img.copy()
     #def drawCar(self, coord, heading,steering, img):
-    def drawCar(self, img, state, steering):
+    def drawCar(self, img, state, steering, throttle):
         # check if vehicle is outside canvas
         # FIXME
         #x,y, v, heading, omega = state
