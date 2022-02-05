@@ -24,7 +24,7 @@ class Visualization(Extension):
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
         img = self.img_track.copy()
         for car in self.main.cars:
-            img = self.main.track.drawCar(img, car.states, car.steering)
+            img = self.main.track.drawCar(img, car.states, car.steering, car.throttle)
             self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
@@ -74,7 +74,7 @@ class Visualization(Extension):
         if (self.update_visualization.is_set()):
             img = self.img_track.copy()
             for car in self.main.cars:
-                img = self.main.track.drawCar(img, car.states, car.steering)
+                img = self.main.track.drawCar(img, car.states, car.steering, car.throttle)
                 self.visualization_img = img
 
     def final(self):
