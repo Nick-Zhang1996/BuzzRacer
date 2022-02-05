@@ -1755,7 +1755,9 @@ class RCPTrack(Track):
         # FIXME
         #x,y, v, heading, omega = state
         x,y,heading, vf_lf, vs_lf, omega_lf = state
-
+        #x1 and y1 are the origin values -- need to be changed if origin changes
+        x1 = 0
+        y1 = 0
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -1767,22 +1769,22 @@ class RCPTrack(Track):
         # draw steering angle, orientation as red arrow
         img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         
-        # Add bar for steering direction
-        img = cv2.rectangle(img, (4, 25), (100, 40), (0, 0, 255), 1)
+        # Add steering bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
         end_coordinate = int(50 - (steering * 100))              
-        img = cv2.rectangle(img, (50, 25), (end_coordinate, 40), (0, 255, 0), -1)
-        img = cv2.putText(img, 'Steering', (104, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
+        img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         
-        # Add bar for throttle
-        img = cv2.rectangle(img, (4, 45), (100, 60), (0,0,255), 1)
-        img = cv2.putText(img, 'Throttle', (104, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        # Add Throttle bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         throttle_end = int(50+(72*throttle))
-        img = cv2.rectangle(img, (52, 45), (throttle_end, 60), (0, 255, 0), -1)
+        img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
         
-        #Add acceleration bar
-        img = cv2.circle(img, (50, 80), 18, (0, 0, 255), 1)
-        img = cv2.putText(img, 'Acceleration', (104, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        img = cv2.circle(img, (50,80), 3, (0, 255, 0), -1)
+        # Add acceleration bar
+        img = cv2.circle(img, (x1 + 50, y1 + 80), 18, (0, 0, 255), 1)
+        img = cv2.putText(img, 'Acceleration', (x1 + 104, y1 + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
         
         return img
 
