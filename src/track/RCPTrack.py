@@ -1791,14 +1791,14 @@ class RCPTrack(Track):
         direction_x = 0
         direction_y = 0
         if (steering == 0):
-            direction_x = ((x1 + 50))
-            direction_y = ((y1 + 80) + (6 * acc_scale))
+            direction_x = (x1 + (50))
+            direction_y = (y1 + (80 + (6 * acc_scale)))
         if (0 < steering):
-            direction_x = ((x1 + 50) + (6 * acc_scale))
-            direction_y = ((y1 + 80) + (6 * acc_scale))
+            direction_x = (x1 + (50 + (6 * acc_scale)))
+            direction_y = (y1 + (80 + (6 * acc_scale)))
         if(steering < 0):
-            direction_x = ((x1 + 50) - (6 * acc_scale))
-            direction_y = ((y1 + 80) + (6 * acc_scale))   
+            direction_x = (x1 + (50 - (6 * acc_scale)))
+            direction_y = (y1 + (80 + (6 * acc_scale)))   
 
         img = cv2.circle(img, (direction_x, direction_y), 3, (0, 255, 0), -1)
         
