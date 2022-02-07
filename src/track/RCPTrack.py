@@ -1784,7 +1784,23 @@ class RCPTrack(Track):
         # Add acceleration bar
         img = cv2.circle(img, (x1 + 50, y1 + 80), 18, (0, 0, 255), 1)
         img = cv2.putText(img, 'Acceleration', (x1 + 104, y1 + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
+        #img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
+        
+        acc = ((np.square(vf_lf) - np.square(vs_lf)/(2*x)))
+        acc_scale = int(acc/3)
+        direction_x = 0
+        direction_y = 0
+        if (steering == 0):
+            direction_x = ((x1 + 50))
+            direction_y = ((y1 + 80) + (6 * acc_scale))
+        if (0 < steering):
+            direction_x = ((x1 + 50) + (6 * acc_scale))
+            direction_y = ((y1 + 80) + (6 * acc_scale))
+        if(steering < 0):
+            direction_x = ((x1 + 50) - (6 * acc_scale))
+            direction_y = ((y1 + 80) + (6 * acc_scale))   
+
+        img = cv2.circle(img, (direction_x, direction_y), 3, (0, 255, 0), -1)
         
         return img
 
