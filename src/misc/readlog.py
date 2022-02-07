@@ -1,39 +1,32 @@
-# analyze csv log
-import numpy as np
+import sys
+import pickle
 import matplotlib.pyplot as plt
-filename = "log.txt"
-#filename = "20laps.txt"
+import numpy as np
 
-mppi = []
-ccmppi = []
-with open(filename, 'r') as f:
-    for line in f:
-        if(line[0] == '#'):
-            continue
-        entry = line.split(',')
-        if (entry[0] == 'ccmppi'):
-            ccmppi.append([float(val) for val in entry[1:]])
-        if (entry[0] == 'mppi'):
-            mppi.append([float(val) for val in entry[1:]])
+if (len(sys.argv) != 2):
+    print("please specify a filename")
+else:
+    filename = sys.argv[1]
 
-# algorithm, samples, car_total_laps, laptime_mean(s),  collision_count
-ccmppi = np.array(ccmppi)
-mppi = np.array(mppi)
-        
-plt.plot(ccmppi[:,0], ccmppi[:,2], label='ccmppi')
-plt.plot(mppi[:,0], mppi[:,2], label= 'mppi')
-plt.title("Laptime (equal injected noise, 100 laps avg)")
-plt.xlabel("Samples")
-plt.ylabel("Laptime (s)")
-plt.legend()
+with open(filename, 'rb') as f:
+    data = pickle.load(f)
+
+# data dimension: [time_steps, cars, entries]
+# for example data[100,3,:] denote the state at 1.0s(100th time step), for car no.4
+# the states are listed below
+data = np.array(data)[:,0,:]
+
+t = data[:,0]
+t = t-t[0]
+x = data[:,1]
+y = data[:,2]
+heading = data[:,3]
+v_forward = data[:,4]
+v_sideway = data[:,5]
+# angular speed
+omega = data[:,6]
+steering = data[:,7]
+throttle = data[:,8]
+
+plt.plot(x,y)
 plt.show()
-
-plt.plot(ccmppi[:,0], ccmppi[:,3], label='ccmppi')
-plt.plot(mppi[:,0], mppi[:,3], label= 'mppi')
-plt.title("Collisions (equal injected noise, 100 laps avg)")
-plt.xlabel("Samples")
-plt.ylabel("Collisions")
-plt.legend()
-plt.show()
-
-

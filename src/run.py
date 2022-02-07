@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer,Optitrack
+from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -46,16 +46,16 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         self.visualization = extension.Visualization(self)
-        #Optitrack(self)
-        self.simulator = DynamicSimulator(self)
-        self.simulator.match_time = True
+        Optitrack(self)
+        #self.simulator = DynamicSimulator(self)
+        #self.simulator.match_time = True
 
         #Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        Logger(self)
 
         for item in self.extensions:
             item.init()
@@ -123,6 +123,7 @@ class Main():
             car.stopStateUpdate(car)
 
 
+
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
@@ -131,4 +132,5 @@ if __name__ == '__main__':
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
+
     print_info("program complete")
