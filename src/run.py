@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer,Optitrack,Logger
+from extension import Gifsaver, Laptimer,Optitrack,Logger,SteeringTracker
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -56,6 +56,9 @@ class Main():
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
         Logger(self)
+
+        # steering rack tracker
+        SteeringTracker(self)
 
         for item in self.extensions:
             item.init()

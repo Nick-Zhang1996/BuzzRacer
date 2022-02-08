@@ -29,6 +29,7 @@ class Optitrack(Extension):
 
     def init(self):
         self.vi = _Optitrack(self)
+        self.main.vi = self.vi
         for car in self.main.cars:
             car.internal_id = self.vi.getInternalId(car.optitrack_id)
             print_ok("[Optitrack]: Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))

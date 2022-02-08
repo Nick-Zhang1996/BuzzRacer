@@ -10,6 +10,7 @@ class Car:
         self.controller = None
         self.throttle = 0.0
         self.steering = 0.0
+        #x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
         self.states = (0,0,0,0,0,0)
         self.debug_dict = {}
         self.car_interface = None
@@ -80,7 +81,8 @@ class Car:
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         'optitrack_streaming_id' : 2,
+                         #'optitrack_streaming_id' : 2,
+                         'optitrack_streaming_id' : 998,
                          'max_throttle' : 0.7}
 
         lambo_setting = {'wheelbase':98e-3,

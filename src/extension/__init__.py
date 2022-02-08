@@ -12,5 +12,8 @@ from extension.StepCounter import StepCounter
 from extension.TrajectoryPlotter import TrajectoryPlotter
 from extension.Visualization import Visualization
 from extension.Watchdog import Watchdog
+from extension.SteeringTracker import SteeringTracker
+
+
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator

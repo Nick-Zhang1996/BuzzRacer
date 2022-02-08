@@ -8,8 +8,6 @@ class ExperimentType(Enum):
 def print_error(*message):
     print('\033[91m', 'ERROR ', *message, '\033[0m')
     raise RuntimeError
-
-
 def print_ok(*message):
     print('\033[92m', *message, '\033[0m')
 
