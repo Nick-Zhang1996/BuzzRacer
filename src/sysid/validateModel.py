@@ -51,7 +51,13 @@ def prepLog(log,skip=1):
     mylog = Log(t,x,y,heading,v_forward,v_sideway,omega,steering,throttle)
     return mylog
 
-
+def loadMeasuredSteering(filename):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    measured_steering = np.array(data[0]['measured_steering'])
+    measured_steering = (measured_steering+0.5*np.pi)%(np.pi)-0.5*np.pi
+    measured_steering_smooth = savgol_filter(measured_steering, 19,2)
+    return measured_steering_smooth
 
 def show(img):
     plt.imshow(img)
@@ -345,8 +351,6 @@ def step_ukf_linear_orig(state,control,dt=0.01,slip_f_override=None):
         d_vx_test = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
         assert( np.abs(d_vx_test - d_vx) < 0.00001)
 
-
-
         d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 
@@ -441,7 +445,7 @@ def step_ukf_linear(state,control,dt=0.01,slip_f_override=None):
 
         # verify 
         d_vx_test = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
-        assert( np.abs(d_vx_test - d_vx) < 0.00001)
+        #assert( np.abs(d_vx_test - d_vx) < 0.00001)
 
 
 
@@ -508,13 +512,18 @@ def run():
     step_fun_base = step_ukf_linear_orig
 
     # load log
-    filename = "../../log/jan12/full_state1.p"
+    #filename = "../../log/jan12/full_state1.p"
+    filename = "../../log/2022_2_7_exp/full_state2.p"
     rawlog = loadLog(filename)
     log = prepLog(rawlog,skip=1)
     dt = 0.01
     vx = np.hstack([0,np.diff(log.x)])/dt
     vy = np.hstack([0,np.diff(log.y)])/dt
     data_len = log.t.shape[0]
+
+    # use measured steering
+    filename = '../../log/2022_2_7_exp/debug_dict2.p'
+    measured_steering = loadMeasuredSteering(filename)[:-1]
 
     # prep track image
     track = RCPTrack()
@@ -534,7 +543,8 @@ def run():
         y = log.y
         heading = log.heading
         omega = log.omega
-        steering = log.steering
+        #steering = log.steering
+        steering = measured_steering
         throttle = log.throttle
         vx_car = log.v_forward
         vy_car = log.v_sideway
