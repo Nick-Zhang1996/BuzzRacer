@@ -13,7 +13,8 @@ from scipy.signal import savgol_filter
 
     
 if (len(sys.argv) != 2):
-    filename = "../log/oct9/full_state12.p"
+    #filename = "../log/oct9/full_state12.p"
+    filename = '../../log/2022_2_9_exp/full_state4.p'
     #print_error("Specify a log to load")
 else:
     filename = sys.argv[1]

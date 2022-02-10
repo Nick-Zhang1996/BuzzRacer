@@ -10,6 +10,7 @@ import numpy as np
 from collections import namedtuple
 from common import *
 from math import pi,degrees,radians,sin,cos,tan,atan
+from scipy.optimize import minimize
 def loadLog(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):
@@ -63,11 +64,85 @@ def plotAcc(filename):
     ax = ax[mask]
     plt.plot(throttle,ax,'*')
 
-def fitMotor():
-    pass
+def plotAcc2(filename):
+    rawlog = loadLog(filename)
+    log = prepLog(rawlog,skip=1)
+    dt = 0.01
+    throttle = log.throttle
+    v = log.v_forward
+    ax = np.hstack([0,np.diff(log.v_forward)])/dt
+    ax = savgol_filter(ax, 51,2)
+
+    start = 100
+    end = 5200
+    t = log.t[start:end]
+    ax = ax[start:end]
+    throttle = throttle[start:end]
+    v = v[start:end]
+    plt.plot(t,ax,'--',label='ax')
+    plt.plot(t,throttle,label='throttle')
+
+    '''
+    # guess 2nd order
+    c1 = 5
+    c2 = 1
+    u1 = throttle - 0.21
+    ax_guess = ode(u1,c1,c2)
+    print("guess error = %.2f"%(fun((c1,c2),throttle,ax)))
+    plt.plot(t,ax_guess,label='guess')
+    '''
+
+    # guess new
+    ax_guess2 = guess2(throttle, v,0.425)
+    plt.plot(t+0.07,ax_guess2,label='new guess')
+    print("guess2 error = %.2f"%(diff(ax_guess2[:-7],ax[7:])))
+    # fit
+    '''
+    res = minimize(fun,(5,1),args=(throttle,ax))
+    ax_min = ode(throttle,res.x[0],res.x[1])
+    print(res)
+    plt.plot(t,ax_min,label='fitted')
+    '''
+
+def guess(u,v):
+    Cm1 = 6.03154
+    Cm2 = 0.96769
+    Cr = -0.20375
+    Cd = 0.00000
+    ax = ( Cm1 - Cm2 * v) * u - Cr - Cd * vx * vx
+    return ax
+
+def guess2(u,v,c2=0.425):
+    ax = c2 * (15.2*u - v - 3.157)
+    return ax
+
+def diff(a,b):
+    return np.linalg.norm((a-b)**2)
+
+def fun(x,*args):
+    c1 = x[0]
+    c2 = x[1]
+    u = args[0]
+    ax = args[1]
+    ax_guess = ode(u,c1,c2)
+    return diff(ax,ax_guess)
+
+
+def ode(u,c1,c2):
+    u = u
+    x0 = np.array([0,0])
+    A = np.array([[-1.0/c1,0],[1.0/c2,-1.0/c2]])
+    B = np.array([15.2/c1,0])
+    x = np.zeros((u.shape[0],2))
+    dt = 0.01
+    for i in range(1,x.shape[0]):
+        x[i] += (A @ x[i-1,:] + B * u[i-1])*dt
+    return x[:,1]*20000
+
 
 if __name__=="__main__":
-    filename = "../../log/jan12/full_state1.p"
-    #plotAcc(filename)
-    #plt.show()
-    fitMotor()
+    #filename = "../../log/jan12/full_state1.p"
+    filename = '../../log/2022_2_9_exp/full_state4.p'
+    plotAcc2(filename)
+    plt.legend()
+    plt.show()

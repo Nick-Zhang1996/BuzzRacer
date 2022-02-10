@@ -471,6 +471,110 @@ def step_ukf_linear(state,control,dt=0.01,slip_f_override=None):
     debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
     return retval, debug_dict
 
+# model for rigged vehicle
+def step_rig(state,control,dt=0.01,slip_f_override=None):
+    # constants
+    # CG to rear axle
+    lr = 0.036
+    # CG to front axle
+    lf = 0.09-lr
+    # CG height from ground
+    h = 0.02
+    # wheelbase
+    L = 0.09
+
+    '''
+    Df = 3.93731
+    Dr = 6.23597
+    C = 2.80646
+    B = 0.51943
+    '''
+    #Cm1 = 6.03154
+    Cm2 = 0.96769
+    #Cr = -0.20375
+    Cm1 = 9.23154
+    Cr = 0.0
+    Cd = 0.00000
+    #Iz = 0.00278
+    m = 0.1667
+    Iz = m*(0.1**2+0.1**2)/12.0 * 6.0
+    K = 5.0
+
+    # convert to local frame
+    x,vxg,y,vyg,heading,omega = tuple(state)
+    steering,throttle = tuple(control)
+    # forward
+    vx = vxg*cos(heading) + vyg*sin(heading)
+    # lateral, left +
+    vy = -vxg*sin(heading) + vyg*cos(heading)
+
+    # for small velocity, use kinematic model 
+    if (vx<0.05):
+        beta = atan(lr/L*tan(steering))
+        norm = lambda a,b:(a**2+b**2)**0.5
+        # motor model
+        d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+        vx = vx + d_vx * dt
+        vy = norm(vx,vy)*sin(beta)
+        d_omega = 0.0
+        omega = vx/L*tan(steering)
+
+        slip_f = 0
+        slip_r = 0
+        Ffy = 0
+        Fry = 0
+
+    else:
+        slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+        if not(slip_f_override is None):
+            slip_f = slip_f_override
+        slip_r = np.arctan((omega*lr - vy)/vx)
+
+        # tire model -- pacejka model
+        #Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+        #Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+
+        # Longitudinal Dynamics
+        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+
+        # Lateral Dynamics
+        # we would have:
+        #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        # but this needs Ffy, which appears later in
+        #Ffy = K * slip_f * ( 9.8 * lr - h * d_vx)/L * m
+        # solving these two eq gives
+        d_vx = ( Frx - K*slip_f/L*9.8*lr*m*np.sin(steering) + m*vy*omega ) / (m - K*slip_f*h/L*m*np.sin(steering))
+
+        Ffy = K * slip_f * ( 9.8 * lr - h * d_vx)/L * m
+        Fry = K * slip_r * ( 9.8 * lf  + h * d_vx)/L * m
+
+        # verify 
+        d_vx_test = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        assert( np.abs(d_vx_test - d_vx) < 0.00001)
+
+        d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+        d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+        # discretization
+        vx = vx + d_vx * dt
+        vy = vy + d_vy * dt
+        omega = omega + d_omega * dt 
+
+    # back to global frame
+    vxg = vx*cos(heading)-vy*sin(heading)
+    vyg = vx*sin(heading)+vy*cos(heading)
+
+    # apply updates
+    # TODO add 1/2 a t2
+    x += vxg*dt
+    y += vyg*dt
+    heading += omega*dt + 0.5* d_omega * dt * dt
+
+    retval = (x,vxg,y,vyg,heading,omega )
+    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
+    return retval, debug_dict
+
 def getDistanceTravelled(log, i, lookahead):
     # distance travelled in actual future trajectory
     cum_distance_actual = 0.0
@@ -503,17 +607,17 @@ def addAlgorithmName(img,step_fun):
 
 def run():
     # setting
-    lookahead_steps = 50
+    lookahead_steps = 100
     saveGif = False
     gifs = []
 
     # set prediction function
-    step_fun = step_ukf_linear
-    step_fun_base = step_ukf_linear_orig
+    step_fun = step_rig
 
     # load log
     #filename = "../../log/jan12/full_state1.p"
-    filename = "../../log/2022_2_7_exp/full_state2.p"
+    #filename = "../../log/2022_2_7_exp/full_state2.p"
+    filename = '../../log/2022_2_9_exp/full_state4.p'
     rawlog = loadLog(filename)
     log = prepLog(rawlog,skip=1)
     dt = 0.01
@@ -522,7 +626,8 @@ def run():
     data_len = log.t.shape[0]
 
     # use measured steering
-    filename = '../../log/2022_2_7_exp/debug_dict2.p'
+    #filename = '../../log/2022_2_7_exp/debug_dict2.p'
+    filename = '../../log/2022_2_9_exp/debug_dict4.p'
     measured_steering = loadMeasuredSteering(filename)[:-1]
 
     # prep track image
@@ -554,6 +659,7 @@ def run():
 
         # plot actual future trajectory
         actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
+        # BLUE
         img = track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
 
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
@@ -578,9 +684,10 @@ def run():
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
-        # RED
-        img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
+        # GREEN
+        img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
+        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
@@ -598,6 +705,7 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
+        '''
 
 
         img = addAlgorithmName(img, step_fun)
