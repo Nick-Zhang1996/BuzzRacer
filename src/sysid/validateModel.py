@@ -536,7 +536,11 @@ def step_rig(state,control,dt=0.01,slip_f_override=None):
 
 
         # Longitudinal Dynamics
-        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+        # old model, error 431 (non dimensional)
+        #Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+        # new model, error 175
+        ax = 0.425 * (15.2*throttle - vx - 3.157)
+        Frx = m*ax
 
         # Lateral Dynamics
         # we would have:
@@ -680,7 +684,8 @@ def run():
                 value = debug_dict[key]
                 debug_dict_hist[key][i].append(value)
             predicted_states.append(state)
-            control = (steering[j],throttle[j])
+            index = max(j-7,0)
+            control = (steering[index],throttle[index])
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T

@@ -82,20 +82,16 @@ def plotAcc2(filename):
     plt.plot(t,ax,'--',label='ax')
     plt.plot(t,throttle,label='throttle')
 
-    '''
-    # guess 2nd order
-    c1 = 5
-    c2 = 1
-    u1 = throttle - 0.21
-    ax_guess = ode(u1,c1,c2)
-    print("guess error = %.2f"%(fun((c1,c2),throttle,ax)))
-    plt.plot(t,ax_guess,label='guess')
-    '''
+    # original model
+    u1 = throttle
+    ax_guess1 = guess(u1,v)
+    print("guess error = %.2f"%(diff(ax_guess1[7:],ax[7:])))
+    plt.plot(t,ax_guess1,label='guess')
 
-    # guess new
+    # candidate model
     ax_guess2 = guess2(throttle, v,0.425)
-    plt.plot(t+0.07,ax_guess2,label='new guess')
-    print("guess2 error = %.2f"%(diff(ax_guess2[:-7],ax[7:])))
+    plt.plot(t,ax_guess2,label='new guess')
+    print("guess2 error = %.2f"%(diff(ax_guess2[7:],ax[7:])))
     # fit
     '''
     res = minimize(fun,(5,1),args=(throttle,ax))
@@ -104,16 +100,19 @@ def plotAcc2(filename):
     plt.plot(t,ax_min,label='fitted')
     '''
 
-def guess(u,v):
+def guess(u,vx):
     Cm1 = 6.03154
     Cm2 = 0.96769
-    Cr = -0.20375
+    Cr = 0.20375
     Cd = 0.00000
-    ax = ( Cm1 - Cm2 * v) * u - Cr - Cd * vx * vx
+    ax = ( Cm1 - Cm2 * vx) * u - Cr - Cd * vx * vx
     return ax
 
 def guess2(u,v,c2=0.425):
-    ax = c2 * (15.2*u - v - 3.157)
+    ax = np.zeros_like(u)
+    # apply a 0.07s delay to control signal
+    delay = 7
+    ax[delay:] = c2 * (15.2*u[:-delay] - v[delay:] - 3.157)
     return ax
 
 def diff(a,b):
