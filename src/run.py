@@ -69,7 +69,7 @@ class Main():
     # run experiment until user press q in visualization window
     def run(self):
         print_info("running ... press q to quit")
-        while not self.exit_request.isSet():
+        while not self.exit_request.is_set():
             ts = time()
             self.update()
         # exit point
