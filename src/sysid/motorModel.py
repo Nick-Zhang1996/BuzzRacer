@@ -83,10 +83,12 @@ def plotAcc2(filename):
     plt.plot(t,throttle,label='throttle')
 
     # original model
+    '''
     u1 = throttle
     ax_guess1 = guess(u1,v)
     print("guess error = %.2f"%(diff(ax_guess1[7:],ax[7:])))
     plt.plot(t,ax_guess1,label='guess')
+    '''
 
     # candidate model
     ax_guess2 = guess2(throttle, v,0.425)
@@ -112,7 +114,7 @@ def guess2(u,v,c2=0.425):
     ax = np.zeros_like(u)
     # apply a 0.07s delay to control signal
     delay = 7
-    ax[delay:] = c2 * (15.2*u[:-delay] - v[delay:] - 3.157)
+    ax[delay:] = 1.8*c2 * (15.2*u[:-delay] - v[delay:] - 3.157)
     return ax
 
 def diff(a,b):
