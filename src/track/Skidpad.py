@@ -86,9 +86,17 @@ class Skidpad(Track):
             return img
         # draw vehicle, orientation as black arrow
         img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+        '''img = cv2.imread('src/image.png',-1)'''
 
         # draw steering angle, orientation as red arrow
         img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+        # image rotation according to heading and steering angles
+        '''
+        height, width = img.shape[:2]
+        center = (width/2, height/2)
+        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=heading+steering, scale=1)
+        img = cv2.warpAffine(src=img, M=rotate_matrix, dsize=(width, height)) 
+        '''      
 
         return img
 
