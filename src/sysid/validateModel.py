@@ -43,7 +43,9 @@ def prepLog(log,skip=1):
     heading = log[skip:,3]
     v_forward = log[skip:,4]
     v_sideway = log[skip:,5]
-    omega = log[skip:,6]
+    # NOTE
+    #omega = log[skip:,6]
+    omega = np.hstack([0,np.diff(wrapContinuous(heading))])/0.01
     steering = log[skip:,7]
     throttle = log[skip:,8]
 
@@ -412,13 +414,14 @@ def run():
             predicted_states.append(state)
             # delay for throttle
             index = max(j-7,0)
-            control = (steering[index],throttle[index])
+            control = (steering[j],throttle[index])
 
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
+        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
@@ -436,6 +439,7 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
+        '''
 
 
         img = addAlgorithmName(img, step_fun)
@@ -488,17 +492,30 @@ def run():
 
             # heading
             wrap = lambda x: np.mod(x + np.pi, 2*np.pi) - np.pi
-            ax0 = plt.subplot(411)
-            ax0.plot(wrap(predicted_heading_hist)/np.pi*180,label="heading predicted")
-            ax0.plot(heading[i:i+lookahead_steps]/np.pi*180,label="actual")
+            heading_predicted = wrapContinuous(wrap(predicted_heading_hist))/np.pi*180
+            heading_actual = wrapContinuous(heading[i:i+lookahead_steps])/np.pi*180
+
+            ax0 = plt.subplot(311)
+            ax0.plot(heading_predicted,label="heading predicted")
+            ax0.plot(heading_actual,label="actual")
             ax0.legend()
+
+            # omega
+            d_heading_predicted = np.diff(heading_predicted)/dt
+            d_heading_actual = np.diff(heading_actual)/dt
+            ax1 = plt.subplot(312)
+            ax1.plot(np.array(debug_dict_hist['w'][i])/np.pi*180,label="omega predicted")
+            #ax1.plot(omega[i:i+lookahead_steps]/np.pi*180,label="actual")
+            ax1.plot(d_heading_actual, label='d_heading_actual')
+            #ax1.plot(d_heading_predicted, label='d_heading_predicted')
+            ax1.legend()
 
             # d omega
             domega = np.diff(omega)/dt
-            ax1 = plt.subplot(412)
-            ax1.plot(np.array(debug_dict_hist['dw'][i])/np.pi*180,label="d_omega predicted")
-            ax1.plot(domega[i:i+lookahead_steps]/np.pi*180,label="actual")
-            ax1.legend()
+            ax2 = plt.subplot(313)
+            ax2.plot(np.array(debug_dict_hist['dw'][i])/np.pi*180,label="d_omega predicted")
+            ax2.plot(domega[i:i+lookahead_steps]/np.pi*180,label="actual")
+            ax2.legend()
 
             # total velocity
             '''
@@ -520,11 +537,6 @@ def run():
             #ax2.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
             ax2.legend()
             '''
-            # omega
-            ax2 = plt.subplot(413)
-            ax2.plot(np.array(debug_dict_hist['w'][i])/np.pi*180,label="omega predicted")
-            ax2.plot(omega[i:i+lookahead_steps]/np.pi*180,label="actual")
-            ax2.legend()
 
             # fron slip
             '''
@@ -541,6 +553,14 @@ def run():
             '''
 
             plt.show()
+
+def wrapContinuous(val):
+    # wrap to -pi,pi
+    wrap = lambda x: np.mod(x + np.pi, 2*np.pi) - np.pi
+    dval = np.diff(val)
+    dval = wrap(dval)
+    retval = np.hstack([0,np.cumsum(dval)])+val[0]
+    return retval
 
 
 if __name__=="__main__":
