@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer,Optitrack,Logger,SteeringTracker
+from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -16,6 +16,7 @@ from track import TrackFactory
 from Car import Car
 from controller import StanleyCarController
 from controller import CcmppiCarController
+from controller import MppiCarController
 
 class Main():
     def __init__(self,params={}):
@@ -28,7 +29,7 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -46,19 +47,19 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         self.visualization = extension.Visualization(self)
-        Optitrack(self)
-        #self.simulator = DynamicSimulator(self)
-        #self.simulator.match_time = True
+        #Optitrack(self)
+        self.simulator = DynamicSimulator(self)
+        self.simulator.match_time = True
 
         #Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        Logger(self)
+        #Logger(self)
 
         # steering rack tracker
-        SteeringTracker(self)
+        #SteeringTracker(self)
 
         for item in self.extensions:
             item.init()

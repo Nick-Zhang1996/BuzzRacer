@@ -1,4 +1,5 @@
-class CarController:
+from common import PrintObject
+class CarController(PrintObject):
     def __init__(self, car):
         self.car = car
         self.track = car.main.track

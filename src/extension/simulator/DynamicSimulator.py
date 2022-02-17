@@ -91,7 +91,7 @@ class DynamicSimulator(Simulator):
             beta = atan(lr/L*tan(steering))
             norm = lambda a,b:(a**2+b**2)**0.5
             # motor model
-            d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+            d_vx = 0.425*(15.2*throttle - vx - 3.157)
             vx = vx + d_vx * dt
             vy = norm(vx,vy)*sin(beta)
             d_omega = 0.0
@@ -109,11 +109,9 @@ class DynamicSimulator(Simulator):
             Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
             Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
 
-            # motor model
-            Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
-
             # Dynamics
-            d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vx = 0.425*(15.2*throttle - vx - 3.157)
             d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
             d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 

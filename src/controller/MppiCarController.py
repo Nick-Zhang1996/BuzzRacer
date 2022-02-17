@@ -1,0 +1,233 @@
+# mppi car controller, with dynamic model
+from controller.CarController import CarController
+import numpy as np
+from time import time,sleep
+from math import radians,degrees,cos,sin,ceil,floor
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+import pycuda.autoinit
+global drv
+import pycuda.driver as drv
+from pycuda.compiler import SourceModule
+import matplotlib.pyplot as plt
+
+class MppiCarController(CarController):
+    def __init__(self,car):
+        super().__init__(car)
+        np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
+
+        # these setting should be handled in config file
+        self.n = self.state_dim = 6
+        self.m = self.control_dim = 2
+        self.samples_count = 4096
+        self.horizon = 20
+        self.track = self.car.main.track
+        self.dt = 0.01
+        self.discretized_raceline_len = 1024
+        self.temperature = 0.2
+        self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+        self.noise_cov = np.array([(self.car.max_throttle)**2,radians(20.0)**2])
+        self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
+
+
+        self.prepareDiscretizedRaceline()
+        self.createBoundary()
+        self.initCuda()
+
+    def prepareDiscretizedRaceline(self):
+        ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
+        rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
+        drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
+        heading_vec = np.arctan2(drr[1],drr[0])
+        vv = self.track.sToV(ss) 
+        vv *= 0.5
+
+        # parameter, distance along track
+        self.ss = ss
+        self.raceline_points = np.array(rr)
+        self.raceline_headings = heading_vec
+        self.raceline_velocity = vv
+
+        # describe track boundary as offset from raceline
+        self.createBoundary()
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        return
+
+    def createBoundary(self,show=False):
+        # construct a (self.discretized_raceline_len * 2) vector
+        # to record the left and right track boundary as an offset to the discretized raceline
+        left_boundary = []
+        right_boundary = []
+
+        left_boundary_points = []
+        right_boundary_points = []
+
+        for i in range(self.discretized_raceline_len):
+            # find normal direction
+            coord = self.raceline_points[:,i]
+            heading = self.raceline_headings[i]
+
+            left, right = self.track.preciseTrackBoundary(coord,heading)
+            left_boundary.append(left)
+            right_boundary.append(right)
+
+            # debug boundary points
+            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+
+            left_boundary_points.append(left_point)
+            right_boundary_points.append(right_point)
+
+
+            # DEBUG
+            # plot left/right boundary
+            '''
+            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+            img = self.track.drawTrack()
+            img = self.track.drawRaceline(img = img)
+            img = self.track.drawPoint(img,coord,color=(0,0,0))
+            img = self.track.drawPoint(img,left_point,color=(0,0,0))
+            img = self.track.drawPoint(img,right_point,color=(0,0,0))
+            plt.imshow(img)
+            plt.show()
+            '''
+
+
+        self.raceline_left_boundary = left_boundary
+        self.raceline_right_boundary = right_boundary
+
+        if (show):
+            img = self.track.drawTrack()
+            img = self.track.drawRaceline(img = img)
+            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
+            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
+            plt.imshow(img)
+            plt.show()
+            return img
+        return
+
+    def initCuda(self):
+        self.curand_kernel_n = 1024
+
+        # prepare constants
+        cuda_code_macros = {
+                "SAMPLE_COUNT":self.samples_count,
+                "HORIZON":self.horizon, 
+                "CONTROL_DIM":self.m,
+                "STATE_DIM":self.state_dim,
+                "RACELINE_LEN":self.discretized_raceline.shape[0],
+                "TEMPERATURE":self.temperature,
+                "DT":self.dt
+                }
+        cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
+        cuda_filename = "./controller/mppi_racecar.cu"
+        self.loadCudaFile(cuda_filename, cuda_code_macros)
+        self.setBlockGrid()
+
+        self.cuda_init_curand_kernel = self.getFunctionSafe("init_curand_kernel")
+        self.cuda_generate_control_noise = self.getFunctionSafe("generate_control_noise")
+        self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
+        self.cuda_set_control_limit = self.getFunctionSafe("set_control_limit")
+        self.cuda_set_noise_cov = self.getFunctionSafe("set_noise_cov")
+        self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
+        self.initCurand()
+
+        # TODO:
+        # set control limit
+        device_control_limit = self.to_device(self.control_limit)
+        self.cuda_set_control_limit(device_control_limit,block=(1,1,1),grid=(1,1,1))
+        # set noise variance
+        device_noise_cov = self.to_device(self.noise_cov)
+        self.cuda_set_noise_cov(device_noise_cov, block=(1,1,1),grid=(1,1,1))
+        # set raceline
+        device_raceline = self.to_device(self.discretized_raceline)
+        self.cuda_set_raceline(device_raceline, block=(1,1,1),grid=(1,1,1))
+
+
+        sleep(1)
+
+    def initCurand(self):
+        seed = np.int32(int(time()*10000))
+        self.cuda_init_curand_kernel(seed,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+        #self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
+        #self.device_rand_vals = drv.to_device(self.rand_vals)
+
+    def loadCudaFile(self,cuda_filename,macros):
+        self.print_info("loading cuda source code ...")
+        with open(cuda_filename,"r") as f:
+            code = f.read()
+        self.mod = SourceModule(code % macros, no_extern_c=True)
+
+    def setBlockGrid(self):
+        if (self.samples_count < 1024):
+            # if sample count is small only employ one grid
+            self.cuda_block_size = (self.samples_count,1,1)
+            self.cuda_grid_size = (1,1)
+        else:
+            # employ multiple grid,
+            self.cuda_block_size = (1024,1,1)
+            self.cuda_grid_size = (ceil(self.samples_count/1024.0),1)
+        self.print_info("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
+        return
+
+    def getFunctionSafe(self,name):
+        fun = self.mod.get_function(name)
+        self.print_info("registers used, ",name,"= %d"%(fun.num_regs))
+        assert fun.num_regs < 64
+        assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
+        return fun
+
+#   state: (x,y,heading,v_forward,v_sideway,omega)
+    def control(self):
+        # vf: forward v
+        # vs: lateral v, left positive
+        # omega: angular velocity
+        x,y,heading,vf,vs,omega = self.car.states
+
+        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+
+        # generate random var
+        random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
+        self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+        random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
+        cov0 = np.std(random_vals[:,:,0])
+        cov1 = np.std(random_vals[:,:,1])
+        # evaluate control sequence
+        device_ref_control = self.to_device(ref_control)
+        device_initial_state = self.to_device(self.car.states)
+        costs = np.zeros((self.samples_count), dtype=np.float32)
+        sampled_control = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        self.cuda_evaluate_control_sequence(device_initial_state, device_ref_control, drv.Out(costs),drv.Out(sampled_control), block=self.cuda_block_size,grid=self.cuda_grid_size)
+
+        # retrieve cost
+        control = self.synthesizeControl(costs,sampled_control)
+        self.last_ref_control = control.copy()
+
+        self.car.throttle = control[0,0]
+        self.car.steering = control[0,1]
+        breakpoint()
+        return True
+
+    # given cost and sampled control, return optimal control per MPPI algorithm
+    # control_vec: samples * horizon * m
+    # cost_vec: samples
+    def synthesizeControl(self, cost_vec, sampled_control):
+        cost_vec = np.array(cost_vec)
+        beta = np.min(cost_vec)
+
+        # calculate weights
+        weights = np.exp(- (cost_vec - beta)/self.temperature)
+        weights = weights / np.sum(weights)
+        #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
+
+        sampled_control = sampled_control.reshape([self.samples_count,self.horizon,self.m])
+        synthesized_control = np.zeros((self.horizon,self.m))
+        for t in range(self.horizon):
+            for i in range(self.m):
+                synthesized_control[t,i] = np.sum(weights * sampled_control[:,t,i])
+        return synthesized_control
+
+    def to_device(self,data):
+        return drv.to_device(np.array(data,dtype=np.float32).flatten())
+    def from_device(self,data,shape,dtype=np.float32):
+        return drv.from_device(data,shape,dtype)
