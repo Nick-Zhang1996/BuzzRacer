@@ -179,6 +179,7 @@ class MppiCarController(CarController):
 
 #   state: (x,y,heading,v_forward,v_sideway,omega)
     def control(self):
+        t = time()
         # vf: forward v
         # vs: lateral v, left positive
         # omega: angular velocity
@@ -205,7 +206,8 @@ class MppiCarController(CarController):
 
         self.car.throttle = control[0,0]
         self.car.steering = control[0,1]
-        breakpoint()
+        dt = time() - t
+        self.print_info("freq = %.2f Hz"%(1.0/dt))
         return True
 
     # given cost and sampled control, return optimal control per MPPI algorithm
