@@ -32,6 +32,20 @@ def plotTraj(track, filename, img, color, text):
 
     return img
 
+def plotControl(track, filename):
+    with open(filename, 'rb') as f:
+        data = pickle.load(f)
+    data = np.array(data).squeeze(1)
+    steering = data[:,7]
+    throttle = data[:,8]
+    ax0 = plt.subplot(211)
+    ax0.plot(steering, label='steering')
+    ax0.legend()
+    ax1 = plt.subplot(212)
+    ax1.plot(throttle, label='throttle')
+    ax1.legend()
+    plt.show()
+
 
 # load blank canvas
 with open("track_img.p", 'rb') as f:
@@ -45,7 +59,12 @@ mppi_injected_logno = 2651
 
 offset = 0
 
-filename = "../log/kinematics_results/full_state"+str(ccmppi_logno)+".p"
+filename = "../log/kinematics_results/full_state"+str(266)+".p"
+plotControl(track, filename)
+
+breakpoint()
+
+
 img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CCMPPI")
 
 filename = "../log/kinematics_results/full_state"+str(mppi_injected_logno)+".p"
