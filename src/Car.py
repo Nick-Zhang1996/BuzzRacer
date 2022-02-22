@@ -143,7 +143,7 @@ class Car:
         car.lr = 0.036
         car.L = 0.09
         # basic properties
-        car.Iz = 0.00278
+        car.Iz = 0.00278*0.5
         car.m = 0.1667
 
         # tire model

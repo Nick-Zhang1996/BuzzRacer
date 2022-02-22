@@ -56,6 +56,7 @@
 __device__ curandState_t* curand_states[CURAND_KERNEL_N];
 __device__ float control_limit[2*CONTROL_DIM];
 __device__ float noise_std[CONTROL_DIM];
+__device__ float noise_mean[CONTROL_DIM];
 __device__ float sampled_noise[SAMPLE_COUNT*HORIZON*CONTROL_DIM];
 __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
 
@@ -92,6 +93,9 @@ __global__ void set_noise_cov(float* in_noise_cov){
   for(int i=0;i<sizeof(noise_std);i++){ noise_std[i] = sqrtf(in_noise_cov[i]);}
   //printf("cov: %%.2f, %%.2f \n",noise_std[0],noise_std[1]);
 }
+__global__ void set_noise_mean(float* in_noise_mean){
+  for(int i=0;i<sizeof(noise_mean);i++){ noise_mean[i] = sqrtf(in_noise_mean[i]);}
+}
 
 __global__ void set_raceline(float* in_raceline){
   for(int i=0;i<RACELINE_LEN;i++){ 
@@ -120,7 +124,7 @@ __global__ void generate_control_noise(){
 
   for(int i=start; i < end; i+=CONTROL_DIM ) {
     for (int j=0; j<CONTROL_DIM; j++){
-      float val = curand_normal(&s) * _scales[j];
+      float val = curand_normal(&s) * _scales[j] + noise_mean[j];
       sampled_noise[i+j] = val;
       // DEBUG
       //out_values[i+j] = val;
@@ -133,7 +137,7 @@ __global__ void generate_control_noise(){
 // x0: x,y,heading, v_forward, v_sideways, omega
 // ref_control: samples*horizon*control_dim
 // out_cost: samples 
-__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control){
+__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -168,6 +172,9 @@ __global__ void evaluate_control_sequence(float* in_x0, float* ref_control, floa
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
+    for (int j=0; j<STATE_DIM; j++){
+      out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
+    }
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,&last_u);

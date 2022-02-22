@@ -2,7 +2,7 @@
 from controller.CarController import CarController
 import numpy as np
 from time import time,sleep
-from math import radians,degrees,cos,sin,ceil,floor
+from math import radians,degrees,cos,sin,ceil,floor,atan,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import pycuda.autoinit
 global drv
@@ -19,14 +19,16 @@ class MppiCarController(CarController):
         self.n = self.state_dim = 6
         self.m = self.control_dim = 2
         self.samples_count = 4096
-        self.horizon = 20
+        self.horizon = 30
         self.track = self.car.main.track
         self.dt = 0.01
         self.discretized_raceline_len = 1024
-        self.temperature = 0.2
+        self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
-        self.noise_cov = np.array([(self.car.max_throttle)**2,radians(20.0)**2])
+        self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
+        self.noise_mean = np.array([0.207,0])
         self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
+        self.freq_vec = []
 
 
         self.prepareDiscretizedRaceline()
@@ -129,6 +131,7 @@ class MppiCarController(CarController):
         self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
         self.cuda_set_control_limit = self.getFunctionSafe("set_control_limit")
         self.cuda_set_noise_cov = self.getFunctionSafe("set_noise_cov")
+        self.cuda_set_noise_mean = self.getFunctionSafe("set_noise_mean")
         self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
         self.initCurand()
 
@@ -139,6 +142,9 @@ class MppiCarController(CarController):
         # set noise variance
         device_noise_cov = self.to_device(self.noise_cov)
         self.cuda_set_noise_cov(device_noise_cov, block=(1,1,1),grid=(1,1,1))
+        # set noise mean
+        device_noise_mean = self.to_device(self.noise_mean)
+        self.cuda_set_noise_mean(device_noise_mean, block=(1,1,1),grid=(1,1,1))
         # set raceline
         device_raceline = self.to_device(self.discretized_raceline)
         self.cuda_set_raceline(device_raceline, block=(1,1,1),grid=(1,1,1))
@@ -185,30 +191,156 @@ class MppiCarController(CarController):
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
 
-        ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control = np.zeros([self.horizon,self.m],dtype=np.float32)
 
         # generate random var
         random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
         self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-        random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
-        cov0 = np.std(random_vals[:,:,0])
-        cov1 = np.std(random_vals[:,:,1])
+        #random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
+        #cov0 = np.std(random_vals[:,:,0])
+        #cov1 = np.std(random_vals[:,:,1])
+        #self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
         # evaluate control sequence
         device_ref_control = self.to_device(ref_control)
         device_initial_state = self.to_device(self.car.states)
         costs = np.zeros((self.samples_count), dtype=np.float32)
         sampled_control = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
-        self.cuda_evaluate_control_sequence(device_initial_state, device_ref_control, drv.Out(costs),drv.Out(sampled_control), block=self.cuda_block_size,grid=self.cuda_grid_size)
+
+        sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
+        self.cuda_evaluate_control_sequence(
+                device_initial_state, 
+                device_ref_control, 
+                drv.Out(costs),
+                drv.Out(sampled_control),
+                drv.Out(sampled_trajectory),
+                block=self.cuda_block_size,grid=self.cuda_grid_size
+                )
+        sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
+        sampled_control = sampled_control.reshape(self.samples_count,self.horizon,self.m)
         control = self.synthesizeControl(costs,sampled_control)
+        expected_trajectory = self.getTrajectory( self.car.states, control)
+        self.expected_trajectory = expected_trajectory
+
         self.last_ref_control = control.copy()
 
         self.car.throttle = control[0,0]
         self.car.steering = control[0,1]
         dt = time() - t
-        self.print_info("freq = %.2f Hz"%(1.0/dt))
+        self.freq_vec.append(1.0/dt)
+        self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
+
+        '''
+        display_trajectory = sampled_trajectory[:,:,0:2]
+        for i in range(display_trajectory.shape[0]):
+            self.plotTrajectory(display_trajectory[i])
+        self.print_info("steering std %.2f deg"%(180.0/np.pi*np.std(sampled_control[:,:,1])))
+        '''
+
+        # verify GPU against cpu
+        '''
+        x0 = self.car.states
+        index = 50
+        cpu_control = sampled_control[index,:,:]
+        cpu_trajectory = self.getTrajectory(x0, cpu_control)
+        gpu_trajectory = sampled_trajectory[index,:]
+        self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
+        '''
         return True
+
+    def getTrajectory(self, x0, control):
+        trajectory = []
+        state = x0
+        for i in range(control.shape[0]):
+            state = self.advanceDynamics( state, control[i] )
+            trajectory.append(state)
+        return np.array(trajectory)
+
+    def advanceDynamics(self, state, control, dt=0.01):
+        # constants
+        lf = 0.09-0.036
+        lr = 0.036
+        L = 0.09
+
+        Df = 3.93731
+        Dr = 6.23597
+        C = 2.80646
+        B = 0.51943
+        Iz = 0.00278*0.5
+        m = 0.1667
+
+        # convert to local frame
+        #x,vxg,y,vyg,heading,omega = tuple(state)
+        x,y,heading,vx,vy,omega = tuple(state)
+        throttle,steering = tuple(control)
+
+        # for small velocity, use kinematic model 
+        if (vx<0.05):
+            beta = atan(lr/L*tan(steering))
+            norm = lambda a,b:(a**2+b**2)**0.5
+            # motor model
+            d_vx = 0.425*(15.2*throttle - vx - 3.157)
+
+            vx = vx + d_vx * dt
+            vy = norm(vx,vy)*sin(beta)
+            d_omega = 0.0
+            omega = vx/L*tan(steering)
+
+            slip_f = 0
+            slip_r = 0
+            Ffy = 0
+            Fry = 0
+
+        else:
+            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+            slip_r = np.arctan((omega*lr - vy)/vx)
+
+            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+
+            # motor model
+            #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
+            # Dynamics
+            #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
+
+            d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+            d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+            # discretization
+            vx = vx + d_vx * dt
+            vy = vy + d_vy * dt
+            omega = omega + d_omega * dt 
+
+        # back to global frame
+        vxg = vx*cos(heading)-vy*sin(heading)
+        vyg = vx*sin(heading)+vy*cos(heading)
+
+        # apply updates
+        # TODO add 1/2 a t2
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt + 0.5* d_omega * dt * dt
+
+        retval = x,y,heading,vx,vy,omega
+        return retval
+
+    def plotTrajectory(self,trajectory):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+        for coord in trajectory:
+            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
+        self.car.main.visualization.visualization_img = img
+        return
+
+    # select min cost control
+    def synthesizeControlMin(self, cost_vec, sampled_control):
+        min_index = np.argmin(cost_vec)
+        return sampled_control[min_index]
+
 
     # given cost and sampled control, return optimal control per MPPI algorithm
     # control_vec: samples * horizon * m
@@ -216,13 +348,13 @@ class MppiCarController(CarController):
     def synthesizeControl(self, cost_vec, sampled_control):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
+        cost_mean = np.mean(cost_vec-beta)
 
         # calculate weights
-        weights = np.exp(- (cost_vec - beta)/self.temperature)
+        weights = np.exp(- (cost_vec - beta)/cost_mean/self.temperature)
         weights = weights / np.sum(weights)
-        #print("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
+        #self.print_info("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 
-        sampled_control = sampled_control.reshape([self.samples_count,self.horizon,self.m])
         synthesized_control = np.zeros((self.horizon,self.m))
         for t in range(self.horizon):
             for i in range(self.m):
