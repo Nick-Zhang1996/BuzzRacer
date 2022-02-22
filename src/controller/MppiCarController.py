@@ -213,16 +213,20 @@ class MppiCarController(CarController):
                 device_ref_control, 
                 drv.Out(costs),
                 drv.Out(sampled_control),
-                drv.Out(sampled_trajectory),
+                #drv.Out(sampled_trajectory),
                 block=self.cuda_block_size,grid=self.cuda_grid_size
                 )
-        sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+        # sampled trajectory overhead with GPU has 10Hz impact
+        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
         sampled_control = sampled_control.reshape(self.samples_count,self.horizon,self.m)
         control = self.synthesizeControl(costs,sampled_control)
+        '''
+        # 5Hz impact
         expected_trajectory = self.getTrajectory( self.car.states, control)
         self.expected_trajectory = expected_trajectory
+        '''
 
         self.last_ref_control = control.copy()
 

@@ -137,7 +137,8 @@ __global__ void generate_control_noise(){
 // x0: x,y,heading, v_forward, v_sideways, omega
 // ref_control: samples*horizon*control_dim
 // out_cost: samples 
-__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
+//__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
+__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -172,9 +173,11 @@ __global__ void evaluate_control_sequence(float* in_x0, float* ref_control, floa
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
+    /*
     for (int j=0; j<STATE_DIM; j++){
       out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
     }
+    */
 
     // evaluate step cost
     cost += evaluate_step_cost(x,u,&last_u);
