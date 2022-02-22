@@ -252,6 +252,7 @@ class MppiCarController(CarController):
         gpu_trajectory = sampled_trajectory[index,:]
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
         '''
+        self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
         return True
 
     def getTrajectory(self, x0, control):
