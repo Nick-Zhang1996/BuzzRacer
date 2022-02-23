@@ -28,6 +28,7 @@ class MppiCarController(CarController):
         self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
         self.noise_mean = np.array([0.207,0])
         self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
+        self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
 
 
@@ -206,10 +207,12 @@ class MppiCarController(CarController):
         device_initial_state = self.to_device(self.car.states)
         costs = np.zeros((self.samples_count), dtype=np.float32)
         sampled_control = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        device_last_control = self.to_device(self.last_control)
 
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
         self.cuda_evaluate_control_sequence(
                 device_initial_state, 
+                device_last_control,
                 device_ref_control, 
                 drv.Out(costs),
                 drv.Out(sampled_control),
@@ -232,6 +235,7 @@ class MppiCarController(CarController):
 
         self.car.throttle = control[0,0]
         self.car.steering = control[0,1]
+        self.last_control = control[0,:]
         dt = time() - t
         self.freq_vec.append(1.0/dt)
         self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))

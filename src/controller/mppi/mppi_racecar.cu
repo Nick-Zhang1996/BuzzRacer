@@ -68,7 +68,7 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
-float evaluate_step_cost( float* state, float* u,int* last_u);
+float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
 void forward_dynamics( float* state, float* u);
 
@@ -135,10 +135,11 @@ __global__ void generate_control_noise(){
 }
 // evaluate sampled control sequences
 // x0: x,y,heading, v_forward, v_sideways, omega
+// u0: current control to penalize control time rate
 // ref_control: samples*horizon*control_dim
 // out_cost: samples 
-//__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
-__global__ void evaluate_control_sequence(float* in_x0, float* ref_control, float* out_cost, float* out_control){
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_control, float* out_cost, float* out_control){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -155,7 +156,18 @@ __global__ void evaluate_control_sequence(float* in_x0, float* ref_control, floa
   // initialize cost
   float cost = 0;
   // used as estimate to find closest index on raceline
-  int last_u = -1;
+  int last_index = -1;
+  float last_u[CONTROL_DIM];
+  for (int i=0; i<CONTROL_DIM; i++){
+    last_u[i] = *(in_u0+i);
+  }
+
+  /*
+  if (id == 0){
+    printf("last u0=%%.2f",last_u[0]);
+  }
+  */
+
   // run simulation
   // loop over time horizon
   for (int i=0; i<HORIZON; i++){
@@ -180,8 +192,15 @@ __global__ void evaluate_control_sequence(float* in_x0, float* ref_control, floa
     */
 
     // evaluate step cost
-    cost += evaluate_step_cost(x,u,&last_u);
-    cost += evaluate_boundary_cost(x,&last_u);
+    if (i==0){
+      cost += evaluate_step_cost(x, last_u, u,&last_index);
+    } else {
+      cost += evaluate_step_cost(x, u, u,&last_index);
+    }
+    cost += evaluate_boundary_cost(x,&last_index);
+    for (int k=0; k<CONTROL_DIM; k++){
+      last_u[k] = u[k];
+    }
 
     u += CONTROL_DIM;
 
@@ -269,14 +288,14 @@ void forward_dynamics( float* state, float* u){
 }
 
 __device__
-float evaluate_step_cost( float* state, float* u,int* last_u){
+float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index){
   //float heading = state[4];
   int idx;
   float dist;
 
-  find_closest_id(state,*last_u, &idx,&dist);
+  find_closest_id(state,*last_index, &idx,&dist);
   // update estimate of closest index on raceline
-  *last_u = idx;
+  *last_index = idx;
 
   // heading cost
   //float cost = dist*0.5 + fabsf(fmodf(raceline[idx][2] - heading + PI,2*PI) - PI);
@@ -287,8 +306,18 @@ float evaluate_step_cost( float* state, float* u,int* last_u){
   // forward vel
   float vx = state[STATE_VX];
 
+  // velocity deviation from reference velocity profile
   float dv = vx - raceline[idx][3];
-  float cost = dist + 0.1*dv*dv;
+  // control change from last step, penalize to smooth control
+  // TODO should we just sample control change?
+  float du_sqr = 0;
+  for (int i=0; i<CONTROL_DIM; i++){
+    float val = *(u+i) - *(last_u+i);
+    du_sqr += val*val;
+  }
+
+  //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
+  float cost = dist + 0.3*dv*dv ;
   //float cost = dist;
   // additional penalty on negative velocity 
   if (vx < 0){
