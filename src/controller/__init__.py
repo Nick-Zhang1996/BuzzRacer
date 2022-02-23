@@ -5,4 +5,4 @@ except ModuleNotFoundError as e:
     print("gurobipy unavailable, skipping ccmppi")
 from controller.PidController import PidController
 from controller.StanleyCarController import StanleyCarController
-from controller.MppiCarController import MppiCarController
+from controller.mppi.MppiCarController import MppiCarController

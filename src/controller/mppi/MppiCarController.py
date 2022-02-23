@@ -122,7 +122,7 @@ class MppiCarController(CarController):
                 "DT":self.dt
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
-        cuda_filename = "./controller/mppi_racecar.cu"
+        cuda_filename = "./controller/mppi/mppi_racecar.cu"
         self.loadCudaFile(cuda_filename, cuda_code_macros)
         self.setBlockGrid()
 
