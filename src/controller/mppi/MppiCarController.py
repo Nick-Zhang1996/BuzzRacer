@@ -25,8 +25,15 @@ class MppiCarController(CarController):
         self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
-        self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
-        self.noise_mean = np.array([0.207,0])
+        # directly sample control
+        self.print_ok("max throttle = %.2f"%(self.car.max_throttle))
+        #self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
+        #self.noise_mean = np.array([0.207,0])
+
+        # sample control change rate val/sec
+        self.noise_cov = np.array([(self.car.max_throttle*2/0.2)**2,(radians(27.0)*2/0.2)**2])
+        self.noise_mean = np.array([0.207+0.1,0])
+
         self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
@@ -233,12 +240,12 @@ class MppiCarController(CarController):
 
         self.last_ref_control = control.copy()
 
-        self.car.throttle = control[0,0]
-        self.car.steering = control[0,1]
-        self.last_control = control[0,:]
+        self.car.throttle += control[0,0]*self.dt
+        self.car.steering += control[0,1]*self.dt
+        self.last_control = [self.car.throttle,self.car.steering]
         dt = time() - t
         self.freq_vec.append(1.0/dt)
-        self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
+        #self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
 
         '''
         display_trajectory = sampled_trajectory[:,:,0:2]

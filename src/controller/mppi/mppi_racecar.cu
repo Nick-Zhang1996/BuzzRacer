@@ -91,7 +91,7 @@ __global__ void set_control_limit(float* in_control_limit){
 }
 __global__ void set_noise_cov(float* in_noise_cov){
   for(int i=0;i<sizeof(noise_std);i++){ noise_std[i] = sqrtf(in_noise_cov[i]);}
-  //printf("cov: %%.2f, %%.2f \n",noise_std[0],noise_std[1]);
+  //printf("std: %%.2f, %%.2f \n",noise_std[0],noise_std[1]);
 }
 __global__ void set_noise_mean(float* in_noise_mean){
   for(int i=0;i<sizeof(noise_mean);i++){ noise_mean[i] = sqrtf(in_noise_mean[i]);}
@@ -138,8 +138,8 @@ __global__ void generate_control_noise(){
 // u0: current control to penalize control time rate
 // ref_control: samples*horizon*control_dim
 // out_cost: samples 
-//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_control, float* out_cost, float* out_control, float* out_trajectories){
-__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_control, float* out_cost, float* out_control){
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -176,10 +176,13 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
 
     // apply constrain on control input
     for (int j=0; j<CONTROL_DIM; j++){
-      float val = ref_control[i*CONTROL_DIM + j] + sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      // NOTE control is variation
+      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
-      out_control[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val;
+      //out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val;
+      out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
       u[j] = val;
     }
 
