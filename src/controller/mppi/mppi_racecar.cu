@@ -164,7 +164,7 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
 
   /*
   if (id == 0){
-    printf("last u0=%%.2f",last_u[0]);
+    printf("last u0=%%.2f",last_u[1]*180.0/PI);
   }
   */
 
@@ -185,6 +185,11 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
       u[j] = val;
     }
+    /*
+    if(id==0 && i==0){
+      printf("u-1 = %%.2f\n",last_u[1]*180.0/PI);
+    }
+    */
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);

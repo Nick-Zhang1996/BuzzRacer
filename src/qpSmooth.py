@@ -369,7 +369,7 @@ class QpSmooth(RCPTrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        deadzone = 0.087 * 3.0
+        deadzone = 0.087 * 3.5
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:

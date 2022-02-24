@@ -37,7 +37,6 @@ class Car:
             #print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
             #print_info(self.states)
 
-
         if (Car.main.slowdown.is_set()):
             self.throttle = 0.0
         if (Car.main.experiment_type == ExperimentType.Realworld):
@@ -81,8 +80,8 @@ class Car:
                          'max_steer_angle_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
-                         #'optitrack_streaming_id' : 2,
-                         'optitrack_streaming_id' : 998,
+                         'optitrack_streaming_id' : 2,
+                         #'optitrack_streaming_id' : 998,
                          'max_throttle' : 0.7}
 
         lambo_setting = {'wheelbase':98e-3,
