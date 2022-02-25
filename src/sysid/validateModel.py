@@ -380,8 +380,8 @@ def run():
         y = log.y
         heading = log.heading
         omega = log.omega
-        steering = log.steering
-        #steering = measured_steering
+        #steering = log.steering
+        steering = measured_steering
         throttle = log.throttle
         vx_car = log.v_forward
         vy_car = log.v_sideway
