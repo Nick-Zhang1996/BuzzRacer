@@ -31,7 +31,7 @@ class MppiCarController(CarController):
         #self.noise_mean = np.array([0.207,0])
 
         # sample control change rate val/sec
-        self.noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.4)**2])
+        self.noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
         self.noise_mean = np.array([0.0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
@@ -200,7 +200,6 @@ class MppiCarController(CarController):
         # vs: lateral v, left positive
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
-        self.print_info("v = %.2f"%(vf))
 
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)

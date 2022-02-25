@@ -325,7 +325,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   }
 
   //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
-  float cost = dist + 0.3*dv*dv ;
+  float cost = 3*dist*dist + 0.3*dv*dv ;
   //float cost = dist;
   // additional penalty on negative velocity 
   if (vx < 0){
