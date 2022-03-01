@@ -78,6 +78,7 @@ class _Optitrack:
         self.base = base
         self.newState = Event()
         self.enableKF = Event()
+        self.callback = self.emptyCallback()
         if enableKF:
             self.action = (0,0)
             self.kf = []
@@ -128,6 +129,9 @@ class _Optitrack:
 
     def __del__(self):
         self.streamingClient.requestQuit()
+
+    def emptyCallback(self,*args):
+        pass
 
     def quit(self):
         self.streamingClient.requestQuit()
@@ -236,6 +240,7 @@ class _Optitrack:
         #(kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.getKFstate(i)
         #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         #print("\n")
+        self.callback(optitrack_id, position, rotation)
         return
     
 

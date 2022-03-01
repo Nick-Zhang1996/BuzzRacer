@@ -47,16 +47,16 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         self.visualization = extension.Visualization(self)
-        Optitrack(self)
-        #self.simulator = DynamicSimulator(self)
-        #self.simulator.match_time = True
+        #Optitrack(self)
+        self.simulator = DynamicSimulator(self)
+        self.simulator.match_time = True
 
         #Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        Logger(self)
 
         # steering rack tracker
         #SteeringTracker(self)

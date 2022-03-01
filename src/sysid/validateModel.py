@@ -66,113 +66,18 @@ def show(img):
     plt.show()
     return
 
-# old, kinematic model with correction
-def step_kinematic_heuristic(state,control,dt=0.01):
+# model for rigged vehicle, using raw steering
+def step_raw(state,control,dt=0.01,slip_f_override=None):
     # constants
-    L = 0.102
-    lr = 0.036
-    # convert to local frame
-    x,vxg,y,vyg,heading,omega = tuple(state)
-    steering,throttle = tuple(control)
-    vx = vxg*cos(heading) + vyg*sin(heading)
-    vy = -vxg*sin(heading) + vyg*cos(heading)
-
-    # some convenience variables
-    R = L/tan(steering)
-    beta = atan(lr/R)
-    norm = lambda a,b:(a**2+b**2)**0.5
-
-    #advance model
-    vx = max(0.0,vx + (throttle - 0.24)*7.0*dt)
-    #vx = vx + (throttle)*7.0*dt
-    vy = norm(vx,vy)*sin(beta)
-    assert vy*steering>0
-
-    # NOTE heuristics
-    vy -= 0.68*vx*steering
-
-
-    # NOTE where to put this
-    omega = vx/R
-
-    # back to global frame
-    vxg = vx*cos(heading)-vy*sin(heading)
-    vyg = vx*sin(heading)+vy*cos(heading)
-
-    # apply updates
-    x += vxg*dt
-    y += vyg*dt
-    heading += omega*dt
-
-    return (x,vxg,y,vyg,heading,omega ),{}
-
-# dynamic model with heuristically selected parameters
-def step_dynamics(state,control,dt=0.01):
-    # constants
-    lf = 0.09-0.036
-    lr = 0.036
-    # convert to local frame
-    x,vxg,y,vyg,heading,omega = tuple(state)
-    steering,throttle = tuple(control)
-    # forward
-    vx = vxg*cos(heading) + vyg*sin(heading)
-    # lateral, left +
-    vy = -vxg*sin(heading) + vyg*cos(heading)
-
-    # TODO handle vx->0
-    # for small velocity, use kinematic model 
-    slip_f = -np.arctan((omega*lf + vy)/vx) + steering
-    slip_r = np.arctan((omega*lr - vy)/vx)
-    # we call these acc but they are forces normalized by mass
-    # TODO consider longitudinal load transfer
-    lateral_acc_f = tireCurve(slip_f) * 9.8 * lr / (lr + lf)
-    lateral_acc_r = tireCurve(slip_r) * 9.8 * lf / (lr + lf)
-    # TODO use more comprehensive model
-    forward_acc_r = (throttle - 0.24)*7.0
-
-    ax = forward_acc_r - lateral_acc_f * sin(steering) + vy*omega
-    ay = lateral_acc_r + lateral_acc_f * cos(steering) - vx*omega
-
-    vx += ax * dt
-    vy += ay * dt
-
-    # leading coeff = m/Iz
-    d_omega = 12.0/(0.1**2+0.1**2)*(lateral_acc_f * lf * cos(steering) - lateral_acc_r * lr )
-    omega += d_omega * dt
-
-    # back to global frame
-    vxg = vx*cos(heading)-vy*sin(heading)
-    vyg = vx*sin(heading)+vy*cos(heading)
-
-    # apply updates
-    # TODO add 1/2 a t2
-    x += vxg*dt
-    y += vyg*dt
-    heading += omega*dt + 0.5* d_omega * dt * dt
-
-    retval = (x,vxg,y,vyg,heading,omega )
-    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":lateral_acc_f, "lateral_acc_r":lateral_acc_r, 'ax':ax}
-    return retval, debug_dict
-
-# model with parameter from ukf
-def step_ukf(state,control,dt=0.01):
-    # constants
-    lf = 0.09-0.036
-    lr = 0.036
     L = 0.09
+    lf = 0.04824
+    lr = L - lf
 
-    Df = 3.93731
-    Dr = 6.23597
-    C = 2.80646
-    B = 0.51943
-    Cm1 = 6.03154
-    Cm2 = 0.96769
-    Cr = -0.20375
-    Cd = 0.00000
-    Iz = 0.00278
+    # only thing not measured
+    #Iz = 0.00278*0.5*1.5
+    # measured through torsional pendulum
+    Iz = 417757e-9
     m = 0.1667
-
-
 
     # convert to local frame
     x,vxg,y,vyg,heading,omega = tuple(state)
@@ -187,7 +92,8 @@ def step_ukf(state,control,dt=0.01):
         beta = atan(lr/L*tan(steering))
         norm = lambda a,b:(a**2+b**2)**0.5
         # motor model
-        d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+        d_vx = 0.425*(15.2*throttle - vx - 3.157)
+
         vx = vx + d_vx * dt
         vy = norm(vx,vy)*sin(beta)
         d_omega = 0.0
@@ -202,14 +108,15 @@ def step_ukf(state,control,dt=0.01):
         slip_f = -np.arctan((omega*lf + vy)/vx) + steering
         slip_r = np.arctan((omega*lr - vy)/vx)
 
-        Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-        Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+        Ffy = tireCurve(slip_f) * 9.8 * lr / (lr + lf) * m
+        Fry = tireCurve(slip_r) * 9.8 * lf / (lr + lf) * m
 
         # motor model
-        Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
-
+        #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
         # Dynamics
-        d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+        d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
+
         d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 
@@ -229,9 +136,8 @@ def step_ukf(state,control,dt=0.01):
     heading += omega*dt + 0.5* d_omega * dt * dt
 
     retval = (x,vxg,y,vyg,heading,omega )
-    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx}
+    debug_dict = {"slip_f":slip_f, "slip_r":slip_r, "lateral_acc_f":Ffy/m, "lateral_acc_r":Fry/m, 'ax':d_vx,'dw':d_omega,'w':omega}
     return retval, debug_dict
-
 
 # model for rigged vehicle
 def step_rig(state,control,dt=0.01,slip_f_override=None):
@@ -344,8 +250,8 @@ def run():
     gifs = []
 
     # set prediction function
-    step_fun = step_rig
-    step_fun_base = step_ukf
+    step_fun = step_raw
+    step_fun_base = step_rig
 
     # load log
     #filename = "../../log/2022_2_7_exp/full_state2.p"
@@ -361,6 +267,8 @@ def run():
     #filename = '../../log/2022_2_7_exp/debug_dict2.p'
     filename = '../../log/2022_2_9_exp/debug_dict4.p'
     measured_steering = loadMeasuredSteering(filename)[:-1]
+    offset = (-np.mean(measured_steering) + np.mean(log.steering))
+    measured_steering = measured_steering + offset
 
     # prep track image
     track = RCPTrack()
@@ -421,13 +329,10 @@ def run():
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
-        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
         predicted_states = [state]
-
-
         for j in range(i+1,i+lookahead_steps):
             # make prediction
             state, debug_dict = step_fun_base(state,control)
@@ -438,8 +343,7 @@ def run():
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
-        img = track.drawPolyline(predicted_future_traj,lineColor=(0,0,255),img=img)
-        '''
+        img = track.drawPolyline(predicted_future_traj,lineColor=(100,100,255),img=img)
 
 
         img = addAlgorithmName(img, step_fun)
@@ -511,10 +415,16 @@ def run():
             ax1.legend()
 
             # d omega
+            '''
             domega = np.diff(omega)/dt
             ax2 = plt.subplot(313)
             ax2.plot(np.array(debug_dict_hist['dw'][i])/np.pi*180,label="d_omega predicted")
             ax2.plot(domega[i:i+lookahead_steps]/np.pi*180,label="actual")
+            ax2.legend()
+            '''
+
+            ax2 = plt.subplot(313)
+            ax2.plot(throttle[i:i+lookahead_steps],label="throttle")
             ax2.legend()
 
             # total velocity
