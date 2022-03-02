@@ -105,17 +105,19 @@ def step_raw(state,control,dt=0.01,slip_f_override=None):
         Fry = 0
 
     else:
-        slip_f = -np.arctan((omega*lf + vy)/vx) + steering
-        slip_r = np.arctan((omega*lr - vy)/vx)
-
-        Ffy = tireCurve(slip_f) * 9.8 * lr / (lr + lf) * m
-        Fry = tireCurve(slip_r) * 9.8 * lf / (lr + lf) * m
-
         # motor model
         #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
         # Dynamics
         #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
         d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
+
+        slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+        slip_r = np.arctan((omega*lr - vy)/vx)
+
+        #Ffy = tireCurve(slip_f) * m * ( 9.8 *lr/(lr+lf) - d_vx*h/(lr+lf))
+        #Fry = 1.15*tireCurve(slip_r) * m * ( 9.8 *lf/(lr+lf) + d_vx*h/(lr+lf))
+        Ffy = tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+        Fry = 1.15*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
 
         d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
@@ -329,7 +331,6 @@ def run():
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
-        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
@@ -345,7 +346,6 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(100,100,255),img=img)
-        '''
 
 
         img = addAlgorithmName(img, step_fun)
@@ -391,7 +391,7 @@ def run():
         lf = 0.09-0.036
         actual_slip_f = -np.arctan((omega*lf + vy_car)/vx_car) + steering
         # periodic debugging plots
-        if (i % 100 == 0):
+        if (False and i % 100 == 0):
             print("showing heading")
             print("showing velocity (total)")
             print("showing local velocity in car frame")
@@ -466,6 +466,65 @@ def run():
 
             plt.show()
 
+
+# find a numerical value for error
+def err():
+    lookahead_steps = 100
+    step_fun = step_raw
+    filename = '../../log/2022_2_9_exp/full_state4.p'
+    rawlog = loadLog(filename)
+    log = prepLog(rawlog,skip=1)
+    dt = 0.01
+    vx = np.hstack([0,np.diff(log.x)])/dt
+    vy = np.hstack([0,np.diff(log.y)])/dt
+    data_len = log.t.shape[0]
+
+    # use measured steering
+    #filename = '../../log/2022_2_7_exp/debug_dict2.p'
+    filename = '../../log/2022_2_9_exp/debug_dict4.p'
+    measured_steering = loadMeasuredSteering(filename)[:-1]
+    offset = (-np.mean(measured_steering) + np.mean(log.steering))
+    measured_steering = measured_steering + offset
+
+    cum_error = 0.0
+    # iterate through log
+    for i in range(500,min(1900,data_len-lookahead_steps-1)):
+        # prepare state shorthands
+        x = log.x
+        y = log.y
+        heading = log.heading
+        omega = log.omega
+        #steering = log.steering
+        steering = measured_steering
+        throttle = log.throttle
+        vx_car = log.v_forward
+        vy_car = log.v_sideway
+
+        car_state = (x[i],y[i],heading[i],0,0,0)
+        # actual trajectory
+        actual_future_traj = np.vstack([x[i:i+lookahead_steps],y[i:i+lookahead_steps]]).T
+
+        state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
+        control = (steering[i],throttle[i])
+        predicted_states = [state]
+
+        # predicted trajectory
+        for j in range(i+1,i+lookahead_steps):
+            # make prediction
+            state, debug_dict = step_fun(state,control)
+
+            predicted_states.append(state)
+            # delay for throttle
+            index = max(j-7,0)
+            control = (steering[j],throttle[index])
+
+        predicted_states = np.array(predicted_states)
+        predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
+        this_err = np.linalg.norm(actual_future_traj - predicted_future_traj)
+        cum_error += this_err
+        continue
+    print(cum_error)
+
 def wrapContinuous(val):
     # wrap to -pi,pi
     wrap = lambda x: np.mod(x + np.pi, 2*np.pi) - np.pi
@@ -477,6 +536,7 @@ def wrapContinuous(val):
 
 if __name__=="__main__":
     run()
+    #err()
     exit(0)
     if saveGif:
         print("saving gif... be patient")
