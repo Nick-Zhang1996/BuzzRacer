@@ -329,6 +329,7 @@ def run():
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
+        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
@@ -344,6 +345,7 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(100,100,255),img=img)
+        '''
 
 
         img = addAlgorithmName(img, step_fun)
