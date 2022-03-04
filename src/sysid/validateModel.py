@@ -73,8 +73,6 @@ def step_raw(state,control,dt=0.01,slip_f_override=None):
     lf = 0.04824
     lr = L - lf
 
-    # only thing not measured
-    #Iz = 0.00278*0.5*1.5
     # measured through torsional pendulum
     Iz = 417757e-9
     m = 0.1667
@@ -108,8 +106,8 @@ def step_raw(state,control,dt=0.01,slip_f_override=None):
         # motor model
         #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
         # Dynamics
-        #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
         d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
+        #d_vx = 0.425*(15.2*throttle - vx - 3.157)
 
         slip_f = -np.arctan((omega*lf + vy)/vx) + steering
         slip_r = np.arctan((omega*lr - vy)/vx)
@@ -256,13 +254,17 @@ def run():
     step_fun_base = step_rig
 
     # load log
-    #filename = "../../log/2022_2_7_exp/full_state2.p"
     filename = '../../log/2022_2_9_exp/full_state4.p'
+    #filename = '../../log/2022_3_2_exp/full_state2.p'
     rawlog = loadLog(filename)
     log = prepLog(rawlog,skip=1)
     dt = 0.01
-    vx = np.hstack([0,np.diff(log.x)])/dt
-    vy = np.hstack([0,np.diff(log.y)])/dt
+    vx_alt = np.hstack([0,np.diff(log.x)])/dt
+    vy_alt = np.hstack([0,np.diff(log.y)])/dt
+    heading = log.heading
+    vx = log.v_forward*np.cos(heading)-log.v_sideway*np.sin(heading)
+    vy = log.v_forward*np.sin(heading)+log.v_sideway*np.cos(heading)
+
     data_len = log.t.shape[0]
 
     # use measured steering
@@ -290,8 +292,8 @@ def run():
         y = log.y
         heading = log.heading
         omega = log.omega
-        #steering = log.steering
-        steering = measured_steering
+        steering = log.steering
+        #steering = measured_steering
         throttle = log.throttle
         vx_car = log.v_forward
         vy_car = log.v_sideway
@@ -331,6 +333,7 @@ def run():
         # GREEN
         img = track.drawPolyline(predicted_future_traj,lineColor=(0,255,0),img=img)
 
+        '''
         # plot benchmark prediction trajectory
         state = (x[i],vx[i],y[i],vy[i],heading[i],omega[i])
         control = (steering[i],throttle[i])
@@ -346,6 +349,7 @@ def run():
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
         img = track.drawPolyline(predicted_future_traj,lineColor=(100,100,255),img=img)
+        '''
 
 
         img = addAlgorithmName(img, step_fun)
@@ -425,10 +429,6 @@ def run():
             ax2.legend()
             '''
 
-            ax2 = plt.subplot(313)
-            ax2.plot(throttle[i:i+lookahead_steps],label="throttle")
-            ax2.legend()
-
             # total velocity
             '''
             ax1 = plt.subplot(412)
@@ -439,16 +439,14 @@ def run():
             '''
 
             # forward velocity
-            '''
-            ax2 = plt.subplot(413)
+            ax2 = plt.subplot(313)
             ax2.plot(vx_car_predicted_hist,label="car vx predicted")
             ax2.plot(vx_car[i:i+lookahead_steps],label="car vx actual")
             #ax2.plot(vy_car_predicted_hist,'--',label="car vy predicted")
             #ax2.plot(vy_car[i:i+lookahead_steps],'--',label="car vy actual")
-            ax2.plot(throttle[i:i+lookahead_steps],label="throttle")
+            #ax2.plot(throttle[i:i+lookahead_steps],label="throttle")
             #ax2.plot(debug_dict_hist['ax'][i],'--',label="predicted ax")
             ax2.legend()
-            '''
 
             # fron slip
             '''
@@ -471,7 +469,8 @@ def run():
 def err():
     lookahead_steps = 100
     step_fun = step_raw
-    filename = '../../log/2022_2_9_exp/full_state4.p'
+    #filename = '../../log/2022_2_9_exp/full_state4.p'
+    filename = '../../log/2022_3_2_exp/full_state1.p'
     rawlog = loadLog(filename)
     log = prepLog(rawlog,skip=1)
     dt = 0.01
@@ -494,8 +493,8 @@ def err():
         y = log.y
         heading = log.heading
         omega = log.omega
-        #steering = log.steering
-        steering = measured_steering
+        steering = log.steering
+        #steering = measured_steering
         throttle = log.throttle
         vx_car = log.v_forward
         vy_car = log.v_sideway
@@ -535,8 +534,8 @@ def wrapContinuous(val):
 
 
 if __name__=="__main__":
-    run()
-    #err()
+    #run()
+    err()
     exit(0)
     if saveGif:
         print("saving gif... be patient")

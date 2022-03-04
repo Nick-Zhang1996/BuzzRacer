@@ -9,20 +9,16 @@
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
-#define PARAM_LF (0.09-0.036)
-#define PARAM_LR 0.036
+#define PARAM_LF 0.04824
+#define PARAM_LR (0.09-0.04824)
 #define PARAM_L 0.09
-#define PARAM_DF  3.93731
-#define PARAM_DR  6.23597
-#define PARAM_C  2.80646
-#define PARAM_B  0.51943
-#define PARAM_CM1  6.03154
-#define PARAM_CM2  0.96769
-#define PARAM_CR  (-0.20375)
-#define PARAM_CD  0.00000
-#define PARAM_IZ  0.00278
-#define PARAM_MASS  0.1667
 
+#define PARAM_IZ 417757e-9
+#define PARAM_MASS 0.1667
+
+#define PARAM_C 1.3
+#define PARAM_B 4.0
+#define PARAM_D 1.98
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -71,6 +67,8 @@ __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
 void forward_dynamics( float* state, float* u);
+__device__
+float tire_curve( float slip);
 
 extern "C" {
 __global__ void init_curand_kernel(int seed){
@@ -259,8 +257,10 @@ void forward_dynamics( float* state, float* u){
     slip_f = -atanf((omega*PARAM_LF + vy)/vx) + steering;
     slip_r = atanf((omega*PARAM_LR - vy)/vx);
 
-    Ffy = PARAM_DF * sinf( PARAM_C * atanf(PARAM_B *slip_f)) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
-    Fry = PARAM_DR * sinf( PARAM_C * atanf(PARAM_B *slip_r)) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    //Ffy = PARAM_DF * sinf( PARAM_C * atanf(PARAM_B *slip_f)) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    //Fry = PARAM_DR * sinf( PARAM_C * atanf(PARAM_B *slip_r)) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    Ffy = tire_curve(slip_f) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    Fry = 1.15 * tire_curve(slip_r) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
 
     // motor model
 
@@ -411,4 +411,10 @@ float evaluate_terminal_cost( float* current_state,float* initial_state){
   //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
   // NOTE ignoring terminal cost
   return 0.0;
+}
+
+__device__
+float tire_curve( float slip){
+  return PARAM_D * sinf( PARAM_C * atanf( PARAM_B * slip) );
+
 }

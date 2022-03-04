@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from extension import Simulator
 
+from sysid.tire import tireCurve
 import numpy as np
 from math import sin,cos,tan,radians,degrees,pi,atan
 import matplotlib.pyplot as plt
@@ -70,14 +71,6 @@ class DynamicSimulator(Simulator):
         lr = car.lr
         L = car.L
 
-        Df = car.Df
-        Dr = car.Dr
-        B = car.B
-        C = car.C
-        Cm1 = car.Cm1
-        Cm2 = car.Cm2
-        Cr = car.Cr
-        Cd = car.Cd
         Iz = car.Iz
         m = car.m
         dt = DynamicSimulator.dt
@@ -106,12 +99,14 @@ class DynamicSimulator(Simulator):
             slip_f = -np.arctan((omega*lf + vy)/vx) + steering
             slip_r = np.arctan((omega*lr - vy)/vx)
 
-            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+            #Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            #Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+            Ffy = tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+            Fry = 1.15*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
 
             # Dynamics
             #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
-            d_vx = 0.425*(15.2*throttle - vx - 3.157)
+            d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
             d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
             d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 

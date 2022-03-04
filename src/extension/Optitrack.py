@@ -78,7 +78,7 @@ class _Optitrack:
         self.base = base
         self.newState = Event()
         self.enableKF = Event()
-        self.callback = self.emptyCallback()
+        self.callback = self.emptyCallback
         if enableKF:
             self.action = (0,0)
             self.kf = []
