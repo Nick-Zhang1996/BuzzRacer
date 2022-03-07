@@ -68,7 +68,7 @@ class RCPTrack(Track):
         self.offset_timestamp = []
         self.log_no = 0
         self.debug = {}
-        self.car = cv2.imread('image.png',-1)
+        self.car = cv2.imread('data/image.png',-1)
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
@@ -1764,9 +1764,9 @@ class RCPTrack(Track):
         if src is None:
             #print("Can't draw car -- outside track")
             return img
-        # draw vehicle, orientation as black arrow
-        img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+        # overlay vehicle image, orientation as headed
         img =  self.overlayCar(coord,heading,img=img)
+        # no negative impact on code efficiency
         # draw steering angle, orientation as red arrow
         img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
 
