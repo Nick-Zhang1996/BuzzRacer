@@ -1783,16 +1783,17 @@ class RCPTrack(Track):
         car_img = self.car
         height, width = car_img.shape[:2]
         center = (width/2, height/2)
-        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(orientation)-90, scale=0.2)
+        scale = 40/height
+        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(orientation), scale=scale)
         rotated_car = cv2.warpAffine(src=car_img, M=rotate_matrix, dsize=(width, height)) 
         overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
-        '''bg_img = cv2.cvtColor(img.copy(), cv2.COLOR_BGR2BGRA)'''
-        bg_img = Image.fromarray(cv2.cvtColor(img.copy(), cv2.COLOR_BGR2RGB))
-        x, y = (src[0]-140), (src[1]-140)
+        bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        bg_img = Image.alpha_composite(Image.new("RGBA", bg_img.size),bg_img.convert('RGBA'))
+        x, y = (src[0]-width//2), (src[1]-height//2)
 
-        bg_img.paste(overlay_t,(x,y))
-        bg_img = Image.fromarray(np.array(bg_img)[:,:,::-1])
+        bg_img.paste(overlay_t,(x,y),overlay_t)
         bg_img = np.array(bg_img,dtype=np.uint8)
+        bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
         
         return bg_img
 
