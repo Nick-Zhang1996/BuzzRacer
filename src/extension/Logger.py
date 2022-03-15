@@ -59,7 +59,7 @@ class Logger(Extension):
             car = self.main.cars[i]
             (x,y,theta,v_forward,v_sideway,omega) = car.states
 
-            # (x,y,theta,vforward,vsideway=0,omega)
+            # (time, x,y,theta,vforward,vsideway=0,omega)
             log_entry.append([time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle])
 
         self.full_state_log.append(log_entry)

@@ -90,7 +90,7 @@ def step_raw(state,control,dt=0.01,slip_f_override=None):
         beta = atan(lr/L*tan(steering))
         norm = lambda a,b:(a**2+b**2)**0.5
         # motor model
-        d_vx = 0.425*(15.2*throttle - vx - 3.157)
+        d_vx = 6.17*(throttle - vx/15.2 -0.333)
 
         vx = vx + d_vx * dt
         vy = norm(vx,vy)*sin(beta)
@@ -103,19 +103,18 @@ def step_raw(state,control,dt=0.01,slip_f_override=None):
         Fry = 0
 
     else:
-        # motor model
-        #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
         # Dynamics
-        d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
-        #d_vx = 0.425*(15.2*throttle - vx - 3.157)
+        # motor model
+        # NOTE need 0.07s delay
+        d_vx = 6.17*(throttle - vx/15.2 -0.333)
 
         slip_f = -np.arctan((omega*lf + vy)/vx) + steering
         slip_r = np.arctan((omega*lr - vy)/vx)
 
         #Ffy = tireCurve(slip_f) * m * ( 9.8 *lr/(lr+lf) - d_vx*h/(lr+lf))
         #Fry = 1.15*tireCurve(slip_r) * m * ( 9.8 *lf/(lr+lf) + d_vx*h/(lr+lf))
-        Ffy = tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
-        Fry = 1.15*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
+        Ffy = 0.9*tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+        Fry = 0.95*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
 
         d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
@@ -245,7 +244,7 @@ def addAlgorithmName(img,step_fun):
 
 def run():
     # setting
-    lookahead_steps = 100
+    lookahead_steps = 50
     saveGif = False
     gifs = []
 
@@ -254,8 +253,8 @@ def run():
     step_fun_base = step_rig
 
     # load log
-    filename = '../../log/2022_2_9_exp/full_state4.p'
-    #filename = '../../log/2022_3_2_exp/full_state2.p'
+    #filename = '../../log/2022_2_9_exp/full_state4.p'
+    filename = '../../log/2022_3_2_exp/full_state2.p'
     rawlog = loadLog(filename)
     log = prepLog(rawlog,skip=1)
     dt = 0.01
@@ -269,10 +268,12 @@ def run():
 
     # use measured steering
     #filename = '../../log/2022_2_7_exp/debug_dict2.p'
+    '''
     filename = '../../log/2022_2_9_exp/debug_dict4.p'
     measured_steering = loadMeasuredSteering(filename)[:-1]
     offset = (-np.mean(measured_steering) + np.mean(log.steering))
     measured_steering = measured_steering + offset
+    '''
 
     # prep track image
     track = RCPTrack()
@@ -326,6 +327,7 @@ def run():
             predicted_states.append(state)
             # delay for throttle
             index = max(j-7,0)
+            index = j
             control = (steering[j],throttle[index])
 
         predicted_states = np.array(predicted_states)
@@ -467,12 +469,12 @@ def run():
 
 # find a numerical value for error
 def err():
-    lookahead_steps = 100
+    lookahead_steps = 50
     step_fun = step_raw
     #filename = '../../log/2022_2_9_exp/full_state4.p'
-    filename = '../../log/2022_3_2_exp/full_state1.p'
+    filename = '../../log/2022_3_2_exp/full_state2.p'
     rawlog = loadLog(filename)
-    log = prepLog(rawlog,skip=1)
+    log = prepLog(rawlog,skip=200)
     dt = 0.01
     vx = np.hstack([0,np.diff(log.x)])/dt
     vy = np.hstack([0,np.diff(log.y)])/dt
@@ -480,10 +482,12 @@ def err():
 
     # use measured steering
     #filename = '../../log/2022_2_7_exp/debug_dict2.p'
-    filename = '../../log/2022_2_9_exp/debug_dict4.p'
+    #filename = '../../log/2022_2_9_exp/debug_dict4.p'
+    '''
     measured_steering = loadMeasuredSteering(filename)[:-1]
     offset = (-np.mean(measured_steering) + np.mean(log.steering))
     measured_steering = measured_steering + offset
+    '''
 
     cum_error = 0.0
     # iterate through log
@@ -515,6 +519,7 @@ def err():
             predicted_states.append(state)
             # delay for throttle
             index = max(j-7,0)
+            index = j
             control = (steering[j],throttle[index])
 
         predicted_states = np.array(predicted_states)
@@ -534,7 +539,7 @@ def wrapContinuous(val):
 
 
 if __name__=="__main__":
-    #run()
+    run()
     err()
     exit(0)
     if saveGif:

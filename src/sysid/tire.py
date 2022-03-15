@@ -4,7 +4,7 @@ import numpy as np
 from math import radians,degrees
 # slip: slip angle in rad
 # output: lateral friction coefficient
-def oldTireCurve(slip):
+def oldoldTireCurve(slip):
     C = 2.80646
     B = 0.51943
     Df = 3.93731*1.5
@@ -14,10 +14,18 @@ def oldTireCurve(slip):
 
 # slip: slip angle in rad
 # output: lateral friction coefficient
-def tireCurve(slip):
+def oldtireCurve(slip):
     C = 1.3
     B = 12.0/3
     D = 0.66*3
+    # C: tail shape
+    retval = D * np.sin( C * np.arctan(B *slip)) 
+    return retval
+
+def tireCurve(slip):
+    C = 1.6
+    B = 2.3
+    D = 1.1
     # C: tail shape
     retval = D * np.sin( C * np.arctan(B *slip)) 
     return retval
@@ -31,14 +39,16 @@ plt.show()
 
 if __name__=="__main__":
 
-    xx = np.linspace(radians(-30),radians(30),1000)
-    acc = oldTireCurve(xx)
-    acc_alt = tireCurve(xx)
+    xx = np.linspace(radians(-40),radians(40),1000)
+    acc = tireCurve(xx)
+    acc_old = oldtireCurve(xx)
 
     fig = plt.figure()
     ax = fig.gca()
-    ax.plot(xx/np.pi*180.0, acc, label="original")
-    ax.plot(xx/np.pi*180.0, acc_alt,label="new")
+    ax.plot(xx/np.pi*180.0, acc_old, label="original")
+    ax.plot(xx/np.pi*180.0, acc,label="new")
+    ax.plot([0,9.26,7.75,degrees(0.094),degrees(0.044)],[0,0.58,0.455,0.367,0.093],'*')
+    ax.plot([-20,20],[1.1,1.1],'--')
     ax.legend()
     plt.show()
 

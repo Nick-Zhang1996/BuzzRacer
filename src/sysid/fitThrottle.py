@@ -7,14 +7,14 @@ import sys
 import os
 sys.path.append(os.path.abspath('../../src/'))
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 from math import pi
 from scipy.signal import savgol_filter
 
     
 if (len(sys.argv) != 2):
-    #filename = "../log/oct9/full_state12.p"
-    filename = '../../log/2022_2_9_exp/full_state4.p'
+    #filename = '../../log/2022_2_9_exp/full_state4.p'
+    filename = '../../log/2022_3_14_exp/full_state2.p'
     #print_error("Specify a log to load")
 else:
     filename = sys.argv[1]

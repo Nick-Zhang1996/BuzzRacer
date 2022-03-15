@@ -74,7 +74,7 @@ def plotAcc2(filename):
     ax = savgol_filter(ax, 51,2)
 
     start = 100
-    end = 5200
+    end = 3000
     t = log.t[start:end]
     ax = ax[start:end]
     throttle = throttle[start:end]
@@ -85,24 +85,27 @@ def plotAcc2(filename):
     # original model
     '''
     u1 = throttle
-    ax_guess1 = guess(u1,v)
+    ax_guess1 = guess_old(u1,v)
+    ax_guess1 -= np.mean(ax_guess1)-np.mean(ax)
     print("guess error = %.2f"%(diff(ax_guess1[7:],ax[7:])))
     plt.plot(t,ax_guess1,label='guess')
     '''
 
     # candidate model
-    ax_guess2 = guess2(throttle, v,0.425)
+    ax_guess2 = guess2(throttle, v)
     plt.plot(t,ax_guess2,label='new guess')
     print("guess2 error = %.2f"%(diff(ax_guess2[7:],ax[7:])))
+
     # fit
     '''
-    res = minimize(fun,(5,1),args=(throttle,ax))
-    ax_min = ode(throttle,res.x[0],res.x[1])
+    res = minimize(fun,(6.0,0.322),args=(throttle,v,ax))
     print(res)
-    plt.plot(t,ax_min,label='fitted')
+    ax_guess_fitted = guess2(throttle, v,res.x[0],res.x[1])
+    plt.plot(t,ax_guess_fitted,label='fitted')
+    print("guess fitted error = %.2f"%(diff(ax_guess_fitted[7:],ax[7:])))
     '''
 
-def guess(u,vx):
+def guess_old(u,vx):
     Cm1 = 6.03154
     Cm2 = 0.96769
     Cr = 0.20375
@@ -110,11 +113,19 @@ def guess(u,vx):
     ax = ( Cm1 - Cm2 * vx) * u - Cr - Cd * vx * vx
     return ax
 
-def guess2(u,v,c2=0.425):
+def guess(u,v,c2=0.425):
     ax = np.zeros_like(u)
     # apply a 0.07s delay to control signal
     delay = 7
-    ax[delay:] = 1.8*c2 * (15.2*u[:-delay] - v[delay:] - 3.157)
+    #ax[delay:] = c2 * (15.2*u[:-delay] - v[delay:] - 3.157)
+    ax[delay:] = 6*(u[:-delay] - v[delay:]/15.2 -0.322)
+    return ax
+
+def guess2(u,v,c1=6.17,c2=0.333):
+    ax = np.zeros_like(u)
+    # apply a 0.07s delay to control signal
+    delay = 7
+    ax[delay:] = c1*(u[:-delay] - v[delay:]/15.2 -c2)
     return ax
 
 def diff(a,b):
@@ -124,8 +135,12 @@ def fun(x,*args):
     c1 = x[0]
     c2 = x[1]
     u = args[0]
-    ax = args[1]
-    ax_guess = ode(u,c1,c2)
+    v = args[1]
+    ax = args[2]
+
+    delay = 7
+    ax_guess = np.zeros_like(ax)
+    ax_guess[delay:] = c1*(u[:-delay] - v[delay:]/15.2 -c2)
     return diff(ax,ax_guess)
 
 
@@ -143,7 +158,8 @@ def ode(u,c1,c2):
 
 if __name__=="__main__":
     #filename = "../../log/jan12/full_state1.p"
-    filename = '../../log/2022_2_9_exp/full_state4.p'
+    #filename = '../../log/2022_2_9_exp/full_state4.p'
+    filename = '../../log/2022_3_2_exp/full_state2.p'
     plotAcc2(filename)
     plt.legend()
     plt.show()

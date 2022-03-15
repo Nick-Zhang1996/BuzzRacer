@@ -16,9 +16,9 @@
 #define PARAM_IZ 417757e-9
 #define PARAM_MASS 0.1667
 
-#define PARAM_C 1.3
-#define PARAM_B 4.0
-#define PARAM_D 1.98
+#define PARAM_B 2.3
+#define PARAM_C 1.6
+#define PARAM_D 1.1
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -241,7 +241,7 @@ void forward_dynamics( float* state, float* u){
   if (vx<0.05){
     float beta = atanf(PARAM_LR/PARAM_L*tanf(steering));
     // motor model
-    d_vx = 0.425*(15.2*throttle - vx - 3.157);
+    d_vx = 6.17*(throttle - vx/15.2 -0.333);
     vx = vx + d_vx * DT;
     vy = sqrtf(vx*vx + vy*vy) * sinf(beta);
     d_omega = 0.0;
@@ -259,14 +259,14 @@ void forward_dynamics( float* state, float* u){
 
     //Ffy = PARAM_DF * sinf( PARAM_C * atanf(PARAM_B *slip_f)) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
     //Fry = PARAM_DR * sinf( PARAM_C * atanf(PARAM_B *slip_r)) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
-    Ffy = tire_curve(slip_f) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
-    Fry = 1.15 * tire_curve(slip_r) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    Ffy = 0.9*tire_curve(slip_f) * 9.8 * PARAM_LR / (PARAM_LR + PARAM_LF) * PARAM_MASS;
+    Fry = tire_curve(slip_r) * 9.8 * PARAM_LF / (PARAM_LR + PARAM_LF) * PARAM_MASS;
 
     // motor model
 
     // Dynamics
     //d_vx = 1.0/PARAM_MASS * (Frx - Ffy * sinf( steering ) + PARAM_MASS * vy * omega);
-    d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157);
+    d_vx = 6.17*(throttle - vx/15.2 -0.333);
     d_vy = 1.0/PARAM_MASS * (Fry + Ffy * cosf( steering ) - PARAM_MASS * vx * omega);
     d_omega = 1.0/PARAM_IZ * (Ffy * PARAM_LF * cosf( steering ) - Fry * PARAM_LR);
 
