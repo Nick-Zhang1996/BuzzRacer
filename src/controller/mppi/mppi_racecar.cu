@@ -317,7 +317,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // control change from last step, penalize to smooth control
 
   //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
-  float cost = 3*dist*dist + 0.3*dv*dv ;
+  float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
   float temp = fmodf(raceline[idx][2] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
   cost += temp*temp*2.5;

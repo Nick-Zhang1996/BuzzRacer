@@ -200,7 +200,6 @@ class MppiCarController(CarController):
         # vs: lateral v, left positive
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
-        self.print_info("vf = %.2f"%(vf))
 
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)

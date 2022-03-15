@@ -82,7 +82,7 @@ class Car:
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
                          #'optitrack_streaming_id' : 998,
-                         'max_throttle' : 0.7}
+                         'max_throttle' : 1.0}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
