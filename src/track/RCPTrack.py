@@ -1755,9 +1755,6 @@ class RCPTrack(Track):
         # FIXME
         #x,y, v, heading, omega = state
         x,y,heading, vf_lf, vs_lf, omega_lf = state
-        #x1 and y1 are the origin values -- need to be changed if origin changes
-        x1 = 0
-        y1 = 0
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
