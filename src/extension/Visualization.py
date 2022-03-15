@@ -24,7 +24,7 @@ class Visualization(Extension):
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
         img = self.img_track.copy()
         for car in self.main.cars:
-            img = self.main.track.drawCar(img, car.states, car.steering)
+            img = self.main.track.drawCar(img, car.states, car.steering, car.throttle)
             self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
@@ -74,8 +74,11 @@ class Visualization(Extension):
         if (self.update_visualization.is_set()):
             img = self.img_track.copy()
             for car in self.main.cars:
-                img = self.main.track.drawCar(img, car.states, car.steering)
+                img = self.main.track.drawCar(img, car.states, car.steering, car.throttle)
                 self.visualization_img = img
+
+            self.drawControl(img, car)
+            #self.drawAcceleration(img, car)
 
     def final(self):
         img = self.img_track.copy()
@@ -88,6 +91,57 @@ class Visualization(Extension):
         #cv2.imwrite(filename,img)
         #print_info(self.prefix()+"saved last frame at " + filename)
 
+    def drawControl(self,img,car):
+        #x1 and y1 are the origin values -- need to be changed if origin changes
+        x1 = 0
+        y1 = 0
+        x,y,heading, vf_lf, vs_lf, omega_lf = car.states
+        steering = car.steering
+        throttle = car.throttle
+        # Add steering bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
+        end_coordinate = int(50 - (steering * 100))              
+        img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
+        img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        
+        # Add Throttle bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        throttle_end = int(50+(72*throttle))
+        img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
+        
+        return img
+
+    def drawAcceleration(self,img,car):
+        #x1 and y1 are the origin values -- need to be changed if origin changes
+        x1 = 0
+        y1 = 0
+        x,y,heading, vf_lf, vs_lf, omega_lf = car.states
+        steering = car.steering
+        throttle = car.throttle
+
+        # Add acceleration bar
+        img = cv2.circle(img, (x1 + 50, y1 + 80), 18, (0, 0, 255), 1)
+        img = cv2.putText(img, 'Acceleration', (x1 + 104, y1 + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        #img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
+        acc_x = ((np.square(vf_lf) - np.square(vs_lf)/(2*x)))
+        acc_y = ((np.square(vf_lf) - np.square(vs_lf)/(2*y)))
+        acc_x_scale = int(acc_x/3)
+        acc_y_scale = int(acc_y/3)
+        direction_x = 0
+        direction_y = 0
+        if (steering == 0):
+            direction_x = (x1 + (50))
+            direction_y = (y1 + (80 + (6 * acc_y_scale)))
+        if (0 < steering):
+            direction_x = (x1 + (50 + (6 * acc_x_scale)))
+            direction_y = (y1 + (80 + (6 * acc_y_scale)))
+        if(steering < 0):
+            direction_x = (x1 + (50 - (6 * acc_x_scale)))
+            direction_y = (y1 + (80 + (6 * acc_y_scale))) 
+
+        img = cv2.circle(img, (direction_x, direction_y), 3, (0, 255, 0), -1)
+        return img
 
 
 

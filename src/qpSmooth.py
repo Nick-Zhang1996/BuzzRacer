@@ -369,7 +369,7 @@ class QpSmooth(RCPTrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        deadzone = 0.087 * 3.0
+        deadzone = 0.087 * 3.5
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:
@@ -834,6 +834,10 @@ class QpSmooth(RCPTrack):
 
         self.convertToSpline()
         self.save()
+
+        file = open('raceline.p', 'wb')
+        pickle.dump(img_track, file)
+        file.close()
 
 
 if __name__ == "__main__":

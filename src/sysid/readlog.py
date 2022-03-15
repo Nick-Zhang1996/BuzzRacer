@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if (len(sys.argv) != 2):
-    print("please specify a filename")
+    #print("please specify a filename")
+    filename = '../../log/2022_2_9_exp/full_state8.p'
+
 else:
     filename = sys.argv[1]
 
@@ -27,6 +29,14 @@ v_sideway = data[:,5]
 omega = data[:,6]
 steering = data[:,7]
 throttle = data[:,8]
-
-plt.plot(x,y)
+plt.plot(throttle)
+plt.plot(v_forward)
 plt.show()
+
+ti = 1312
+tf = 1502
+mean_throttle = np.mean(throttle[ti:tf])
+mean_v = np.mean(v_forward[ti:tf])
+print(mean_v,mean_throttle)
+
+

@@ -10,6 +10,7 @@ class Car:
         self.controller = None
         self.throttle = 0.0
         self.steering = 0.0
+        #x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
         self.states = (0,0,0,0,0,0)
         self.debug_dict = {}
         self.car_interface = None
@@ -35,7 +36,6 @@ class Car:
             self.controller.control()
             #print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
             #print_info(self.states)
-
 
         if (Car.main.slowdown.is_set()):
             self.throttle = 0.0
@@ -81,7 +81,8 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         'max_throttle' : 0.7}
+                         #'optitrack_streaming_id' : 998,
+                         'max_throttle' : 1.0}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -119,42 +120,12 @@ class Car:
 
         # physics properties
         # Defaults for when a specific car instance is not speciied
-        '''
-        car.lr = 45e-3
-        car.lf = 45e-3
-        # front tire cornering stiffness
-        g = 9.81
-        car.m = 0.1667
-        car.Caf = 5*0.25*car.m*g
-        #car.Car = 5*0.25*car.m*g
-        car.Car = car.Caf
-        # CG to front axle
-        car.lf = 0.09-0.036
-        car.lr = 0.036
-        # approximate as a solid box
-        car.Iz = car.m/12.0*(0.1**2+0.1**2)
-        '''
-
-        # ethCarsim 
-        # dimension
-        car.lf = 0.09-0.036
-        car.lr = 0.036
         car.L = 0.09
-        # basic properties
-        car.Iz = 0.00278
+        car.lf = 0.04824
+        car.lr = car.L - car.lf
+
+        car.Iz = 417757e-9
         car.m = 0.1667
-
-        # tire model
-        car.Df = 3.93731
-        car.Dr = 6.23597
-        car.C = 2.80646
-        car.B = 0.51943
-
-        # motor/longitudinal model
-        car.Cm1 = 6.03154
-        car.Cm2 = 0.96769
-        car.Cr = -0.20375
-        car.Cd = 0.00000
 
         Car.cars.append(car)
         Car.car_count += 1

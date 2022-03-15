@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer
+from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -16,6 +16,7 @@ from track import TrackFactory
 from Car import Car
 from controller import StanleyCarController
 from controller import CcmppiCarController
+from controller import MppiCarController
 
 class Main():
     def __init__(self,params={}):
@@ -28,7 +29,8 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -55,7 +57,10 @@ class Main():
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        Logger(self)
+
+        # steering rack tracker
+        #SteeringTracker(self)
 
         for item in self.extensions:
             item.init()
@@ -123,6 +128,7 @@ class Main():
             car.stopStateUpdate(car)
 
 
+
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
@@ -131,4 +137,5 @@ if __name__ == '__main__':
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
+
     print_info("program complete")

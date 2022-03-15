@@ -365,13 +365,14 @@ class RCPTrack(Track):
         
 
     def generateSpeedProfile(self, n_steps=1000):
-        # friction factor
-        mu = 10.0/9.81
         g = 9.81
         self.n_steps = n_steps
+
+        # friction factor
+        mu = 1.1
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:3
+        acc_max_motor = lambda x:3.3
         dec_max_motor = lambda x:4.5
         # generate velocity profile
         # u values for control points
@@ -1146,7 +1147,7 @@ class RCPTrack(Track):
         pts = np.vstack([x_new,y_new]).T
         # for polylines, pts = pts.reshape((-1,1,2))
         pts = pts.reshape((-1,2))
-        pts = pts.astype(np.int)
+        pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
@@ -1753,12 +1754,11 @@ class RCPTrack(Track):
 #  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
 # NOTE: this function modifies img, if you want to recycle base img, send img.copy()
     #def drawCar(self, coord, heading,steering, img):
-    def drawCar(self, img, state, steering):
+    def drawCar(self, img, state, steering, throttle):
         # check if vehicle is outside canvas
         # FIXME
         #x,y, v, heading, omega = state
         x,y,heading, vf_lf, vs_lf, omega_lf = state
-
         coord = (x,y)
         src = self.m2canvas(coord)
         if src is None:
@@ -1769,7 +1769,6 @@ class RCPTrack(Track):
         # no negative impact on code efficiency
         # draw steering angle, orientation as red arrow
         img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
-
         return img
     
     def overlayCar(self, coord, orientation, img=None):

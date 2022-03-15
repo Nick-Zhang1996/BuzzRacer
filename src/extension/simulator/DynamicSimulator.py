@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from extension import Simulator
 
+from sysid.tire import tireCurve
 import numpy as np
 from math import sin,cos,tan,radians,degrees,pi,atan
 import matplotlib.pyplot as plt
@@ -70,14 +71,6 @@ class DynamicSimulator(Simulator):
         lr = car.lr
         L = car.L
 
-        Df = car.Df
-        Dr = car.Dr
-        B = car.B
-        C = car.C
-        Cm1 = car.Cm1
-        Cm2 = car.Cm2
-        Cr = car.Cr
-        Cd = car.Cd
         Iz = car.Iz
         m = car.m
         dt = DynamicSimulator.dt
@@ -91,7 +84,7 @@ class DynamicSimulator(Simulator):
             beta = atan(lr/L*tan(steering))
             norm = lambda a,b:(a**2+b**2)**0.5
             # motor model
-            d_vx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)
+            d_vx = 6.17*(throttle - vx/15.2 -0.333)
             vx = vx + d_vx * dt
             vy = norm(vx,vy)*sin(beta)
             d_omega = 0.0
@@ -106,14 +99,14 @@ class DynamicSimulator(Simulator):
             slip_f = -np.arctan((omega*lf + vy)/vx) + steering
             slip_r = np.arctan((omega*lr - vy)/vx)
 
-            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-
-            # motor model
-            Frx = (( Cm1 - Cm2 * vx) * throttle - Cr - Cd * vx * vx)*m
+            #Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
+            #Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
+            Ffy = tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+            Fry = 1.15*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
 
             # Dynamics
-            d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+            d_vx = 6.17*(throttle - vx/15.2 -0.333)
             d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
             d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
 
@@ -139,8 +132,8 @@ class DynamicSimulator(Simulator):
         #print_ok(self.prefix() + "update")
         for car in self.cars:
             car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
-            print(self.prefix()+str(car.states))
-            print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
+            #print(self.prefix()+str(car.states))
+            #print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
