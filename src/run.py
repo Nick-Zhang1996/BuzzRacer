@@ -57,7 +57,7 @@ class Main():
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        Logger(self)
 
         # steering rack tracker
         #SteeringTracker(self)

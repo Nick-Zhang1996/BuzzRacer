@@ -305,8 +305,6 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // update estimate of closest index on raceline
   *last_index = idx;
 
-  // heading cost
-  //float cost = dist*0.5 + fabsf(fmodf(raceline[idx][2] - heading + PI,2*PI) - PI);
 
   // velocity cost
   // current FORWARD velocity - target velocity at closest ref point
@@ -317,19 +315,16 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // velocity deviation from reference velocity profile
   float dv = vx - raceline[idx][3];
   // control change from last step, penalize to smooth control
-  // TODO should we just sample control change?
-  float du_sqr = 0;
-  for (int i=0; i<CONTROL_DIM; i++){
-    float val = *(u+i) - *(last_u+i);
-    du_sqr += val*val;
-  }
 
   //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
   float cost = 3*dist*dist + 0.3*dv*dv ;
+  // heading cost
+  float temp = fmodf(raceline[idx][2] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  cost += temp*temp*2.5;
   //float cost = dist;
   // additional penalty on negative velocity 
-  if (vx < 0){
-    cost += 0.1;
+  if (vx < 0.05){
+    cost += 0.2;
   }
   return cost;
 }

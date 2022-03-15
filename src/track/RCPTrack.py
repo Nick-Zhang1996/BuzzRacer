@@ -361,13 +361,14 @@ class RCPTrack(Track):
         
 
     def generateSpeedProfile(self, n_steps=1000):
-        # friction factor
-        mu = 10.0/9.81
         g = 9.81
         self.n_steps = n_steps
+
+        # friction factor
+        mu = 1.1
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:3
+        acc_max_motor = lambda x:3.3
         dec_max_motor = lambda x:4.5
         # generate velocity profile
         # u values for control points

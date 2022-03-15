@@ -49,8 +49,8 @@ class MppiCarController(CarController):
         drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
         heading_vec = np.arctan2(drr[1],drr[0])
         vv = self.track.sToV(ss) 
-        vv *= 0.8
-        vv[vv>1.8] = 1.8
+        top_speed = 10
+        vv[vv>top_speed] = top_speed
 
         # parameter, distance along track
         self.ss = ss
@@ -200,6 +200,7 @@ class MppiCarController(CarController):
         # vs: lateral v, left positive
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
+        self.print_info("vf = %.2f"%(vf))
 
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
