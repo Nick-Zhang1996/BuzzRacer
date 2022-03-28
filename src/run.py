@@ -30,7 +30,7 @@ class Main():
 
         Car.reset()
         car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        #car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -57,7 +57,7 @@ class Main():
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        Logger(self)
+        #Logger(self)
 
         # steering rack tracker
         #SteeringTracker(self)
@@ -103,22 +103,30 @@ class Main():
     def update(self,):
         t = self.timer
         # -- Extension update -- 
+        t.s()
         for item in self.extensions:
+            t.s(item.name)
             item.preUpdate()
+            t.e(item.name)
 
         self.new_state_update.wait()
         self.new_state_update.clear()
 
-        t.s()
+        t.s('control')
         for car in self.cars:
             # call controller, send command to car in real experiment
             car.control()
+        t.e('control')
 
         # -- Extension update -- 
+        t.s('update')
         for item in self.extensions:
             item.update()
+        t.e('update')
+        t.s('post')
         for item in self.extensions:
             item.postUpdate()
+        t.e('post')
         t.e()
         
 

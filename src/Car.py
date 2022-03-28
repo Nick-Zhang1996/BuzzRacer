@@ -82,7 +82,8 @@ class Car:
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
                          #'optitrack_streaming_id' : 998,
-                         'max_throttle' : 1.0}
+                         'max_throttle' : 1.0,
+                         'rendering' : 'data/porsche_orange.png'}
 
         lambo_setting = {'wheelbase':98e-3,
                          'max_steer_angle_left':asin(2*98e-3/0.52),
@@ -91,16 +92,18 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
                          'optitrack_streaming_id' : 15,
-                         'max_throttle' : 0.5}
+                         'max_throttle' : 0.5,
+                         'rendering' : 'data/porsche_green.png'}
 
 
         if config_name == "porsche":
-            car_setting = porsche_setting
+            car.params = car_setting = porsche_setting
         elif config_name == "porsche_slow":
             car_setting = porsche_setting
             car_setting['max_throttle'] = 0.7
+            car.params = car_setting
         elif config_name == "lambo":
-            car_setting = lambo_setting
+            car.params = car_setting = lambo_setting
         else:
             print_error("Unrecognized car config")
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
@@ -129,4 +132,5 @@ class Car:
 
         Car.cars.append(car)
         Car.car_count += 1
+
         return car

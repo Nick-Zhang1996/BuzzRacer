@@ -68,7 +68,8 @@ class RCPTrack(Track):
         self.offset_timestamp = []
         self.log_no = 0
         self.debug = {}
-        self.car = cv2.imread('data/image.png',-1)
+        # Moved to Car.py and Visualization.py
+        #self.car = cv2.imread('data/image.png',-1)
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
@@ -1748,53 +1749,7 @@ class RCPTrack(Track):
         y_new = int(self.resolution*rows - y_new)
         return (x_new, y_new)
 
-# draw the vehicle (one dot with two lines) onto a canvas
-# coord: location of the dor, in meter (x,y)
-# heading: heading of the vehicle, radians from x axis, ccw positive
-#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
-# NOTE: this function modifies img, if you want to recycle base img, send img.copy()
-    #def drawCar(self, coord, heading,steering, img):
-    def drawCar(self, img, state, steering, throttle):
-        # check if vehicle is outside canvas
-        # FIXME
-        #x,y, v, heading, omega = state
-        x,y,heading, vf_lf, vs_lf, omega_lf = state
-        coord = (x,y)
-        src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw car -- outside track")
-            return img
-        # overlay vehicle image, orientation as headed
-        img =  self.overlayCar(coord,heading,img=img)
-        # no negative impact on code efficiency
-        # draw steering angle, orientation as red arrow
-        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
-        return img
     
-    def overlayCar(self, coord, orientation, img=None):
-
-        src = self.m2canvas(coord)
-        if (src is None):
-            print("drawArrow err -- point outside canvas")
-            return img
-
-        # image rotation according to heading and steering angles
-        car_img = self.car
-        height, width = car_img.shape[:2]
-        center = (width/2, height/2)
-        scale = 40/height
-        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(orientation), scale=scale)
-        rotated_car = cv2.warpAffine(src=car_img, M=rotate_matrix, dsize=(width, height)) 
-        overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
-        bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        bg_img = Image.alpha_composite(Image.new("RGBA", bg_img.size),bg_img.convert('RGBA'))
-        x, y = (src[0]-width//2), (src[1]-height//2)
-
-        bg_img.paste(overlay_t,(x,y),overlay_t)
-        bg_img = np.array(bg_img,dtype=np.uint8)
-        bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
-        
-        return bg_img
 
     # draw a point on canvas at coord
     def drawPoint(self, img, coord, color = (0,0,0)):

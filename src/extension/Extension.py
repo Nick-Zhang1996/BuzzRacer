@@ -4,6 +4,7 @@ class Extension:
         Extension.main = main
         print_ok(self.prefix() + "in use")
         main.extensions.append(self)
+        self.name = self.__class__.__name__
 
     def prefix(self):
         return "["+self.__class__.__name__+"]: "
