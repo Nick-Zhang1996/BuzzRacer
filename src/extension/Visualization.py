@@ -78,10 +78,13 @@ class Visualization(Extension):
             img = self.img_track.copy()
             for car in self.main.cars:
                 img = self.drawCar(img, car)
-                self.visualization_img = img
+            offset = -10
+            for car in self.main.cars:
+                #img = self.drawAcceleration(img, car, (0,0))
+                img = self.drawControl(img, car, (-10,offset))
+                offset += 60
+            self.visualization_img = img
 
-            self.drawControl(img, car)
-            #self.drawAcceleration(img, car)
 
     def final(self):
         img = self.img_track.copy()
@@ -94,10 +97,12 @@ class Visualization(Extension):
         #cv2.imwrite(filename,img)
         #print_info(self.prefix()+"saved last frame at " + filename)
 
-    def drawControl(self,img,car):
+    def drawControl(self,img,car,coord):
+        # FIXME move static stuff to background since it doesn't change
+
         #x1 and y1 are the origin values -- need to be changed if origin changes
-        x1 = 0
-        y1 = 0
+        x1 = coord[0] + 30
+        y1 = coord[1]
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
         steering = car.steering
         throttle = car.throttle
@@ -112,13 +117,18 @@ class Visualization(Extension):
         img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         throttle_end = int(50+(72*throttle))
         img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
+
+        # draw car illustration
+        x2 = coord[0] + 20
+        y2 = coord[1] + 50
+        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
         
         return img
 
-    def drawAcceleration(self,img,car):
+    def drawAcceleration(self,img,car,coord):
         #x1 and y1 are the origin values -- need to be changed if origin changes
-        x1 = 0
-        y1 = 0
+        x1 = coord[0]
+        y1 = coord[1]
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
         steering = car.steering
         throttle = car.throttle
@@ -161,10 +171,10 @@ class Visualization(Extension):
             #print("Can't draw car -- outside track")
             return img
         # overlay vehicle image, orientation as headed
-        #img =  self.overlayCarRendering(img,car)
+        img =  self.overlayCarRendering(img,car)
 
         # draw vehicle, orientation as black arrow
-        img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+        #img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
         # draw steering angle, orientation as red arrow
         img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         return img
@@ -194,5 +204,31 @@ class Visualization(Extension):
         
         return bg_img
 
+    # overlay Car rendering at specified location in pixel coord, for plotting controls
+    def overlayCarRenderingRaw(self,img, car, src):
+        #x,y,heading, vf_lf, vs_lf, omega_lf = car.states
+        #coord = (x,y)
+        #src = self.main.track.m2canvas(coord)
+        #if (src is None):
+        #    print("overlayCarRendering err -- coordinate outside canvas")
+        #    return img
+
+        # image rotation according to heading and steering angles
+        heading = np.pi/2
+        height, width = car.image.shape[:2]
+        center = (width/2, height/2)
+        scale = 40/height
+        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(heading), scale=scale)
+        rotated_car = cv2.warpAffine(src=car.image, M=rotate_matrix, dsize=(width, height)) 
+        overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
+        bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        bg_img = Image.alpha_composite(Image.new("RGBA", bg_img.size),bg_img.convert('RGBA'))
+        x, y = (src[0]-width//2), (src[1]-height//2)
+
+        bg_img.paste(overlay_t,(x,y),overlay_t)
+        bg_img = np.array(bg_img,dtype=np.uint8)
+        bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
+        
+        return bg_img
 
 
