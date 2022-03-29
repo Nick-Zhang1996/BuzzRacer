@@ -32,23 +32,18 @@ class KinematicSimulator(Simulator):
     # car needs to have .lf, .lr, .L .states (x,y,heading,v_forward,v_sideways,omega)
     def addCar(self,car):
         x,y,heading,v_forward,v_sideways,omega = car.states
-        car.sim_states = np.array([x,y,v_forward,heading])
         return
 
     def update(self): 
         #print_ok("[KinematicSimulator]: update")
         for car in self.cars:
-            car.sim_states = self.advanceDynamics(car.sim_states, (car.throttle, car.steering), car)
-            x,y,v,heading = car.sim_states
-            car.states = (x,y,heading,v,0,0)
-            #print_info(self.prefix()+str(v))
+            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
 
-    #x,y,v,heading = sim_states
     @staticmethod
-    def advanceDynamics(sim_states,control, car):
+    def advanceDynamics(car_states,control, car):
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
@@ -57,7 +52,8 @@ class KinematicSimulator(Simulator):
         throttle = np.clip(throttle, -1.0, 1.0)
         steering = np.clip(throttle, -radians(27), radians(27))
         '''
-        x,y,v,heading = sim_states
+        x,y,heading,v_forward,v_sideway,omega = car_states
+        v = v_forward
         # slow down if car is in collision
         '''
         if (car.in_collision):
@@ -75,12 +71,17 @@ class KinematicSimulator(Simulator):
         else:
             dvdt = throttle
         '''
-        dvdt = (6-v)*(throttle - 0.245)
-        dheadingdt = v/lr*np.sin(beta)
+        #dvdt = (6-v)*(throttle - 0.245)
+        dvdt = 6.17*(throttle - v/15.2 -0.333)
+        omega = dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt
         y += dt * dYdt
         v += dt * dvdt
         heading += dt * dheadingdt
-        return np.array([x,y,v,heading])
+
+        v_forward = v
+        v_sideway = 0
+        car_states = x,y,heading,v_forward,v_sideway,omega
+        return np.array(car_states)
 
