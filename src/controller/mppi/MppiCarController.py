@@ -239,7 +239,7 @@ class MppiCarController(CarController):
         # display expected trajectory
         # 5Hz impact
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
-        expected_trajectory = self.getTrajectory( self.car.states, control )
+        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
         self.plotTrajectory(expected_trajectory)
 
@@ -273,6 +273,7 @@ class MppiCarController(CarController):
         '''
         return True
 
+    '''
     def getTrajectory(self, x0, control):
         trajectory = []
         state = x0
@@ -281,6 +282,7 @@ class MppiCarController(CarController):
             trajectory.append(state)
         return np.array(trajectory)
 
+    # old dynamics
     def advanceDynamics(self, state, control, dt=0.01):
         # constants
         lf = 0.09-0.036
@@ -359,6 +361,7 @@ class MppiCarController(CarController):
             img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
         self.car.main.visualization.visualization_img = img
         return
+    '''
 
     # select min cost control
     def synthesizeControlMin(self, cost_vec, sampled_control):
