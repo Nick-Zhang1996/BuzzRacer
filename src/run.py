@@ -50,7 +50,7 @@ class Main():
         self.visualization = extension.Visualization(self)
         #Optitrack(self)
         self.simulator = DynamicSimulator(self)
-        self.simulator.match_time = True
+        self.simulator.match_time = False
 
         #Gifsaver(self)
 

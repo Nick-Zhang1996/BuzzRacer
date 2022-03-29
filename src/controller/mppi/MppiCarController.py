@@ -350,6 +350,7 @@ class MppiCarController(CarController):
         retval = x,y,heading,vx,vy,omega
         return retval
 
+    # TODO maybe move to Visualization
     def plotTrajectory(self,trajectory):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return

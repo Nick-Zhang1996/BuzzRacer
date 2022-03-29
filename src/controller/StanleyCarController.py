@@ -2,6 +2,8 @@ from common import *
 from math import isnan,pi,degrees,radians
 from controller.CarController import CarController
 from controller.PidController import PidController
+from extension.simulator.KinematicSimulator import KinematicSimulator
+from extension.simulator.DynamicSimulator import DynamicSimulator
 
 class StanleyCarController(CarController):
     def __init__(self, car):
@@ -20,6 +22,46 @@ class StanleyCarController(CarController):
         D = 0.4
         dt = car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
+        KinematicSimulator.dt = self.car.main.dt
+
+        # self-reported prediction of future trajectory
+        # to be used by opponents for collision avoidance
+        self.prediction_horizon = 30
+        self.predicted_traj = []
+
+    def plotTrajectory(self,trajectory):
+        if (not self.car.main.visualization.update_visualization.is_set()):
+            return
+        img = self.car.main.visualization.visualization_img
+        for coord in trajectory:
+            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
+        self.car.main.visualization.visualization_img = img
+        return
+
+    # TODO maybe move this to simulator script
+    def getKinematicTrajectory(self, x0, control):
+        trajectory = []
+        state = x0
+        for i in range(control.shape[0]):
+            state = KinematicSimulator.advanceDynamics( state, control[i], self.car)
+            trajectory.append(state)
+        return np.array(trajectory)
+    def getDynamicTrajectory(self, x0, control):
+        trajectory = []
+        state = x0
+        for i in range(control.shape[0]):
+            state = DynamicSimulator.advanceDynamics( state, control[i], self.car)
+            trajectory.append(state)
+        return np.array(trajectory)
+
+    # predict car's future trajectory over a short horizon
+    def predict(self):
+        # DEBUG plotting
+        control = np.array((self.car.throttle, self.car.steering))
+        control = np.repeat(np.reshape(control,(1,-1)),self.prediction_horizon,0)
+        # kinematic
+        expected_trajectory = self.getKinematicTrajectory( self.car.states, control )
+        #self.plotTrajectory(expected_trajectory)
 
     def control(self):
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
@@ -29,12 +71,13 @@ class StanleyCarController(CarController):
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
-            return True
         else:
             print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
-            return False
+
+        self.predict()
+        return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:

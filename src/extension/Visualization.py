@@ -24,13 +24,19 @@ class Visualization(Extension):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
+
+
         img = self.img_track.copy()
         for car in self.main.cars:
             car.image = cv2.imread(car.params['rendering'],-1)
             img = self.drawCar(img, car)
-            self.visualization_img = img
+
+        # draw static components onto background
+        self.img_track = self.drawControlStaticForAllCars(self.img_track)
+        self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
+
 
     def postInit(self,):
         self.saveBlankImg()
@@ -78,11 +84,7 @@ class Visualization(Extension):
             img = self.img_track.copy()
             for car in self.main.cars:
                 img = self.drawCar(img, car)
-            offset = -10
-            for car in self.main.cars:
-                #img = self.drawAcceleration(img, car, (0,0))
-                img = self.drawControl(img, car, (-10,offset))
-                offset += 60
+            img = self.drawControlForAllCars(img)
             self.visualization_img = img
 
 
@@ -96,6 +98,29 @@ class Visualization(Extension):
         #filename = "./last_frame_" + self.main.algorithm + ".png"
         #cv2.imwrite(filename,img)
         #print_info(self.prefix()+"saved last frame at " + filename)
+
+    def drawControlStaticForAllCars(self,img):
+        offset = -10
+        for car in self.main.cars:
+            img = self.drawControlStatic(img, car, (-10,offset))
+            offset += 60
+        self.img_track = img
+        return img
+
+    def drawControlStatic(self,img,car,coord):
+        # draw car illustration
+        x2 = coord[0] + 20
+        y2 = coord[1] + 50
+        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
+        return img
+
+    def drawControlForAllCars(self,img):
+        offset = -10
+        for car in self.main.cars:
+            #img = self.drawAcceleration(img, car, (0,0))
+            img = self.drawControl(img, car, (-10,offset))
+            offset += 60
+        return img
 
     def drawControl(self,img,car,coord):
         # FIXME move static stuff to background since it doesn't change
@@ -118,10 +143,6 @@ class Visualization(Extension):
         throttle_end = int(50+(72*throttle))
         img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
 
-        # draw car illustration
-        x2 = coord[0] + 20
-        y2 = coord[1] + 50
-        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
         
         return img
 
@@ -171,10 +192,11 @@ class Visualization(Extension):
             #print("Can't draw car -- outside track")
             return img
         # overlay vehicle image, orientation as headed
-        img =  self.overlayCarRendering(img,car)
+        # significant performance impact
+        #img =  self.overlayCarRendering(img,car)
 
         # draw vehicle, orientation as black arrow
-        #img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+        img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
         # draw steering angle, orientation as red arrow
         img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         return img
