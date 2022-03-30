@@ -20,6 +20,7 @@ class MppiCarController(CarController):
         self.m = self.control_dim = 2
         self.samples_count = 4096
         self.horizon = 30
+        assert (self.horizon == self.prediction_horizon)
         self.track = self.car.main.track
         self.dt = 0.02
         self.discretized_raceline_len = 1024
@@ -37,7 +38,6 @@ class MppiCarController(CarController):
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
-
 
         self.prepareDiscretizedRaceline()
         self.createBoundary()
@@ -192,6 +192,21 @@ class MppiCarController(CarController):
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
 
+    def getOpponentStatus(self):
+        opponent_count = 0
+        opponent_traj = []
+        for car in self.main.cars:
+            if not (car is self.car):
+                opponent_count += 1
+                opponent_traj.append(car.controller.predicted_traj)
+        # dim: no_opponents, horizon, states
+        opponent_traj = np.array(opponent_traj)
+        # use only x,y from the states
+        opponent_traj = opponent_traj[:,:,:2]
+        return opponent_count, opponent_traj
+
+
+
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 # Note the difference between control_rate and actual control. Since we sample the time rate of change on control it's a bit confusing
     def control(self):
@@ -211,6 +226,15 @@ class MppiCarController(CarController):
         #cov0 = np.std(random_vals[:,:,0])
         #cov1 = np.std(random_vals[:,:,1])
         #self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
+
+        # prepare opponent info
+        opponent_count, opponent_traj = self.getOpponentStatus()
+        opponent_count = np.int32(opponent_count)
+        if (opponent_count == 0):
+            device_opponent_traj = np.uint64(0)
+        else:
+            device_opponent_traj = self.to_device(opponent_traj)
+
         # evaluate control sequence
         device_ref_control_rate = self.to_device(ref_control_rate)
         device_initial_state = self.to_device(self.car.states)
@@ -226,6 +250,8 @@ class MppiCarController(CarController):
                 drv.Out(costs),
                 drv.Out(sampled_control_rate),
                 #drv.Out(sampled_trajectory),
+                opponent_count,
+                device_opponent_traj,
                 block=self.cuda_block_size,grid=self.cuda_grid_size
                 )
         # sampled trajectory overhead with GPU has 10Hz impact

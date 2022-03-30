@@ -17,6 +17,7 @@ class CarController(PrintObject):
         KinematicSimulator.dt = self.car.main.dt
 
     def init(self):
+        self.predict()
         return
 
     # return control signals

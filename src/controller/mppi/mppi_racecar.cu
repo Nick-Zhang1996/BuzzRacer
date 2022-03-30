@@ -9,6 +9,8 @@
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
+#define OBSTACLE_RADIUS 0.08
+
 #define PARAM_LF 0.04824
 #define PARAM_LR (0.09-0.04824)
 #define PARAM_L 0.09
@@ -65,6 +67,8 @@ __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
+__device__
+float evaluate_collision_cost( float* state, float* opponent_traj);
 __device__
 void forward_dynamics( float* state, float* u);
 __device__
@@ -136,8 +140,11 @@ __global__ void generate_control_noise(){
 // u0: current control to penalize control time rate
 // ref_control: samples*horizon*control_dim
 // out_cost: samples 
+// out_trajectories: output trajectories, samples*horizon*n
+// opponent_count: integer
+// opponent_traj: opponent_count * prediction_horizon * 2(x,y)
 //__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
-__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt){
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -412,4 +419,16 @@ __device__
 float tire_curve( float slip){
   return PARAM_D * sinf( PARAM_C * atanf( PARAM_B * slip) );
 
+}
+
+__device__
+float evaluate_collision_cost( float* state, float* opponent_pos){
+  //float heading = state[4];
+
+  float dx = state[STATE_X]-opponent_pos[0];
+  float dy = state[STATE_Y]-opponent_pos[1];
+
+  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
+
+  return 0.0;
 }
