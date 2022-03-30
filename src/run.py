@@ -20,6 +20,7 @@ from controller import MppiCarController
 
 class Main():
     def __init__(self,params={}):
+        # some comment
         self.timer = execution_timer(True)
         self.dt = 0.01
         self.params = params
