@@ -68,7 +68,7 @@ float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
-float evaluate_collision_cost( float* state, float* opponent_traj);
+float evaluate_collision_cost( float* state, float* opponent_traj,int opponent_id);
 __device__
 void forward_dynamics( float* state, float* u);
 __device__
@@ -190,15 +190,11 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
       u[j] = val;
     }
-    /*
-    if(id==0 && i==0){
-      printf("u-1 = %%.2f\n",last_u[1]*180.0/PI);
-    }
-    */
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
     /*
+    // update output trajectories
     for (int j=0; j<STATE_DIM; j++){
       out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
     }
@@ -211,6 +207,10 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       cost += evaluate_step_cost(x, u, u,&last_index);
     }
     cost += evaluate_boundary_cost(x,&last_index);
+    for (int k=0;k<opponent_count;k++){
+      cost += evaluate_collision_cost(x,in_opponent_traj,k);
+    }
+
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
@@ -355,9 +355,14 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
+    //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
+    cost = 20*(atanf(-(raceline[idx][4]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = max(0.0,cost);
+
   } else {
-    cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
+    //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
+    cost = 20*(atanf(-(raceline[idx][5]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = max(0.0,cost);
   }
 
   return cost;
@@ -421,14 +426,19 @@ float tire_curve( float slip){
 
 }
 
+// opponent_traj: opponent_count * horizon * [x,y]
 __device__
-float evaluate_collision_cost( float* state, float* opponent_pos){
-  //float heading = state[4];
+float evaluate_collision_cost( float* state, float* opponent_traj, int opponent_id){
 
-  float dx = state[STATE_X]-opponent_pos[0];
-  float dy = state[STATE_Y]-opponent_pos[1];
+  float cost = 0.0;
+  for (int i=0; i<HORIZON;i++){
+    float dx = state[STATE_X] - opponent_traj[opponent_id*HORIZON*2 + i*2 + 0];
+    float dy = state[STATE_Y] - opponent_traj[opponent_id*HORIZON*2 + i*2 + 1];
+    float dist = sqrtf(dx*dx + dy*dy) ;
+    // arctan based cost function, ramps to 2.0
+    float temp = atanf(-(dist-0.1)*100)/PI*2+1.0f;
+    cost += max(0.0,temp);
+  }
 
-  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
-
-  return 0.0;
+  return cost;
 }

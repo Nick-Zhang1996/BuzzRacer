@@ -61,6 +61,13 @@ class MppiCarController(CarController):
         # describe track boundary as offset from raceline
         self.createBoundary()
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        '''
+        left = np.array(self.raceline_left_boundary)
+        right = np.array(self.raceline_right_boundary)
+        plt.plot(left+right)
+        plt.show()
+        breakpoint()
+        '''
         return
 
     def createBoundary(self,show=False):
@@ -241,6 +248,7 @@ class MppiCarController(CarController):
         costs = np.zeros((self.samples_count), dtype=np.float32)
         sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
         device_last_control = self.to_device(self.last_control)
+
 
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
         self.cuda_evaluate_control_sequence(

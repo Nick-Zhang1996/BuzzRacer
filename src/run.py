@@ -30,7 +30,9 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        # red porsche
+        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,2.3*0.6, radians(-90), 1.0))
+        # green porsche for visualization for now
         car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 

@@ -9,14 +9,14 @@ class CarController(PrintObject):
         self.main = car.main
         self.track = car.main.track
 
-        # self-reported prediction of future trajectory
-        # to be used by opponents for collision avoidance
-        self.prediction_horizon = 30
         # n*2, n being prediction horizon
+        self.prediction_horizon = 30
         self.predicted_traj = []
         KinematicSimulator.dt = self.car.main.dt
 
     def init(self):
+        # self-reported prediction of future trajectory
+        # to be used by opponents for collision avoidance
         self.predict()
         return
 
