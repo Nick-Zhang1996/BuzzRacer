@@ -8,7 +8,9 @@ import cv2
 #filename = "log.txt"
 #filename = "sat_fine_grid.txt"
 #filename = "combined.txt"
-filename = "more_combined.txt"
+#filename = "more_combined.txt"
+#filename = "fixed_fine_grid_search.txt"
+filename = "very_fine_grid_search.txt"
 
 track = TrackFactory(name='full')
 def plotTraj(track, filename, img, color, text):

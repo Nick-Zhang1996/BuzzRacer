@@ -5,6 +5,7 @@ from Extension import Extension
 class CollisionChecker(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
+        self.collision_timesteps_count = [0] * len(self.main.cars)
         self.collision_count = [0] * len(self.main.cars)
         self.cumsum_collision_by_lap_vec = [[] * len(self.main.cars)]
 
@@ -12,7 +13,9 @@ class CollisionChecker(Extension):
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
             if (car.controller.isInObstacle()):
-                self.collision_count[i] += 1
+                self.collision_timesteps_count[i] += 1
+                if (car.in_collision == False):
+                    self.collision_count[i] += 1
                 car.in_collision = True
                 #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
             else:
@@ -27,5 +30,6 @@ class CollisionChecker(Extension):
         for i in range(len(self.main.cars)):
             print_ok(self.prefix(), "car %d, total collision = %d"%(i,self.collision_count[i]))
             self.main.cars[i].debug_dict.update({'collision_vec':self.cumsum_collision_by_lap_vec[i]})
+        self.main.car_total_collision_timesteps = self.collision_timesteps_count
         self.main.car_total_collisions = self.collision_count
 

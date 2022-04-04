@@ -166,7 +166,7 @@ if __name__ == '__main__':
                 if (alfa in old_alfas and beta in old_betas):
                     continue
                 #for algorithm in ['mppi-same-injected','ccmppi']:
-                for algorithm in ['ccmppi']:
+                for algorithm in ['mppi-same-injected']:
                     samples = 4096
                     params = {'samples':samples, 'algorithm':algorithm,'alfa':alfa,'beta':beta}
 
@@ -177,6 +177,7 @@ if __name__ == '__main__':
                     print_info("-------------- start one experiment ------------")
                     print_info("experiment no.%d, algorithm: %s, samples: %d"%(experiment_count, algorithm, samples))
                     experiment = Main(params)
+                    experiment.algorithm = algorithm
                     experiment.run()
 
                     try:
@@ -184,6 +185,7 @@ if __name__ == '__main__':
                         laps = experiment.car_total_laps[0]
                         laptime_stddev = experiment.car_laptime_stddev[0]
                         collisions = experiment.car_total_collisions[0]
+                        collision_timesteps = experiment.car_total_collision_timesteps[0]
                         control_effort = experiment.performance_tracker.mean_control_effort
                         terminal_cov = experiment.performance_tracker.terminal_cov
                     except (IndexError,AttributeError,IndexError) as e:
@@ -194,7 +196,7 @@ if __name__ == '__main__':
                         control_effort = -1
                         terminal_cov = -1
                         print_warning(" bad experiment "+str(e))
-                    text = "%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f, %.2f"%( algorithm, samples, laps, laptime, collisions,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),alfa,beta)
+                    text = "%25s, %d, %d, %.4f, %d,%d, %.5f, %.5f, %.5f, %d, %s, %.2f, %.2f"%( algorithm, samples, laps, laptime, collisions,collision_timesteps,control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered),alfa,beta)
                     print_info(text)
                     with open(log_filename,'a') as f:
                         f.write(text +"\n")

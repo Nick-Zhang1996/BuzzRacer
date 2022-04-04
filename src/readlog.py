@@ -1,8 +1,7 @@
 # analyze csv log
 import numpy as np
 import matplotlib.pyplot as plt
-filename = "log.txt"
-#filename = "20laps.txt"
+filename = "20laps.txt"
 
 mppi = []
 ccmppi = []
