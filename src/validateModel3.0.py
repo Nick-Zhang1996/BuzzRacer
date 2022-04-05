@@ -29,7 +29,7 @@ saveGif = True
 gifs = []
 
 if (len(sys.argv) != 2):
-    filename = "/home/caleb/Documents/GitHub/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state1.p"
+    filename = "/home/caleb/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state1.p"
     print_info("using %s" % (filename))
     # print_error("Specify a log to load")
 # else:

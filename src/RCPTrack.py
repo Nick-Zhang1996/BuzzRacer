@@ -634,7 +634,7 @@ class RCPtrack(Track):
 
     def load(self,filename=None):
         if filename is None:
-            filename = "/home/caleb/Documents/GitHub/RC-VIP/src/raceline.p"
+            filename = "/home/caleb/RC-VIP/src/raceline.p"
             # TODO make this path not absolute
 
         try:
@@ -1316,12 +1316,12 @@ class RCPtrack(Track):
         b = abc[1]
         c = abc[2]
         d = abc[3]
-        fun = lambda x : a*x*x*x + b*x*x + c*x + d
+        fun = lambda x: a*x*x*x + b*x*x + c*x + d
         fit = minimize(fun, x0=seq, method='L-BFGS-B', bounds=((seq-0.6,seq+0.6),))
         min_fun_x = fit.x[0]
         self.last_u = min_fun_x%self.track_length_grid
 
-        min_fun_val = fit.fun[0]
+        min_fun_val = fit.fun  # FIXME indexing at 0 was causing error, trying this
         # find min val
         #x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
         #if (seq-0.6<x<seq+0.6):
