@@ -1,4 +1,0 @@
-# algorithm,            samples, valid_laps, laptime_mean(cov),  per lap collision, mean_control_effort, terminal_cov(position)
-mppi-same-injected,      4096,   89,            4.1809(0.3404), 4.47, 0.00094, 0.06561
-mppi-same-terminal-cov,  4096,   100,           6.2584(0.1860), 10.38, 0.00095, 0.01319
-ccmppi,                  4096,   62,           4.0248(0.3858), 2.71, 0.00108, 0.03383
