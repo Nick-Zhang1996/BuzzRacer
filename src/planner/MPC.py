@@ -283,13 +283,15 @@ class MPC:
         # assemble constrains
         # u_k+1 - uk
         # NOTE this can only handle 1d
+        '''
         G1 = np.hstack([-np.eye(p*m-1),np.zeros([p*m-1,1])]) \
                 + np.hstack([np.zeros([p*m-1,1]),np.eye(p*m-1)])
         h1 = np.ones([m*p-1,1]) * du_max
+        '''
 
         # u_max
-        G2 = np.eye(p*m)
-        h2 = np.ones([m*p,1]) * u_max
+        #G2 = np.eye(p*m)
+        #h2 = np.ones([m*p,1]) * u_max
         G3 = - np.eye(p*m)
         h3 = np.ones([m*p,1]) * u_max
 
@@ -303,16 +305,18 @@ class MPC:
         h5 = -x_min + Ex0
         '''
 
-        G_qp = np.vstack([G1,G2,G3])
-        h_qp = np.vstack([h1,h2,h3])
+        #G_qp = np.vstack([G1,G2,G3])
+        #h_qp = np.vstack([h1,h2,h3])
+        #G_qp = np.vstack([G3])
+        #h_qp = np.vstack([h3])
 
         self.Ex0 = Ex0
         self.F = F
 
         self.P = P_qp
         self.q = q_qp
-        self.G = G_qp
-        self.h = h_qp
+        #self.G = G_qp
+        #self.h = h_qp
         return
 
     # for debug interest, plot the expected trajectory if u is faithfully followed

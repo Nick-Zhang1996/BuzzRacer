@@ -39,10 +39,12 @@ class Planner:
         xref = [7,-0.15,0,0]
 
         (u_vec, state_traj) = self.solve(x0,xref)
+        '''
         print("u_vec")
         print(u_vec)
         print("state_traj")
         print(state_traj)
+        '''
         print("err = %.2f "%(np.linalg.norm(np.array(xref)-state_traj[-1,:])))
 
 
@@ -72,7 +74,7 @@ class Planner:
         A[1,3] = dt
         B = np.array([[0.5*dt**2,0],[0,0.5*dt**2],[dt,0],[0,dt]])
         P = np.diag([1,1,1,1])
-        Q = np.eye(m)*0.0001
+        Q = np.eye(m)*0.5
 
         t = time()
         x0 = np.array(x0).T.reshape(-1,1)
@@ -85,6 +87,7 @@ class Planner:
         self.constructStateLimits(mpc)
         mpc.solve()
         dt = time()-t
+        print(mpc.h.shape)
         print("freq = %.2fHz"%(1/dt))
         # state_traj in curvilinear frame
         state_traj = mpc.F @ mpc.u + mpc.Ex0
@@ -112,8 +115,15 @@ class Planner:
         G2 = -M @ mpc.F
         h2 = N + M @ mpc.Ex0
 
-        mpc.G = np.vstack([mpc.G,G1,G2])
-        mpc.h = np.vstack([mpc.h,h1,h2])
+        #mpc.G = np.vstack([mpc.G,G1,G2])
+        #mpc.h = np.vstack([mpc.h,h1,h2])
+        # NOTEtesting
+        G1 = G1[::10,:]
+        h1 = h1[::10,:]
+        G2 = G2[::10,:]
+        h2 = h2[::10,:]
+        mpc.G = np.vstack([G1,G2])
+        mpc.h = np.vstack([h1,h2])
         return
 
 
