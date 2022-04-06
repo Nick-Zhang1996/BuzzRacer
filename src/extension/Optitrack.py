@@ -29,6 +29,7 @@ class Optitrack(Extension):
 
     def init(self):
         self.vi = _Optitrack(self)
+        self.main.vi = self.vi
         for car in self.main.cars:
             car.internal_id = self.vi.getInternalId(car.optitrack_id)
             print_ok("[Optitrack]: Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))
@@ -77,6 +78,7 @@ class _Optitrack:
         self.base = base
         self.newState = Event()
         self.enableKF = Event()
+        self.callback = self.emptyCallback
         if enableKF:
             self.action = (0,0)
             self.kf = []
@@ -127,6 +129,9 @@ class _Optitrack:
 
     def __del__(self):
         self.streamingClient.requestQuit()
+
+    def emptyCallback(self,*args):
+        pass
 
     def quit(self):
         self.streamingClient.requestQuit()
@@ -235,6 +240,7 @@ class _Optitrack:
         #(kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.getKFstate(i)
         #print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         #print("\n")
+        self.callback(optitrack_id, position, rotation)
         return
     
 
@@ -283,6 +289,7 @@ class _Optitrack:
 # test functionality
 if __name__ == '__main__':
     op = _Optitrack(None)
+    print("obj count = %d"%(op.obj_count))
     while True:
         for i in range(op.obj_count):
             op_id = op.getOptitrackId(i)

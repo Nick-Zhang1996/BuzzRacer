@@ -36,8 +36,10 @@ class NatNetClient:
     def __init__( self ):
         self.newFrameListener = None
         self.rigidBodyListener = None
+        self.labeledMarkerListener = None
         self.flag_quit = Event()
         self.child_threads = []
+        self.unlabeledMarkersPos = []
         # Change this value to the IP address of the NatNet server.
         self.serverIPAddress = "192.168.0.100" 
 
@@ -217,11 +219,13 @@ class NatNetClient:
         unlabeledMarkersCount = int.from_bytes( data[offset:offset+4], byteorder='little' )
         offset += 4
         trace( "Unlabeled Markers Count:", unlabeledMarkersCount )
+        # NOTE: this is markers NOT associated with any rigid body
 
         for i in range( 0, unlabeledMarkersCount ):
             pos = Vector3.unpack( data[offset:offset+12] )
             offset += 12
             trace( "\tMarker", i, ":", pos[0],",", pos[1],",", pos[2] )
+
 
         # Rigid body count (4 bytes)
         rigidBodyCount = int.from_bytes( data[offset:offset+4], byteorder='little' )
@@ -242,10 +246,12 @@ class NatNetClient:
 
         # Labeled markers (Version 2.3 and later)
         labeledMarkerCount = 0
+        self.labeledMarkersPos = []
         if( ( self.__natNetStreamVersion[0] == 2 and self.__natNetStreamVersion[1] > 3 ) or self.__natNetStreamVersion[0] > 2 ):
             labeledMarkerCount = int.from_bytes( data[offset:offset+4], byteorder='little' )
             offset += 4
             trace( "Labeled Marker Count:", labeledMarkerCount )
+            # NOTE: this is markers NOT associated with any rigid body
             for i in range( 0, labeledMarkerCount ):
                 id = int.from_bytes( data[offset:offset+4], byteorder='little' )
                 offset += 4
@@ -253,6 +259,9 @@ class NatNetClient:
                 offset += 12
                 size = FloatValue.unpack( data[offset:offset+4] )
                 offset += 4
+                self.labeledMarkersPos.append(pos)
+                if (self.labeledMarkerListener is not None):
+                    self.labeledMarkerListener(self.labeledMarkersPos)
 
                 # Version 2.6 and later
                 if( ( self.__natNetStreamVersion[0] == 2 and self.__natNetStreamVersion[1] >= 6 ) or self.__natNetStreamVersion[0] > 2 or major == 0 ):

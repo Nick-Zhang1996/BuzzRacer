@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer
+from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -16,6 +16,7 @@ from track import TrackFactory
 from Car import Car
 from controller import StanleyCarController
 from controller import CcmppiCarController
+from controller import MppiCarController
 
 class Main():
     def __init__(self,params={}):
@@ -28,7 +29,8 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
+        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -48,7 +50,7 @@ class Main():
         self.visualization = extension.Visualization(self)
         #Optitrack(self)
         self.simulator = DynamicSimulator(self)
-        self.simulator.match_time = True
+        self.simulator.match_time = False
 
         #Gifsaver(self)
 
@@ -56,6 +58,9 @@ class Main():
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
         #Logger(self)
+
+        # steering rack tracker
+        #SteeringTracker(self)
 
         for item in self.extensions:
             item.init()
@@ -69,7 +74,7 @@ class Main():
     # run experiment until user press q in visualization window
     def run(self):
         print_info("running ... press q to quit")
-        while not self.exit_request.isSet():
+        while not self.exit_request.is_set():
             ts = time()
             self.update()
         # exit point
@@ -98,22 +103,30 @@ class Main():
     def update(self,):
         t = self.timer
         # -- Extension update -- 
+        t.s()
         for item in self.extensions:
+            t.s(item.name)
             item.preUpdate()
+            t.e(item.name)
 
         self.new_state_update.wait()
         self.new_state_update.clear()
 
-        t.s()
+        t.s('control')
         for car in self.cars:
             # call controller, send command to car in real experiment
             car.control()
+        t.e('control')
 
         # -- Extension update -- 
+        t.s('update')
         for item in self.extensions:
             item.update()
+        t.e('update')
+        t.s('post')
         for item in self.extensions:
             item.postUpdate()
+        t.e('post')
         t.e()
         
 
@@ -121,6 +134,7 @@ class Main():
     def stop(self,):
         for car in self.cars:
             car.stopStateUpdate(car)
+
 
 
 if __name__ == '__main__':
@@ -131,4 +145,5 @@ if __name__ == '__main__':
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
+
     print_info("program complete")

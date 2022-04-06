@@ -14,6 +14,9 @@
 # 1 enable real time tuning of parameters
 # runfile
 
+from calendar import c
+from os import O_EXCL
+from re import X
 import numpy as np
 import os.path
 from numpy import isclose
@@ -38,7 +41,7 @@ sim_omega_vec = []
 sim_log_vec = {}
 
 class Node:
-    def __init__(self,previous=None,entrydir=None):
+    def __init__(self, previous=None,entrydir=None):
         # entry direction
         self.entry = entrydir
         # previous node
@@ -65,6 +68,8 @@ class RCPTrack(Track):
         self.offset_timestamp = []
         self.log_no = 0
         self.debug = {}
+        # Moved to Car.py and Visualization.py
+        #self.car = cv2.imread('data/image.png',-1)
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
@@ -361,13 +366,14 @@ class RCPTrack(Track):
         
 
     def generateSpeedProfile(self, n_steps=1000):
-        # friction factor
-        mu = 10.0/9.81
         g = 9.81
         self.n_steps = n_steps
+
+        # friction factor
+        mu = 1.1
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:3
+        acc_max_motor = lambda x:3.3
         dec_max_motor = lambda x:4.5
         # generate velocity profile
         # u values for control points
@@ -760,9 +766,9 @@ class RCPTrack(Track):
     def checkTrackBoundary(self,coord):
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
-        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
-        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
-        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(int)
 
         # e.g. 'WE','SE'
         grid_type = self.track[nondim[0]][nondim[1]]
@@ -807,9 +813,9 @@ class RCPTrack(Track):
         heading = (heading + np.pi)%(2*np.pi) - np.pi
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
-        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
-        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
-        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(int)
 
         # e.g. 'WE','SE'
         grid_type = self.track[nondim[0]][nondim[1]]
@@ -1088,7 +1094,7 @@ class RCPTrack(Track):
         pts = np.vstack([x_new,y_new]).T
         # for polylines, pts = pts.reshape((-1,1,2))
         pts = pts.reshape((-1,2))
-        pts = pts.astype(np.int)
+        pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
@@ -1142,7 +1148,7 @@ class RCPTrack(Track):
         pts = np.vstack([x_new,y_new]).T
         # for polylines, pts = pts.reshape((-1,1,2))
         pts = pts.reshape((-1,2))
-        pts = pts.astype(np.int)
+        pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
@@ -1246,7 +1252,7 @@ class RCPTrack(Track):
         heading = state[2]
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
-        nondim= np.array((coord/self.scale)//1,dtype=np.int)
+        nondim= np.array((coord/self.scale)//1,dtype=int)
 
         # distance squared, not need to find distance here
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
@@ -1319,7 +1325,7 @@ class RCPTrack(Track):
         min_fun_x = fit.x[0]
         self.last_u = min_fun_x%self.track_length_grid
 
-        min_fun_val = fit.fun[0]
+        min_fun_val = np.float(fit.fun)
         # find min val
         #x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
         #if (seq-0.6<x<seq+0.6):
@@ -1743,30 +1749,7 @@ class RCPTrack(Track):
         y_new = int(self.resolution*rows - y_new)
         return (x_new, y_new)
 
-# draw the vehicle (one dot with two lines) onto a canvas
-# coord: location of the dor, in meter (x,y)
-# heading: heading of the vehicle, radians from x axis, ccw positive
-#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
-# NOTE: this function modifies img, if you want to recycle base img, send img.copy()
-    #def drawCar(self, coord, heading,steering, img):
-    def drawCar(self, img, state, steering):
-        # check if vehicle is outside canvas
-        # FIXME
-        #x,y, v, heading, omega = state
-        x,y,heading, vf_lf, vs_lf, omega_lf = state
-
-        coord = (x,y)
-        src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw car -- outside track")
-            return img
-        # draw vehicle, orientation as black arrow
-        img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
-
-        # draw steering angle, orientation as red arrow
-        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
-
-        return img
+    
 
     # draw a point on canvas at coord
     def drawPoint(self, img, coord, color = (0,0,0)):

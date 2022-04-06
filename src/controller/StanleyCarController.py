@@ -29,12 +29,13 @@ class StanleyCarController(CarController):
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
-            return True
         else:
             print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
-            return False
+
+        self.predict()
+        return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
 # input:
@@ -70,7 +71,7 @@ class StanleyCarController(CarController):
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        v_target = min(v_target*0.8, 2.5)
+        v_target = min(v_target*0.8, 2.2)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})

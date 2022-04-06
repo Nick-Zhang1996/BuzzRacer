@@ -2,6 +2,7 @@
 import numpy as np
 from common import *
 from extension.Extension import Extension
+from datetime import date
 
 import os.path
 from time import time
@@ -22,7 +23,20 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        logFolder = "../log/jan12/"
+        #logFolder = "../log/jan12/"
+
+        # create a folder using date and type of experiment
+        today = date.today()
+        try: 
+            self.main.simulator
+            suffix = 'sim'
+        except AttributeError:
+            suffix = 'exp'
+        logFolder = '../log/' + '%d_%d_%d_'%(today.year,today.month,today.day) + suffix + '/'
+        
+
+        if not os.path.exists(logFolder):
+            os.makedirs(logFolder)
         logPrefix = "full_state"
         logSuffix = ".p"
         no = 1
@@ -45,7 +59,7 @@ class Logger(Extension):
             car = self.main.cars[i]
             (x,y,theta,v_forward,v_sideway,omega) = car.states
 
-            # (x,y,theta,vforward,vsideway=0,omega)
+            # (time, x,y,theta,vforward,vsideway=0,omega)
             log_entry.append([time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle])
 
         self.full_state_log.append(log_entry)
