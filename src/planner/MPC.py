@@ -240,7 +240,7 @@ class MPC:
     # u_max max|uk|
     # P is for a single state vector, it will be broadcasted automatically
     # NOTE currently for single input only
-    def convertLtiPlanner(self,A,B,P,Q,xref,x0,p,du_max,u_max):
+    def convertLtiPlanner(self,A,B,P,Q,xref,x0,p,u_max=None,du_max=None):
         p = self.p
         n = self.n
         m = self.m
@@ -283,40 +283,49 @@ class MPC:
         # assemble constrains
         # u_k+1 - uk
         # NOTE this can only handle 1d
-        '''
-        G1 = np.hstack([-np.eye(p*m-1),np.zeros([p*m-1,1])]) \
-                + np.hstack([np.zeros([p*m-1,1]),np.eye(p*m-1)])
-        h1 = np.ones([m*p-1,1]) * du_max
-        '''
+        G_vec = []
+        h_vec = []
 
-        # u_max
-        #G2 = np.eye(p*m)
-        #h2 = np.ones([m*p,1]) * u_max
-        G3 = - np.eye(p*m)
-        h3 = np.ones([m*p,1]) * u_max
+        if (not du_max is None):
+            G0 = np.hstack([-np.eye((p-1)*m),np.zeros([(p-1)*m,m])]) \
+                    + np.hstack([np.zeros([(p-1)*m,m]),np.eye((p-1)*m)])
+            h0 = np.kron(np.ones([(p-1),1]),du_max)
 
-        # x_limit
-        '''
-        x_max = x_limit_vec[:,:,1].flatten()
-        G4 = F
-        h4 = x_max - Ex0
-        x_min = x_limit_vec[:,:,0].flatten()
-        G5 = -F
-        h5 = -x_min + Ex0
-        '''
+            #G1 = np.hstack([np.eye((p-1)*m),np.zeros([(p-1)*m,m])]) \
+            #        + np.hstack([np.zeros([(p-1)*m,m]),-np.eye((p-1)*m)])
+            #h1 = np.ones([(p-1),1]) * du_max
+            G1 = -G0
+            h1 = h0
+            G_vec.append(G0)
+            G_vec.append(G1)
+            h_vec.append(h0)
+            h_vec.append(h1)
 
-        #G_qp = np.vstack([G1,G2,G3])
-        #h_qp = np.vstack([h1,h2,h3])
-        #G_qp = np.vstack([G3])
-        #h_qp = np.vstack([h3])
+        if (not u_max is None):
+            # u_max
+            G2 = np.eye(p*m)
+            h2 = np.kron(np.ones([p,1]),u_max)
+            G3 = - np.eye(p*m)
+            h3 = np.kron(np.ones([p,1]),u_max)
+            G_vec.append(G2)
+            G_vec.append(G3)
+            h_vec.append(h2)
+            h_vec.append(h3)
+
+        if (len(G_vec)>0):
+            G_qp = np.vstack(G_vec)
+            h_qp = np.vstack(h_vec)
+        else:
+            G_qp = None
+            h_qp = None
 
         self.Ex0 = Ex0
         self.F = F
 
         self.P = P_qp
         self.q = q_qp
-        #self.G = G_qp
-        #self.h = h_qp
+        self.G = G_qp
+        self.h = h_qp
         return
 
     # for debug interest, plot the expected trajectory if u is faithfully followed
@@ -335,8 +344,6 @@ class MPC:
     def solve(self):
         P_qp = cvxopt.matrix(self.P)
         q_qp = cvxopt.matrix(self.q)
-        G = cvxopt.matrix(self.G)
-        h = cvxopt.matrix(self.h)
 
         '''
         if (self.last_u is None):
@@ -347,7 +354,13 @@ class MPC:
         # not much difference
         guess = None
         #https://cvxopt.org/userguide/coneprog.html#cvxopt.solvers.conelp
-        sol=cvxopt.solvers.qp(P_qp,q_qp,G,h,initval=guess)
+        if (self.G is None):
+            sol=cvxopt.solvers.qp(P_qp,q_qp)
+        else:
+            G = cvxopt.matrix(self.G)
+            h = cvxopt.matrix(self.h)
+            #sol=cvxopt.solvers.qp(P_qp,q_qp,G,h,initval=guess)
+            sol=cvxopt.solvers.qp(P_qp,q_qp,G,h)
         #print(sol['status'])
         # DEBUG
         self.u = np.array(sol['x']) 
