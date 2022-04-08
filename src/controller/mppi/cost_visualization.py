@@ -4,7 +4,7 @@ import numpy as np
 
 # car-to-car collision cost
 x = np.linspace(-0.30,0.30)
-y = np.arctan(-(x-0.10)*100)/np.pi*2 + 1
+y = (np.arctan(-(x-0.1)*100)/np.pi*2 + 1)*3
 plt.plot(x*1e2,y)
 plt.plot([x[0]*1e2,x[-1]*1e2],[0,0])
 plt.xlabel('distance-to-opponent')
@@ -29,9 +29,9 @@ y = 20*(np.arctan(-(0.25-(np.abs(x)+0.05))*100)/np.pi*2+1.0)
 y[y<0] = 0
 # car cost
 car_pos = 0.0
-y2 = (np.arctan(-(np.abs(x-car_pos)-0.10)*100)/np.pi*2 + 1)
+y2 = (np.arctan(-(np.abs(x-car_pos)-0.1)*100)/np.pi*2 + 1)*3
 y2[y2<0] = 0
-y = y+y2
+plt.plot(x*1e2,y+y2)
 plt.plot(x*1e2,y)
 plt.title('cost map on occupied track')
 plt.xlabel('offset-from-centerline(cm)')

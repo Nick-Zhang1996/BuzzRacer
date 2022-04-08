@@ -92,7 +92,7 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
                          'optitrack_streaming_id' : 15,
-                         'max_throttle' : 0.5,
+                         'max_throttle' : 1.0,
                          'rendering' : 'data/porsche_green.png'}
 
 

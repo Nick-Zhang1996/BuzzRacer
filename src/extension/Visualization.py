@@ -64,6 +64,7 @@ class Visualization(Extension):
             cv2.imshow('experiment',self.visualization_img)
 
             k = cv2.waitKey(1) & 0xFF
+            # q for quit
             if k == ord('q'):
                 # first time q is presed, slow down
                 if not self.main.slowdown.isSet():
@@ -73,6 +74,15 @@ class Visualization(Extension):
                 else:
                     # second time, shut down
                     self.main.exit_request.set()
+            # p for pause
+            elif k == ord('p'):
+                self.print_info("Paused")
+                input("press Enter to continue")
+            # s for snapshot
+            elif k == ord('s'):
+                self.print_info("Requesting snapshot")
+                self.main.snapshot.takeSnapshot()
+
 
     def preUpdate(self,):
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
@@ -198,7 +208,7 @@ class Visualization(Extension):
         # draw vehicle, orientation as black arrow
         #img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
         # draw steering angle, orientation as red arrow
-        img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+        #img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         return img
     
     def overlayCarRendering(self,img, car):

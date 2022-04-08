@@ -208,8 +208,9 @@ class MppiCarController(CarController):
                 opponent_traj.append(car.controller.predicted_traj)
         # dim: no_opponents, horizon, states
         opponent_traj = np.array(opponent_traj)
-        # use only x,y from the states
-        opponent_traj = opponent_traj[:,:,:2]
+        if (opponent_count > 0):
+            # use only x,y from the states
+            opponent_traj = opponent_traj[:,:,:2]
         return opponent_count, opponent_traj
 
 
@@ -270,12 +271,14 @@ class MppiCarController(CarController):
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
+        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
         # display expected trajectory
         # 5Hz impact
-        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
+        '''
         expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
         self.plotTrajectory(expected_trajectory)
+        '''
 
         #self.last_ref_control = control.copy()
         self.last_ref_control = np.zeros_like(control)

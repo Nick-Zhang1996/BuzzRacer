@@ -7,7 +7,7 @@ from time import time,sleep
 # Extensions
 import extension
 from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer,Optitrack,Logger
+from extension import Gifsaver, Laptimer,Optitrack,Logger,SnapshotSaver
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
 from util.timeUtil import execution_timer
@@ -31,9 +31,9 @@ class Main():
 
         Car.reset()
         # red porsche
-        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,2.3*0.6, radians(-90), 1.0))
+        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,3.3*0.6, radians(-90), 1.0))
         # green porsche for visualization for now
-        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.0*0.6, radians(-90), 1.0))
         #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -56,6 +56,7 @@ class Main():
         self.simulator.match_time = False
 
         #Gifsaver(self)
+        self.snapshot = SnapshotSaver(self)
 
         # Laptimer
         Laptimer(self)

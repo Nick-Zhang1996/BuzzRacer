@@ -33,8 +33,7 @@ class StanleyCarController(CarController):
             print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
-
-        self.predict()
+        #self.predict()
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -71,7 +70,9 @@ class StanleyCarController(CarController):
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        v_target = min(v_target*0.8, 2.2)
+        # for experiments
+        #v_target = min(v_target*0.8, 2.2)
+        v_target = min(v_target, 2.2)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})

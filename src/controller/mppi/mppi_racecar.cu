@@ -9,7 +9,7 @@
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
-#define OBSTACLE_RADIUS 0.08
+#define OBSTACLE_RADIUS 0.1
 
 #define PARAM_LF 0.04824
 #define PARAM_LR (0.09-0.04824)
@@ -436,7 +436,7 @@ float evaluate_collision_cost( float* state, float* opponent_traj, int opponent_
     float dy = state[STATE_Y] - opponent_traj[opponent_id*HORIZON*2 + i*2 + 1];
     float dist = sqrtf(dx*dx + dy*dy) ;
     // arctan based cost function, ramps to 2.0
-    float temp = atanf(-(dist-0.1)*100)/PI*2+1.0f;
+    float temp = 3*(atanf(-(dist-OBSTACLE_RADIUS)*100)/PI*2+1.0f);
     cost += max(0.0,temp);
   }
 
