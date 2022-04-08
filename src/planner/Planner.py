@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from MPC import MPC
 from time import time
+from math import floor
+from itertools import product
 
 class Planner:
     def __init__(self):
@@ -32,47 +34,58 @@ class Planner:
 
         self.calcArcLen(self.ref_path)
 
-    def demoSingleIntegrator(self):
+    def demoSingleControl(self):
         # state x:[s,n]
         # u: [us=ds,un=dn] first derivative of s and n
-        self.n = n = 2
-        self.m = m = 2
+        self.n = n = 3
+        self.m = m = 1
         # p: prediction horizon
         self.p = p = horizon = 50
+        self.opponent_length = 0.17*2
+        self.opponent_width = 0.08*2
+
+        # m/s
+        ds = 1.2
+        x0 = [1,0.15,ds]
+        xref = [7,-0.15,ds]
+        # opponents, static, [s,n]
+        opponent_state_vec = [[3,0],[5,-0.1]]
 
         self.genPath()
-
-        x0 = [1,0.15]
-        xref = [7,-0.15]
-
-        (u_vec, state_traj) = self.solveSingleIntegrator(x0,xref)
-        print("err = %.2f "%(np.linalg.norm(np.array(xref)-state_traj[-1,:])))
+        sols = self.solveSingleControl(x0,xref,opponent_state_vec)
 
         self.plotTrack()
         # initial state
         self.plotCar(x0)
         # target state
         self.plotCar(xref)
-        self.plotStateTraj(state_traj)
+        for (u_vec, state_traj) in sols:
+            self.plotStateTraj(state_traj)
+        for opponent in opponent_state_vec:
+            self.plotOpponent(opponent)
         plt.axis('equal')
         plt.show()
+        breakpoint()
 
 
-    def solveSingleIntegrator(self,x0,xref):
+    def solveSingleControl(self,x0,xref,opponent_state):
         mpc = MPC()
+        self.mpc = mpc
         n = self.n
         m = self.m
         p = self.p
         # setup mpc 
         mpc.setup(n,m,n,p)
+        dt = self.dt = 0.1
         A = np.eye(n)
-        dt = 0.1
-        B = np.eye(2)*dt
-        P = np.diag([1,1])
+        A[0,2] = dt
+        B = np.array([[0,1,0]]).T*dt
+        P = np.diag([1,1,0])
         Q = np.eye(m)*5.0
 
         t = time()
         x0 = np.array(x0).T.reshape(-1,1)
+        self.x0 = x0
         xref = np.array(xref).T.reshape(-1,1)
         xref_vec = xref.repeat(p,1).T.reshape(p,n,1)
         #du_max = np.array([[1,1]]).T
@@ -81,16 +94,31 @@ class Planner:
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,p,u_max,du_max)
         # add track boundary constraints
-        self.constructStateLimits(mpc)
-        mpc.solve()
-        dt = time()-t
-        if (mpc.h is not None):
-            print(mpc.h.shape)
-        print("freq = %.2fHz"%(1/dt))
-        # state_traj in curvilinear frame
-        state_traj = mpc.F @ mpc.u + mpc.Ex0
-        state_traj = state_traj.reshape((p,n))
-        state_traj = np.vstack([x0.T,state_traj])
+        self.constructTrackBoundaryConstraint(mpc)
+        scenarios = self.constructOpponentConstraint(mpc,opponent_state)
+        self.scenarios = scenarios
+        sols = []
+        # save current mpc matrices
+        # solve for different scenarios
+        P = mpc.P
+        q = mpc.q
+        G = mpc.G
+        h = mpc.h
+        for case in scenarios:
+            mpc.P = P
+            mpc.q = q
+            mpc.G = np.vstack([G,case[0]])
+            mpc.h = np.vstack([h,case[1]])
+            dt = time()-t
+            mpc.solve()
+            if (mpc.h is not None):
+                print(mpc.h.shape)
+            print("freq = %.2fHz"%(1/dt))
+            # state_traj in curvilinear frame
+            state_traj = mpc.F @ mpc.u + mpc.Ex0
+            state_traj = state_traj.reshape((p,n))
+            state_traj = np.vstack([x0.T,state_traj])
+            sols.append( (mpc.u,state_traj) )
 
         '''
         plt.plot(state_traj)
@@ -99,90 +127,17 @@ class Planner:
         plt.plot(u)
         plt.show()
         '''
-        return (mpc.u,state_traj)
-
-    def demoDoubleIntegrator(self):
-        # state x:[s,n,ds,dn]
-        # u: [us=dds,un=ddn] second derivative of s and n
-        self.n = n = 4
-        self.m = m = 2
-        # p: prediction horizon
-        self.p = p = horizon = 50
-
-        self.genPath()
-
-        x0 = [1,0.15,0,0]
-        xref = [7,-0.15,0,0]
-
-        (u_vec, state_traj) = self.solveDoubleIntegrator(x0,xref)
-        '''
-        print("u_vec")
-        print(u_vec)
-        print("state_traj")
-        print(state_traj)
-        '''
-        print("err = %.2f "%(np.linalg.norm(np.array(xref)-state_traj[-1,:])))
-
-        self.plotTrack()
-        # initial state
-        self.plotCar(x0)
-        # target state
-        self.plotCar(xref)
-        self.plotStateTraj(state_traj)
-        plt.axis('equal')
-        plt.show()
-
-
-    def solveDoubleIntegrator(self,x0,xref):
-        mpc = MPC()
-        n = self.n
-        m = self.m
-        p = self.p
-        # setup mpc 
-        mpc.setup(n,m,n,p)
-        A = np.eye(4)
-        dt = 0.1
-        A[0,2] = dt
-        A[1,3] = dt
-        B = np.array([[0.5*dt**2,0],[0,0.5*dt**2],[dt,0],[0,dt]])
-        P = np.diag([1,1,1,1])
-        Q = np.eye(m)*0.5
-
-        t = time()
-        x0 = np.array(x0).T.reshape(-1,1)
-        xref = np.array(xref).T.reshape(-1,1)
-        xref_vec = xref.repeat(p,1).T.reshape(p,n,1)
-        #du_max = np.array([[1,1]]).T
-        du_max = None
-        #u_max = np.array([[1.5,1.5]]).T
-        u_max = None
-        mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,p,u_max,du_max)
-        # add track boundary constraints
-        self.constructStateLimits(mpc)
-        mpc.solve()
-        dt = time()-t
-        print(mpc.h.shape)
-        print("freq = %.2fHz"%(1/dt))
-        # state_traj in curvilinear frame
-        state_traj = mpc.F @ mpc.u + mpc.Ex0
-        state_traj = state_traj.reshape((p,n))
-        state_traj = np.vstack([x0.T,state_traj])
-        '''
-        plt.plot(state_traj)
-        plt.show()
-        u = np.array(mpc.u).reshape((-1,2))
-        plt.plot(u)
-        plt.show()
-        '''
-        return (mpc.u,state_traj)
+        return sols
 
     # construct the state limits
-    def constructStateLimits(self,mpc):
+    def constructTrackBoundaryConstraint(self,mpc):
         # create additional lines for Gx<h
         # track boundary limits
         p = self.p
         if (self.n==4):
             M = np.kron(np.eye(p),np.array([[0,1,0,0]]))
+        elif (self.n==3):
+            M = np.kron(np.eye(p),np.array([[0,1,0]]))
         elif (self.n==2):
             M = np.kron(np.eye(p),np.array([[0,1]]))
         G1 = M @ mpc.F
@@ -192,15 +147,80 @@ class Planner:
         G2 = -M @ mpc.F
         h2 = N + M @ mpc.Ex0
 
-        # NOTE skipping constraints
-        G1 = G1[::4,:]
-        G2 = G2[::4,:]
-        h1 = h1[::4,:]
-        h2 = h2[::4,:]
-        #mpc.G = np.vstack([mpc.G,G1,G2])
-        #mpc.h = np.vstack([mpc.h,h1,h2])
+        if (mpc.G is None):
+            mpc.G = np.vstack([G1,G2])
+            mpc.h = np.vstack([h1,h2])
+        else:
+            mpc.G = np.vstack([mpc.G,G1,G2])
+            mpc.h = np.vstack([mpc.h,h1,h2])
         return
 
+    def constructOpponentConstraint(self,mpc,opponent_state):
+        # TODO quick check feasibility
+        # additional constraints to add
+        # (G,h)
+        # opponent_count * feasible_direction_count
+        # one sublist for each opponent
+        # sublist contains a set of OR constraints
+        # solution need to satisfy ONE constraint from sublist 0, ONE constraint from sublist 1 ...
+        opponent_constraints = []
+        opponent_idx = 0
+        for opponent in opponent_state:
+            opponent_constraints.append([])
+            # treat opponent as a single point
+            idx = self.getIndex(opponent[0])
+            # +
+            left = self.left_limit[idx]
+            # -
+            right = self.right_limit[idx]
+            # which time step to apply constraints
+            step = (opponent[0] - self.x0[0])/self.x0[2]/self.dt
+            step_begin = floor(step)
+            step_end = step_begin+1
+            if (left > opponent[1]+self.opponent_width/2):
+                # there's space in left for passing
+                left_bound = opponent[1]+self.opponent_width/2
+                G1,h1 = self.getGhForN(step_begin,left_bound,False)
+                G2,h2 = self.getGhForN(step_end,left_bound,False)
+                G = np.vstack([G1,G2])
+                h = np.vstack([h1,h2])
+                opponent_constraints[-1].append((G,h))
+                print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
+                
+            if (right < opponent[1]-self.opponent_width/2):
+                # there's space in right for passing
+                right_bound = opponent[1]-self.opponent_width/2
+                G1,h1 = self.getGhForN(step_begin,right_bound,True)
+                G2,h2 = self.getGhForN(step_end,right_bound,True)
+                G = np.vstack([G1,G2])
+                h = np.vstack([h1,h2])
+                opponent_constraints[-1].append((G,h))
+                print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
+            opponent_idx += 1
+
+        # possible combination of AND constraints
+        # e.g. opponent 0 can be passed on left or right
+        #      opponent 1 can be passed on left 
+        # 2 scenarios, (left,left) (left,right)
+        cons_combination = [ cons for cons in product(*opponent_constraints)]
+
+        scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
+            
+        return scenarios
+
+    # get the constraint matrix G h for a single n constraint
+    def getGhForN(self,step,val,is_max_constrain):
+        mpc = self.mpc
+        idx = step*self.n + 1
+        M = np.zeros(self.p*self.n)
+        M[idx] = 1
+        if (is_max_constrain):
+            G = M @ mpc.F
+            h = val - M @ mpc.Ex0
+        else:
+            G = -M @ mpc.F
+            h = -val + M @ mpc.Ex0
+        return (G,h)
 
     def calcDerivative(self,curve):
         # find first and second derivative
@@ -259,9 +279,39 @@ class Planner:
     def plotCar(self,x):
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
-        idx = np.searchsorted(self.ref_path_s,x[0],side='left')
+        idx = self.getIndex(x[0])
         car_pos = self.ref_path[idx] + A @ self.dr[idx] * x[1]
         plt.plot(car_pos[0],car_pos[1],'o')
+
+    def plotOpponent(self,opponent_state):
+        sn = opponent_state
+        # left
+        s_range = np.linspace(sn[0]-self.opponent_length/2,sn[0]+self.opponent_length/2,10)
+        n_range = np.ones_like(s_range)*(sn[1]+self.opponent_width/2)
+        traj = np.vstack([s_range,n_range]).T
+        traj = self.stateTrajToCartesianTraj(traj)
+        plt.plot(traj[:,0],traj[:,1],'b-')
+        # right
+        n_range = np.ones_like(s_range)*(sn[1]-self.opponent_width/2)
+        traj = np.vstack([s_range,n_range]).T
+        traj = self.stateTrajToCartesianTraj(traj)
+        plt.plot(traj[:,0],traj[:,1],'b-')
+        # rear
+        n_range = np.linspace((sn[1]-self.opponent_width/2),(sn[1]+self.opponent_width/2),10)
+        s_range = np.ones_like(n_range)*(sn[0]-self.opponent_length/2)
+        traj = np.vstack([s_range,n_range]).T
+        traj = self.stateTrajToCartesianTraj(traj)
+        plt.plot(traj[:,0],traj[:,1],'b-')
+        # front
+        n_range = np.linspace((sn[1]-self.opponent_width/2),(sn[1]+self.opponent_width/2),10)
+        s_range = np.ones_like(n_range)*(sn[0]+self.opponent_length/2)
+        traj = np.vstack([s_range,n_range]).T
+        traj = self.stateTrajToCartesianTraj(traj)
+        plt.plot(traj[:,0],traj[:,1],'b-')
+
+    def getIndex(self,s):
+        idx = np.searchsorted(self.ref_path_s,s,side='left')
+        return idx
 
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
@@ -296,5 +346,4 @@ class Planner:
         return ((al,a,ar),(bl,b,br))
 if __name__=='__main__':
     planner = Planner()
-    #planner.demoDoubleIntegrator()
-    planner.demoSingleIntegrator()
+    planner.demoSingleControl()
