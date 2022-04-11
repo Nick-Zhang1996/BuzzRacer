@@ -34,6 +34,30 @@ class Planner:
 
         self.calcArcLen(self.ref_path)
 
+    def demoCurvature(self):
+        # r = <t, sin(t)>
+        # r' = <1, cos(t)>
+        # r'' = <0, -sin(t)>
+        t = np.linspace(0,2*np.pi,1000)
+        r = np.vstack([t,np.sin(t)])
+        dr = np.vstack([np.ones_like(t),np.cos(t)])
+        ddr = np.vstack([np.zeros_like(t),-np.sin(t)])
+        # test curvature for r(t)
+        k_r = np.cross(dr.T,ddr.T) / np.linalg.norm(dr)**3
+        # plot tangent circle
+        plt.plot(r[0,:],r[1,:])
+        idx = 250
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        radius = 1/k_r[idx]
+        center = r[:,idx] + A @ dr[:,idx]/np.linalg.norm(dr[:,idx]) * radius
+        theta = np.linspace(0,np.pi*2)
+        circle_x = np.cos(theta)*radius + center[0]
+        circle_y = np.sin(theta)*radius + center[1]
+        plt.plot(circle_x,circle_y)
+        plt.show()
+
+
     def demoSingleControl(self):
         # state x:[s,n]
         # u: [us=ds,un=dn] first derivative of s and n
@@ -346,4 +370,5 @@ class Planner:
         return ((al,a,ar),(bl,b,br))
 if __name__=='__main__':
     planner = Planner()
-    planner.demoSingleControl()
+    #planner.demoSingleControl()
+    planner.demoCurvature()
