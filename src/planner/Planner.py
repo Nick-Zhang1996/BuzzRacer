@@ -35,6 +35,7 @@ class Planner:
         self.calcArcLen(self.ref_path)
 
     def demoCurvature(self):
+        # define reference path
         # r = <t, sin(t)>
         # r' = <1, cos(t)>
         # r'' = <0, -sin(t)>
@@ -42,20 +43,76 @@ class Planner:
         r = np.vstack([t,np.sin(t)])
         dr = np.vstack([np.ones_like(t),np.cos(t)])
         ddr = np.vstack([np.zeros_like(t),-np.sin(t)])
-        # test curvature for r(t)
-        k_r = np.cross(dr.T,ddr.T) / np.linalg.norm(dr)**3
+        dddr = np.vstack([np.zeros_like(t),-np.cos(t)])
+        # alternative reference path
+        #t = np.linspace(0,6,101)
+        #r = np.vstack([3*t**3+4*t,6*t**2+10])
+        #dr = np.vstack([9*t**2+4,12*t])
+        #ddr = np.vstack([18*t,12*np.ones_like(t)])
+
+        # calculate curvature for r(t)
+        k_r = np.cross(dr.T,ddr.T) / np.linalg.norm(dr,axis=0)**3
+
         # plot tangent circle
-        plt.plot(r[0,:],r[1,:])
         idx = 250
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         radius = 1/k_r[idx]
         center = r[:,idx] + A @ dr[:,idx]/np.linalg.norm(dr[:,idx]) * radius
-        theta = np.linspace(0,np.pi*2)
+        theta = np.linspace(0,np.pi*2,1000)
         circle_x = np.cos(theta)*radius + center[0]
         circle_y = np.sin(theta)*radius + center[1]
+        # plotting
+        '''
+        plt.plot(r[0,:],r[1,:])
         plt.plot(circle_x,circle_y)
+        plt.plot(r[0,idx],r[1,idx],'*')
+        plt.axis('equal')
         plt.show()
+        '''
+
+        # curvature for general path p(t)
+        n = 0.1*np.sin(5*t)
+        dn = 0.1*5*np.cos(5*t)
+        ddn = -0.1*25*np.sin(5*t)
+        p = r + A @ dr/np.linalg.norm(dr,axis=0) * n
+        dp_alt = np.diff(p) / (t[1]-t[0])
+        # NOTE this is wrong, why?
+        dp = dr + dn * (A @ dr) + n * ddr
+        I = np.eye(2)
+        ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * ddr + n * dddr
+        # calculate curvature for r(t)
+        k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dp,axis=0)**3
+
+        # plot tangent circle
+        idx = 250
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        radius = 1/k_p[idx]
+        center = p[:,idx] + A @ dp[:,idx]/np.linalg.norm(dp[:,idx]) * radius
+        theta = np.linspace(0,np.pi*2,1000)
+        circle_x = np.cos(theta)*radius + center[0]
+        circle_y = np.sin(theta)*radius + center[1]
+
+        tangent = p[:,idx] + dp[:,idx]/np.linalg.norm(dp[:,idx])
+        normal = p[:,idx] + A @ dp[:,idx]/np.linalg.norm(dp[:,idx])
+        tangent_alt = p[:,idx] + dp_alt[:,idx]/np.linalg.norm(dp_alt[:,idx])
+        center_alt = p[:,idx] + A @ dp_alt[:,idx]/np.linalg.norm(dp_alt[:,idx]) * radius
+        circle_alt_x = np.cos(theta)*radius + center_alt[0]
+        circle_alt_y = np.sin(theta)*radius + center_alt[1]
+
+        plt.plot(r[0,:],r[1,:])
+        plt.plot(p[0,:],p[1,:])
+        #plt.plot(circle_x,circle_y)
+        plt.plot(circle_alt_x,circle_alt_y)
+        plt.plot(p[0,idx],p[1,idx],'*')
+        #plt.plot([p[0,idx],tangent[0]],[p[1,idx],tangent[1]])
+        plt.plot([p[0,idx],tangent_alt[0]],[p[1,idx],tangent_alt[1]])
+        #plt.plot([p[0,idx],normal[0]],[p[1,idx],normal[1]])
+        #plt.plot([p[0,idx],center[0]],[p[1,idx],center[1]])
+        plt.axis('equal')
+        plt.show()
+
 
 
     def demoSingleControl(self):
