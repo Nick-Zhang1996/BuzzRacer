@@ -5,6 +5,7 @@ from MPC import MPC
 from time import time
 from math import floor
 from itertools import product
+import scipy.optimize
 
 class Planner:
     def __init__(self):
@@ -13,22 +14,43 @@ class Planner:
     # generate a path
     def genPath(self):
         # parameter
-        k_vec = np.linspace(0,2*np.pi,1000)
-        x_vec = k_vec
-        y_vec = np.sin(k_vec)
+        t_range = 2*np.pi
+        t_vec = np.linspace(0,t_range,1000)
+        # create a parametric curve
+        x_t_fun = lambda t:t
+        y_t_fun = lambda t:np.sin(t)
+        def tToS(t_range):
+            t_range = float(t_range)
+            if (t_range < 0):
+                return 0
+            t = np.linspace(0,t_range,10000)
+            s = np.trapz( np.sqrt(x_t_fun(t)**2 + y_t_fun(t)**2), t)
+            return s
+
+        # resample to parameter of curve length r(t) -> r(s)
+        self.s_vec = s_vec = np.linspace(0,tToS(t_range),1000)
+        t_vec = [0]
+        for s in s_vec:
+            t = scipy.optimize.root(lambda m:tToS(m)-s, t_vec[-1])
+            t_vec.append(t.x[0])
+        t_vec.pop(0)
+        x_vec = x_t_fun(t_vec)
+        y_vec = y_t_fun(t_vec)
+
         # n*2
         # curvilinear frame reference
         self.ref_path = np.vstack([x_vec,y_vec]).T
         # left positive, left negetive
         self.track_width = 0.6
-        self.left_limit = np.ones_like(k_vec)*self.track_width/2
-        self.right_limit = -np.ones_like(k_vec)*self.track_width/2
+        self.left_limit = np.ones_like(t_vec)*self.track_width/2
+        self.right_limit = -np.ones_like(t_vec)*self.track_width/2
         self.dr,self.ddr = self.calcDerivative(self.ref_path)
         self.curvature = self.calcCurvature(self.dr,self.ddr)
 
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
-        tangent_dir = A @ self.dr.T
+        tangent_dir = (A @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
+        breakpoint()
         self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
         self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
 
@@ -75,17 +97,21 @@ class Planner:
         n = 0.1*np.sin(5*t)
         dn = 0.1*5*np.cos(5*t)
         ddn = -0.1*25*np.sin(5*t)
-        p = r + A @ dr/np.linalg.norm(dr,axis=0) * n
+        dr_norm = np.linalg.norm(dr,axis=0)
+        p = r + A @ dr/dr_norm * n
         dp_alt = np.diff(p) / (t[1]-t[0])
-        # NOTE this is wrong, why?
-        dp = dr + dn * (A @ dr) + n * ddr
+        dp = dr + dn * (A @ dr) + n * (A @ ddr)
         I = np.eye(2)
-        ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * ddr + n * dddr
+        ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr) + n * (A @ dddr)
+        # safe to drop third derivative
+        #ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr)
         # calculate curvature for r(t)
-        k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dp,axis=0)**3
+        #k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dp,axis=0)**3
+        # approximate with constant dr
+        k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dr,axis=0)**3
 
         # plot tangent circle
-        idx = 250
+        idx = 350
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         radius = 1/k_p[idx]
@@ -96,20 +122,14 @@ class Planner:
 
         tangent = p[:,idx] + dp[:,idx]/np.linalg.norm(dp[:,idx])
         normal = p[:,idx] + A @ dp[:,idx]/np.linalg.norm(dp[:,idx])
-        tangent_alt = p[:,idx] + dp_alt[:,idx]/np.linalg.norm(dp_alt[:,idx])
-        center_alt = p[:,idx] + A @ dp_alt[:,idx]/np.linalg.norm(dp_alt[:,idx]) * radius
-        circle_alt_x = np.cos(theta)*radius + center_alt[0]
-        circle_alt_y = np.sin(theta)*radius + center_alt[1]
 
         plt.plot(r[0,:],r[1,:])
         plt.plot(p[0,:],p[1,:])
-        #plt.plot(circle_x,circle_y)
-        plt.plot(circle_alt_x,circle_alt_y)
+        plt.plot(circle_x,circle_y)
         plt.plot(p[0,idx],p[1,idx],'*')
-        #plt.plot([p[0,idx],tangent[0]],[p[1,idx],tangent[1]])
-        plt.plot([p[0,idx],tangent_alt[0]],[p[1,idx],tangent_alt[1]])
-        #plt.plot([p[0,idx],normal[0]],[p[1,idx],normal[1]])
-        #plt.plot([p[0,idx],center[0]],[p[1,idx],center[1]])
+        plt.plot([p[0,idx],tangent[0]],[p[1,idx],tangent[1]])
+        plt.plot([p[0,idx],normal[0]],[p[1,idx],normal[1]])
+        plt.plot([p[0,idx],center[0]],[p[1,idx],center[1]])
         plt.axis('equal')
         plt.show()
 
@@ -147,6 +167,19 @@ class Planner:
         plt.axis('equal')
         plt.show()
         breakpoint()
+
+    def getCurvatureObjective(self):
+        # find r, dr, ddr
+        s = self.s_vec
+        r = self.ref_path
+        dr = self.dr
+        ddr = self.ddr
+        # find n, dn, ddn
+        #print(np.linalg.norm(dr,axis=0))
+        dr = np.linalg.norm(np.diff(r,axis=0),axis=1)
+        breakpoint()
+
+        return
 
 
     def solveSingleControl(self,x0,xref,opponent_state):
@@ -308,12 +341,13 @@ class Planner:
         dr = []
         ddr = []
         n = curve.shape[0]
+        ds = self.s_vec[1]-self.s_vec[0]
         for i in range(1,n-1):
             rl = self.ref_path[i-1,:]
             r = self.ref_path[i,:]
             rr = self.ref_path[i+1,:]
             points = [rl, r, rr]
-            ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points)
+            ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points,ds=[ds,ds])
             dr.append(al*rl+a*r+ar*rr)
             ddr.append(bl*rl+b*r+br*rr)
         dr = np.array(dr)
@@ -427,5 +461,7 @@ class Planner:
         return ((al,a,ar),(bl,b,br))
 if __name__=='__main__':
     planner = Planner()
-    #planner.demoSingleControl()
-    planner.demoCurvature()
+    #planner.genPath()
+    #planner.getCurvatureObjective()
+    planner.demoSingleControl()
+    #planner.demoCurvature()
