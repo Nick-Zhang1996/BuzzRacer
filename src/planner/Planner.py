@@ -10,8 +10,7 @@ import scipy.optimize
 class Planner:
     def __init__(self):
         # p: prediction horizon
-        #self.p = p = horizon = 50
-        self.p = p = horizon = 5
+        self.N = N = horizon = 50
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
         return
@@ -81,40 +80,42 @@ class Planner:
         dr = self.dr.T
         dr_norm = np.linalg.norm(dr,axis=0)
         ddr = self.ddr.T
-        ps = r + A @ dr/dr_norm * n
-        dps = dr + dn * (A @ dr) + n * (A @ ddr)
-        I = np.eye(2)
-        ddps = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr) + n * (A @ dddr)
+        p = r + A @ dr/dr_norm * n
+        dp = dr + dn * (A @ dr) + n * (A @ ddr)
+        ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr) + n * (A @ dddr)
 
-        p = self.p
+        N = self.N
 
-        r = self.r[250:250+p,:]
-        dr = self.dr[250:250+p,:]
+        idx = 245
+        r = self.r[idx:idx+N,:]
+        dr = self.dr[idx:idx+N,:]
+        ddr = self.ddr[idx:idx+N,:]
         r_vec = r.flatten()
-        ddr = self.ddr[250:250+p,:]
-        n = n[250:250+p]
-        dn = dn[250:250+p]
-        ddn = ddn[250:250+p]
-
+        n = n[idx:idx+N]
+        dn = dn[idx:idx+N]
+        ddn = ddn[idx:idx+N]
+        p = p.T[idx:idx+N,:]
+        dp = dp.T[idx:idx+N,:]
+        ddp = ddp.T[idx:idx+N,:]
 
         # test first derivative
-        M1 = planner.getDiff1Matrix(p,self.ds)
+        M1 = planner.getDiff1Matrix(N,self.ds)
         M1 = np.kron(M1,np.eye(2))
-        # let s_k be first p elements from self.s_vec
+        # let s_k be first N elements from self.s_vec
         # select {r_k}
         test_dr = M1 @ r_vec
-        test_dr = test_dr.reshape((p,2))
+        test_dr = test_dr.reshape((N,2))
         print("M1 result err")
         print(dr - test_dr)
         # SUCCESS !
 
         # test second derivative
-        M2 = planner.getDiff2Matrix(p,self.ds)
+        M2 = planner.getDiff2Matrix(N,self.ds)
         M2 = np.kron(M2,np.eye(2))
-        # let s_k be first p elements from self.s_vec
+        # let s_k be first N elements from self.s_vec
         # select {r_k}
         test_ddr = M2 @ r_vec
-        test_ddr = test_ddr.reshape((p,2))
+        test_ddr = test_ddr.reshape((N,2))
         print("M2 result err")
         print(ddr - test_ddr)
         # first and last value should be different as ddr from self.lagrangeDer() is not done correctly
@@ -129,12 +130,85 @@ class Planner:
         print(c2)
         # SUCCESS
 
+        # test p
+        I_N = np.eye(N)
+        I_2N = np.eye(2*N)
+        # TODO
+        diag = np.kron(I_N,np.array([[1,1]]).T) @ n
+        n_diag = np.sum([I_2N[:,[i]].T @ diag * I_2N[:,[i]] @ I_2N[:,[i]].T for i in range(diag.shape[0])],axis=0)
+        test_p = r.flatten() +  n_diag @ np.kron(I_N,A) @ dr.flatten()
+        print("p")
+        print(test_p-p.flatten())
+        # SUCCESS
+
         # test p'
-        I_p = np.eye(p)
-        # FIXME this is wrong TODO
-        dp = r.flatten() + np.kron(I_p,np.array([[1,1]]).T) @ n @ np.kron(I_p,A) @ dr.flatten()
+        test_dp = M1 @ test_p
+        test_dp = test_dp.reshape((N,2))
+        print("dp")
+        print(test_dp - dp)
+        # SUCCESS
 
+        # test p''
+        test_ddp = M2 @ test_p
+        test_ddp = test_ddp.reshape((N,2))
+        print("ddp")
+        print(test_ddp - ddp)
 
+        # test curvature calculation
+        p = p.T
+        dp = dp.T
+        ddp = ddp.T
+        r = r.T
+        dr = dr.T
+        ddr = ddr.T
+
+        # plot tangent circles
+        idx = 10
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+
+        # reference method
+        k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dr,axis=0)**3
+        radius = 1/k_p[idx]
+        center = p[:,idx] + A @ dp[:,idx]/np.linalg.norm(dp[:,idx]) * radius
+        theta = np.linspace(0,np.pi*2,1000)
+        circle_x = np.cos(theta)*radius + center[0]
+        circle_y = np.sin(theta)*radius + center[1]
+        tangent = p[:,idx] + dp[:,idx]/np.linalg.norm(dp[:,idx])
+        normal = p[:,idx] + A @ dp[:,idx]/np.linalg.norm(dp[:,idx])
+        plt.plot(circle_x,circle_y,'--',label='circle p')
+        plt.plot([p[0,idx],tangent[0]],[p[1,idx],tangent[1]],'--')
+        plt.plot([p[0,idx],normal[0]],[p[1,idx],normal[1]],'--')
+        plt.plot([p[0,idx],center[0]],[p[1,idx],center[1]],'--')
+
+        # matrix method
+        test_p = test_p.reshape((N,2))
+        test_p = test_p.T
+        test_dp = test_dp.T
+        test_ddp = test_ddp.T
+
+        #test_ddp = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr)
+        test_k_p = np.cross(test_dp.T,test_ddp.T) / np.linalg.norm(test_dr.T,axis=0)**3
+        test_k_p = np.cross(test_dp.T,test_ddp.T)
+        radius = 1/test_k_p[idx]
+        center = test_p[:,idx] + A @ test_dp[:,idx]/np.linalg.norm(test_dp[:,idx]) * radius
+        theta = np.linspace(0,np.pi*2,1000)
+        circle_x = np.cos(theta)*radius + center[0]
+        circle_y = np.sin(theta)*radius + center[1]
+        tangent = test_p[:,idx] + test_dp[:,idx]/np.linalg.norm(test_dp[:,idx])
+        normal = test_p[:,idx] + A @ test_dp[:,idx]/np.linalg.norm(test_dp[:,idx])
+        plt.plot(circle_x,circle_y,label='circle test p')
+        plt.plot([test_p[0,idx],tangent[0]],[test_p[1,idx],tangent[1]])
+        plt.plot([test_p[0,idx],normal[0]],[test_p[1,idx],normal[1]])
+        plt.plot([test_p[0,idx],center[0]],[test_p[1,idx],center[1]])
+
+        plt.plot(r[0,:],r[1,:],label='r')
+        plt.plot(p[0,:],p[1,:],label='p')
+        plt.plot(p[0,idx],p[1,idx],'*')
+        plt.legend()
+        plt.axis('equal')
+        plt.show()
+        
         breakpoint()
 
 
@@ -267,9 +341,9 @@ class Planner:
         self.mpc = mpc
         n = self.n
         m = self.m
-        p = self.p
+        N = self.N
         # setup mpc 
-        mpc.setup(n,m,n,p)
+        mpc.setup(n,m,n,N)
         dt = self.dt = 0.1
         A = np.eye(n)
         A[0,2] = dt
@@ -281,12 +355,12 @@ class Planner:
         x0 = np.array(x0).T.reshape(-1,1)
         self.x0 = x0
         xref = np.array(xref).T.reshape(-1,1)
-        xref_vec = xref.repeat(p,1).T.reshape(p,n,1)
+        xref_vec = xref.repeat(N,1).T.reshape(N,n,1)
         #du_max = np.array([[1,1]]).T
         du_max = None
         #u_max = np.array([[1.5,1.5]]).T
         u_max = None
-        mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,p,u_max,du_max)
+        mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
         self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
@@ -310,7 +384,7 @@ class Planner:
             print("freq = %.2fHz"%(1/dt))
             # state_traj in curvilinear frame
             state_traj = mpc.F @ mpc.u + mpc.Ex0
-            state_traj = state_traj.reshape((p,n))
+            state_traj = state_traj.reshape((N,n))
             state_traj = np.vstack([x0.T,state_traj])
             sols.append( (mpc.u,state_traj) )
 
@@ -327,15 +401,15 @@ class Planner:
     def constructTrackBoundaryConstraint(self,mpc):
         # create additional lines for Gx<h
         # track boundary limits
-        p = self.p
+        N = self.N
         if (self.n==4):
-            M = np.kron(np.eye(p),np.array([[0,1,0,0]]))
+            M = np.kron(np.eye(N),np.array([[0,1,0,0]]))
         elif (self.n==3):
-            M = np.kron(np.eye(p),np.array([[0,1,0]]))
+            M = np.kron(np.eye(N),np.array([[0,1,0]]))
         elif (self.n==2):
-            M = np.kron(np.eye(p),np.array([[0,1]]))
+            M = np.kron(np.eye(N),np.array([[0,1]]))
         G1 = M @ mpc.F
-        N = np.ones((p,1))*self.track_width/2
+        N = np.ones((N,1))*self.track_width/2
         h1 = N - M @ mpc.Ex0
 
         G2 = -M @ mpc.F
@@ -511,15 +585,15 @@ class Planner:
     # first order numerical differentiation matrix
     # M1: (p,p)
     # r' = M1 @ r, r = [r_1,r_2,...r_k], r_k = r(s_k), ds = s_{k+1}-s_k
-    def getDiff1Matrix(self,p,ds):
-        I_p_2 = np.eye(p-2)
-        middle_1 = np.hstack([-I_p_2,np.zeros((p-2,2))])
-        middle_2 = np.hstack([np.zeros((p-2,2)),I_p_2])
-        top = np.zeros((1,p))
+    def getDiff1Matrix(self,N,ds):
+        I_N_2 = np.eye(N-2)
+        middle_1 = np.hstack([-I_N_2,np.zeros((N-2,2))])
+        middle_2 = np.hstack([np.zeros((N-2,2)),I_N_2])
+        top = np.zeros((1,N))
         top[0,0] = -3
         top[0,1] = 4
         top[0,2] = -1
-        bottom = np.zeros((1,p))
+        bottom = np.zeros((1,N))
         bottom[0,-1] = 3
         bottom[0,-2] = -4
         bottom[0,-3] = 1
@@ -529,25 +603,23 @@ class Planner:
     # second order numerical differentiation matrix
     # M2: (p,p)
     # r' = M2 @ r, r = [r_1,r_2,...r_k], r_k = r(s_k), ds = s_{k+1}-s_k
-    def getDiff2Matrix(self,p,ds):
-        I_p_2 = np.eye(p-2)
-        middle_1 = np.hstack([I_p_2,np.zeros((p-2,2))])
-        middle_2 = np.hstack([np.zeros((p-2,1)),-2*I_p_2,np.zeros((p-2,1))])
-        middle_3 = np.hstack([np.zeros((p-2,2)),I_p_2])
-        middle = (middle_1+middle_2+middle_3) / (ds**2)
-        top = np.zeros((1,p))
+    def getDiff2Matrix(self,N,ds):
+        I_N_2 = np.eye(N-2)
+        middle_1 = np.hstack([I_N_2,np.zeros((N-2,2))])
+        middle_2 = np.hstack([np.zeros((N-2,1)),-2*I_N_2,np.zeros((N-2,1))])
+        middle_3 = np.hstack([np.zeros((N-2,2)),I_N_2])
+        middle = (middle_1+middle_2+middle_3)
+        top = np.zeros((1,N))
         top[0,0] = 2
         top[0,1] = -5
         top[0,2] = 4
         top[0,3] = -1
-        top = top/(ds**3)
-        bottom = np.zeros((1,p))
+        bottom = np.zeros((1,N))
         bottom[0,-1] = 2
         bottom[0,-2] = -5
         bottom[0,-3] = 4
         bottom[0,-4] = -1
-        bottom = bottom/(ds**3)
-        M2 = np.vstack([top,middle,bottom])
+        M2 = np.vstack([top,middle,bottom])/ds**2
         return M2
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
