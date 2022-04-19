@@ -9,53 +9,138 @@ import scipy.optimize
 
 class Planner:
     def __init__(self):
+        # p: prediction horizon
+        #self.p = p = horizon = 50
+        self.p = p = horizon = 5
+        self.opponent_length = 0.17*2
+        self.opponent_width = 0.08*2
         return
 
     # generate a path
     def genPath(self):
-        # parameter
-        t_range = 2*np.pi
-        t_vec = np.linspace(0,t_range,1000)
         # create a parametric curve
         x_t_fun = lambda t:t
         y_t_fun = lambda t:np.sin(t)
-        def tToS(t_range):
-            t_range = float(t_range)
+        t_range = 2*np.pi
+        t_vec = np.linspace(0,t_range,1000)
+
+        # given t_start and t_end, calculate the curve length inbetween
+        def tToS(t_start,t_end,steps=10):
+            t_range = t_end-t_start
             if (t_range < 0):
                 return 0
-            t = np.linspace(0,t_range,10000)
-            s = np.trapz( np.sqrt(x_t_fun(t)**2 + y_t_fun(t)**2), t)
+            t = np.linspace(t_start,t_end,steps).flatten()
+            s = np.sum(np.sqrt(np.diff(x_t_fun(t))**2 + np.diff(y_t_fun(t))**2))
             return s
 
         # resample to parameter of curve length r(t) -> r(s)
-        self.s_vec = s_vec = np.linspace(0,tToS(t_range),1000)
+        self.s_vec = s_vec = np.linspace(0,tToS(0,t_range,steps=10000),1000)
+        self.ds = ds = s_vec[1] - s_vec[0]
         t_vec = [0]
-        for s in s_vec:
-            t = scipy.optimize.root(lambda m:tToS(m)-s, t_vec[-1])
+        for i in range(s_vec.shape[0]-1):
+            t = scipy.optimize.root(lambda m:tToS(t_vec[-1],m)-ds, t_vec[-1])
             t_vec.append(t.x[0])
-        t_vec.pop(0)
         x_vec = x_t_fun(t_vec)
         y_vec = y_t_fun(t_vec)
+        self.t_vec = np.array(t_vec)
 
-        # n*2
-        # curvilinear frame reference
-        self.ref_path = np.vstack([x_vec,y_vec]).T
-        # left positive, left negetive
-        self.track_width = 0.6
-        self.left_limit = np.ones_like(t_vec)*self.track_width/2
-        self.right_limit = -np.ones_like(t_vec)*self.track_width/2
+        # curvilinear frame reference curve
+        # size: n*2
+        self.r = self.ref_path = np.vstack([x_vec,y_vec]).T
         self.dr,self.ddr = self.calcDerivative(self.ref_path)
         self.curvature = self.calcCurvature(self.dr,self.ddr)
+
+        # define track boundary
+        # left positive, left negetive
+        self.track_width = 0.6
+        self.left_limit = np.ones_like(s_vec)*self.track_width/2
+        self.right_limit = -np.ones_like(s_vec)*self.track_width/2
 
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         tangent_dir = (A @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
-        breakpoint()
         self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
         self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
 
         self.calcArcLen(self.ref_path)
 
+    # TODO
+    # test numerical differentiation with matrix multiplication
+    def demoMatrixDiff(self):
+        # generate r(s)
+        self.genPath()
+        # generate n(s), lateral offset
+        t = self.t_vec
+        A = np.array([[0,-1],[1,0]])
+        n = 0.1*np.sin(5*t)
+        dn = 0.1*5*np.cos(5*t)
+        ddn = -0.1*25*np.sin(5*t)
+        dddr = np.vstack([np.zeros_like(t),-np.cos(t)])
+        # p(s)
+        r = self.r.T
+        dr = self.dr.T
+        dr_norm = np.linalg.norm(dr,axis=0)
+        ddr = self.ddr.T
+        ps = r + A @ dr/dr_norm * n
+        dps = dr + dn * (A @ dr) + n * (A @ ddr)
+        I = np.eye(2)
+        ddps = ddr + ddn * (A @ dr) + dn *(A @ ddr) + dn * (A @ ddr) + n * (A @ dddr)
+
+        p = self.p
+
+        r = self.r[250:250+p,:]
+        dr = self.dr[250:250+p,:]
+        r_vec = r.flatten()
+        ddr = self.ddr[250:250+p,:]
+        n = n[250:250+p]
+        dn = dn[250:250+p]
+        ddn = ddn[250:250+p]
+
+
+        # test first derivative
+        M1 = planner.getDiff1Matrix(p,self.ds)
+        M1 = np.kron(M1,np.eye(2))
+        # let s_k be first p elements from self.s_vec
+        # select {r_k}
+        test_dr = M1 @ r_vec
+        test_dr = test_dr.reshape((p,2))
+        print("M1 result err")
+        print(dr - test_dr)
+        # SUCCESS !
+
+        # test second derivative
+        M2 = planner.getDiff2Matrix(p,self.ds)
+        M2 = np.kron(M2,np.eye(2))
+        # let s_k be first p elements from self.s_vec
+        # select {r_k}
+        test_ddr = M2 @ r_vec
+        test_ddr = test_ddr.reshape((p,2))
+        print("M2 result err")
+        print(ddr - test_ddr)
+        # first and last value should be different as ddr from self.lagrangeDer() is not done correctly
+        # SUCCESS
+
+        # test matrix representation for cross product
+        r1 = np.array([[6,5]]).T
+        r2 = np.array([[3,7]]).T
+        c1 = np.cross(r1,r2,axisa=0,axisb=0)
+        c2 = (A @ r1).T @ r2
+        print(c1)
+        print(c2)
+        # SUCCESS
+
+        # test p'
+        I_p = np.eye(p)
+        # FIXME this is wrong TODO
+        dp = r.flatten() + np.kron(I_p,np.array([[1,1]]).T) @ n @ np.kron(I_p,A) @ dr.flatten()
+
+
+        breakpoint()
+
+
+
+
+    # demonstrate curvature calculation, verify with inscribe circle
     def demoCurvature(self):
         # define reference path
         # r = <t, sin(t)>
@@ -133,17 +218,12 @@ class Planner:
         plt.axis('equal')
         plt.show()
 
-
-
+    # control with state = [s,n,ds]
     def demoSingleControl(self):
-        # state x:[s,n]
-        # u: [us=ds,un=dn] first derivative of s and n
+        # state x:[s,n,ds]
+        # u: [dn] first derivative of n
         self.n = n = 3
         self.m = m = 1
-        # p: prediction horizon
-        self.p = p = horizon = 50
-        self.opponent_length = 0.17*2
-        self.opponent_width = 0.08*2
 
         # m/s
         ds = 1.2
@@ -428,6 +508,47 @@ class Planner:
         idx = np.searchsorted(self.ref_path_s,s,side='left')
         return idx
 
+    # first order numerical differentiation matrix
+    # M1: (p,p)
+    # r' = M1 @ r, r = [r_1,r_2,...r_k], r_k = r(s_k), ds = s_{k+1}-s_k
+    def getDiff1Matrix(self,p,ds):
+        I_p_2 = np.eye(p-2)
+        middle_1 = np.hstack([-I_p_2,np.zeros((p-2,2))])
+        middle_2 = np.hstack([np.zeros((p-2,2)),I_p_2])
+        top = np.zeros((1,p))
+        top[0,0] = -3
+        top[0,1] = 4
+        top[0,2] = -1
+        bottom = np.zeros((1,p))
+        bottom[0,-1] = 3
+        bottom[0,-2] = -4
+        bottom[0,-3] = 1
+        M1 = np.vstack([top,middle_1+middle_2,bottom])/(2.0*ds)
+        return M1
+
+    # second order numerical differentiation matrix
+    # M2: (p,p)
+    # r' = M2 @ r, r = [r_1,r_2,...r_k], r_k = r(s_k), ds = s_{k+1}-s_k
+    def getDiff2Matrix(self,p,ds):
+        I_p_2 = np.eye(p-2)
+        middle_1 = np.hstack([I_p_2,np.zeros((p-2,2))])
+        middle_2 = np.hstack([np.zeros((p-2,1)),-2*I_p_2,np.zeros((p-2,1))])
+        middle_3 = np.hstack([np.zeros((p-2,2)),I_p_2])
+        middle = (middle_1+middle_2+middle_3) / (ds**2)
+        top = np.zeros((1,p))
+        top[0,0] = 2
+        top[0,1] = -5
+        top[0,2] = 4
+        top[0,3] = -1
+        top = top/(ds**3)
+        bottom = np.zeros((1,p))
+        bottom[0,-1] = 2
+        bottom[0,-2] = -5
+        bottom[0,-3] = 4
+        bottom[0,-4] = -1
+        bottom = bottom/(ds**3)
+        M2 = np.vstack([top,middle,bottom])
+        return M2
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
     # return: 2*3, tuple
@@ -461,7 +582,8 @@ class Planner:
         return ((al,a,ar),(bl,b,br))
 if __name__=='__main__':
     planner = Planner()
+    planner.demoMatrixDiff()
     #planner.genPath()
     #planner.getCurvatureObjective()
-    planner.demoSingleControl()
+    #planner.demoSingleControl()
     #planner.demoCurvature()
