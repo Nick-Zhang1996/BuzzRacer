@@ -1,12 +1,10 @@
 # MPC based trajectory planner
 import matplotlib.pyplot as plt
 import numpy as np
-from MPC import MPC
 from time import time
 from math import floor
 from itertools import product
 import scipy.optimize
-from scipy.linalg import block_diag
 
 class Planner:
     def __init__(self):
@@ -87,8 +85,7 @@ class Planner:
 
         N = self.N
 
-        # select a short horizon
-        idx = 300
+        idx = 245
         r = self.r[idx:idx+N,:]
         dr = self.dr[idx:idx+N,:]
         ddr = self.ddr[idx:idx+N,:]
@@ -99,8 +96,8 @@ class Planner:
         p = p.T[idx:idx+N,:]
         dp = dp.T[idx:idx+N,:]
         ddp = ddp.T[idx:idx+N,:]
+        breakpoint()
 
-        k_r = np.cross(dr,ddr) / np.linalg.norm(dr,axis=1)**3
 
         # test first derivative
         M1 = planner.getDiff1Matrix(N,self.ds)
@@ -125,17 +122,7 @@ class Planner:
         # first and last value should be different as ddr from self.lagrangeDer() is not done correctly
         # SUCCESS
 
-        # test matrix representation for cross product
-        # NOTE this only works in 1D
-        r1 = np.array([[6,5]]).T
-        r2 = np.array([[3,7]]).T
-        c1 = np.cross(r1,r2,axisa=0,axisb=0)
-        c2 = (A @ r1).T @ r2
-        print(c1)
-        print(c2)
-        # SUCCESS
-
-        # test p calculation, this requires diag() operation that's subideal
+        # test p
         I_N = np.eye(N)
         I_2N = np.eye(2*N)
         # TODO
@@ -146,7 +133,7 @@ class Planner:
         print(test_p-p.flatten())
         # SUCCESS
 
-        # test p', or first derivative
+        # test p'
         test_dp = M1 @ test_p
         test_dp = test_dp.reshape((N,2))
         print("dp")
@@ -158,7 +145,6 @@ class Planner:
         test_ddp = test_ddp.reshape((N,2))
         print("ddp")
         print(test_ddp - ddp)
-        # SUCCESS
 
         # test curvature calculation
         p = p.T
@@ -169,45 +155,9 @@ class Planner:
         ddr = ddr.T
 
         # plot tangent circles
-        idx = 10
-
-        # test curvature calculation with linear approximation
-        def cross(A,B):
-            return np.cross(A,B,axis=0)
-        def C(i):
-            if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
-            else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
-        # truth
+        idx = 2
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
-        M = A @ dr
-        breakpoint()
-        D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
-        M1 = planner.getDiff1Matrix(N,self.ds)
-        M2 = planner.getDiff2Matrix(N,self.ds)
-        I_2 = np.eye(2)
-        '''
-        dkdn = np.zeros( (N,N) )
-        for i in range(N):
-            dkdn += cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr)
-        '''
-        dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
-
-        k_r_unnormal = np.cross(dr.T,ddr.T) # base
-        k_p_unnormal = np.cross(dp.T,ddp.T) # ground truth
-        print("biggest |k - k0| = %.3f"%(np.linalg.norm(k_r_unnormal - k_p_unnormal)))
-        k_unnormal = k_r_unnormal + 0.3* dkdn @ n # to test
-        print("bigger |k - half k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
-        k_unnormal = k_r_unnormal + 0.7* dkdn @ n # to test
-        print("smaller |k - half k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
-        k_unnormal = k_r_unnormal + dkdn @ n # to test
-        print("smallest |k - k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
-
-        breakpoint()
 
         # reference method
         k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dr,axis=0)**3
@@ -250,6 +200,7 @@ class Planner:
         plt.axis('equal')
         plt.show()
         
+        breakpoint()
 
 
 
@@ -375,8 +326,40 @@ class Planner:
 
         return
 
-
     def solveSingleControl(self,x0,xref,opponent_state):
+        n = self.n
+        m = self.m
+        N = self.N
+        dt = self.dt = 0.1
+        A = np.eye(n)
+        A[0,2] = dt
+        B = np.array([[0,1,0]]).T*dt
+        P = np.diag([1,1,0])
+        Q = np.eye(m)*5.0
+        # build gurobi model
+
+        #xmin,xmax = self.constructStateBounds()
+        u = m.addMVar(shape=(self.m*N), lb=umin, ub=umax, name='u')
+
+
+    def constructControlBounds(self):
+        N = self.N
+        umin = -10 * np.ones(self.m*N)
+        umax = 10 * np.ones(self.m*N)
+        return umin,umax
+
+    def constructStateBounds(self):
+        N = self.N
+        x_low_bound = np.array([[float('inf'),-self.track_width/2,float('inf')]])
+        x_high_bound = np.array([[float('inf'),self.track_width/2,float('inf')]])
+        xmin = np.tile(x_low_bound, (1,N))
+        xmax = np.tile(x_high_bound, (1,N))
+        breakpoint()
+        #xmin,xmax = self.constructStateBounds()
+        return xmin,xmax
+
+
+    def solveSingleControlCvxpy(self,x0,xref,opponent_state):
         mpc = MPC()
         self.mpc = mpc
         n = self.n
@@ -404,7 +387,6 @@ class Planner:
         # add track boundary constraints
         self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
-        self.addCurvatureNormObjective(mpc, x0, n_estimate=None )
         self.scenarios = scenarios
         sols = []
         # save current mpc matrices
@@ -438,17 +420,12 @@ class Planner:
         '''
         return sols
 
-    # construct the state limits
-    def constructTrackBoundaryConstraint(self,mpc):
+    def addTrackBoundaryConstraint(self,model):
         # create additional lines for Gx<h
         # track boundary limits
         N = self.N
-        if (self.n==4):
-            M = np.kron(np.eye(N),np.array([[0,1,0,0]]))
-        elif (self.n==3):
-            M = np.kron(np.eye(N),np.array([[0,1,0]]))
-        elif (self.n==2):
-            M = np.kron(np.eye(N),np.array([[0,1]]))
+        M = np.kron(np.eye(N),np.array([[0,1,0]]))
+
         G1 = M @ mpc.F
         N = np.ones((N,1))*self.track_width/2
         h1 = N - M @ mpc.Ex0
@@ -486,33 +463,25 @@ class Planner:
             step = (opponent[0] - self.x0[0])/self.x0[2]/self.dt
             step_begin = floor(step)
             step_end = step_begin+1
-            # TODO extend to cover entire opponent length
-            # TODO don't include opponents too far
             if (left > opponent[1]+self.opponent_width/2):
                 # there's space in left for passing
                 left_bound = opponent[1]+self.opponent_width/2
-                retval1 = self.getGhForN(step_begin,left_bound,False)
-                retval2= self.getGhForN(step_end,left_bound,False)
-                if (retval1 is not None and retval2 is not None):
-                    G1,h1 = retval1
-                    G2,h2 = retval2
-                    G = np.vstack([G1,G2])
-                    h = np.vstack([h1,h2])
-                    opponent_constraints[-1].append((G,h))
-                    print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
+                G1,h1 = self.getGhForN(step_begin,left_bound,False)
+                G2,h2 = self.getGhForN(step_end,left_bound,False)
+                G = np.vstack([G1,G2])
+                h = np.vstack([h1,h2])
+                opponent_constraints[-1].append((G,h))
+                print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
                 
             if (right < opponent[1]-self.opponent_width/2):
                 # there's space in right for passing
                 right_bound = opponent[1]-self.opponent_width/2
-                retval1 = self.getGhForN(step_begin,right_bound,True)
-                retval2 = self.getGhForN(step_end,right_bound,True)
-                if (retval1 is not None and retval2 is not None):
-                    G1,h1 = retval1
-                    G2,h2 = retval2
-                    G = np.vstack([G1,G2])
-                    h = np.vstack([h1,h2])
-                    opponent_constraints[-1].append((G,h))
-                    print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
+                G1,h1 = self.getGhForN(step_begin,right_bound,True)
+                G2,h2 = self.getGhForN(step_end,right_bound,True)
+                G = np.vstack([G1,G2])
+                h = np.vstack([h1,h2])
+                opponent_constraints[-1].append((G,h))
+                print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
             opponent_idx += 1
 
         # possible combination of AND constraints
@@ -524,65 +493,12 @@ class Planner:
         scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
             
         return scenarios
-    # dr:(2,N)
-    # ds: float scalar
-    # p: (2,N)
-    def addCurvatureNormObjective(self, mpc, x0, n_estimate=None):
-        N = self.N
-        ds = self.ds
-        idx = []
-        for i in range(N):
-            this_s = x0[0] + self.dt*x0[2]
-            i = this_s / ds
-            idx.append(i)
-        idx = np.array(idx,dtype=int).flatten()
-
-        # TODO maybe use good ddr approxmation instead of 2nd degree
-        dr = self.dr.T[:,idx]
-        ddr = self.ddr.T[:,idx]
-        r = self.r.T[:,idx]
-        dr_norm = np.linalg.norm(dr,axis=0)
-        if (n_estimate is None):
-            n_estimate = np.zeros(N)
-        # ccw 90 deg
-        A = np.array([[0,-1],[1,0]])
-        # this is where iterations may be necessary
-        p = r + A @ dr/dr_norm * n_estimate
-
-        def cross(A,B):
-            return np.cross(A,B,axis=0)
-        def C(i):
-            if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
-            else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
-
-        # ccw 90 deg
-        A = np.array([[0,-1],[1,0]])
-        M = A @ dr
-        D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
-        M1 = planner.getDiff1Matrix(N,ds)
-        M2 = planner.getDiff2Matrix(N,ds)
-        I_2 = np.eye(2)
-        G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
-        k_0 = np.cross(dr.T,ddr.T) 
-        dP = 2*G.T @ G
-        k_0 = k_0.reshape((N,1))
-        dq = (2*k_0.T @ G).T
-        #mpc.P += dP
-        #mpc.q += dq
-        return 
-
 
     # get the constraint matrix G h for a single n constraint
     def getGhForN(self,step,val,is_max_constrain):
         mpc = self.mpc
         idx = step*self.n + 1
-        if (idx > self.N-1):
-            return None
-        M = np.zeros(self.N*self.n)
+        M = np.zeros(self.p*self.n)
         M[idx] = 1
         if (is_max_constrain):
             G = M @ mpc.F
@@ -754,7 +670,29 @@ class Planner:
             print(e)
 
         return ((al,a,ar),(bl,b,br))
+
+    def getBatchDynamics(self,x0,A,B):
+        p = self.p
+        n = self.n
+        m = self.m
+        assert A.shape == (n,n)
+        assert B.shape == (n,m)
+        assert x0.shape == (n,1)
+        # assemble cost function
+        F = np.zeros([p*n,p*m])
+        for i in range(p-1):
+            F[i*n:(i+1)*n,i*m:(i+1)*m] = B
+            F[(i+1)*n:(i+2)*n,:] = A @ F[i*n:(i+1)*n,:]
+        F[(p-1)*n:,(p-1)*m:] = B
+
+
+        # E @ x0
+        Ex0 = np.empty([n*p,1])
+        Ex0[0*n:1*n] = A @ x0
+        for i in range(1,p):
+            Ex0[i*n:(i+1)*n] = A @ Ex0[(i-1)*n:i*n]
+        return Ex0,F
+
 if __name__=='__main__':
     planner = Planner()
-    #planner.demoMatrixDiff()
     planner.demoSingleControl()
