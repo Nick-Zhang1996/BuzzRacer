@@ -4,9 +4,11 @@ from threading import Event,Lock
 from math import pi,radians,degrees
 from time import time,sleep
 
-# Extensions
+# ExtensionsDynamicSimulator.
 import extension
-from extension import KinematicSimulator,DynamicSimulator
+from extension.simulator.KinematicSimulator import KinematicSimulator
+from extension.simulator.DynamicSimulator import DynamicSimulator
+from extension.simulator.CalebDynamicSimulator import CalebDynamicSimulator
 from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
@@ -15,8 +17,9 @@ from track import TrackFactory
 
 from Car import Car
 from controller import StanleyCarController
-from controller import CcmppiCarController
-from controller import MppiCarController
+# from controller.ccmppi import CcmppiCarController
+from controller.mppi.MppiCarController import MppiCarController
+from controller.mppi.MppiCarControllerCurvilinear import MppiCarControllerCurvilinear
 
 class Main():
     def __init__(self,params={}):
@@ -29,9 +32,9 @@ class Main():
         self.track = TrackFactory(name='full')
 
         Car.reset()
-        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
+        # car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
         car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
+        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -49,7 +52,7 @@ class Main():
         self.extensions = []
         self.visualization = extension.Visualization(self)
         #Optitrack(self)
-        self.simulator = DynamicSimulator(self)
+        self.simulator = CalebDynamicSimulator(self)
         self.simulator.match_time = False
 
         #Gifsaver(self)
@@ -74,9 +77,13 @@ class Main():
     # run experiment until user press q in visualization window
     def run(self):
         print_info("running ... press q to quit")
+        i = 0
         while not self.exit_request.is_set():
             ts = time()
             self.update()
+            if i % 4000 == 0:
+                experiment.timer.summary()
+            i += 1
         # exit point
         print_info("Exiting ...")
         for item in self.extensions:
@@ -109,14 +116,15 @@ class Main():
             item.preUpdate()
             t.e(item.name)
 
-        self.new_state_update.wait()
-        self.new_state_update.clear()
+        # self.new_state_update.wait()
+        # self.new_state_update.clear()
 
         t.s('control')
         for car in self.cars:
             # call controller, send command to car in real experiment
             car.control()
         t.e('control')
+
 
         # -- Extension update -- 
         t.s('update')
@@ -134,7 +142,6 @@ class Main():
     def stop(self,):
         for car in self.cars:
             car.stopStateUpdate(car)
-
 
 
 if __name__ == '__main__':

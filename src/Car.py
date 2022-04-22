@@ -16,8 +16,9 @@ class Car:
         self.car_interface = None
 
     def init(self):
-        if (Car.main.experiment_type == ExperimentType.Realworld):
-            self.initSerialInterface()
+        # todo: make this work again!!
+        # if (Car.main.experiment_type == ExperimentType.Realworld):
+        #     self.initSerialInterface()
         self.controller.init()
 
     def initSerialInterface(self):
@@ -39,8 +40,9 @@ class Car:
 
         if (Car.main.slowdown.is_set()):
             self.throttle = 0.0
-        if (Car.main.experiment_type == ExperimentType.Realworld):
-            self.actuate()
+        # todo make this work again!!
+        # if (Car.main.experiment_type == ExperimentType.Realworld):
+        #     self.actuate()
 
     def actuate(self):
         if not (self.car_interface is None):

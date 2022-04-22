@@ -3,6 +3,7 @@ from common import PrintObject
 import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
+from extension.simulator.CalebDynamicSimulator import CalebDynamicSimulator
 class CarController(PrintObject):
     def __init__(self, car):
         self.car = car
@@ -57,10 +58,11 @@ class CarController(PrintObject):
             state = KinematicSimulator.advanceDynamics( state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)
+
     def getDynamicTrajectory(self, x0, control):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = DynamicSimulator.advanceDynamics( state, control[i], self.car)
+            state = self.main.simulator.advanceDynamics( state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)

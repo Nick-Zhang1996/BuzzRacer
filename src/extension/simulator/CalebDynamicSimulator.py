@@ -16,17 +16,17 @@ from threading import Event, Lock
 from extension.simulator.KinematicSimulator import KinematicSimulator
 
 
-class DynamicSimulator(Simulator):
+class CalebDynamicSimulator(Simulator):
     def __init__(self, main):
         super().__init__(main)
-        DynamicSimulator.max_v = 3.0
-        DynamicSimulator.using_kinematics = False
+        CalebDynamicSimulator.max_v = 3.0
+        CalebDynamicSimulator.using_kinematics = False
 
     def init(self):
         super().init()
         self.cars = self.main.cars
-        DynamicSimulator.dt = self.main.dt
-        KinematicSimulator.dt = DynamicSimulator.dt
+        CalebDynamicSimulator.dt = self.main.dt
+        KinematicSimulator.dt = CalebDynamicSimulator.dt
         KinematicSimulator.max_v = 100
         for car in self.cars:
             self.addCar(car)
@@ -72,25 +72,36 @@ class DynamicSimulator(Simulator):
         lf = car.lf
         lr = car.lr
         L = car.L
-
-        Iz = car.Iz
+        h = 0.01
         m = car.m
-        dt = DynamicSimulator.dt
+        I = car.Iz
+        g = 9.81
+
+        motor_A = 6.17
+        motor_B = 15.2
+        motor_C = 0.333
+
+        Df = 1.1  # 3.93731
+        Dr = 1.1  # 6.23597
+        C = 1.6  # 2.80646
+        B = 2.3  # 0.51943
+
+        dt = CalebDynamicSimulator.dt
 
         # NOTE here vx = vf, vy = vs, different convention
-        x, y, heading, vx, vy, omega = car_states
+        xG, yG, heading, vf, vs, omega = car_states
         throttle, steering = control
 
         # for small longitudinal velocity use kinematic model
-        if (vx < 0.05):
+        if vf < 0.05:
             beta = atan(lr / L * tan(steering))
             norm = lambda a, b: (a ** 2 + b ** 2) ** 0.5
             # motor model
-            d_vx = 6.17 * (throttle - vx / 15.2 - 0.333)
-            vx = vx + d_vx * dt
-            vy = norm(vx, vy) * sin(beta)
-            d_omega = 0.0
-            omega = vx / L * tan(steering)
+            d_vx = motor_A * (throttle - vf / motor_C - motor_B)
+            vf = vf + d_vx * dt
+            vs = norm(vf, vs) * sin(beta)
+            phiddot = 0.0
+            omega = vs / L * tan(steering)
 
             slip_f = 0
             slip_r = 0
@@ -98,35 +109,45 @@ class DynamicSimulator(Simulator):
             Fry = 0
 
         else:
-            slip_f = -np.arctan((omega * lf + vy) / vx) + steering
-            slip_r = np.arctan((omega * lr - vy) / vx)
+            accelForce = motor_A * (throttle - vf / motor_B - motor_C)  # motor model
+            # WEIGHT SHIFT
+            frontWeight = (accelForce * h + m * g * lr) / L
+            rearWeight = (-accelForce * h + m * g * lf) / L
 
-            # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-            # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-            Ffy = tireCurve(slip_f) * m * 9.8 * lr / (lr + lf)
-            Fry = 1.15 * tireCurve(slip_r) * m * 9.8 * lf / (lr + lf)
+            frontslip = -(np.arctan2(vs + lf * omega, vf) - steering)
+            rearslip = -np.arctan2((vs - lr * omega), vf)
+            tc = lambda slip, D, weight: D * np.sin(C * np.arctan(B * slip)) * weight
 
-            # Dynamics
-            # d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
-            d_vx = 6.17 * (throttle - vx / 15.2 - 0.333)
-            d_vy = 1.0 / m * (Fry + Ffy * np.cos(steering) - m * vx * omega)
-            d_omega = 1.0 / Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
+            Flf = 0
+            Fcf = tc(frontslip, Df, frontWeight)
+            Flr = 0.5 * motor_A * (throttle - vf / motor_B - motor_C)  # motor model
+            Fcr = tc(rearslip, Dr, rearWeight)
 
-            # discretization
-            vx = vx + d_vx * dt
-            vy = vy + d_vy * dt
-            omega = omega + d_omega * dt
+            Fxf = -Fcf * sin(steering)
+            Fxr = Flr
+            Fyf = Fcf * cos(steering)
+            Fyr = Fcr
 
-            # back to global frame
-        vxg = vx * cos(heading) - vy * sin(heading)
-        vyg = vx * sin(heading) + vy * cos(heading)
+            # xddot = vs * omega - 2 / m * Cf * frontslip * np.sin(st) + th / m
+            # xddot = vs * omega + 2 / m * Fxf + 2 / m * Fxr
+            xddot = 2 * Fxr
+            # yddot = -vf * omega + 2 / m * Cf * frontslip * np.cos(st) + 2 / m * Cr * rearslip
+            yddot = -vf * omega + 2 / m * Fyf + 2 / m * Fyr
+            phiddot = 2 * lf / I * Fyf - 2 * lr / I * Fyr
 
-        # update x,y, heading
-        x += vxg * dt
-        y += vyg * dt
-        heading += omega * dt + 0.5 * d_omega * dt * dt
+            vf += xddot * dt
+            vs += yddot * dt
+            omega += phiddot * dt
 
-        car_states = x, y, heading, vx, vy, omega
+        # convert back to global
+        vxG = vf * np.cos(heading) - vs * np.sin(heading)
+        vyG = vf * np.sin(heading) + vs * np.cos(heading)
+
+        xG += vxG * dt
+        yG += vyG * dt
+        heading += omega * dt + 0.5 * phiddot * dt**2
+
+        car_states = xG, yG, heading, vf, vs, omega
         return np.array(car_states)
 
     def update(self):

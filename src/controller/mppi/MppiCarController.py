@@ -1,5 +1,5 @@
 # mppi car controller, with dynamic model
-from controller.CarController import CarController
+from src.controller.CarController import CarController
 import numpy as np
 from time import time,sleep
 from math import radians,degrees,cos,sin,ceil,floor,atan,tan
@@ -131,7 +131,8 @@ class MppiCarController(CarController):
                 "DT":self.dt
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
-        cuda_filename = "./controller/mppi/mppi_racecar.cu"
+        cuda_filename = "./controller/mppi/CalebNonlinearDynamic.cu"
+        # cuda_filename = "./controller/mppi/mppi_racecar.cu"
         self.loadCudaFile(cuda_filename, cuda_code_macros)
         self.setBlockGrid()
 
@@ -188,7 +189,7 @@ class MppiCarController(CarController):
     def getFunctionSafe(self,name):
         fun = self.mod.get_function(name)
         self.print_info("registers used, ",name,"= %d"%(fun.num_regs))
-        assert fun.num_regs < 64
+        assert fun.num_regs < 65  # todo check to make sure this is actually ok (65 vs 64)
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
 
@@ -267,6 +268,10 @@ class MppiCarController(CarController):
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
         expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
+
+        # plt.plot(expected_trajectory[:,0], expected_trajectory[:,1])
+        # plt.show()
+
         self.plotTrajectory(expected_trajectory)
 
         #self.last_ref_control = control.copy()
