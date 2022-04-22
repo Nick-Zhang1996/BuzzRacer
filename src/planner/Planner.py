@@ -185,7 +185,6 @@ class Planner:
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         M = A @ dr
-        breakpoint()
         D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
         M1 = planner.getDiff1Matrix(N,self.ds)
         M2 = planner.getDiff2Matrix(N,self.ds)
@@ -207,7 +206,6 @@ class Planner:
         k_unnormal = k_r_unnormal + dkdn @ n # to test
         print("smallest |k - k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
 
-        breakpoint()
 
         # reference method
         k_p = np.cross(dp.T,ddp.T) / np.linalg.norm(dr,axis=0)**3
@@ -342,25 +340,23 @@ class Planner:
         # m/s
         ds = 1.2
         x0 = [1,0.15,ds]
-        xref = [7,-0.15,ds]
         # opponents, static, [s,n]
         opponent_state_vec = [[3,0],[5,-0.1]]
 
         self.genPath()
-        sols = self.solveSingleControl(x0,xref,opponent_state_vec)
+        sols = self.solveSingleControl(x0,opponent_state_vec)
 
         self.plotTrack()
         # initial state
         self.plotCar(x0)
         # target state
-        self.plotCar(xref)
+        #self.plotCar(xref)
         for (u_vec, state_traj) in sols:
             self.plotStateTraj(state_traj)
         for opponent in opponent_state_vec:
             self.plotOpponent(opponent)
         plt.axis('equal')
         plt.show()
-        breakpoint()
 
     def getCurvatureObjective(self):
         # find r, dr, ddr
@@ -371,17 +367,16 @@ class Planner:
         # find n, dn, ddn
         #print(np.linalg.norm(dr,axis=0))
         dr = np.linalg.norm(np.diff(r,axis=0),axis=1)
-        breakpoint()
-
         return
 
 
-    def solveSingleControl(self,x0,xref,opponent_state):
+    def solveSingleControl(self,x0,opponent_state):
         mpc = MPC()
         self.mpc = mpc
         n = self.n
         m = self.m
         N = self.N
+        ds = self.ds
         # setup mpc 
         mpc.setup(n,m,n,N)
         dt = self.dt = 0.1
@@ -394,6 +389,7 @@ class Planner:
         t = time()
         x0 = np.array(x0).T.reshape(-1,1)
         self.x0 = x0
+        xref = [x0[0,0]+x0[2,0]*(self.N+1),0,ds]
         xref = np.array(xref).T.reshape(-1,1)
         xref_vec = xref.repeat(N,1).T.reshape(N,n,1)
         #du_max = np.array([[1,1]]).T
@@ -404,7 +400,7 @@ class Planner:
         # add track boundary constraints
         self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
-        self.addCurvatureNormObjective(mpc, x0, n_estimate=None )
+        self.addCurvatureNormObjective(mpc, x0, weight=1e3, n_estimate=None )
         self.scenarios = scenarios
         sols = []
         # save current mpc matrices
@@ -416,8 +412,9 @@ class Planner:
         for case in scenarios:
             mpc.P = P
             mpc.q = q
-            mpc.G = np.vstack([G,case[0]])
-            mpc.h = np.vstack([h,case[1]])
+            # FIXME no constraints
+            #mpc.G = np.vstack([G,case[0]])
+            #mpc.h = np.vstack([h,case[1]])
             dt = time()-t
             mpc.solve()
             if (mpc.h is not None):
@@ -436,6 +433,15 @@ class Planner:
         plt.plot(u)
         plt.show()
         '''
+        # calculate progress and curvature cost
+        u = sols[0][0]
+        progress_cost = u.T @ mpc.old_P @ u + mpc.old_q.T @ u
+        cur_cost = u.T @ mpc.dP @ u + mpc.dq.T @ u
+        total_cost = u.T @ mpc.P @ u + mpc.q.T @ u
+        print("progress_cost = %.2f"%(progress_cost))
+        print("curvature cost = %.2f"%(cur_cost))
+        print("total cost  = %.2f"%(total_cost))
+        breakpoint()
         return sols
 
     # construct the state limits
@@ -475,7 +481,6 @@ class Planner:
         opponent_constraints = []
         opponent_idx = 0
         for opponent in opponent_state:
-            opponent_constraints.append([])
             # treat opponent as a single point
             idx = self.getIndex(opponent[0])
             # +
@@ -484,15 +489,19 @@ class Planner:
             right = self.right_limit[idx]
             # which time step to apply constraints
             step = (opponent[0] - self.x0[0])/self.x0[2]/self.dt
+            print("step = %d"%(step))
             step_begin = floor(step)
             step_end = step_begin+1
+            # if opponent is too far, skip
+            if (step_begin > self.N):
+                continue
+            opponent_constraints.append([])
             # TODO extend to cover entire opponent length
-            # TODO don't include opponents too far
             if (left > opponent[1]+self.opponent_width/2):
                 # there's space in left for passing
                 left_bound = opponent[1]+self.opponent_width/2
                 retval1 = self.getGhForN(step_begin,left_bound,False)
-                retval2= self.getGhForN(step_end,left_bound,False)
+                retval2 = self.getGhForN(step_end,left_bound,False)
                 if (retval1 is not None and retval2 is not None):
                     G1,h1 = retval1
                     G2,h2 = retval2
@@ -500,6 +509,8 @@ class Planner:
                     h = np.vstack([h1,h2])
                     opponent_constraints[-1].append((G,h))
                     print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
+                else:
+                    print("error, out of bound")
                 
             if (right < opponent[1]-self.opponent_width/2):
                 # there's space in right for passing
@@ -513,6 +524,8 @@ class Planner:
                     h = np.vstack([h1,h2])
                     opponent_constraints[-1].append((G,h))
                     print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
+                else:
+                    print("error, out of bound")
             opponent_idx += 1
 
         # possible combination of AND constraints
@@ -527,12 +540,12 @@ class Planner:
     # dr:(2,N)
     # ds: float scalar
     # p: (2,N)
-    def addCurvatureNormObjective(self, mpc, x0, n_estimate=None):
+    def addCurvatureNormObjective(self, mpc, x0, weight, n_estimate=None):
         N = self.N
         ds = self.ds
         idx = []
         for i in range(N):
-            this_s = x0[0] + self.dt*x0[2]
+            this_s = x0[0,0] + i*self.dt*x0[2,0]
             i = this_s / ds
             idx.append(i)
         idx = np.array(idx,dtype=int).flatten()
@@ -571,8 +584,13 @@ class Planner:
         dP = 2*G.T @ G
         k_0 = k_0.reshape((N,1))
         dq = (2*k_0.T @ G).T
-        #mpc.P += dP
-        #mpc.q += dq
+        mpc.old_P = mpc.P.copy()
+        mpc.old_q = mpc.q.copy()
+        mpc.dP = weight * dP
+        mpc.dq = weight * dq
+        # FIXME curvature objective only
+        mpc.P = weight * dP
+        mpc.q = weight * dq
         return 
 
 
@@ -580,7 +598,7 @@ class Planner:
     def getGhForN(self,step,val,is_max_constrain):
         mpc = self.mpc
         idx = step*self.n + 1
-        if (idx > self.N-1):
+        if (step > self.N):
             return None
         M = np.zeros(self.N*self.n)
         M[idx] = 1
