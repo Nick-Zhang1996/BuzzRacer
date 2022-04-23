@@ -72,9 +72,9 @@ class Planner:
         # generate n(s), lateral offset
         t = self.t_vec
         A = np.array([[0,-1],[1,0]])
-        n = 0.1*np.sin(5*t)
-        dn = 0.1*5*np.cos(5*t)
-        ddn = -0.1*25*np.sin(5*t)
+        n = 0.3*np.sin(5*t)
+        dn = 0.3*5*np.cos(5*t)
+        ddn = -0.3*25*np.sin(5*t)
         dddr = np.vstack([np.zeros_like(t),-np.cos(t)])
         # p(s)
         r = self.r.T
@@ -169,7 +169,7 @@ class Planner:
         ddr = ddr.T
 
         # plot tangent circles
-        idx = 10
+        idx = 20
 
         # test curvature calculation with linear approximation
         def cross(A,B):
@@ -198,13 +198,17 @@ class Planner:
 
         k_r_unnormal = np.cross(dr.T,ddr.T) # base
         k_p_unnormal = np.cross(dp.T,ddp.T) # ground truth
-        print("biggest |k - k0| = %.3f"%(np.linalg.norm(k_r_unnormal - k_p_unnormal)))
+        mse = lambda a,b: np.sum((a-b)**2)
+        print("k_r small", np.sum(k_r_unnormal**2))
+        print("k_p large", np.sum(k_p_unnormal**2))
+        print("biggest |k - k0| = %.3f"%(mse(k_r_unnormal,k_p_unnormal)))
         k_unnormal = k_r_unnormal + 0.3* dkdn @ n # to test
-        print("bigger |k - half k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
+        print("bigger |k - half k_new| = %.3f"%(mse(k_unnormal , k_p_unnormal)))
         k_unnormal = k_r_unnormal + 0.7* dkdn @ n # to test
-        print("smaller |k - half k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
+        print("smaller |k - half k_new| = %.3f"%(mse(k_unnormal , k_p_unnormal)))
         k_unnormal = k_r_unnormal + dkdn @ n # to test
-        print("smallest |k - k_new| = %.3f"%(np.linalg.norm(k_unnormal - k_p_unnormal)))
+        print("smallest |k - k_new| = %.3f"%(mse(k_unnormal , k_p_unnormal)))
+        breakpoint()
 
 
         # reference method
@@ -398,10 +402,12 @@ class Planner:
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
-        self.constructTrackBoundaryConstraint(mpc)
+        #self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
         self.addCurvatureNormObjective(mpc, x0, weight=1e3, n_estimate=None )
         self.scenarios = scenarios
+        # FIXME only first
+        scenarios = [scenarios[0]]
         sols = []
         # save current mpc matrices
         # solve for different scenarios
@@ -435,12 +441,37 @@ class Planner:
         '''
         # calculate progress and curvature cost
         u = sols[0][0]
-        progress_cost = u.T @ mpc.old_P @ u + mpc.old_q.T @ u
-        cur_cost = u.T @ mpc.dP @ u + mpc.dq.T @ u
-        total_cost = u.T @ mpc.P @ u + mpc.q.T @ u
-        print("progress_cost = %.2f"%(progress_cost))
+        #progress_cost = u.T @ mpc.old_P @ u + mpc.old_q.T @ u
+        #total_cost = 0.5*u.T @ mpc.P @ u + mpc.q.T @ u
+        #print("progress_cost = %.2f"%(progress_cost))
+        #print("total cost  = %.2f"%(total_cost))
+        #der = u.T @ mpc.P + mpc.q.T
+        #print("derivative to u ",der)
+
+        cur_cost = 0.5*u.T @ mpc.dP @ u + mpc.dq.T @ u
         print("curvature cost = %.2f"%(cur_cost))
-        print("total cost  = %.2f"%(total_cost))
+
+        # base curvature(r' * r'') for r
+        k_r = np.cross(self.debug_dr, self.debug_ddr,axis=0)
+
+        # curvature for actual p
+        n = sols[0][1][1:,1]
+        # ccw 90 deg
+        R = np.array([[0,-1],[1,0]])
+        p = self.debug_r + R @ self.debug_dr * n
+        M1 = planner.getDiff1Matrix(N,ds)
+        M2 = planner.getDiff2Matrix(N,ds)
+        I_2 = np.eye(2)
+        dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2)).T
+        ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2)).T
+        k_p = np.cross(dp, ddp,axis=0)
+
+        dr = (np.kron(M1,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
+        ddr = (np.kron(M2,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
+        k_r_test = np.cross(dr, ddr,axis=0)
+        # kp and kr very different, why?
+
+
         breakpoint()
         return sols
 
@@ -551,10 +582,15 @@ class Planner:
         idx = np.array(idx,dtype=int).flatten()
 
         # TODO maybe use good ddr approxmation instead of 2nd degree
+        r = self.r.T[:,idx]
         dr = self.dr.T[:,idx]
         ddr = self.ddr.T[:,idx]
-        r = self.r.T[:,idx]
         dr_norm = np.linalg.norm(dr,axis=0)
+
+        self.debug_r = r
+        self.debug_dr = dr
+        self.debug_ddr = ddr
+        self.debug_dr_norm = dr_norm
         if (n_estimate is None):
             n_estimate = np.zeros(N)
         # ccw 90 deg
