@@ -340,14 +340,15 @@ class Planner:
         # u: [dn] first derivative of n
         self.n = n = 3
         self.m = m = 1
+        self.genPath()
 
         # m/s
-        ds = 1.2
-        x0 = [1,0.15,ds]
+        self.dt = 0.1
+        vs = 1.3
+        x0 = [1,0.15,vs]
         # opponents, static, [s,n]
         opponent_state_vec = [[3,0],[5,-0.1]]
 
-        self.genPath()
         sols = self.solveSingleControl(x0,opponent_state_vec)
 
         self.plotTrack()
@@ -383,7 +384,7 @@ class Planner:
         ds = self.ds
         # setup mpc 
         mpc.setup(n,m,n,N)
-        dt = self.dt = 0.1
+        dt = self.dt
         A = np.eye(n)
         A[0,2] = dt
         B = np.array([[0,1,0]]).T*dt
@@ -402,12 +403,10 @@ class Planner:
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
-        #self.constructTrackBoundaryConstraint(mpc)
+        self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
         self.addCurvatureNormObjective(mpc, x0, weight=1e3, n_estimate=None )
         self.scenarios = scenarios
-        # FIXME only first
-        scenarios = [scenarios[0]]
         sols = []
         # save current mpc matrices
         # solve for different scenarios
@@ -415,12 +414,9 @@ class Planner:
         q = mpc.q
         G = mpc.G
         h = mpc.h
-        for case in scenarios:
+        if (scenarios is None):
             mpc.P = P
             mpc.q = q
-            # FIXME no constraints
-            #mpc.G = np.vstack([G,case[0]])
-            #mpc.h = np.vstack([h,case[1]])
             dt = time()-t
             mpc.solve()
             if (mpc.h is not None):
@@ -431,6 +427,24 @@ class Planner:
             state_traj = state_traj.reshape((N,n))
             state_traj = np.vstack([x0.T,state_traj])
             sols.append( (mpc.u,state_traj) )
+        else:
+            # FIXME only first scenario
+            scenarios = [scenarios[3]]
+            for case in scenarios:
+                mpc.P = P
+                mpc.q = q
+                mpc.G = np.vstack([G,case[0]])
+                mpc.h = np.vstack([h,case[1]])
+                duration = time()-t
+                mpc.solve()
+                if (mpc.h is not None):
+                    print(mpc.h.shape)
+                print("freq = %.2fHz"%(1/duration))
+                # state_traj in curvilinear frame
+                state_traj = mpc.F @ mpc.u + mpc.Ex0
+                state_traj = state_traj.reshape((N,n))
+                state_traj = np.vstack([x0.T,state_traj])
+                sols.append( (mpc.u,state_traj) )
 
         '''
         plt.plot(state_traj)
@@ -459,6 +473,8 @@ class Planner:
         # ccw 90 deg
         R = np.array([[0,-1],[1,0]])
         p = self.debug_r + R @ self.debug_dr * n
+        # ds = ds/dt * dt
+        ds = x0[2][0] * self.dt
         M1 = planner.getDiff1Matrix(N,ds)
         M2 = planner.getDiff2Matrix(N,ds)
         I_2 = np.eye(2)
@@ -466,11 +482,11 @@ class Planner:
         ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2)).T
         k_p = np.cross(dp, ddp,axis=0)
 
+        # should agree with k_r
         dr = (np.kron(M1,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
         ddr = (np.kron(M2,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
         k_r_test = np.cross(dr, ddr,axis=0)
         # kp and kr very different, why?
-
 
         breakpoint()
         return sols
@@ -563,6 +579,10 @@ class Planner:
         # e.g. opponent 0 can be passed on left or right
         #      opponent 1 can be passed on left 
         # 2 scenarios, (left,left) (left,right)
+
+        # if no opponent is in sight
+        if (len(opponent_constraints)==0):
+            return None
         cons_combination = [ cons for cons in product(*opponent_constraints)]
 
         scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
@@ -612,6 +632,8 @@ class Planner:
         A = np.array([[0,-1],[1,0]])
         M = A @ dr
         D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
+        # ds = ds/dt * dt
+        ds = x0[2][0] * self.dt
         M1 = planner.getDiff1Matrix(N,ds)
         M2 = planner.getDiff2Matrix(N,ds)
         I_2 = np.eye(2)
