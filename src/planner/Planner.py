@@ -345,7 +345,7 @@ class Planner:
         # m/s
         self.dt = 0.1
         vs = 1.3
-        x0 = [1,0.15,vs]
+        x0 = [1,0,vs]
         # opponents, static, [s,n]
         opponent_state_vec = [[3,0],[5,-0.1]]
 
@@ -363,17 +363,6 @@ class Planner:
         plt.axis('equal')
         plt.show()
 
-    def getCurvatureObjective(self):
-        # find r, dr, ddr
-        s = self.s_vec
-        r = self.ref_path
-        dr = self.dr
-        ddr = self.ddr
-        # find n, dn, ddn
-        #print(np.linalg.norm(dr,axis=0))
-        dr = np.linalg.norm(np.diff(r,axis=0),axis=1)
-        return
-
 
     def solveSingleControl(self,x0,opponent_state):
         mpc = MPC()
@@ -389,7 +378,7 @@ class Planner:
         A[0,2] = dt
         B = np.array([[0,1,0]]).T*dt
         P = np.diag([1,1,0])
-        Q = np.eye(m)*5.0
+        Q = np.eye(m)
 
         t = time()
         x0 = np.array(x0).T.reshape(-1,1)
@@ -405,18 +394,26 @@ class Planner:
         # add track boundary constraints
         self.constructTrackBoundaryConstraint(mpc)
         scenarios = self.constructOpponentConstraint(mpc,opponent_state)
-        self.addCurvatureNormObjective(mpc, x0, weight=1e3, n_estimate=None )
+        self.addCurvatureNormObjective(mpc, x0, weight=1, n_estimate=None )
         self.scenarios = scenarios
         sols = []
+
+        # FIXME hack to force u0 = 0
+        G_u0 = np.zeros((2,N))
+        G_u0[0,0] = 1
+        G_u0[1,0] = -1
+        h_u0 = np.zeros((2,1))
+        h_u0[0,0] = 0.1
+        h_u0[1,0] = -0.1
         # save current mpc matrices
         # solve for different scenarios
-        P = mpc.P
-        q = mpc.q
         G = mpc.G
         h = mpc.h
+        G = np.vstack([G,G_u0])
+        h = np.vstack([h,h_u0])
+
         if (scenarios is None):
-            mpc.P = P
-            mpc.q = q
+            print("no opponent in horizon")
             dt = time()-t
             mpc.solve()
             if (mpc.h is not None):
@@ -428,17 +425,15 @@ class Planner:
             state_traj = np.vstack([x0.T,state_traj])
             sols.append( (mpc.u,state_traj) )
         else:
-            # FIXME only first scenario
-            scenarios = [scenarios[3]]
+            #scenarios = [scenarios[3]]
             for case in scenarios:
-                mpc.P = P
-                mpc.q = q
+                print("case ---- ")
                 mpc.G = np.vstack([G,case[0]])
                 mpc.h = np.vstack([h,case[1]])
                 duration = time()-t
                 mpc.solve()
                 if (mpc.h is not None):
-                    print(mpc.h.shape)
+                    print("constraints: %d"%(mpc.h.shape[0]))
                 print("freq = %.2fHz"%(1/duration))
                 # state_traj in curvilinear frame
                 state_traj = mpc.F @ mpc.u + mpc.Ex0
@@ -446,49 +441,57 @@ class Planner:
                 state_traj = np.vstack([x0.T,state_traj])
                 sols.append( (mpc.u,state_traj) )
 
-        '''
-        plt.plot(state_traj)
-        plt.show()
-        u = np.array(mpc.u).reshape((-1,2))
-        plt.plot(u)
-        plt.show()
-        '''
         # calculate progress and curvature cost
         u = sols[0][0]
-        #progress_cost = u.T @ mpc.old_P @ u + mpc.old_q.T @ u
-        #total_cost = 0.5*u.T @ mpc.P @ u + mpc.q.T @ u
-        #print("progress_cost = %.2f"%(progress_cost))
-        #print("total cost  = %.2f"%(total_cost))
-        #der = u.T @ mpc.P + mpc.q.T
-        #print("derivative to u ",der)
+        mse = lambda a: np.sum((a)**2)
 
+        progress_cost = 0.5*u.T @ mpc.old_P @ u + mpc.old_q.T @ u
         cur_cost = 0.5*u.T @ mpc.dP @ u + mpc.dq.T @ u
+        total_cost = 0.5*u.T @ mpc.P @ u + mpc.q.T @ u
+        print("progress cost = %.2f"%(progress_cost))
         print("curvature cost = %.2f"%(cur_cost))
+        print("total cost = %.2f"%(total_cost))
 
         # base curvature(r' * r'') for r
         k_r = np.cross(self.debug_dr, self.debug_ddr,axis=0)
+        #k_r_norm = np.linalg.norm(k_r)
+        k_r_norm = mse(k_r)
 
-        # curvature for actual p
-        n = sols[0][1][1:,1]
         # ccw 90 deg
         R = np.array([[0,-1],[1,0]])
-        p = self.debug_r + R @ self.debug_dr * n
+        I_2 = np.eye(2)
+        # curvature for actual p
+        n = sols[0][1][1:,1]
         # ds = ds/dt * dt
         ds = x0[2][0] * self.dt
         M1 = planner.getDiff1Matrix(N,ds)
         M2 = planner.getDiff2Matrix(N,ds)
-        I_2 = np.eye(2)
+
+        p = self.debug_r + R @ self.debug_dr * n
         dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2)).T
         ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2)).T
         k_p = np.cross(dp, ddp,axis=0)
+        k_p_norm = mse(k_p)
 
         # should agree with k_r
         dr = (np.kron(M1,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
         ddr = (np.kron(M2,I_2) @ self.debug_r.T.flatten()).reshape((N,2)).T
         k_r_test = np.cross(dr, ddr,axis=0)
-        # kp and kr very different, why?
+        k_r_norm = mse(k_r_test)
+        print("curvature for ref r = %.3f"%(k_r_norm))
+        print("curvature for ref p = %.3f"%(k_p_norm))
 
-        breakpoint()
+        # check k_p_norm in direction of n*
+        k_p_norm_vec = []
+        ratio = np.linspace(-1,2,20)
+        for c in ratio:
+            p = self.debug_r + R @ self.debug_dr * (c*n)
+            dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2)).T
+            ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2)).T
+            k_p = np.cross(dp, ddp,axis=0)
+            k_p_norm = mse(k_p)
+            k_p_norm_vec.append(k_p_norm)
+
         return sols
 
     # construct the state limits
@@ -535,15 +538,16 @@ class Planner:
             # -
             right = self.right_limit[idx]
             # which time step to apply constraints
-            step = (opponent[0] - self.x0[0])/self.x0[2]/self.dt
-            print("step = %d"%(step))
-            step_begin = floor(step)
-            step_end = step_begin+1
+            #step = (opponent[0] - self.x0[0])/self.x0[2]/self.dt
+            #print("step = %d"%(step))
+            step_begin = (opponent[0] - self.x0[0] - self.opponent_length/2)/self.x0[2]/self.dt
+            step_end = (opponent[0] - self.x0[0] + self.opponent_length/2)/self.x0[2]/self.dt
+            step_begin = floor(step_begin)
+            step_end = floor(step_end) + 1
             # if opponent is too far, skip
-            if (step_begin > self.N):
+            if (step_end > self.N):
                 continue
             opponent_constraints.append([])
-            # TODO extend to cover entire opponent length
             if (left > opponent[1]+self.opponent_width/2):
                 # there's space in left for passing
                 left_bound = opponent[1]+self.opponent_width/2
@@ -637,18 +641,22 @@ class Planner:
         M1 = planner.getDiff1Matrix(N,ds)
         M2 = planner.getDiff2Matrix(N,ds)
         I_2 = np.eye(2)
+        I_N = np.eye(N)
         G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
         k_0 = np.cross(dr.T,ddr.T) 
-        dP = 2*G.T @ G
+        M = np.kron(I_N, [0,1,0]) @ mpc.F
+        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+
+
         k_0 = k_0.reshape((N,1))
-        dq = (2*k_0.T @ G).T
+        dP = 2*(2*M.T @ G.T @ G @ M)
+        dq = (2*K.T @ G.T @ G @ M + 2*k_0.T @ G @ M).T
         mpc.old_P = mpc.P.copy()
         mpc.old_q = mpc.q.copy()
         mpc.dP = weight * dP
         mpc.dq = weight * dq
-        # FIXME curvature objective only
-        mpc.P = weight * dP
-        mpc.q = weight * dq
+        mpc.P += weight * dP
+        mpc.q += weight * dq
         return 
 
 
