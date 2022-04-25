@@ -27,10 +27,17 @@ from track import RCPTrack
 
 from time import sleep
 
-from sysid.tire import tireCurve, newTireCurve, oldTireCurve
+# from sysid.tire import tireCurve, newTireCurve, oldTireCurve
 
 saveGif = True
 gifs = []
+
+filename = '/home/caleb/RC-VIP/log/steeringSysid/debug_dict4.p'
+with open(filename, 'rb') as f:
+    data = pickle.load(f)
+measured_steering = np.array(data[0]['measured_steering'])
+measured_steering = (measured_steering+0.5*np.pi)%(np.pi)-0.5*np.pi
+measured_steering_smooth = savgol_filter(measured_steering, 19,2)
 
 if (len(sys.argv) != 2):
     filename = "/home/caleb/RC-VIP/log/steeringSysid/full_state4.p"  # "/home/caleb/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state1.p"
@@ -67,49 +74,12 @@ omegaActual = data[skip:, 6]
 steering = data[skip:, 7]
 throttle = data[skip:, 8]
 
-# xActual = data[skip:, 1]  # changed from just 'x'
-# yActual = data[skip:, 2]  # changed from just 'y'
-# headingActual = data[skip:, 3]  # changed from just 'heading'
-# steering = data[skip:, 4]  # this name aligns with my convention
-# throttle = data[skip:, 5]  # this name aligns with my convention
-#
-# dt = 0.01
-# vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
-# vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
-# # omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
-#
-# # local speed
-# # forward
-# vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  # changed from vx_car
-# # lateral, left +
-# vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
-#
-# exp_kf_x = data[skip:, 6]
-# exp_kf_y = data[skip:, 7]
-# exp_kf_v = data[skip:, 8]
-# exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
-# exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
-# # exp_kf_theta = data[skip:, 9]
-# # exp_kf_omega = data[skip:, 10]
-#
-# '''
-# # use kalman filter results
-# x = exp_kf_x
-# y = exp_kf_y
-# vx = exp_kf_vx
-# vy = exp_kf_vy
-# heading = exp_kf_theta
-# '''
-# # NOTE using filtered omega
-# omegaActual = exp_kf_omega  # changed from just 'omega'
-
 data_len = t.shape[0]
 
 history_steps = 5
 forward_steps = 3
 
 # start of my set up code
-visuals = True
 fullsim = True
 curvature = 0
 lf = 0.09 - 0.036
@@ -133,6 +103,26 @@ full_state_vec = []
 track = RCPTrack()
 track.load()
 
+discretized_raceline_len = 1024
+
+_norm = lambda x: np.linalg.norm(x, axis=0)
+ss = np.linspace(0, track.raceline_len_m, discretized_raceline_len)
+dr = np.array(splev(ss, track.raceline_s, der=1))
+ddr = vec_curvature = np.array(splev(ss, track.raceline_s, der=2))
+der = np.array(splev(ss, track.raceline_s, der=1))
+
+curv = 1.0 / (_norm(dr) ** 3 / (_norm(dr) ** 2 * _norm(ddr) ** 2 - np.sum(dr * ddr, axis=0) ** 2) ** 0.5)
+
+# curvature needs to be signed to indicate whether signage target angular velocity
+# a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+# cross_curvature = der[0, :] * vec_curvature[1, :] - der[1, :] * vec_curvature[0, :]
+cross_curvature = der[0] * vec_curvature[1] - der[1] * vec_curvature[0]
+
+k = curv
+k_sign = cross_curvature
+k_signed = np.copysign(k, k_sign)
+k_signed_smooth = savgol_filter(k_signed, 75, 2)
+
 if fullsim:
     # code to facilitate curvilinear coordinates:
     n_steps = 1000
@@ -147,45 +137,35 @@ def show(img):
     return
 
 
+def drawCarValidateModel(track, img, car_states, steering):
+    x, y, heading, vf_lf, vs_lf, omega_lf = car_states
+    coord = (x, y)
+    src = track.m2canvas(coord)
+    if src is None:
+        # print("Can't draw car -- outside track")
+        return img
+    # overlay vehicle image, orientation as headed
+    # significant performance impact
+    # img =  self.overlayCarRendering(img, car)
+
+    # draw vehicle, orientation as black arrow
+    # img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+    # draw steering angle, orientation as red arrow
+    img = track.drawArrow(coord, heading + steering, length=20, color=(0, 0, 255), thickness=4, img=img)
+    return img
+
+
+# guess is a zeta value
+def getCurvature(zeta):
+    idx = np.searchsorted(ss, zeta, side="left")
+    if idx > 0 and (idx == len(ss) or math.fabs(zeta - ss[idx - 1]) < math.fabs(zeta - ss[idx])):
+        return k_signed_smooth[idx - 1]
+    else:
+        return k_signed_smooth[idx]
+
+
+
 def step_kinematic(state, control, dt=0.01):
-    ## This is the old step_kinematic code. Replaced with duplicate of KinetaticSimulator.py
-    # # constants
-    # L = 0.102
-    # lr = 0.036
-    # # convert to local frame
-    # x, y, heading, vxg, vyg, omega = state
-    # steering, throttle = tuple(control)
-    # vx = vxg * cos(heading) + vyg * sin(heading)
-    # vy = -vxg * sin(heading) + vyg * cos(heading)
-    #
-    # # some convenience variables
-    # R = L / tan(steering)
-    # beta = atan(lr / R)
-    # norm = lambda a, b: (a ** 2 + b ** 2) ** 0.5
-    #
-    # # advance model
-    # vx = max(0, vx + (throttle - 0.24) * 7.0 * dt)
-    # # vx = vx + (throttle)*7.0*dt
-    # vy = norm(vx, vy) * sin(beta)
-    # assert vy * steering > 0
-    #
-    # # NOTE where to put this
-    # omega = vx / R
-    #
-    # # back to global frame
-    # vxg = vx * cos(heading) - vy * sin(heading)
-    # vyg = vx * sin(heading) + vy * cos(heading)
-    #
-    # # apply updates
-    # x += vxg * dt
-    # y += vyg * dt
-    # heading += omega * dt
-
-    # print('x = {0:.3f}    y = {1:.3f}    head = {2:.3f}    vx = {3:.3f}    vy = {4:.3f}    omega = {4:.3f}'.format(
-    #     x, y, heading, vxg, vyg, omega))
-
-    # rc = (round(control[0], 2), round(control[1], 2))
-    # print(rc, end='    ')
 
     lf = 0.09 - 0.036
     lr = 0.036
@@ -225,7 +205,7 @@ def step_kinematic(state, control, dt=0.01):
 
 
 # dt might be very variable? average of 0.0076315888991722695 s
-def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNames=None, paramValues=None):
+def step_NonlinearKinetoDynamic(state, control, curvature,j=None, dt=0.0076, paramNames=None, paramValues=None):
     """
     step_NonlinearKinetoDynamic implements the paper 'Real-time optimal control of an autonomous RC car with
     minimum-time maneuvers and a novel kineto-dynamical model'
@@ -258,12 +238,15 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNam
     # Hard to measure parameters
     # Assume constant K_us, + means understeer, - means oversteer
     # understeer gradient (see saved paper for analytic estimation?)
-    K_us = 0.04559  # 0.01079 from less extensive test  # -3 * pi / 180 initial guess
-    tau_a = 0.05  # 0.5447  # 0.00643796  # 0.05 initial guess
-    tau_delta = 0.05
-    tau_omega = 0.228  # 0.1339  # 0.1445 from less extensive test
-    k_D = 0.00650  # 0.01167  # 0.28067972  # 0.3  # drag coefficient
-    c_r = 0.2016  # 0.08387754  # 0.1 initial guess # frictional resistance
+    K_us = 0.02852  # from new minimize #-0.02558 #from diff evol #0.04559  # 0.01079 from less extensive test  # -3 * pi / 180 initial guess
+    tau_a = 0.04  # 0.5447  # 0.00643796  # 0.05 initial guess
+    motor_A = 6.17
+    motor_B = 15.2
+    motor_C = 0.333
+    tau_delta = 0.0613  # from minimize  0.087413  # from diff_evo #  0.025
+    tau_omega = 0.12574 # from new minimize # 0.1979 # from diff evol # 0.228  # 0.1339  # 0.1445 from less extensive test
+    k_D = 0#9.97594544e-01  # 0 #0.00650  # 0.01167  # 0.28067972  # 0.3  # drag coefficient
+    c_r = 0# 2.25905149e-02 #0 #0.2016  # 0.08387754  # 0.1 initial guess # frictional resistance
     # paper includes road gradient but for RC-Car it is zero
 
     # enable parameter tuning process
@@ -272,7 +255,7 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNam
             paramName = paramNames[ind]
             if paramName == "accelTimeConstant":
                 tau_a = paramValues[ind]
-            elif paramName == "steerTimeConstant":
+            elif paramName == "Steer time constant":
                 tau_delta = paramValues[ind]
             elif paramName == "angVelTimeConstant":
                 tau_omega = paramValues[ind]
@@ -282,23 +265,35 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNam
                 k_D = paramValues[ind]
             elif paramName == "rollResistCoeff":
                 c_r = paramValues[ind]
+            elif paramName == "motor_A":
+                motor_A = paramValues[ind]
+            elif paramName == "motor_B":
+                motor_B = paramValues[ind]
+            elif paramName == "motor_C":
+                motor_C = paramValues[ind]
             else:
                 print_error("Invalid Parameter name for step_NonlinearKinetoDynamic. Check parameter name spelling.")
 
     a_x, delta, v_x, Omega, zeta, n, xi = state
-    a_x0, delta_0 = control
+    throttle, delta_0 = control
+    a_x0 = motor_A * (throttle - v_x / motor_B - motor_C)
 
-    oldStateVersion = (xActual[j], yActual[j], headingActual[j], vxActual[j], vyActual[j], omegaActual[j])
-    refPoint, _, refHeading, curvature, _, u = track.localTrajectory(oldStateVersion, L, True)
-    xi = headingActual[j] - refHeading
-    zeta = float(track.uToS(u))
+    dr = splev(zeta % track.raceline_len_m, track.raceline_s, der=1)
+    refHeading = np.arctan2(dr[1], dr[0])
 
-    factor = 1
-    a_x *= factor
-    a_x0 *= factor
+    # oldStateVersion = (xActual[j], yActual[j], headingActual[j], vxActual[j], vyActual[j], omegaActual[j])
+    # refPoint, _, refHeading, curvature, _, u = track.localTrajectory(oldStateVersion, L, True)
+    # xiActual = headingActual[j] - refHeading
+    # zeta = float(track.uToS(u))
 
-    Omegadot = 1 / tau_omega * (v_x / L * (delta - K_us) - Omega)
-    v_xdot = a_x - k_D / m * v_x ** 2 - c_r * v_x
+    # v_x = vxActual[j-1]
+    if delta < 0:
+        # Omegadot = 1 / tau_omega * (v_x / L * (delta + K_us) - Omega)
+        Omegadot = 1 / tau_omega * (v_x / L * (delta + K_us) - Omega)
+    else:
+        # Omegadot = 1 / tau_omega * (v_x / L * (delta - K_us) - Omega)
+        Omegadot = 1 / tau_omega * (v_x/ L * (delta + K_us) - Omega)
+    v_xdot = motor_A * (throttle - v_x / motor_B - motor_C)#  a_x - k_D / m * v_x ** 2 - c_r * v_x
     a_xdot = 1 / tau_a * (a_x0 - a_x)
     deltadot = 1 / tau_delta * (delta_0 - delta)
 
@@ -306,6 +301,7 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNam
     # print("zeta dot: ", zetadot)
     ndot = v_x * np.sin(xi)
     xidot = Omega + (v_x * np.cos(xi) * curvature) / (n * curvature - 1)
+    # xidot = omegaActual[j] + (vxActual[j] * np.cos(xi) * curvature) / (n * curvature - 1)
 
     # Left Riemann Sum integrate
     Omega += Omegadot * dt
@@ -316,10 +312,19 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j, dt=0.0076, paramNam
     n += ndot * dt
     xi += xidot * dt
 
-    # (a_x, delta, v_x, Omega, zeta, n, xi)
-    return (a_x, delta_0, v_x, Omega, zeta, n, xi), {"Torque Accel": a_x, "Steer": delta, "Omega": Omega,
+    heading = xi + refHeading
+
+    # a_x = (vxActual[j+1] - vxActual[j]) / (t[j+1] - t[j])
+    # oldStateVersion = (xActual[j+1], yActual[j+1], headingActual[j+1], vxActual[j+1], vyActual[j+1], omegaActual[j+1])
+    # refPoint, n, refHeading, curvature, _, u = track.localTrajectory(oldStateVersion, 0, True)
+    # xi = headingActual[j] - refHeading
+    # zeta = float(track.uToS(u))
+    # result = (a_x, delta, vxActual[j+1], omegaActual[j+1], zeta, n, xi)
+    result = (a_x, delta, v_x, Omega, zeta, n, xi)
+    return result, {"Torque Accel": a_x, "Steer": delta, "Omega": omegaActual[j],
                                                    "OmegaDot": Omegadot, "zeta": zeta, "n": n,
-                                                   "xi": xi, "omega": Omega, "v_x": v_x}
+                                                   "xi": xi, "heading": heading, "omega": Omega, "v_x": v_x,
+                                                   "curvature": curvature}
 
 
 def test():
@@ -354,7 +359,8 @@ def test():
         predicted_states.append(state[0])
 
         car_state = (state[0][0], state[0][2], state[0][4], 0, 0, 0)
-        img = track.drawCar(img_track.copy(), car_state, steerTemp)
+        # img = track.drawCar(img_track.copy(), car_state, steerTemp)
+        img = drawCarValidateModel(track, img_track.copy(), car_state, steerTemp)
 
         cv2.imshow('validate', img)
         k = cv2.waitKey(10) & 0xFF
@@ -371,13 +377,16 @@ def test():
     plt.show()
 
 
-def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400, paramNames=None, paramValues=None):
+def run(model="step_NonlinearKinetoDynamic", lookahead_steps=100, run_steps=1000, paramNames=None, paramValues=None, visuals=True):
     global state
     # step_fun = step_ukf_linear
     # step_fun2 = step_ukf
     # step_fun = step_kinematic_heuristic
     step_fun = step_kinematic
-    step_fun2 = globals()[model]
+    if paramNames is None:
+        step_fun2 = globals()[model]
+    else:
+        step_fun2 = model
 
     # plt.plot(xActual, yActual)
     # plt.show()
@@ -388,7 +397,7 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
         cv2.waitKey(10)
 
     debug_dict_hist = {"Torque Accel": [[]], "Steer": [[]], "Omega": [[]], "OmegaDot": [[]], "zeta": [[]], "n": [[]],
-                       "xi": [[]], "omega": [[]], "v_x": [[]]}
+                       "xi": [[]], "heading": [[]], "omega": [[]], "v_x": [[]], "curvature": [[]]}
     if not fullsim:
         nextState = state  # just for the first pass through
     for i in range(1, data_len - lookahead_steps - 1):
@@ -400,7 +409,8 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             # draw car current pos
             if visuals:
                 car_state = (xActual[i], yActual[i], headingActual[i], 0, 0, 0)
-                img = track.drawCar(img_track.copy(), car_state, steering[i])
+                # img = track.drawCar(img_track.copy(), car_state, steering[i])
+                img = drawCarValidateModel(track, img_track.copy(), car_state, steering[i])
 
             # plot actual future trajectory
             if visuals:
@@ -411,7 +421,8 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             state = nextState
             car_state = (state[0], state[1], state[2], 0, 0, 0)
             if visuals:
-                img = track.drawCar(img_track.copy(), car_state, steering)
+                # img = track.drawCar(img_track.copy(), car_state, steering)
+                img = drawCarValidateModel(track, img_track.copy(), car_state, steering)
             initState = state
 
         # # calculate predicted trajectory -- baseline
@@ -452,7 +463,7 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             # state = {a_x, delta, v_x, Omega, zeta, n, xi}
             # assume that for initial state, actual steer angle and throttle match requests
             oldStateVersion = (xActual[i], yActual[i], headingActual[i], vxActual[i], vyActual[i], omegaActual[i])
-            refPoint, n, refHeading, curvature, _, u = track.localTrajectory(oldStateVersion, L, True)
+            _, n, refHeading, curvature, _, u = track.localTrajectory(oldStateVersion, L, True)
             xi = headingActual[i] - refHeading
             zeta = float(track.uToS(u))
             state = (throttle[i], steering[i], vxActual[i], omegaActual[i], zeta, n, xi)
@@ -478,7 +489,8 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             # if fullsim:
             #
             # else:
-            dt = t[j + 1] - t[j]
+            dt = t[j] - t[j-1]
+            curvature = getCurvature(zeta)
             state, debug_dict = step_fun2(state, control, curvature, j, dt=dt, paramNames=paramNames,
                                           paramValues=paramValues)
             # state, debug_dict = step_fun2(state, control)
@@ -497,6 +509,8 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             n = state[5]
             x = xRef - n * np.sin(headingRef)
             y = yRef + n * np.cos(headingRef)
+            # print(x,y)
+            # print()
 
             heading = headingRef + state[6]  # state[6] is xi
 
@@ -541,7 +555,9 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
                 break
 
         # periodic debugging plots
-        if i % 1075 == 0:
+        if i % 500 == 0 and visuals:
+            wrap = lambda x: np.mod(x + np.pi, 2 * np.pi) - np.pi
+            plt.figure(0)
             ax0 = plt.subplot(311)
             ax0.plot(debug_dict_hist["zeta"][i-1], label="curve dist")
             plt.legend()
@@ -552,14 +568,21 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
             ax2.plot(debug_dict_hist["Steer"][i-1], label="calc steer")
             ax2.plot(steering[i:i+lookahead_steps], label="steer req")
             plt.legend()
-            plt.show()
 
             plt.figure(1)
-            plt.plot(debug_dict_hist["xi"][i-1], label="xi")
-            plt.plot(debug_dict_hist["omega"][i - 1], label="omega")
-            plt.plot(omegaActual[i:i + lookahead_steps], label="omega actual")
-            integ = np.cumsum((np.array(debug_dict_hist["omega"][i - 1]) - omegaActual[i:i + lookahead_steps-1])*np.diff(t[i:i+lookahead_steps]))
-            plt.plot(integ, label="integral")
+            ax0 = plt.subplot(211)
+            ax0.plot(wrap(np.array(debug_dict_hist["xi"][i-1])), label="xi")
+            ax0.plot(wrap(np.array(debug_dict_hist["heading"][i-1])), label="heading")
+            ax0.plot(headingActual[i:i+lookahead_steps - 1], label="actual heading")
+            ax0.plot(debug_dict_hist["curvature"][i-1], label="curvature")
+            # integ = np.cumsum(
+            #     (np.array(debug_dict_hist["omega"][i - 1]) - omegaActual[i:i + lookahead_steps - 1]) * np.diff(
+            #         t[i:i + lookahead_steps]))
+            # ax0.plot(wrap(np.array(integ)), label="integral")
+            plt.legend()
+            ax1 = plt.subplot(212)
+            ax1.plot(debug_dict_hist["omega"][i - 1], label="omega")
+            ax1.plot(omegaActual[i:i + lookahead_steps], label="omega actual")
             plt.legend()
 
             plt.figure(2)
@@ -572,7 +595,8 @@ def run(model="step_NonlinearKinetoDynamic", lookahead_steps=200, run_steps=400,
 
         if i % run_steps == 0:
             return debug_dict_hist, [t[0:run_steps], xActual[0:run_steps], yActual[0:run_steps], vxActual[0:run_steps],
-                                     vyActual[0:run_steps], headingActual[0:run_steps], omegaActual[0:run_steps]]
+                                     vyActual[0:run_steps], headingActual[0:run_steps], omegaActual[0:run_steps],
+                                     measured_steering[0:run_steps]]
             # if kb.is_pressed('p'):
             # plt.plot(debug_dict_hist["slip_f_force"][i - 1], label="slip_f_force")
             # plt.plot(debug_dict_hist["slip_r_force"][i - 1], label="slip_r_force")

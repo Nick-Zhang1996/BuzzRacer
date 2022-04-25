@@ -1,8 +1,8 @@
-from common import *
-from track.Track import Track
-from track.RCPTrack import RCPTrack
-from track.EmptyTrack import EmptyTrack
-from track.Skidpad import Skidpad
+from src.common import *
+from src.track.Track import Track
+from src.track.RCPTrack import RCPTrack
+from src.track.EmptyTrack import EmptyTrack
+from src.track.Skidpad import Skidpad
 from math import radians
 def TrackFactory(name='full'):
     mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}

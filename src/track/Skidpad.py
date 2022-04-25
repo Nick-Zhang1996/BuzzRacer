@@ -4,7 +4,7 @@ import numpy as np
 from math import cos,sin,pi,atan2,radians,degrees,tan
 import matplotlib.pyplot as plt
 
-from track.Track import Track
+from src.track.Track import Track
 #from track.car import Car
 
 class Skidpad(Track):

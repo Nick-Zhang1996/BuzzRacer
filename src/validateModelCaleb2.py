@@ -15,15 +15,15 @@ import os
 
 sys.path.append(os.path.abspath('../../src/'))
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 from math import pi, degrees, radians, sin, cos, tan, atan
 from scipy.signal import savgol_filter
 
-from RCPTrack import RCPtrack
+from track.RCPTrack import RCPTrack
 
 from time import sleep
 
-from tire import tireCurve
+from sysid.tire import tireCurve
 
 saveGif = True
 gifs = []

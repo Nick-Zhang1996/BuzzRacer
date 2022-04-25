@@ -1,7 +1,7 @@
 from math import sin
 import numpy as np
 import matplotlib.pyplot as plt
-from mppi import MPPI
+from src.controller.mppi import MPPI
 # inverted pendulum simulator
 
 class InvertedPendulum:

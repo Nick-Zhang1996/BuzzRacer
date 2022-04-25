@@ -15,21 +15,21 @@ import os
 
 sys.path.append(os.path.abspath('../../src/'))
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 from math import pi, degrees, radians, sin, cos, tan, atan
 from scipy.signal import savgol_filter
 
-from RCPTrack import RCPtrack
+from track.RCPTrack import RCPTrack
 
 from time import sleep
 
-from tire import tireCurve, newTireCurve, oldTireCurve
+from sysid.tire import tireCurve  # , newTireCurve, oldTireCurve
 
 saveGif = True
 gifs = []
 
 if (len(sys.argv) != 2):
-    filename = "/home/caleb/Documents/GitHub/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state1.p"
+    filename = "/home/caleb/RC-VIP/log/steeringSysid/full_state4.p"  # "../log/feb25/full_state1.p"
     print_info("using %s" % (filename))
     # print_error("Specify a log to load")
 # else:
@@ -42,30 +42,41 @@ data = data.squeeze(1)
 skip = 1
 t = data[skip:, 0]
 t = t - t[0]
-xActual = data[skip:, 1]  # changed from just 'x'
-yActual = data[skip:, 2]  # changed from just 'y'
-headingActual = data[skip:, 3]  # changed from just 'heading'
-steering = data[skip:, 4]  # this name aligns with my convention
-throttle = data[skip:, 5]  # this name aligns with my convention
 
-dt = 0.01
-vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
-vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
-# omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
+xActual = data[skip:, 1]
+yActual = data[skip:, 2]
+headingActual = data[skip:, 3]
+vxActual = data[skip:, 4]
+vyActual = data[skip:, 5]
+omegaActual = data[skip:, 6]
+omegaActual = savgol_filter(omegaActual, 19, 2)
+steering = data[skip:, 7]
+throttle = data[skip:, 8]
 
-# local speed
-# forward
-vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  # changed from vx_car
-# lateral, left +
-vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
+# xActual = data[skip:, 1]  # changed from just 'x'
+# yActual = data[skip:, 2]  # changed from just 'y'
+# headingActual = data[skip:, 3]  # changed from just 'heading'
+# steering = data[skip:, 4]  # this name aligns with my convention
+# throttle = data[skip:, 5]  # this name aligns with my convention
 
-exp_kf_x = data[skip:, 6]
-exp_kf_y = data[skip:, 7]
-exp_kf_v = data[skip:, 8]
-exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
-exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
-exp_kf_theta = data[skip:, 9]
-exp_kf_omega = data[skip:, 10]
+# dt = 0.01
+# vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
+# vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
+# # omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
+#
+# # local speed
+# # forward
+# vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  # changed from vx_car
+# # lateral, left +
+# vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
+#
+# exp_kf_x = data[skip:, 6]
+# exp_kf_y = data[skip:, 7]
+# exp_kf_v = data[skip:, 8]
+# exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
+# exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
+# exp_kf_theta = data[skip:, 9]
+# exp_kf_omega = data[skip:, 10]
 
 '''
 # use kalman filter results
@@ -76,7 +87,7 @@ vy = exp_kf_vy
 heading = exp_kf_theta
 '''
 # NOTE using filtered omega
-omegaActual = exp_kf_omega  # changed from just 'omega'
+# omegaActual = exp_kf_omega  # changed from just 'omega'
 
 data_len = t.shape[0]
 
@@ -121,7 +132,7 @@ if not fullsim:
 
 full_state_vec = []
 
-track = RCPtrack()
+track = RCPTrack()
 track.load()
 
 
@@ -130,6 +141,22 @@ def show(img):
     plt.show()
     return
 
+def drawCarValidateModel(track, img, car_states, steering):
+    x, y, heading, vf_lf, vs_lf, omega_lf = car_states
+    coord = (x, y)
+    src = track.m2canvas(coord)
+    if src is None:
+        # print("Can't draw car -- outside track")
+        return img
+    # overlay vehicle image, orientation as headed
+    # significant performance impact
+    # img =  self.overlayCarRendering(img, car)
+
+    # draw vehicle, orientation as black arrow
+    # img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+    # draw steering angle, orientation as red arrow
+    img = track.drawArrow(coord, heading + steering, length=20, color=(0, 0, 255), thickness=4, img=img)
+    return img
 
 # state: x,vx(global),y,vy,heading,omega
 # control: steering(rad),throttle(raw unit -1 ~ 1)
@@ -177,6 +204,10 @@ def step_kinematic(state, control, dt=0.01):
     lr = 0.036
     max_v = 3.0
 
+    motor_A = 6.17
+    motor_B = 10 # 15.2
+    motor_C = 0.22
+
     '''
     throttle = np.clip(throttle, -1.0, 1.0)
     steering = np.clip(throttle, -radians(27), radians(27))
@@ -196,7 +227,7 @@ def step_kinematic(state, control, dt=0.01):
     if (v_forward > max_v):
         dvdt = -0.01
     else:
-        dvdt = throttle
+        dvdt = motor_A * (throttle - v_forward / motor_B - motor_C)
     omega = v_forward / lr * np.sin(beta)
 
     x += dt * dXdt
@@ -719,37 +750,36 @@ def step_LTVDynamicWeight(state, control, refTrajState, nextRefTrajState, dt=0.0
 
 # Now thinking that all the real data is coming with global vx and vy...
 def step_Nonlinear(state, control, dt=0.01):
+
     lf = 0.09 - 0.036
     lr = 0.036
     L = lr + lf
     h = 0.01
     m = 0.1667
-    I = 0.00278
+    I = 417757e-9
     g = 9.81
 
-    mu = 1
-    scaleToForce = 1  # Scale throttle command to force
-    Cf = 0.5 * mu * (scaleToForce * control[0] * h + m * g * lr) / L
-    Cr = 0.5 * mu * (-scaleToForce * control[0] * h + m * g * lf) / L
+    motor_A = 3 #6.17
+    motor_B = 15.2
+    motor_C = 0.22
 
-    coefLimit = 1
-    if Cf > coefLimit:
-        Cf = coefLimit
-    elif (Cf < -coefLimit):
-        Cf = -coefLimit
+    Df = 1.1  # 3.93731
+    Dr = 1.1  # 6.23597
+    C = 1.6  # 2.80646
+    B = 2.3  # 0.51943
 
-    if Cr > coefLimit:
-        Cr= coefLimit
-    elif Cr < -coefLimit:
-        Cr = -coefLimit
-
-    # print("Cf: {0:.3f}, Cr: {1:.3f}".format(Cf, Cr))
+    CornerStiff = 5
 
     xG, yG, heading, vf, vs, omega = state
-    # print(state)
     th, st = control
 
-    th = th * scaleToForce
+    if vf < 0.1:
+        return step_kinematic(state, control)
+
+    accelForce = motor_A * (th - vf / motor_B - motor_C)  # motor model
+    # WEIGHT SHIFT
+    frontWeight = (m * g * lr) / L  # accelForce * h +
+    rearWeight = (m * g * lf) / L  # -accelForce * h +
 
     # convert velocities to vehicle frame
     # vf = vxG * np.cos(heading) + vyG * np.sin(heading)
@@ -759,39 +789,35 @@ def step_Nonlinear(state, control, dt=0.01):
 
     # vfc = (vs + lf * omega) * np.cos(st) - vf * np.sin(st)
     # vfl = (vs + lf * omega) * np.sin(st) + vf * np.cos(st)
-
     # print('vfc: {0:.3f}, vfl: {1:.3f}'.format(vfc, vfl))
-
-    # frontslip = np.arctan(((vs + lf * omega) * np.cos(st) - vf * np.sin(st)) / (
-    #         (vs + lf * omega) * np.sin(st) + vf * np.cos(st)))
-
-    frontslip = Cf * (np.arctan2(vs + lf * omega, vf) - st) #NOTE THAT THIS NOW HAS COEFF ON FRONT
-
     # print(((vs + lf * omega) * np.cos(st) - vf * np.sin(st)))
     # print((vs + lf * omega) * np.sin(st) + vf * np.cos(st))
 
     # frontslip = (vs + lf * omega) / vf - st
+    # frontslip = np.arctan(((vs + lf * omega) * np.cos(st) - vf * np.sin(st)) / (
+    #         (vs + lf * omega) * np.sin(st) + vf * np.cos(st)))
+    # frontslip = Cf * (np.arctan2(vs + lf * omega, vf) - st) #NOTE THAT THIS NOW HAS COEFF ON FRONT
+    frontslip = -(np.arctan2(vs + lf * omega, vf) - st)
+    rearslip = -np.arctan2((vs - lr * omega), vf)
+    # todo: perform optimization on these constants (remove fudge 0.7)
+    tc = lambda slip, D, weight: 0.5 * D * np.sin(C * np.arctan(B * slip)) * weight
 
-    # rearslip = np.arctan((vs - lr * omega) / vf)
+    Flf = 0
+    Fcf = tc(frontslip, Df, frontWeight)
+    Flr = accelForce / 2  # motor model
+    Fcr = tc(rearslip, Dr, rearWeight)
 
-    rearslip = Cr * np.arctan2(vs - lr * omega, vf)
-
-    print("frontslip: {0:.3f}, rearslip: {1:.3f}".format(frontslip, rearslip)) # NOTE THAT ...
-
-
+    Fxf = -Fcf * sin(st)
+    Fxr = Flr
+    Fyf = Fcf * cos(st)
+    Fyr = Fcr
 
     # xddot = vs * omega - 2 / m * Cf * frontslip * np.sin(st) + th / m
-    xddot = vs * omega - 2 / m * tireCurve(frontslip) * (lr/L * m*g)* np.sin(st) + th / m
-
-    print(tireCurve(frontslip))
-
+    # xddot = vs * omega + 2 / m * Fxf + 2 / m * Fxr
+    xddot = 2 * Fxr
     # yddot = -vf * omega + 2 / m * Cf * frontslip * np.cos(st) + 2 / m * Cr * rearslip
-    yddot = -vf * omega + 2 / m * tireCurve(frontslip) * (lr/L * m*g)* np.cos(st) + 2 / m * tireCurve(rearslip) * (lf/L * m*g)
-
-    phiddot = 2 * lf / I * Cf * frontslip * np.cos(st) - 2 * lr / I * Cr * rearslip
-
-    print((xddot, yddot, phiddot))
-    print(control)
+    yddot = -vf * omega + 2 / m * Fyf + 2 / m * Fyr
+    phiddot = 2 * lf / I * Fyf - 2 * lr / I * Fyr
 
     # convert back to global
     vxG = vf * np.cos(heading) - vs * np.sin(heading)
@@ -804,18 +830,6 @@ def step_Nonlinear(state, control, dt=0.01):
     vf += xddot * dt
     vs += yddot * dt
     omega += phiddot * dt
-
-    # heading += omega * dt  # where should this be
-
-    print(omega)
-    print("")
-
-    # # convert back to global
-    # vxG = vf * np.cos(heading) - vs * np.sin(heading)
-    # vyG = vf * np.sin(heading) + vs * np.cos(heading)
-
-    # xG += vxG * dt
-    # yG += vyG * dt
 
     return (xG, yG, heading, vf, vs, omega), {"slip_f": frontslip, "slip_r": rearslip, "-vf*omega": -vf*omega,
                                               "vs*omega": vs*omega, "xddot": xddot, "yddot": yddot, "phiddot": phiddot,
@@ -855,7 +869,7 @@ def test():
         predicted_states.append(state[0])
 
         car_state = (state[0][0], state[0][2], state[0][4], 0, 0, 0)
-        img = track.drawCar(img_track.copy(), car_state, steerTemp)
+        img = drawCarValidateModel(track, img_track.copy(), car_state, steerTemp)
 
         cv2.imshow('validate', img)
         k = cv2.waitKey(10) & 0xFF
@@ -879,7 +893,8 @@ def run():
     # step_fun2 = step_ukf
     # step_fun = step_kinematic_heuristic
     step_fun = step_kinematic
-    step_fun2 = step_LTVDynamicWeight
+    step_fun2 = step_Nonlinear
+    # step_fun2 = step_LTVDynamicWeight
 
     plt.plot(xActual, yActual)
     plt.show()
@@ -913,7 +928,7 @@ def run():
             # prepare states
             # draw car current pos
             car_state = (xActual[i], yActual[i], headingActual[i], 0, 0, 0)
-            img = track.drawCar(img_track.copy(), car_state, steering[i])
+            img = drawCarValidateModel(track, img_track.copy(), car_state, steering[i])
 
             # plot actual future trajectory
             actual_future_traj = np.vstack([xActual[i:i + lookahead_steps], yActual[i:i + lookahead_steps]]).T
@@ -935,7 +950,7 @@ def run():
         else:
             state = nextState
             car_state = (state[0], state[1], state[2], 0, 0, 0)
-            img = track.drawCar(img_track.copy(), car_state, steering)
+            img = drawCarValidateModel(track, img_track.copy(), car_state, steering)
             initState = state
 
         # calculate predicted trajectory -- baseline
@@ -974,7 +989,7 @@ def run():
 
         if fullsim:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
-            state = (xActual[i], yActual[i], headingActual[i]+1, vxActual[i], vyActual[i], omegaActual[i])
+            state = (xActual[i], yActual[i], headingActual[i], vxActual[i], vyActual[i], omegaActual[i])
             control = (throttle[i], steering[i])
         else:
             # SLIGHT PERTURBATION TO HEADING (0.0005 RAD) TO SEE HOW ERROR PROPAGATES
@@ -1001,8 +1016,8 @@ def run():
             # refTrajState = nonlinear_states[j - (i + 1)]
             # nextRefTrajState = nonlinear_states[j - i]
 
-            state, debug_dict = step_fun2(state, control, refTrajState, nextRefTrajState)
-            # state, debug_dict = step_fun2(state, control)
+            # state, debug_dict = step_fun2(state, control, refTrajState, nextRefTrajState)
+            state, debug_dict = step_fun2(state, control)
 
             '''
             # NOTE use ground truth in velocity
@@ -1121,8 +1136,11 @@ def run():
         # periodic debugging plots
         if i % 300 == 0:
             # if kb.is_pressed('p'):
-            plt.plot(debug_dict_hist["slip_f_force"][i - 1], label="slip_f_force")
-            plt.plot(debug_dict_hist["slip_r_force"][i - 1], label="slip_r_force")
+            # plt.plot(debug_dict_hist["slip_f_force"][i - 1], label="slip_f_force")
+            # plt.plot(debug_dict_hist["slip_r_force"][i - 1], label="slip_r_force")
+            plt.plot(debug_dict_hist["slip_f"][i - 1], label="slip_f")
+            plt.plot(debug_dict_hist["slip_r"][i - 1], label="slip_r")
+            plt.plot(steering[i:i+lookahead_steps], label="steering")
             # plt.show()
             print("showing heading")
             print("showing velocity (total)")
@@ -1145,14 +1163,14 @@ def run():
 
             # ax2 = plt.subplot(413)
             # (xG, yG, heading, vf, vs, omega)
-            plt.plot(predicted_states[:, 3], label="vf")
+            # plt.plot(predicted_states[:, 3], label="vf")
             # ax1.plot(predicted_states[:, 4], label="vs")
             # ax1.plot(predicted_states[:, 2], label="heading")
-            plt.plot(predicted_states[:, 4], label="vs")
-            plt.plot(predicted_states[:, 2], label="heading")
-            plt.plot(debug_dict_hist["vs*omega"][i - 1], label="vs*omega")
-            plt.plot(debug_dict_hist["-vf*omega"][i - 1], label="-vf*omega")
-            plt.plot(predicted_states[:, 5], label="omega")
+            # plt.plot(predicted_states[:, 4], label="vs")
+            # plt.plot(predicted_states[:, 2], label="heading")
+            # plt.plot(debug_dict_hist["vs*omega"][i - 1], label="vs*omega")
+            # plt.plot(debug_dict_hist["-vf*omega"][i - 1], label="-vf*omega")
+            # plt.plot(predicted_states[:, 5], label="omega")
             plt.legend()
 
             if fullsim:
@@ -1160,6 +1178,9 @@ def run():
                 plt.plot(vxActual[i:i + lookahead_steps], label="vx actual")
                 plt.plot(vyActual[i:i + lookahead_steps], label="vy actual")
                 plt.plot(headingActual[i:i + lookahead_steps], label="head actual")
+                plt.plot(predicted_states[:, 3], label="vf")
+                plt.plot(predicted_states[:, 4], label="vs")
+                plt.plot(predicted_states[:, 2], label="heading")
                 plt.legend()
 
                 plt.figure(3)

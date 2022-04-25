@@ -43,13 +43,13 @@ from track import RCPTrack
 
 from time import sleep
 
-from sysid.tire import tireCurve, newTireCurve, oldTireCurve
+# from sysid.tire import tireCurve, newTireCurve, oldTireCurve
 
 saveGif = True
 gifs = []
 
 if (len(sys.argv) != 2):
-    filename = "/home/caleb/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state1.p"
+    filename = "/home/caleb/RC-VIP/log/steeringSysid/full_state4.p"  # "../log/feb25/full_state1.p"
     print_info("using %s" % (filename))
     # print_error("Specify a log to load")
 # else:
@@ -62,30 +62,43 @@ data = data.squeeze(1)
 skip = 1
 t = data[skip:, 0]
 t = t - t[0]
-xActual = data[skip:, 1]  # changed from just 'x'
-yActual = data[skip:, 2]  # changed from just 'y'
-headingActual = data[skip:, 3]  # changed from just 'heading'
-steering = data[skip:, 4]  # this name aligns with my convention
-throttle = data[skip:, 5]  # this name aligns with my convention
 
-dt = 0.01
-vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
-vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
-# omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
+xActual = data[skip:, 1]
+yActual = data[skip:, 2]
+headingActual = data[skip:, 3]
+vxActual = data[skip:, 4]
+filtered = True
+if filtered:
+    vxActual = savgol_filter(vxActual, 19, 2)
+vyActual = data[skip:, 5]
+omegaActual = data[skip:, 6]
+steering = data[skip:, 7]
+throttle = data[skip:, 8]
 
-# local speed
-# forward
-vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  # changed from vx_car
-# lateral, left +
-vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
+# xActual = data[skip:, 1]  # changed from just 'x'
+# yActual = data[skip:, 2]  # changed from just 'y'
+# headingActual = data[skip:, 3]  # changed from just 'heading'
+# steering = data[skip:, 4]  # this name aligns with my convention
+# throttle = data[skip:, 5]  # this name aligns with my convention
 
-exp_kf_x = data[skip:, 6]
-exp_kf_y = data[skip:, 7]
-exp_kf_v = data[skip:, 8]
-exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
-exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
-exp_kf_theta = data[skip:, 9]
-exp_kf_omega = data[skip:, 10]
+# dt = 0.01
+# vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
+# vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
+# # omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
+#
+# # local speed
+# # forward
+# vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  # changed from vx_car
+# # lateral, left +
+# vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
+#
+# exp_kf_x = data[skip:, 6]
+# exp_kf_y = data[skip:, 7]
+# exp_kf_v = data[skip:, 8]
+# exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
+# exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
+# exp_kf_theta = data[skip:, 9]
+# exp_kf_omega = data[skip:, 10]
 
 '''
 # use kalman filter results
@@ -96,7 +109,7 @@ vy = exp_kf_vy
 heading = exp_kf_theta
 '''
 # NOTE using filtered omega
-omegaActual = exp_kf_omega  # changed from just 'omega'
+# omegaActual = exp_kf_omega  # changed from just 'omega'
 
 data_len = t.shape[0]
 
@@ -161,13 +174,35 @@ listener = kb.Listener(
 listener.start()
 
 
+def getCurvature(s):
+    _norm = lambda x: np.linalg.norm(x, axis=0)
+
+    dr = np.array(splev(s, track.raceline_s, der=1))
+    ddr = vec_curvature = np.array(splev(s, track.raceline_s, der=2))
+    der = np.array(splev(s, track.raceline_s, der=1))
+
+    curv = 1.0 / (_norm(dr) ** 3 / (_norm(dr) ** 2 * _norm(ddr) ** 2 - np.sum(dr * ddr, axis=0) ** 2) ** 0.5)
+
+    # curvature needs to be signed to indicate whether signage target angular velocity
+    # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+    # cross_curvature = der[0, :] * vec_curvature[1, :] - der[1, :] * vec_curvature[0, :]
+    cross_curvature = der[0] * vec_curvature[1] - der[1] * vec_curvature[0]
+
+    k = curv
+    k_sign = cross_curvature
+
+    # TODO check dimension
+    k_signed = np.copysign(k, k_sign)
+    return k_signed
+
+
 def run(modelMethod=validateModelKinetoDynamic.step_NonlinearKinetoDynamic,
         lookahead_steps=200, run_steps=1040, paramNames=None, paramValues=None):
 
     step_fun = modelMethod
 
     debug_dict_hist = {"Torque Accel": [[]], "Steer": [[]], "Omega": [[]], "OmegaDot": [[]], "zeta": [[]], "n": [[]],
-                       "xi": [[]], "omega": [[]], "v_x": [[]]}
+                       "xi": [[]], "heading": [[]], "omega": [[]], "v_x": [[]], "curvature": [[]]}
     for i in range(1, data_len - lookahead_steps - 1):
 
         # calculate predicted tractory -- KinetoDynamic model
@@ -191,6 +226,9 @@ def run(modelMethod=validateModelKinetoDynamic.step_NonlinearKinetoDynamic,
             #
             # else:
             dt = t[j + 1] - t[j]
+            # todo don't forget to remove this!!
+            # paramValues = (0.04, paramValues[1], paramValues[1], 0.22)
+            curvature = getCurvature(zeta)
             state, debug_dict = step_fun(state, control, curvature, dt=dt, paramNames=paramNames,
                                          paramValues=paramValues)
 
@@ -228,10 +266,11 @@ def wrapper(paramValues, *args):
     # runMethod = getattr(module, "run")
     # debug_dict_hist, testRunData = runMethod(model, lookahead_steps, run_steps, paramNames, paramValues)
     modelMethod = getattr(module, model)
-    debug_dict_hist, testRunData = run(modelMethod, lookahead_steps, run_steps, paramNames, paramValues)
+    debug_dict_hist, testRunData = validateModelKinetoDynamic.run(modelMethod, lookahead_steps, run_steps, paramNames,
+                                                                  paramValues, visuals=False)
 
     paramName = paramNames[0]
-    if paramName == "accelTimeConstant":
+    if paramName == "accelTimeConstant" or paramName == "motor_A":
         m = 0.1667
         k_D = 0
         c_r = 0
@@ -242,35 +281,43 @@ def wrapper(paramValues, *args):
             elif name == "rollResistCoeff":
                 c_r = paramValues[i]
         actualData = testRunData[3]  # vx data (need ax data)
-        for i in range(0, len(actualData)):
-            left = movingAverageWindow // 2
-            right = (movingAverageWindow - 1) // 2
-            if i - left < 0:
-                left = i
-            if i + right >= len(actualData):
-                right = len(actualData) - i - 1
-            actualData[i] = sum(actualData[i - left:i + right + 1]) / (left + right + 1)  # smoothed velocity
+        if not filtered:
+            for i in range(0, len(actualData)):
+                left = movingAverageWindow // 2
+                right = (movingAverageWindow - 1) // 2
+                if i - left < 0:
+                    left = i
+                if i + right >= len(actualData):
+                    right = len(actualData) - i - 1
+                actualData[i] = sum(actualData[i - left:i + right + 1]) / (left + right + 1)  # smoothed velocity
 
-        adjust = k_D / m * actualData ** 2 + c_r * actualData  # adjust for accel from torque, use smoothed velocity
-        actualData = np.diff(actualData) / np.diff(testRunData[:][0])  # get accel, length decreased by 1
+        # adjust = k_D / m * actualData ** 2 + c_r * actualData  # adjust for accel from torque, use smoothed velocity
+        # actualData = np.diff(actualData) / np.diff(testRunData[:][0])  # get accel, length decreased by 1
 
-        actualData += adjust[:-1]
-        predictData = debug_dict_hist["Torque Accel"]
+        # actualData += adjust[:-1]
+        predictData = debug_dict_hist["v_x"]
     # elif paramName = 'steerTimeConstant':
     #     actualData = testRunData[] todo: get data with steer angle
     #     predictData = debug_dist_hist["Steer"]
     elif paramName == "angVelTimeConstant" or paramName == "Understeer Gradient":
         actualData = testRunData[6]
-        predictData = debug_dict_hist["Omega"]
+        predictData = debug_dict_hist["omega"]  # important that this isn't capital 'O' Omega
+    elif paramName == "Steer time constant":
+        actualData = testRunData[7]
+        predictData = debug_dict_hist["Steer"]
     else:
         print_error("Don't know how you got here but you're wrong. (Invalid parameter name)")
     print("Finished simulation. Starting error analysis.")
 
     error = np.zeros_like(actualData)
-    for i in range(0, len(actualData) - lookahead_steps):
+    for i in range(1, len(actualData) - lookahead_steps):
         horizonEnd = i + lookahead_steps
-        error[i] = (np.sum((np.transpose(predictData[i]) - actualData[i:horizonEnd - 1]) ** 2) / (
+        error[i] = (np.sum((np.transpose(predictData[i-1]) - actualData[i:horizonEnd - 1]) ** 2) / (
                 lookahead_steps + 1)) ** 0.5
+        # if i % 500 == 0 and not i == 0:
+        #     plt.plot(testRunData[0][i:horizonEnd-1], actualData[i:horizonEnd-1])
+        #     plt.plot(testRunData[0][i:horizonEnd-1], predictData[i])
+        #     plt.show()
     count += 1
     error = [np.sum(error) / run_steps]
     print("Error for", paramValues, "is", error)
@@ -285,7 +332,7 @@ if __name__ == "__main__":
     model = 'step_NonlinearKinetoDynamic'
     filename = 'validateModelKinetoDynamic'
     lookahead_steps = 50  # 200
-    run_steps = 1110
+    run_steps = 900
 
     # SMOOTHING vxActual!!!!
     movingAverageWindow = 40
@@ -297,15 +344,20 @@ if __name__ == "__main__":
         if i + right >= len(vxActual):
             right = len(vxActual) - i - 1
         vxActual[i] = sum(vxActual[i - left:i + right + 1]) / (left + right + 1)
-    paramNames = ("angVelTimeConstant", "Understeer Gradient")
-    bounds = ((0, 3), (-0.5, 0.5))
+    # paramNames = ("angVelTimeConstant", "Understeer Gradient")
+    # bounds = ((0, 1), (-0.3, 0.2))
 
-    # paramNames = ("accelTimeConstant", "dragCoeff", "rollResistCoeff")
-    # bounds = ((0, 1), (0, 0.1), (0, 0.3))
+    # paramNames = ("accelTimeConstant", "motor_A", "motor_B", "motor_C")
+    # bounds = ((0, 0.3), (3, 10), (10, 20), (0.1, 0.3))
+    # paramNames = ("motor_A", "motor_B")
+    # bounds = ((0, 10), (10, 30))
     # paramNames = ("accelTimeConstant", "rollResistCoeff")
     # bounds = ((0, 0.2), (0, 0.2))
     # paramNames = ("accelTimeConstant",)
     # bounds = ((0, 1),)
+
+    paramNames = ("Steer time constant",)
+    bounds = ((0, 0.12),)
 
     result = differential_evolution(wrapper, bounds,
                                     (filename, model, lookahead_steps, run_steps, movingAverageWindow, paramNames))
@@ -315,7 +367,7 @@ if __name__ == "__main__":
     wname = paramNames[0][0:5]
     for i in range(1, len(paramNames)):
         wname += " & " + paramNames[i][0:5]
-    with xlsxwriter.Workbook(wname + '.xlsx') as workbook:
+    with xlsxwriter.Workbook(wname + '2.xlsx') as workbook:
         worksheet = workbook.add_worksheet(wname)
 
         for row_num, row_data in enumerate(errorList):

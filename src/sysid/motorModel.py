@@ -159,7 +159,8 @@ def ode(u,c1,c2):
 if __name__=="__main__":
     #filename = "../../log/jan12/full_state1.p"
     #filename = '../../log/2022_2_9_exp/full_state4.p'
-    filename = '../../log/2022_3_2_exp/full_state2.p'
+    # filename = '../../log/2022_3_2_exp/full_state2.p'
+    filename = '/home/caleb/RC-VIP/log/steeringSysid/full_state4.p'
     plotAcc2(filename)
     plt.legend()
     plt.show()
