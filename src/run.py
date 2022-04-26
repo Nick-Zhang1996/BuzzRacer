@@ -12,10 +12,13 @@ from Car import Car
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
+import sys
+from os.path import exists
+
 class Main(PrintObject):
-    def __init__(self):
+    def __init__(self,config_filename):
         self.print_ok(" loading settings")
-        config = minidom.parse('twocar.xml')
+        config = minidom.parse(config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
         self.print_ok(" setting main attributes")
         for key,value_text in config_settings.attributes.items():
@@ -63,8 +66,6 @@ class Main(PrintObject):
                     # all other attributes will be set to extension
                     setattr(ext,key,eval(value))
                     self.print_info('main.'+handle_name+'.'+key+' = '+value)
-
-        breakpoint()
 
         for item in self.extensions:
             item.init()
@@ -142,7 +143,18 @@ class Main(PrintObject):
 
 
 if __name__ == '__main__':
-    experiment = Main()
+    if (len(sys.argv) == 2):
+        name = sys.argv[1]
+    else:
+        name = 'default'
+
+    config_filename = './configs/'+name+'.xml'
+    if (exists(config_filename)):
+        print_ok('using config '+config_filename)
+    else:
+        print_error(config_filename + '  does not exist!')
+
+    experiment = Main(config_filename)
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
