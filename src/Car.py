@@ -71,8 +71,8 @@ class Car:
     def Factory(cls, main, config):
         config_controller = config.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[0].firstChild.nodeValue
-        init_states_text = config_controller.getElementsByTagName('init_states')[0].firstChild.nodeValue
-        config_name = config_controller.parentNode.getElementsByTagName('config_name')[0].firstChild.nodeValue
+        init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
+        config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
         init_states = eval(init_states_text)
         exec('from controller import '+controller_class_text)
         controller = eval(controller_class_text)
@@ -127,7 +127,7 @@ class Car:
         car.optitrack_id = car_setting['optitrack_streaming_id']
         car.id = Car.car_count
         if not controller is None:
-            car.controller = controller(car)
+            car.controller = controller(car,config_controller)
 
         # physics properties
         # Defaults for when a specific car instance is not speciied

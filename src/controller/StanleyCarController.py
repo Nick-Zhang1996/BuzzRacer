@@ -4,8 +4,8 @@ from controller.CarController import CarController
 from controller.PidController import PidController
 
 class StanleyCarController(CarController):
-    def __init__(self, car):
-        super().__init__(car)
+    def __init__(self, car,config):
+        super().__init__(car,config)
         self.debug_dict = {}
         self.max_offset = 0.4
         p1 = (1.0,2.0)

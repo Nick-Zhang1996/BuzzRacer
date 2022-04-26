@@ -11,8 +11,8 @@ from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
 
 class MppiCarController(CarController):
-    def __init__(self,car):
-        super().__init__(car)
+    def __init__(self,car,config):
+        super().__init__(car,config)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # these setting should be handled in config file
