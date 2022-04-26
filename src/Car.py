@@ -68,7 +68,15 @@ class Car:
         cls.cars = []
         cls.car_count = 0
     @classmethod
-    def Factory(cls, main, config_name, controller, init_states):
+    def Factory(cls, main, config):
+        config_controller = config.getElementsByTagName('controller')[0]
+        controller_class_text = config_controller.getElementsByTagName('type')[0].firstChild.nodeValue
+        init_states_text = config_controller.getElementsByTagName('init_states')[0].firstChild.nodeValue
+        config_name = config_controller.parentNode.getElementsByTagName('config_name')[0].firstChild.nodeValue
+        init_states = eval(init_states_text)
+        exec('from controller import '+controller_class_text)
+        controller = eval(controller_class_text)
+        config_name = config_name
         car = cls(main)
         # (x,y,theta,vforward,vsideway=0,omega)
         x,y,heading,v_forward = init_states

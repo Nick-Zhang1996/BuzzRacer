@@ -4,41 +4,38 @@ from threading import Event,Lock
 from math import pi,radians,degrees
 from time import time,sleep
 
-# Extensions
-import extension
-from extension import KinematicSimulator,DynamicSimulator
-from extension import Gifsaver, Laptimer,Optitrack,Logger,SnapshotSaver
-#from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
-
 from util.timeUtil import execution_timer
 from track import TrackFactory
 
 from Car import Car
-from controller import StanleyCarController
-from controller import CcmppiCarController
-from controller import MppiCarController
 
-class Main():
-    def __init__(self,params={}):
-        # some comment
-        self.timer = execution_timer(True)
-        self.dt = 0.01
-        self.params = params
-        self.algorithm = params['algorithm']
-        self.new_state_update = Event()
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
 
-        self.track = TrackFactory(name='full')
+class Main(PrintObject):
+    def __init__(self):
+        self.print_ok(" loading settings")
+        config = minidom.parse('twocar.xml')
+        config_settings = config.getElementsByTagName('settings')[0]
+        self.print_ok(" setting main attributes")
+        for key,value_text in config_settings.attributes.items():
+            setattr(self,key,eval(value_text))
+            self.print_info(" main.",key,'=',value_text)
 
+        # prepare track
+        config_track = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
+        self.track = TrackFactory(name=config_track)
+
+        # prepare cars
         Car.reset()
-        # red porsche
-        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,3.3*0.6, radians(-90), 1.0))
-        # green porsche for visualization for now
-        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.0*0.6, radians(-90), 1.0))
-        #car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
-
+        config_cars = config.getElementsByTagName('cars')[0]
+        for config_car in config_cars.getElementsByTagName('car'):
+            Car.Factory(self,config_car)
         self.cars = Car.cars
-        print_info("[main] total cars: %d"%(len(self.cars)))
+        self.print_info(" total cars: %d"%(len(self.cars)))
 
+        self.timer = execution_timer(True)
+        self.new_state_update = Event()
         # flag to quit all child threads gracefully
         self.exit_request = Event()
         # if set, continue to follow trajectory but set throttle to -0.1
@@ -49,22 +46,25 @@ class Main():
         self.slowdown_ts = 0
 
         # --- Extensions ---
+        self.print_ok("setting up extensions...")
         self.extensions = []
-        self.visualization = extension.Visualization(self)
-        #Optitrack(self)
-        self.simulator = DynamicSimulator(self)
-        self.simulator.match_time = False
+        config_extensions = config.getElementsByTagName('extensions')[0]
+        for config_extension in config_extensions.getElementsByTagName('extension'):
+            extension_class_name = config_extension.firstChild.nodeValue
+            exec('from extension import '+extension_class_name)
+            ext = eval(extension_class_name+'(self)')
+            handle_name = ''
+            for key,value in config_extension.attributes.items():
+                if key == 'handle':
+                    handle_name = value
+                    setattr(self,handle_name,ext)
+                    self.print_info('main.'+handle_name+' = '+ext.__class__.__name__)
+                else:
+                    # all other attributes will be set to extension
+                    setattr(ext,key,eval(value))
+                    self.print_info('main.'+handle_name+'.'+key+' = '+value)
 
-        #Gifsaver(self)
-        self.snapshot = SnapshotSaver(self)
-
-        # Laptimer
-        Laptimer(self)
-        # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
-
-        # steering rack tracker
-        #SteeringTracker(self)
+        breakpoint()
 
         for item in self.extensions:
             item.init()
@@ -77,12 +77,12 @@ class Main():
 
     # run experiment until user press q in visualization window
     def run(self):
-        print_info("running ... press q to quit")
+        self.print_info("running ... press q to quit")
         while not self.exit_request.is_set():
             ts = time()
             self.update()
         # exit point
-        print_info("Exiting ...")
+        self.print_info("Exiting ...")
         for item in self.extensions:
             item.preFinal()
         for item in self.extensions:
@@ -142,10 +142,7 @@ class Main():
 
 
 if __name__ == '__main__':
-    # alfa: progress
-    #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
-    experiment = Main(params)
+    experiment = Main()
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()
