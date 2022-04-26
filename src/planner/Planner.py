@@ -1,7 +1,8 @@
 # MPC based trajectory planner
 import matplotlib.pyplot as plt
 import numpy as np
-from MPC import MPC
+#from MPC import MPC
+from planner import MPC
 from time import time
 from math import floor
 from itertools import product
@@ -9,15 +10,24 @@ import scipy.optimize
 from scipy.linalg import block_diag
 
 class Planner:
-    def __init__(self):
+    def __init__(self,config=None):
+        self.config = config
         # p: prediction horizon
         self.N = N = horizon = 50
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
         return
+    # prepare curvilinear path from RCPTrack or like
+    def genPath(self):
+        # need: x_t_fun, y_t_fun, t_vec
+        # resample to curve length
+        # r,dr,ddr
+        # left,right limit
+        return
+
 
     # generate a path
-    def genPath(self):
+    def genSamplePath(self):
         # create a parametric curve
         x_t_fun = lambda t:t
         y_t_fun = lambda t:np.sin(t)
@@ -70,7 +80,7 @@ class Planner:
         # u: [dn] first derivative of n
         self.n = n = 3
         self.m = m = 1
-        self.genPath()
+        self.genSamplePath()
 
         # m/s
         self.dt = 0.1

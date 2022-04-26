@@ -2,20 +2,10 @@ from common import *
 from math import isnan,pi,degrees,radians
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
 
-class PurePursuitCarController(CarController):
+class EmptyCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
-        config_planner = config.getElementsByTagName('planner')[0]
-        planner_class = eval(config_planner.firstChild.nodeValue)
-        self.planner = planner_class(config_planner)
-        self.planner.main = self.main
-        self.print_ok("setting planner attributes")
-        for key,value_text in config_planner.attributes.items():
-            setattr(self.planner,key,eval(value_text))
-            self.print_info(" main.",key,'=',value_text)
-
 
     def control(self):
         valid = True

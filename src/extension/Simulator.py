@@ -14,7 +14,7 @@ class Simulator(Extension):
         self.match_time = True
         self.t0 = None
         self.real_sim_time_ratio = 1.0
-        print_ok(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
+        print_info(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
         # ensure experiment_type hasn't been initialized
@@ -28,7 +28,7 @@ class Simulator(Extension):
 
         self.main.experiment_type = ExperimentType.Simulation
         self.main.sim_t = 0
-        print_ok(self.prefix() + "match_time: " + str(self.match_time))
+        print_info(self.prefix() + "match_time: " + str(self.match_time))
 
     def matchRealTime(self):
         if (not self.match_time):
