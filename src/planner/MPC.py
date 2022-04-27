@@ -367,7 +367,7 @@ class MPC:
         self.last_applied_u =  np.array(sol['x'])[0,:]
         self.last_u = sol['x']
         print("solver status: ",sol['status'])
-        return self.last_applied_u
+        return sol['status'] == 'optimal'
 
 if __name__ == "__main__":
     mpc = MPC()

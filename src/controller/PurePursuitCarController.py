@@ -11,13 +11,16 @@ class PurePursuitCarController(CarController):
         planner_class = eval(config_planner.firstChild.nodeValue)
         self.planner = planner_class(config_planner)
         self.planner.main = self.main
+        self.planner.car = self.car
         self.print_ok("setting planner attributes")
         for key,value_text in config_planner.attributes.items():
             setattr(self.planner,key,eval(value_text))
             self.print_info(" main.",key,'=',value_text)
-
+        self.planner.init()
+        #self.planner.test()
 
     def control(self):
+        self.planner.plan()
         valid = True
         throttle = self.calcThrottle(0)
         steering = 0

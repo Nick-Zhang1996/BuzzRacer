@@ -1,15 +1,22 @@
 # MPC based trajectory planner
+from common import *
 import matplotlib.pyplot as plt
 import numpy as np
-#from MPC import MPC
-from planner import MPC
+from planner.MPC import MPC
 from time import time
 from math import floor
 from itertools import product
 import scipy.optimize
 from scipy.linalg import block_diag
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from bisect import bisect
 
-class Planner:
+# TODO:
+# properly fix first step error
+# in curvilinear coord conversion, search for shorter range
+# drop irrelevant opponent ASAP
+
+class Planner(PrintObject):
     def __init__(self,config=None):
         self.config = config
         # p: prediction horizon
@@ -17,14 +24,187 @@ class Planner:
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
         return
+
+    def init(self):
+        # state x:[s,n,ds]
+        # u: [dn] first derivative of n
+        self.n = n = 3
+        self.m = m = 1
+        # m/s
+        self.dt = 0.1
+
+        self.track = self.main.track
+        self.genPath()
+        return
+
+    def plan(self):
+        vs = 1.3
+        #x0 = [0,0,vs]
+        coord = self.car.states[0:2]
+        car_state_curvi = self.cartesianToCurvilinear(coord,skip_wrap=True)
+        x0 = [car_state_curvi[0], car_state_curvi[1], vs]
+
+        self.idx = self.pickRelevantIndex(x0)
+        # opponents, static, [s,n]
+        #opponent_state_vec = [[1,0],[0.5,-0.1]]
+        opponent_state_vec = self.getOpponentState()
+        sols = self.solveSingleControl(x0,opponent_state_vec)
+
+        # visualize
+        self.plotTrack()
+        # initial state
+        self.plotCar(x0)
+        # target state
+        #self.plotCar(xref)
+        for (u_vec, state_traj) in sols:
+            self.plotStateTraj(state_traj)
+        for opponent in opponent_state_vec:
+            self.plotOpponent(opponent)
+        plt.axis('equal')
+        plt.show()
+        breakpoint()
+
+        # plot on visualization
+        self.plotSolutions(sols)
+        return
+    def plotSolutions(self,sols):
+        img = self.main.visualization.visualization_img
+        for (u_vec, state_traj) in sols:
+            breakpoint()
+            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
+        self.main.visualization.visualization_img = img
+        return 
+
+    def test(self):
+        vs = 1.3
+        x0 = [0,0,vs]
+        # opponents, static, [s,n]
+        opponent_state_vec = [[1,0],[0.5,-0.1]]
+
+        sols = self.solveSingleControl(x0,opponent_state_vec)
+
+        self.plotTrack()
+        # initial state
+        self.plotCar(x0)
+        # target state
+        #self.plotCar(xref)
+        for (u_vec, state_traj) in sols:
+            self.plotStateTraj(state_traj)
+        for opponent in opponent_state_vec:
+            self.plotOpponent(opponent)
+        plt.axis('equal')
+        plt.show()
+        return
+
+    def getOpponentState(self):
+        opponent_state_vec = []
+        for car in self.main.cars:
+            if (car == self.car):
+                continue
+            #x,y,heading,v_forward,v_sideways,omega
+            coord = (car.states[0],car.states[1])
+            # NOTE optimization possible
+            car_state_curvi = self.cartesianToCurvilinear(coord)
+            opponent_state_vec.append(car_state_curvi)
+        return opponent_state_vec
+
+    # NOTE optimization possible
+    def cartesianToCurvilinear(self,coord,skip_wrap=False):
+        dist = np.sum((self.r-coord)**2, axis=1)
+        idx = np.argmin(dist)
+        s = self.s_vec[idx]
+        # ensure s is larger than ego vehicle's s
+        if (not skip_wrap):
+            if (idx < self.idx[0]):
+                s += self.track.raceline_len_m
+                self.print_info("wrap around")
+
+        r = self.r[idx]
+        rp = coord - r
+        dr = self.dr[idx]
+        n = float(np.cross(dr,rp))
+        return (s,n)
+
     # prepare curvilinear path from RCPTrack or like
     def genPath(self):
         # need: x_t_fun, y_t_fun, t_vec
-        # resample to curve length
         # r,dr,ddr
         # left,right limit
+        self.discretized_raceline_len = 1024
+        self.s_vec = s_vec = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
+        self.r = self.ref_path = np.array(splev(s_vec%self.track.raceline_len_m,self.track.raceline_s,der=0)).T
+        dr = splev(s_vec%self.track.raceline_len_m,self.track.raceline_s,der=1)
+        self.raceline_headings = np.arctan2(dr[1],dr[0])
+
+        self.s_step = s_vec[1]-s_vec[0]
+        # TODO use M1 M2
+        self.dr,self.ddr = self.calcDerivative(self.ref_path)
+        # describe track boundary as offset from raceline
+        self.createBoundary()
+        self.left_limit = np.array(self.raceline_left_boundary)
+        self.right_limit = -np.array(self.raceline_right_boundary)
+        # ccw 90 deg
+        R = np.array([[0,-1],[1,0]])
+        tangent_dir = (R @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
+        self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
+        self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
+        self.calcArcLen(self.ref_path)
         return
 
+    def createBoundary(self,show=False):
+        # construct a (self.discretized_raceline_len * 2) vector
+        # to record the left and right track boundary as an offset to the discretized raceline
+        left_boundary = []
+        right_boundary = []
+
+        left_boundary_points = []
+        right_boundary_points = []
+        self.raceline_points = self.ref_path.T
+
+        for i in range(self.discretized_raceline_len):
+            # find normal direction
+            coord = self.raceline_points[:,i]
+            heading = self.raceline_headings[i]
+
+            left, right = self.track.preciseTrackBoundary(coord,heading)
+            left_boundary.append(left)
+            right_boundary.append(right)
+
+            '''
+            # debug boundary points
+            left_point = (coord[0] + left * np.cos(heading+np.pi/2),coord[1] + left * np.sin(heading+np.pi/2))
+            right_point = (coord[0] + right * np.cos(heading-np.pi/2),coord[1] + right * np.sin(heading-np.pi/2))
+
+            left_boundary_points.append(left_point)
+            right_boundary_points.append(right_point)
+
+
+            # DEBUG
+            # plot left/right boundary
+            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
+            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
+            img = self.track.drawTrack()
+            img = self.track.drawRaceline(img = img)
+            img = self.track.drawPoint(img,coord,color=(0,0,0))
+            img = self.track.drawPoint(img,left_point,color=(0,0,0))
+            img = self.track.drawPoint(img,right_point,color=(0,0,0))
+            plt.imshow(img)
+            plt.show()
+            '''
+
+
+        self.raceline_left_boundary = left_boundary
+        self.raceline_right_boundary = right_boundary
+
+        if (show):
+            img = self.track.drawTrack()
+            img = self.track.drawRaceline(img = img)
+            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
+            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
+            plt.imshow(img)
+            plt.show()
+            return img
+        return
 
     # generate a path
     def genSamplePath(self):
@@ -45,10 +225,10 @@ class Planner:
 
         # resample to parameter of curve length r(t) -> r(s)
         self.s_vec = s_vec = np.linspace(0,tToS(0,t_range,steps=10000),1000)
-        self.ds = ds = s_vec[1] - s_vec[0]
+        self.s_step = s_step = s_vec[1] - s_vec[0]
         t_vec = [0]
         for i in range(s_vec.shape[0]-1):
-            t = scipy.optimize.root(lambda m:tToS(t_vec[-1],m)-ds, t_vec[-1])
+            t = scipy.optimize.root(lambda m:tToS(t_vec[-1],m)-s_step, t_vec[-1])
             t_vec.append(t.x[0])
         x_vec = x_t_fun(t_vec)
         y_vec = y_t_fun(t_vec)
@@ -74,9 +254,9 @@ class Planner:
 
         self.calcArcLen(self.ref_path)
 
-    # control with state = [s,n,ds]
+    # control with state = [s,n,dsdt]
     def demoSingleControl(self):
-        # state x:[s,n,ds]
+        # state x:[s,n,dsdt]
         # u: [dn] first derivative of n
         self.n = n = 3
         self.m = m = 1
@@ -110,7 +290,7 @@ class Planner:
         n = self.n
         m = self.m
         N = self.N
-        ds = self.ds
+        s_step = self.s_step
         # setup mpc 
         mpc.setup(n,m,n,N)
         dt = self.dt
@@ -123,7 +303,7 @@ class Planner:
         t = time()
         x0 = np.array(x0).T.reshape(-1,1)
         self.x0 = x0
-        xref = [x0[0,0]+x0[2,0]*(self.N+1),0,ds]
+        xref = [x0[0,0]+x0[2,0]*(self.N+1),0,x0[2,0]]
         xref = np.array(xref).T.reshape(-1,1)
         xref_vec = xref.repeat(N,1).T.reshape(N,n,1)
         #du_max = np.array([[1,1]]).T
@@ -153,9 +333,12 @@ class Planner:
         h = np.vstack([h,h_u0])
 
         if (scenarios is None):
-            print("no opponent in horizon")
+            print_info("no opponent in horizon")
             dt = time()-t
-            mpc.solve()
+            success = mpc.solve()
+            if (not success):
+                print_warning("MPC fail to find solution")
+                # still have to use this
             if (mpc.h is not None):
                 print(mpc.h.shape)
             print("freq = %.2fHz"%(1/dt))
@@ -171,7 +354,10 @@ class Planner:
                 mpc.G = np.vstack([G,case[0]])
                 mpc.h = np.vstack([h,case[1]])
                 duration = time()-t
-                mpc.solve()
+                success = mpc.solve()
+                if (not success):
+                    print_warning("MPC fail to find solution on this path")
+                    continue
                 if (mpc.h is not None):
                     print("constraints: %d"%(mpc.h.shape[0]))
                 print("freq = %.2fHz"%(1/duration))
@@ -204,8 +390,8 @@ class Planner:
         n = sols[0][1][1:,1]
         # ds = ds/dt * dt
         ds = x0[2][0] * self.dt
-        M1 = planner.getDiff1Matrix(N,ds)
-        M2 = planner.getDiff2Matrix(N,ds)
+        M1 = self.getDiff1Matrix(N,ds)
+        M2 = self.getDiff2Matrix(N,ds)
 
         p = self.debug_r + R @ self.debug_dr * n
         dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2)).T
@@ -245,12 +431,16 @@ class Planner:
             M = np.kron(np.eye(N),np.array([[0,1,0]]))
         elif (self.n==2):
             M = np.kron(np.eye(N),np.array([[0,1]]))
+        # left is positive
         G1 = M @ mpc.F
-        N = np.ones((N,1))*self.track_width/2
-        h1 = N - M @ mpc.Ex0
+        # left
+        L = self.left_limit[self.idx].reshape((N,1))
+        #L = np.ones((N,1))*self.track_width/2
+        h1 = L - M @ mpc.Ex0
 
         G2 = -M @ mpc.F
-        h2 = N + M @ mpc.Ex0
+        R = -self.right_limit[self.idx].reshape((N,1))
+        h2 = R + M @ mpc.Ex0
 
         if (mpc.G is None):
             mpc.G = np.vstack([G1,G2])
@@ -332,18 +522,24 @@ class Planner:
         scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
             
         return scenarios
+    def pickRelevantIndex(self,x0):
+        x0 = np.array(x0).flatten()
+        idx = []
+        s_step = self.s_step
+        for i in range(self.N):
+            this_s = x0[0] + i*self.dt*x0[2]
+            i = (this_s%self.track.raceline_len_m) / s_step
+            idx.append(i)
+        idx = np.array(idx,dtype=int).flatten()
+        return idx
+
     # dr:(2,N)
     # ds: float scalar
     # p: (2,N)
     def addCurvatureNormObjective(self, mpc, x0, weight, n_estimate=None):
         N = self.N
-        ds = self.ds
-        idx = []
-        for i in range(N):
-            this_s = x0[0,0] + i*self.dt*x0[2,0]
-            i = this_s / ds
-            idx.append(i)
-        idx = np.array(idx,dtype=int).flatten()
+        s_step = self.s_step
+        idx = self.idx
 
         # TODO maybe use good ddr approxmation instead of 2nd degree
         r = self.r.T[:,idx]
@@ -378,8 +574,8 @@ class Planner:
         D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
         # ds = ds/dt * dt
         ds = x0[2][0] * self.dt
-        M1 = planner.getDiff1Matrix(N,ds)
-        M2 = planner.getDiff2Matrix(N,ds)
+        M1 = self.getDiff1Matrix(N,ds)
+        M2 = self.getDiff2Matrix(N,ds)
         I_2 = np.eye(2)
         I_N = np.eye(N)
         G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
@@ -453,7 +649,7 @@ class Planner:
         cartesian_traj = []
         A = np.array([[0,-1],[1,0]])
         for i in range(traj.shape[0]):
-            idx = np.searchsorted(self.ref_path_s,traj[i,0],side='left')
+            idx = np.searchsorted(self.ref_path_s,traj[i,0]%self.track.raceline_len_m,side='left')
             xy = self.ref_path[idx] + A @ self.dr[idx] * traj[i,1]
             cartesian_traj.append(xy)
         return np.array(cartesian_traj)
@@ -469,7 +665,7 @@ class Planner:
         plt.plot(self.left_boundary[:,0],self.left_boundary[:,1],'-')
         plt.plot(self.right_boundary[:,0],self.right_boundary[:,1],'-')
 
-    # given state x =[s,n,ds,dn]
+    # given state x =[s,n,...]
     # plot a dot where the car should be
     def plotCar(self,x):
         # ccw 90 deg
@@ -505,7 +701,7 @@ class Planner:
         plt.plot(traj[:,0],traj[:,1],'b-')
 
     def getIndex(self,s):
-        idx = np.searchsorted(self.ref_path_s,s,side='left')
+        idx = np.searchsorted(self.ref_path_s,s%self.track.raceline_len_m,side='left')
         return idx
 
     # first order numerical differentiation matrix
