@@ -20,7 +20,7 @@ class Planner(PrintObject):
     def __init__(self,config=None):
         self.config = config
         # p: prediction horizon
-        self.N = N = horizon = 50
+        self.N = N = horizon = 40
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
         return
@@ -50,6 +50,7 @@ class Planner(PrintObject):
         opponent_state_vec = self.getOpponentState()
         sols = self.solveSingleControl(x0,opponent_state_vec)
 
+        '''
         # visualize
         self.plotTrack()
         # initial state
@@ -62,7 +63,7 @@ class Planner(PrintObject):
             self.plotOpponent(opponent)
         plt.axis('equal')
         plt.show()
-        breakpoint()
+        '''
 
         # plot on visualization
         self.plotSolutions(sols)
@@ -70,8 +71,8 @@ class Planner(PrintObject):
     def plotSolutions(self,sols):
         img = self.main.visualization.visualization_img
         for (u_vec, state_traj) in sols:
-            breakpoint()
-            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
+            traj = self.stateTrajToCartesianTraj(state_traj)
+            img = self.track.drawPolyline(traj,lineColor=(255,51,204),img=img)
         self.main.visualization.visualization_img = img
         return 
 
