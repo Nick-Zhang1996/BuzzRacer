@@ -21,7 +21,18 @@ class StanleyCarController(CarController):
         dt = car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
+        # to be overridden in config, if defined
+        self.max_speed = 2.2
+        self.print_ok("setting attributes")
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            self.print_info(" controller.",key,'=',value_text)
+
+
+
+
     def control(self):
+        breakpoint()
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
@@ -72,7 +83,7 @@ class StanleyCarController(CarController):
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         # for experiments
         #v_target = min(v_target*0.8, 2.2)
-        v_target = min(v_target, 2.2)
+        v_target = min(v_target, self.max_speed)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})

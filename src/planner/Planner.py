@@ -118,7 +118,7 @@ class Planner(PrintObject):
         if (not skip_wrap):
             if (idx < self.idx[0]):
                 s += self.track.raceline_len_m
-                self.print_info("wrap around")
+                #self.print_info("wrap around")
 
         r = self.r[idx]
         rp = coord - r
@@ -351,7 +351,7 @@ class Planner(PrintObject):
         else:
             #scenarios = [scenarios[3]]
             for case in scenarios:
-                print("case ---- ")
+                #print("case ---- ")
                 mpc.G = np.vstack([G,case[0]])
                 mpc.h = np.vstack([h,case[1]])
                 duration = time()-t
@@ -360,14 +360,16 @@ class Planner(PrintObject):
                     print_warning("MPC fail to find solution on this path")
                     continue
                 if (mpc.h is not None):
-                    print("constraints: %d"%(mpc.h.shape[0]))
-                print("freq = %.2fHz"%(1/duration))
+                    #print("constraints: %d"%(mpc.h.shape[0]))
+                    pass
+                self.print_info("freq = %.2fHz"%(1/duration))
                 # state_traj in curvilinear frame
                 state_traj = mpc.F @ mpc.u + mpc.Ex0
                 state_traj = state_traj.reshape((N,n))
                 state_traj = np.vstack([x0.T,state_traj])
                 sols.append( (mpc.u,state_traj) )
 
+        '''
         # calculate progress and curvature cost
         u = sols[0][0]
         mse = lambda a: np.sum((a)**2)
@@ -418,6 +420,7 @@ class Planner(PrintObject):
             k_p = np.cross(dp, ddp,axis=0)
             k_p_norm = mse(k_p)
             k_p_norm_vec.append(k_p_norm)
+        '''
 
         return sols
 
@@ -490,9 +493,10 @@ class Planner(PrintObject):
                     G = np.vstack([G1,G2])
                     h = np.vstack([h1,h2])
                     opponent_constraints[-1].append((G,h))
-                    print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
+                    #print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
                 else:
-                    print("error, out of bound")
+                    #print("error, out of bound")
+                    pass
                 
             if (right < opponent[1]-self.opponent_width/2):
                 # there's space in right for passing
@@ -505,9 +509,10 @@ class Planner(PrintObject):
                     G = np.vstack([G1,G2])
                     h = np.vstack([h1,h2])
                     opponent_constraints[-1].append((G,h))
-                    print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
+                    #print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
                 else:
-                    print("error, out of bound")
+                    #print("error, out of bound")
+                    pass
             opponent_idx += 1
 
         # possible combination of AND constraints
