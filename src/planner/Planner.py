@@ -20,9 +20,13 @@ class Planner(PrintObject):
     def __init__(self,config=None):
         self.config = config
         # p: prediction horizon
-        self.N = N = horizon = 40
+        self.N = N = horizon = 10
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
+        self.opponent_lookahead_time = 1.0
+        # if opponents are closer than this threshold, pass them on same side
+        self.same_side_passing_threshold = 0.5
+        self.dt = 0.1
         return
 
     def init(self):
@@ -30,8 +34,6 @@ class Planner(PrintObject):
         # u: [dn] first derivative of n
         self.n = n = 3
         self.m = m = 1
-        # m/s
-        self.dt = 0.1
 
         self.track = self.main.track
         self.genPath()
@@ -49,6 +51,7 @@ class Planner(PrintObject):
         #opponent_state_vec = [[1,0],[0.5,-0.1]]
         opponent_state_vec = self.getOpponentState()
         sols = self.solveSingleControl(x0,opponent_state_vec)
+        best_sol_idx = np.argmin([x[2] for x in sols])
 
         '''
         # visualize
@@ -67,12 +70,14 @@ class Planner(PrintObject):
 
         # plot on visualization
         self.plotSolutions(sols)
+        self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
         return
-    def plotSolutions(self,sols):
+
+    def plotSolutions(self,sols,color=(255,51,204)):
         img = self.main.visualization.visualization_img
-        for (u_vec, state_traj) in sols:
+        for (u_vec, state_traj,cost) in sols:
             traj = self.stateTrajToCartesianTraj(state_traj)
-            img = self.track.drawPolyline(traj,lineColor=(255,51,204),img=img)
+            img = self.track.drawPolyline(traj,lineColor=color,img=img)
         self.main.visualization.visualization_img = img
         return 
 
@@ -319,10 +324,13 @@ class Planner(PrintObject):
         self.scenarios = scenarios
         sols = []
 
-        # FIXME hack to force u0 = 0
+        # u0 is unusually large
+        # constrain u0=u1
         G_u0 = np.zeros((2,N))
         G_u0[0,0] = 1
+        G_u0[0,1] = -1
         G_u0[1,0] = -1
+        G_u0[1,1] = 1
         h_u0 = np.zeros((2,1))
         h_u0[0,0] = 0.1
         h_u0[1,0] = -0.1
@@ -333,41 +341,52 @@ class Planner(PrintObject):
         G = np.vstack([G,G_u0])
         h = np.vstack([h,h_u0])
 
-        if (scenarios is None):
-            print_info("no opponent in horizon")
+
+        # iterate over all scenarios
+        for case in scenarios:
+            #print("case ---- ")
+            mpc.G = np.vstack([G,case[0]])
+            mpc.h = np.vstack([h,case[1]])
+            duration = time()-t
+            success = mpc.solve()
+            if (not success):
+                print_warning("MPC fail to find solution on this path")
+                continue
+            if (mpc.h is not None):
+                #print("constraints: %d"%(mpc.h.shape[0]))
+                pass
+            self.print_info("freq = %.2fHz"%(1/duration))
+            # state_traj in curvilinear frame
+            state_traj = mpc.F @ mpc.u + mpc.Ex0
+            state_traj = state_traj.reshape((N,n))
+            state_traj = np.vstack([x0.T,state_traj])
+            sols.append( (mpc.u,state_traj,mpc.cost) )
+
+        # if there's no opponent in sight
+        # or no way to pass them
+        # TODO don't crash into opponents if ego can't pass
+        if (len(scenarios)==0):
+            self.print_info("no opponent in horizon")
+        elif (len(sols)==0):
+            self.print_info("can't pass opponent")
+
+        if (len(sols)==0):
             dt = time()-t
             success = mpc.solve()
             if (not success):
                 print_warning("MPC fail to find solution")
                 # still have to use this
             if (mpc.h is not None):
-                print(mpc.h.shape)
+                #print(mpc.h.shape)
+                pass
             print("freq = %.2fHz"%(1/dt))
             # state_traj in curvilinear frame
             state_traj = mpc.F @ mpc.u + mpc.Ex0
             state_traj = state_traj.reshape((N,n))
             state_traj = np.vstack([x0.T,state_traj])
-            sols.append( (mpc.u,state_traj) )
-        else:
-            #scenarios = [scenarios[3]]
-            for case in scenarios:
-                #print("case ---- ")
-                mpc.G = np.vstack([G,case[0]])
-                mpc.h = np.vstack([h,case[1]])
-                duration = time()-t
-                success = mpc.solve()
-                if (not success):
-                    print_warning("MPC fail to find solution on this path")
-                    continue
-                if (mpc.h is not None):
-                    #print("constraints: %d"%(mpc.h.shape[0]))
-                    pass
-                self.print_info("freq = %.2fHz"%(1/duration))
-                # state_traj in curvilinear frame
-                state_traj = mpc.F @ mpc.u + mpc.Ex0
-                state_traj = state_traj.reshape((N,n))
-                state_traj = np.vstack([x0.T,state_traj])
-                sols.append( (mpc.u,state_traj) )
+            sols.append( (mpc.u,state_traj,mpc.cost) )
+
+        self.print_info("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
 
         '''
         # calculate progress and curvature cost
@@ -479,40 +498,38 @@ class Planner(PrintObject):
             step_begin = floor(step_begin)
             step_end = floor(step_end) + 1
             # if opponent is too far, skip
-            if (step_end > self.N):
+            if (step_begin > int(self.opponent_lookahead_time/self.dt)):
+                self.print_info("ignoring opponent at step %d"%(step_begin))
                 continue
             opponent_constraints.append([])
             if (left > opponent[1]+self.opponent_width/2):
                 # there's space in left for passing
                 left_bound = opponent[1]+self.opponent_width/2
                 retval1 = self.getGhForN(step_begin,left_bound,False)
-                retval2 = self.getGhForN(step_end,left_bound,False)
-                if (retval1 is not None and retval2 is not None):
-                    G1,h1 = retval1
-                    G2,h2 = retval2
-                    G = np.vstack([G1,G2])
-                    h = np.vstack([h1,h2])
+                if (retval1 is not None):
+                    G,h = retval1
+                    retval2 = self.getGhForN(step_end,left_bound,False)
+                    if (retval2 is not None):
+                        G2,h2 = retval2
+                        G = np.vstack([G,G2])
+                        h = np.vstack([h,h2])
+                        #print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
                     opponent_constraints[-1].append((G,h))
-                    #print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
-                else:
-                    #print("error, out of bound")
-                    pass
-                
+
             if (right < opponent[1]-self.opponent_width/2):
                 # there's space in right for passing
                 right_bound = opponent[1]-self.opponent_width/2
                 retval1 = self.getGhForN(step_begin,right_bound,True)
-                retval2 = self.getGhForN(step_end,right_bound,True)
-                if (retval1 is not None and retval2 is not None):
-                    G1,h1 = retval1
-                    G2,h2 = retval2
-                    G = np.vstack([G1,G2])
-                    h = np.vstack([h1,h2])
+                if (retval1 is not None):
+                    G,h = retval1
+                    retval2 = self.getGhForN(step_end,right_bound,True)
+                    if (retval2 is not None):
+                        G2,h2 = retval2
+                        G = np.vstack([G,G2])
+                        h = np.vstack([h,h2])
+                        #print("feasible path, oppo %d, right, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,right_bound))
                     opponent_constraints[-1].append((G,h))
-                    #print("feasible path, oppo %d, right, step %d-%d, n < %.2f"%(opponent_idx, step_begin, step_end,right_bound))
-                else:
-                    #print("error, out of bound")
-                    pass
+                
             opponent_idx += 1
 
         # possible combination of AND constraints
@@ -522,7 +539,7 @@ class Planner(PrintObject):
 
         # if no opponent is in sight
         if (len(opponent_constraints)==0):
-            return None
+            return []
         cons_combination = [ cons for cons in product(*opponent_constraints)]
 
         scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
@@ -604,10 +621,10 @@ class Planner(PrintObject):
 
     # get the constraint matrix G h for a single n constraint
     def getGhForN(self,step,val,is_max_constrain):
+        if (step>= self.N):
+            return None
         mpc = self.mpc
         idx = step*self.n + 1
-        if (step > self.N):
-            return None
         M = np.zeros(self.N*self.n)
         M[idx] = 1
         if (is_max_constrain):

@@ -32,7 +32,6 @@ class StanleyCarController(CarController):
 
 
     def control(self):
-        breakpoint()
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)

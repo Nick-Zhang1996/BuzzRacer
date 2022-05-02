@@ -366,6 +366,7 @@ class MPC:
         self.u = np.array(sol['x']) 
         self.last_applied_u =  np.array(sol['x'])[0,:]
         self.last_u = sol['x']
+        self.cost = sol['primal objective']
         #print("solver status: ",sol['status'])
         return sol['status'] == 'optimal'
 
