@@ -20,7 +20,7 @@ class Planner(PrintObject):
     def __init__(self,config=None):
         self.config = config
         # p: prediction horizon
-        self.N = N = horizon = 10
+        self.N = N = horizon = 30
         self.opponent_length = 0.17*2
         self.opponent_width = 0.08*2
         self.opponent_lookahead_time = 1.0
@@ -514,7 +514,7 @@ class Planner(PrintObject):
                         G = np.vstack([G,G2])
                         h = np.vstack([h,h2])
                         #print("feasible path, oppo %d, left, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,left_bound))
-                    opponent_constraints[-1].append((G,h))
+                    opponent_constraints[-1].append((G,h,opponent[0],'L'))
 
             if (right < opponent[1]-self.opponent_width/2):
                 # there's space in right for passing
@@ -528,7 +528,7 @@ class Planner(PrintObject):
                         G = np.vstack([G,G2])
                         h = np.vstack([h,h2])
                         #print("feasible path, oppo %d, right, step %d-%d, n > %.2f"%(opponent_idx, step_begin, step_end,right_bound))
-                    opponent_constraints[-1].append((G,h))
+                    opponent_constraints[-1].append((G,h,opponent[0],'R'))
                 
             opponent_idx += 1
 
@@ -542,9 +542,20 @@ class Planner(PrintObject):
             return []
         cons_combination = [ cons for cons in product(*opponent_constraints)]
 
-        scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons] )) for cons in product(*opponent_constraints)]
-            
-        return scenarios
+        scenarios = [ (np.vstack( [con[0] for con in cons] ), np.vstack( [con[1] for con in cons]), [con[2] for con in cons],[con[3] for con in cons] ) for cons in cons_combination]
+        # screen all scenarios, remove cases that requires trajectory to pass close opponents on different sides
+        screened_scenarios = []
+        for scenario in scenarios:
+            s_vec = scenario[2]
+            side_vec = scenario[3]
+            add = True
+            for i in range(len(s_vec)-1):
+                if (np.abs(s_vec[i]-s_vec[i+1])<self.same_side_passing_threshold
+                        and side_vec[i] != side_vec[i+1]):
+                    add = False
+            if (add):
+                screened_scenarios.append((scenario[0], scenario[1]))
+        return screened_scenarios
     def pickRelevantIndex(self,x0):
         x0 = np.array(x0).flatten()
         idx = []
