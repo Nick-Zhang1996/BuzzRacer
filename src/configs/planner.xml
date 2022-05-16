@@ -9,6 +9,7 @@
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization'>Visualization</extension>
       <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 
   <cars>
@@ -18,7 +19,12 @@
       <init_states>(3.7*0.6,4.2*0.6, radians(-90), 0.1)</init_states>
       <controller>
         <type>StanleyCarController</type>
-        <planner>Planner</planner>
+        <planner 
+          N='30' 
+          opponent_lookahead_time='1.0' 
+          same_side_passing_threshold='0.5' 
+          dt='0.1'
+          >Planner</planner>
       </controller>
     </car>
 

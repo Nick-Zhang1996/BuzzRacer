@@ -19,14 +19,17 @@ from bisect import bisect
 class Planner(PrintObject):
     def __init__(self,config=None):
         self.config = config
+        # NOTE these will be overridded by config file
         # p: prediction horizon
+        '''
         self.N = N = horizon = 30
-        self.opponent_length = 0.17*2
-        self.opponent_width = 0.08*2
         self.opponent_lookahead_time = 1.0
         # if opponents are closer than this threshold, pass them on same side
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
+        '''
+        self.opponent_length = 0.17*2
+        self.opponent_width = 0.08*2
         self.best_solution = None
         self.best_local_traj = None
         return

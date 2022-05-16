@@ -15,9 +15,9 @@
     <car>
       <name>Red Porsche</name>
       <config_name>porsche</config_name>
-      <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
+      <init_states>(3.7*0.6,4.2*0.6, radians(-90), 0.1)</init_states>
       <controller>
-        <type>PurePursuitCarController</type>
+        <type>StanleyCarController</type>
         <planner>Planner</planner>
       </controller>
     </car>
@@ -25,10 +25,30 @@
     <car>
       <name>Green Porsche</name>
       <config_name>lambo</config_name>
-      <init_states>(3.7*0.6,1.0*0.6, radians(-90), 1.0)</init_states>
-      <controller>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='1.0'>
         <type>StanleyCarController</type>
       </controller>
     </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <config_name>lambo</config_name>
+      <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='1.0'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <config_name>lambo</config_name>
+      <init_states>(2.4*0.6,1.3*0.6, radians(90), 0.1)</init_states>
+      <controller max_speed='1.0'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+
   </cars>
 </config>

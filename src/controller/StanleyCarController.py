@@ -30,6 +30,7 @@ class StanleyCarController(CarController):
             self.print_info(" controller.",key,'=',value_text)
 
         # if there's planner set it up
+        # TODO put this in a parent class constructor
         try:
             config_planner = config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
