@@ -2,6 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians
 from controller.CarController import CarController
 from controller.PidController import PidController
+from planner import Planner
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
@@ -23,15 +24,32 @@ class StanleyCarController(CarController):
 
         # to be overridden in config, if defined
         self.max_speed = 2.2
-        self.print_ok("setting attributes")
+        self.print_ok("setting controller attributes")
         for key,value_text in config.attributes.items():
             setattr(self,key,eval(value_text))
             self.print_info(" controller.",key,'=',value_text)
 
-
+        # if there's planner set it up
+        try:
+            config_planner = config.getElementsByTagName('planner')[0]
+            planner_class = eval(config_planner.firstChild.nodeValue)
+            self.planner = planner_class(config_planner)
+            self.planner.main = self.main
+            self.planner.car = self.car
+            self.print_ok("setting planner attributes")
+            for key,value_text in config_planner.attributes.items():
+                setattr(self.planner,key,eval(value_text))
+                self.print_info(" main.",key,'=',value_text)
+            self.planner.init()
+        except IndexError as e:
+            self.print_info("planner not available")
+            self.planner = None
 
 
     def control(self):
+        # TODO do this more carefully
+        if (self.planner is not None):
+            self.planner.plan()
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
@@ -73,7 +91,10 @@ class StanleyCarController(CarController):
         ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
-        retval = track.localTrajectory(state)
+        if self.planner is None:
+            retval = track.localTrajectory(state)
+        else:
+            retval = self.planner.localTrajectory(state)
         if retval is None:
             return (0,0,False,{'offset':0})
             #return ret
@@ -112,7 +133,8 @@ class StanleyCarController(CarController):
             else:
                 throttle = self.calcThrottle(state,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            #ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            ret =  (throttle,steering,True,{})
 
         return ret
 

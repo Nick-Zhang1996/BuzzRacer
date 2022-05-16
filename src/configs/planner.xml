@@ -17,7 +17,7 @@
       <config_name>porsche</config_name>
       <init_states>(3.7*0.6,4.2*0.6, radians(-90), 0.1)</init_states>
       <controller>
-        <type>PurePursuitCarController</type>
+        <type>StanleyCarController</type>
         <planner>Planner</planner>
       </controller>
     </car>

@@ -27,6 +27,8 @@ class Planner(PrintObject):
         # if opponents are closer than this threshold, pass them on same side
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
+        self.best_solution = None
+        self.best_local_traj = None
         return
 
     def init(self):
@@ -38,6 +40,43 @@ class Planner(PrintObject):
         self.track = self.main.track
         self.genPath()
         return
+
+    # retrieve information about local trajectory
+    # plan() should be called prior, ideally immediately before calling this function
+    # However, it's possible to make multiple localTrajectory() inquiries for one planned trajectory
+    # generated with plan() for computation efficiency
+    def localTrajectory(self,state):
+        coord = (state[0],state[1])
+        heading = state[2]
+        omega = state[5]
+        vf = state[3]
+        vs = state[4]
+        traj = self.best_local_traj
+        dist = np.sqrt((traj[:,0] - coord[0])**2 + (traj[:,1] - coord[1])**2)
+        # if plan() was called right before, then idx should be 0
+        idx = np.argmin(dist)
+
+        # find orientation
+        dy = traj[idx+1,1]-traj[idx,1]
+        dx = traj[idx+1,0]-traj[idx,0]
+        orientation = np.arctan2(dy,dx)
+
+        # find offset
+        vec_path_tangent = (dx,dy)
+        vec_path_to_car = (state[0] - traj[idx,0], state[1] - traj[idx,1])
+        offset = np.cross(vec_path_tangent, vec_path_to_car) / np.linalg.norm(vec_path_tangent)
+
+        sols = self.solutions
+        best_sol_idx = self.best_solution_index
+        self.plotSolutions(sols)
+        self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
+
+        # FIXME hacky
+        (_,_,_,_,v_target) = self.track.localTrajectory(state)
+        # offset: negative offset means left steering needed
+        #(local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        retval = (None,offset,orientation,None,v_target)
+        return retval
 
     def plan(self):
         vs = 1.3
@@ -69,8 +108,14 @@ class Planner(PrintObject):
         '''
 
         # plot on visualization
-        self.plotSolutions(sols)
-        self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
+        # TODO have this stay on before next replan
+        # maybe redraw this every frame, move to localTrajectory
+        #self.plotSolutions(sols)
+        #self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
+        self.best_solution = sols[best_sol_idx]
+        self.solutions = sols
+        self.best_solution_index = best_sol_idx
+        self.best_local_traj = self.stateTrajToCartesianTraj(self.best_solution[1])
         return
 
     def plotSolutions(self,sols,color=(255,51,204)):
