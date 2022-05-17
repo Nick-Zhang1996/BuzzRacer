@@ -37,10 +37,12 @@ class StanleyCarController(CarController):
             self.planner = planner_class(config_planner)
             self.planner.main = self.main
             self.planner.car = self.car
+            '''
             self.print_ok("setting planner attributes")
             for key,value_text in config_planner.attributes.items():
                 setattr(self.planner,key,eval(value_text))
                 self.print_info(" main.",key,'=',value_text)
+            '''
             self.planner.init()
         except IndexError as e:
             self.print_info("planner not available")

@@ -16,8 +16,9 @@ from bisect import bisect
 # in curvilinear coord conversion, search for shorter range
 # drop irrelevant opponent ASAP
 
-class Planner(PrintObject):
+class Planner(ConfigObject):
     def __init__(self,config=None):
+        super().__init__(config)
         self.config = config
         # NOTE these will be overridded by config file
         # p: prediction horizon
@@ -339,6 +340,7 @@ class Planner(PrintObject):
 
 
     def solveSingleControl(self,x0,opponent_state):
+        planner_t0 = time()
         mpc = MPC()
         self.mpc = mpc
         n = self.n
@@ -354,7 +356,6 @@ class Planner(PrintObject):
         P = np.diag([1,1,0])
         Q = np.eye(m)
 
-        t = time()
         x0 = np.array(x0).T.reshape(-1,1)
         self.x0 = x0
         xref = [x0[0,0]+x0[2,0]*(self.N+1),0,x0[2,0]]
@@ -392,10 +393,10 @@ class Planner(PrintObject):
 
         # iterate over all scenarios
         for case in scenarios:
+            t = time()
             #print("case ---- ")
             mpc.G = np.vstack([G,case[0]])
             mpc.h = np.vstack([h,case[1]])
-            duration = time()-t
             success = mpc.solve()
             if (not success):
                 print_warning("MPC fail to find solution on this path")
@@ -403,12 +404,13 @@ class Planner(PrintObject):
             if (mpc.h is not None):
                 #print("constraints: %d"%(mpc.h.shape[0]))
                 pass
-            self.print_info("freq = %.2fHz"%(1/duration))
             # state_traj in curvilinear frame
             state_traj = mpc.F @ mpc.u + mpc.Ex0
             state_traj = state_traj.reshape((N,n))
             state_traj = np.vstack([x0.T,state_traj])
             sols.append( (mpc.u,state_traj,mpc.cost) )
+            duration = time()-t
+            self.print_info("case freq = %.2fHz"%(1/duration))
 
         # if there's no opponent in sight
         # or no way to pass them
@@ -427,7 +429,6 @@ class Planner(PrintObject):
             if (mpc.h is not None):
                 #print(mpc.h.shape)
                 pass
-            print("freq = %.2fHz"%(1/dt))
             # state_traj in curvilinear frame
             state_traj = mpc.F @ mpc.u + mpc.Ex0
             state_traj = state_traj.reshape((N,n))
@@ -435,6 +436,8 @@ class Planner(PrintObject):
             sols.append( (mpc.u,state_traj,mpc.cost) )
 
         self.print_info("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
+        duration = time() - planner_t0
+        self.print_info("planner step freq = %.2fHz"%(1/duration))
 
         '''
         # calculate progress and curvature cost

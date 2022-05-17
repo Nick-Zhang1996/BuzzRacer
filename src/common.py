@@ -23,6 +23,13 @@ class PrintObject:
     def print_info(self,*message):
         print('\033[96m',self.prefix(), *message, '\033[0m')
 
+class ConfigObject(PrintObject):
+    def __init__(self,config):
+        self.print_ok("setting " + config.firstChild.nodeValue + " attributes")
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            self.print_info(config.firstChild.nodeValue, ".",key,'=',value_text)
+
 # ----------
 
 def print_error(*message):

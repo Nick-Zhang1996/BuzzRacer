@@ -203,12 +203,13 @@ class Visualization(Extension):
             return img
         # overlay vehicle image, orientation as headed
         # significant performance impact
-        img =  self.overlayCarRendering(img,car)
-
-        # draw vehicle, orientation as black arrow
-        #img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
-        # draw steering angle, orientation as red arrow
-        #img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+        if (self.car_graphics):
+            img =  self.overlayCarRendering(img,car)
+        else:
+            # draw vehicle, orientation as black arrow
+            img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
+            # draw steering angle, orientation as red arrow
+            img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         return img
     
     def overlayCarRendering(self,img, car):

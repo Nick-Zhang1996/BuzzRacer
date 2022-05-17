@@ -7,7 +7,7 @@
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-      <extension handle='visualization'>Visualization</extension>
+      <extension handle='visualization' car_graphics='False'>Visualization</extension>
       <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
@@ -20,7 +20,7 @@
       <controller>
         <type>StanleyCarController</type>
         <planner 
-          N='30' 
+          N='20' 
           opponent_lookahead_time='1.0' 
           same_side_passing_threshold='0.5' 
           dt='0.1'
