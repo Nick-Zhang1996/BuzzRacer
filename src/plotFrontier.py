@@ -8,9 +8,9 @@ import cv2
 #filename = "log.txt"
 #filename = "sat_fine_grid.txt"
 #filename = "combined.txt"
-#filename = "more_combined.txt"
+filename = "more_combined.txt"
 #filename = "fixed_fine_grid_search.txt"
-filename = "very_fine_grid_search.txt"
+#filename = "very_fine_grid_search.txt"
 
 track = TrackFactory(name='full')
 def plotTraj(track, filename, img, color, text):
@@ -141,12 +141,13 @@ for index in [4]:
     print("log index: ccmppi: %d,  mppi: %d"%(ccmppi[index_cc,7], mppi[index_mppi,7]))
 
     # plot frontier with circled settings
-    plt.plot(ccmppi[:,3], ccmppi[:,2],'o',color='cyan',label='CCMPPI')
-    plt.plot(mppi[:,3], mppi[:,2],'o', color='orange',label= 'MPPI')
+    # 3 timesteps per collision, 20 laps total
+    plt.plot(ccmppi[:,3]/60, ccmppi[:,2],'o',color='cyan',label='CCMPPI')
+    plt.plot(mppi[:,3]/60, mppi[:,2],'o', color='orange',label= 'MPPI')
 
-    plt.scatter(ccmppi[index_cc,3], ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
-    plt.scatter(mppi[index_mppi,3], mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
-    plt.xlabel("Number of collisions")
+    plt.scatter(ccmppi[index_cc,3]/60.0, ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
+    plt.scatter(mppi[index_mppi,3]/60.0, mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
+    plt.xlabel("Average collisions per lap")
     plt.ylabel("Laptime (s)")
     plt.legend()
     plt.show()
