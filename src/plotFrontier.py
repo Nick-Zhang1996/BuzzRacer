@@ -142,12 +142,12 @@ for index in [4]:
 
     # plot frontier with circled settings
     # 3 timesteps per collision, 20 laps total
-    plt.plot(ccmppi[:,3]/60, ccmppi[:,2],'o',color='cyan',label='CCMPPI')
-    plt.plot(mppi[:,3]/60, mppi[:,2],'o', color='orange',label= 'MPPI')
+    plt.plot(ccmppi[:,3]/3.0, ccmppi[:,2],'o',color='cyan',label='CCMPPI')
+    plt.plot(mppi[:,3]/3.0, mppi[:,2],'o', color='orange',label= 'MPPI')
 
-    plt.scatter(ccmppi[index_cc,3]/60.0, ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
-    plt.scatter(mppi[index_mppi,3]/60.0, mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
-    plt.xlabel("Average collisions per lap")
+    plt.scatter(ccmppi[index_cc,3]/3.0, ccmppi[index_cc,2],s=80,facecolor='none', edgecolor='r',label='same setting', zorder=10)
+    plt.scatter(mppi[index_mppi,3]/3.0, mppi[index_mppi,2],s=80,facecolor='none', edgecolor='r', zorder=10)
+    plt.xlabel("Number of collisions")
     plt.ylabel("Laptime (s)")
     plt.legend()
     plt.show()
