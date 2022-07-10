@@ -16,6 +16,8 @@ class Visualization(Extension):
         # NOTE
         self.frame_dt = 0.0
         self.count = 0
+        # default setting, will be overridden if defined in config
+        self.car_graphics = False
 
     def final(self):
         cv2.destroyAllWindows()

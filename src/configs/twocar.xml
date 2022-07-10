@@ -14,6 +14,7 @@
   <cars>
     <car>
       <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
       <config_name>porsche</config_name>
       <controller>
         <type>MppiCarController</type>
@@ -23,6 +24,7 @@
 
     <car>
       <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
       <config_name>lambo</config_name>
       <controller>
         <type>StanleyCarController</type>

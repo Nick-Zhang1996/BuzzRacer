@@ -7,7 +7,7 @@ from time import time,sleep
 from util.timeUtil import execution_timer
 from track import TrackFactory
 
-from Car import Car
+from car.Car import Car
 
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
@@ -55,7 +55,8 @@ class Main(PrintObject):
         for config_extension in config_extensions.getElementsByTagName('extension'):
             extension_class_name = config_extension.firstChild.nodeValue
             exec('from extension import '+extension_class_name)
-            ext = eval(extension_class_name+'(self)')
+            #ext = eval(extension_class_name+'(self)')
+            ext = eval(extension_class_name)(self)
             handle_name = ''
             for key,value in config_extension.attributes.items():
                 if key == 'handle':

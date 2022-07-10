@@ -1,27 +1,48 @@
 import numpy as np
 from enum import Enum, auto
+import inspect
 
 class ExperimentType(Enum):
     Simulation = auto()
     Realworld = auto()
 
 class PrintObject:
+    debug = False
+    def __init__(self):
+        #print_ok(self.prefix() + "in use")
+        #self.debug = False
+        pass
+
+    def print_debug_enable(self):
+        self.debug = True
+    def print_debug_disable(self):
+        self.debug = False
+
     def prefix(self):
         return "["+self.__class__.__name__+"]: "
-    def print_error(self,*message):
-        print('\033[91m',self.prefix(), 'ERROR ', *message, '\033[0m')
+
+    def print_error(self, *message):
+        print('\033[91m', self.prefix(),'ERROR ', *message, '\033[0m')
         raise RuntimeError
-    def print_ok(self,*message):
+
+    def print_ok(self, *message):
         print('\033[92m',self.prefix(), *message, '\033[0m')
 
-    def print_warning(self,*message):
+    def print_debug(self, *message):
         # yellow
-        #print('\033[93m', *message, '\033[0m')
+        if (self.debug):
+            print('\033[93m',self.prefix(), inspect.stack()[1][3],*message, '\033[0m')
+
+    def print_warning(self, *message):
+        # yellow
+        #print('\033[93m',self.prefix(), *message, '\033[0m')
         # red
         print('\033[91m',self.prefix(), 'WARNING: ', *message, '\033[0m')
 
-    def print_info(self,*message):
+    def print_info(self, *message):
         print('\033[96m',self.prefix(), *message, '\033[0m')
+
+
 
 class ConfigObject(PrintObject):
     def __init__(self,config):
@@ -58,28 +79,4 @@ def angular_difference(a, b):
     while angle_diff < -np.pi:
         angle_diff += 2 * np.pi
     return angle_diff
-
-class PrintObject:
-    def __init__(self):
-        #print_ok(self.prefix() + "in use")
-        pass
-
-    def prefix(self):
-        return "["+self.__class__.__name__+"]: "
-
-    def print_error(self, *message):
-        print('\033[91m', self.prefix(),'ERROR ', *message, '\033[0m')
-        raise RuntimeError
-
-    def print_ok(self, *message):
-        print('\033[92m',self.prefix(), *message, '\033[0m')
-
-    def print_warning(self, *message):
-        # yellow
-        #print('\033[93m',self.prefix(), *message, '\033[0m')
-        # red
-        print('\033[91m',self.prefix(), 'WARNING: ', *message, '\033[0m')
-
-    def print_info(self, *message):
-        print('\033[96m',self.prefix(), *message, '\033[0m')
 

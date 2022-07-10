@@ -26,6 +26,8 @@ class MppiCarController(CarController):
         self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+
+    def init(self):
         # directly sample control
         self.print_ok("max throttle = %.2f"%(self.car.max_throttle))
         #self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
