@@ -1,7 +1,7 @@
 <config>
   <settings dt='0.01'>
       <!-- Not checked, determined by if simulator or optitrack is initiated -->
-      <!-- <experiment_type>Simulation</experiment_type> -->
+      <experiment_type>Realworld</experiment_type>
     <track>full</track>
   </settings>
   <extensions>
@@ -9,25 +9,25 @@
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <extension handle='vi'>Optitrack</extension>
   </extensions>
 
   <cars>
     <car>
-      <name>Red Porsche</name>
+      <name>Audi_11</name>
       <hardware>Offboard</hardware>
-      <config_name>porsche</config_name>
-      <controller>
-        <type>MppiCarController</type>
+      <config_name>audi_11</config_name>
+      <controller max_speed='1.2'>
+        <type>StanleyCarController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
 
     <car>
-      <name>Green Porsche</name>
+      <name>Audi_12</name>
       <hardware>Offboard</hardware>
-      <config_name>lambo</config_name>
-      <controller>
+      <config_name>audi_12</config_name>
+      <controller max_speed='1.2'>
         <type>StanleyCarController</type>
         <init_states>(3.7*0.6,1.0*0.6, radians(-90), 1.0)</init_states>
       </controller>

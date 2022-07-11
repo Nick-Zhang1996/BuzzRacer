@@ -10,7 +10,7 @@ class OldOffboard(Car):
         self.car_interface = None
         Car.__init__(self,main)
 
-    def init(self):
+    def initParam(self):
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
         # default values are for the MR03 chassis with Porsche 911 GT3 RS body
@@ -27,7 +27,7 @@ class OldOffboard(Car):
 
         self.min_pwm_left = self.params['max_steer_pwm_left']
         self.max_pwm_right = self.params['max_steer_pwm_right']
-        Car.init(self)
+        Car.initParam(self)
 
     def initHardware(self):
         try:
@@ -37,6 +37,7 @@ class OldOffboard(Car):
             exit(1)
 
     def actuate(self):
+        Car.actuate(self)
         if not (self.car_interface is None):
             self.car_interface.write((str(self.mapdata(self.steering, self.max_steering_left,-self.max_steering_right,self.min_pwm_left,self.max_pwm_right))+","+str(self.mapdata(self.throttle,-1.0,1.0,1900,1100))+'\n').encode('ascii'))
             return True

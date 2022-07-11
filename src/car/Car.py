@@ -4,33 +4,62 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 class Car:
     car_count = 0
     cars = []
-    # states
+    # initialization for variables common to all subclass
     def __init__(self,main):
         self.main = main
         self.controller = None
-        self.throttle = 0.0
-        self.steering = 0.0
+        self._throttle = 0.0
+        self._steering = 0.0
         #x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
         self.states = (0,0,0,0,0,0)
+        # default values, will be overridden
+        self.max_throttle = 1.0
+        self.max_steering_left = radians(26.1)
+        self.max_steering_right = radians(26.1)
         self.debug_dict = {}
 
-    # this function should run without hardware peripherals
-    def init(self):
-        if (self.main.experiment_type == ExperimentType.Realworld):
-            self.initHardware()
+    @property
+    def throttle(self):
+        return self._throttle
+    @throttle.setter
+    def throttle(self,val):
+        val = val if val < self.max_throttle else self.max_throttle
+        val = val if val > -1.0 else -1.0
+        self._throttle = val
+
+    @property
+    def steering(self):
+        return self._steering
+    @steering.setter
+    def steering(self,val):
+        val = val if val < self.max_steering_left else self.max_steering_left
+        val = val if val > -self.max_steering_right else -self.max_steering_right
+        self._steering = val
+
+    # parameter initialization, this will run immediately after self.params is set
+    # put all parameters here. 
+    def initParam(self):
         self.wheelbase = self.params['wheelbase']
         self.max_throttle = self.params['max_throttle']
         self.max_steering_left = self.params['max_steer_angle_left']
         self.max_steering_right = self.params['max_steer_angle_right']
         self.max_throttle = self.params['max_throttle']
         self.optitrack_id = self.params['optitrack_streaming_id']
+
+    # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
+    # have concluded
+    def init(self):
+        if (self.main.experiment_type == ExperimentType.Realworld):
+            self.initHardware()
         self.controller.init()
 
     # initialize code that require hardware here
     def initHardware(self):
-        raise NotImplementedError
+        pass
+
     def actuate(self):
-        raise NotImplementedError
+        #self.print_info(self.throttle, self.steering)
+        pass
 
     def control(self):
         if (self.controller is None):
@@ -55,8 +84,11 @@ class Car:
     @classmethod
     def Factory(cls, main, config):
         # TODO error handling, it's ok there's no hardware
-        hardware_class_text = config.getElementsByTagName('hardware')[0].firstChild.nodeValue
-        exec('from car import '+hardware_class_text)
+        try:
+            hardware_class_text = config.getElementsByTagName('hardware')[0].firstChild.nodeValue
+            exec('from car import '+hardware_class_text)
+        except IndexError:
+            self.print_warning('no hardware specified')
 
         config_controller = config.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[0].firstChild.nodeValue
@@ -92,7 +124,6 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         #'optitrack_streaming_id' : 998,
                          'max_throttle' : 1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
@@ -108,7 +139,7 @@ class Car:
 
         # TODO render audi
         audi_11 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 15,
+                         'optitrack_streaming_id' : 998,
                          'ip' : '192.168.0.11',
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
@@ -116,7 +147,7 @@ class Car:
                          'rendering' : 'data/porsche_green.png'}
 
         audi_12 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 15,
+                         'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.0.12',
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
@@ -138,6 +169,7 @@ class Car:
         car.Iz = 417757e-9
         car.m = 0.1667
         # ----
+        car.initParam()
 
         car.id = Car.car_count
         Car.cars.append(car)

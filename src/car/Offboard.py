@@ -94,11 +94,11 @@ class Offboard(PrintObject,Car):
         #self.print_debug_enable()
         Car.__init__(self,main)
 
-    def init(self):
-        Car.init(self)
+    def initParam(self):
+        self.car_ip = self.params['ip']
+        Car.initParam(self)
 
     def initHardware(self):
-        self.car_ip = self.params['ip']
         self.car_port = 2390
         self.initSocket()
         self.initLog()

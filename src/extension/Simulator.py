@@ -8,27 +8,19 @@ from time import time,sleep
 # car.states = x,y,heading,v_forward,v_sideway,omega
 # however simulator can establish a property car.sim_states
 # that use different state representation
-class Simulator(Extension):
+class Simulator(Extension,PrintObject):
     def __init__(self,main):
         super().__init__(main)
         self.match_time = True
         self.t0 = None
         self.real_sim_time_ratio = 1.0
-        print_info(self.prefix() + "real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
+        self.print_info("real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
-        # ensure experiment_type hasn't been initialized
-        flag_is_unique = False
-        try:
-            self.main.experiment_type != ExperimentType.Simulation
-        except (AttributeError):
-            flag_is_unique = True
-        if (not flag_is_unique):
-            print_error(self.prefix() + "another state update source has been initialized")
-
-        self.main.experiment_type = ExperimentType.Simulation
+        if (main.experiment_type != ExperimentType.Simulation):
+            self.print_error("Experiment type is not Simulation but a Simulator is loaded")
         self.main.sim_t = 0
-        print_info(self.prefix() + "match_time: " + str(self.match_time))
+        self.print_info( "match_time: " + str(self.match_time))
 
     def matchRealTime(self):
         if (not self.match_time):

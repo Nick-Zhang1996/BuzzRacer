@@ -25,9 +25,12 @@ class Main(PrintObject):
             setattr(self,key,eval(value_text))
             self.print_info(" main.",key,'=',value_text)
 
+        config_experiment_text = config_settings.getElementsByTagName('experiment_type')[0].firstChild.nodeValue
+        self.experiment_type = eval('ExperimentType.'+config_experiment_text)
+
         # prepare track
-        config_track = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
-        self.track = TrackFactory(name=config_track)
+        config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
+        self.track = TrackFactory(name=config_track_text)
 
         # prepare cars
         Car.reset()
