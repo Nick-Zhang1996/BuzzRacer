@@ -138,7 +138,9 @@ class Offboard(PrintObject,Car):
 
     # one-time process
     def setup(self):
-        self.setParam(400.0,0,40)
+        # steering servo PID
+        #self.setParam(400.0,0,40)
+        self.setParam(300.0,0,30)
 
     def __commThreadFunction( self, arg ):
         self.print_debug('commThread started')

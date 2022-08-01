@@ -1,5 +1,5 @@
 from common import *
-from math import isnan,pi,degrees,radians
+from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 from planner import Planner
@@ -56,7 +56,7 @@ class StanleyCarController(CarController):
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -90,6 +90,12 @@ class StanleyCarController(CarController):
         omega = state[5]
         vf = state[3]
         vs = state[4]
+
+        # add in a slight lookahead distance
+        lookahead = 3e-2
+        x_lookahead = coord[0] + cos(heading) * lookahead
+        y_lookahead = coord[1] + sin(heading) * lookahead
+        coord = (x_lookahead, y_lookahead)
 
         ret = (0,0,False,{'offset':0})
 
