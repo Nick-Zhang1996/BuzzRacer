@@ -29,8 +29,10 @@ class Planner(ConfigObject):
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
         '''
-        self.opponent_length = 0.17*2
-        self.opponent_width = 0.08*2
+        #self.opponent_length = 0.17*2
+        #self.opponent_width = 0.08*2
+        self.opponent_length = 0.21*2
+        self.opponent_width = 0.12*2
         self.best_solution = None
         self.best_local_traj = None
         return
@@ -392,6 +394,7 @@ class Planner(ConfigObject):
 
 
         # iterate over all scenarios
+        t = time()
         for case in scenarios:
             t = time()
             #print("case ---- ")

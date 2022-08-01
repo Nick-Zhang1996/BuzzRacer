@@ -17,7 +17,7 @@ class Simulator(Extension,PrintObject):
         self.print_info("real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
-        if (main.experiment_type != ExperimentType.Simulation):
+        if (self.main.experiment_type != ExperimentType.Simulation):
             self.print_error("Experiment type is not Simulation but a Simulator is loaded")
         self.main.sim_t = 0
         self.print_info( "match_time: " + str(self.match_time))
