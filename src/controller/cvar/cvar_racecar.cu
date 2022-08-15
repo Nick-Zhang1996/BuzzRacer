@@ -2,6 +2,7 @@
 
 #include <curand_kernel.h>
 #define SAMPLE_COUNT %(SAMPLE_COUNT)s
+#define SUBSAMPLE_COUNT %(SUBSAMPLE_COUNT)s
 #define HORIZON %(HORIZON)s
 
 #define CONTROL_DIM %(CONTROL_DIM)s
@@ -53,9 +54,16 @@
 // vars
 __device__ curandState_t* curand_states[CURAND_KERNEL_N];
 __device__ float control_limit[2*CONTROL_DIM];
-__device__ float noise_std[CONTROL_DIM];
-__device__ float noise_mean[CONTROL_DIM];
-__device__ float sampled_noise[SAMPLE_COUNT*HORIZON*CONTROL_DIM];
+__device__ float control_noise_std[CONTROL_DIM];
+__device__ float control_noise_mean[CONTROL_DIM];
+__device__ float state_noise_std[STATE_DIM];
+__device__ float state_noise_mean[STATE_DIM];
+// paper notation legend:
+// M: SAMPLE_COUNT
+// K: HORIZON
+// N: SUBSAMPLE_COUNT
+__device__ float sampled_control_noise[SAMPLE_COUNT*HORIZON*CONTROL_DIM];
+__device__ float sampled_state_noise[SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM];
 __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
 
 // device functions
@@ -91,12 +99,20 @@ __global__ void init_curand_kernel(int seed){
 __global__ void set_control_limit(float* in_control_limit){
   for(int i=0;i<sizeof(control_limit);i++){ control_limit[i] = in_control_limit[i];}
 }
-__global__ void set_noise_cov(float* in_noise_cov){
-  for(int i=0;i<sizeof(noise_std);i++){ noise_std[i] = sqrtf(in_noise_cov[i]);}
-  //printf("std: %%.2f, %%.2f \n",noise_std[0],noise_std[1]);
+__global__ void set_control_noise_cov(float* in_noise_cov){
+  for(int i=0;i<sizeof(control_noise_std);i++){ control_noise_std[i] = sqrtf(in_noise_cov[i]);}
+  //printf("std: %%.2f, %%.2f \n",control_noise_std[0],control_noise_std[1]);
 }
-__global__ void set_noise_mean(float* in_noise_mean){
-  for(int i=0;i<sizeof(noise_mean);i++){ noise_mean[i] = sqrtf(in_noise_mean[i]);}
+__global__ void set_control_noise_mean(float* in_noise_mean){
+  for(int i=0;i<sizeof(control_noise_mean);i++){ control_noise_mean[i] = in_noise_mean[i];}
+}
+
+__global__ void set_state_noise_cov(float* in_noise_cov){
+  for(int i=0;i<sizeof(state_noise_std);i++){ state_noise_std[i] = sqrtf(in_noise_cov[i]);}
+  //printf("std: %%.2f, %%.2f \n",state_noise_std[0],state_noise_std[1]);
+}
+__global__ void set_state_noise_mean(float* in_state_mean){
+  for(int i=0;i<sizeof(state_noise_mean);i++){ state_noise_mean[i] = in_state_mean[i];}
 }
 
 __global__ void set_raceline(float* in_raceline){
@@ -117,7 +133,7 @@ __global__ void generate_control_noise(){
   if (id >= CURAND_KERNEL_N) {return;}
 
   float _scales[CONTROL_DIM*2];
-  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = noise_std[i];}
+  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = control_noise_std[i];}
 
   curandState_t s = *curand_states[id];
   int start = id*(SAMPLE_COUNT*HORIZON*CONTROL_DIM)/CURAND_KERNEL_N;
@@ -126,14 +142,143 @@ __global__ void generate_control_noise(){
 
   for(int i=start; i < end; i+=CONTROL_DIM ) {
     for (int j=0; j<CONTROL_DIM; j++){
-      float val = curand_normal(&s) * _scales[j] + noise_mean[j];
-      sampled_noise[i+j] = val;
+      float val = curand_normal(&s) * _scales[j] + control_noise_mean[j];
+      sampled_control_noise[i+j] = val;
       // DEBUG
       //out_values[i+j] = val;
     }
   }
   *curand_states[id] = s;
 
+}
+
+__global__ void generate_state_noise(){
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  
+  // failsafe, should never be true
+  if (id >= CURAND_KERNEL_N) {return;}
+
+  float _scales[STATE_DIM*2];
+  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = state_noise_std[i];}
+
+  curandState_t s = *curand_states[id];
+  int start = id*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N;
+  int end = min(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM,(id+1)*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N);
+  //printf("id %%d, %%d - %%d\n",id, start, end);
+
+  for(int i=start; i < end; i+=STATE_DIM ) {
+    for (int j=0; j<STATE_DIM; j++){
+      float val = curand_normal(&s) * _scales[j] + state_noise_mean[j];
+      sampled_state_noise[i+j] = val;
+      // DEBUG
+      //out_values[i+j] = val;
+    }
+  }
+  *curand_states[id] = s;
+
+}
+
+// evaluate sampled control sequences, with added noises
+// x0: x,y,heading, v_forward, v_sideways, omega
+// u0: current control to penalize control time rate
+// ref_control: samples*horizon*control_dim
+// out_cost: samples 
+// out_trajectories: output trajectories, samples*horizon*n
+// opponent_count: integer
+// opponent_traj: opponent_count * prediction_horizon * 2(x,y)
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
+__global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
+  // get global thread id
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+  if (thread_id>=SUBSAMPLE_COUNT*SAMPLE_COUNT){
+    return;
+  }
+  // thread_id = sample_id * SUBSAMPLE_COUNT + subsample_id
+  int sample_id = thread_id / SUBSAMPLE_COUNT;
+  int subsample_id = thread_id - sample_id * SUBSAMPLE_COUNT;
+
+  float x[STATE_DIM];
+  // copy to local state
+  // NOTE possible time saving by copy to local memory
+  for (int i=0; i<STATE_DIM; i++){
+    x[i] = *(in_x0 + i);
+  }
+
+  // initialize cost
+  float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_index = -1;
+  float last_u[CONTROL_DIM];
+  for (int i=0; i<CONTROL_DIM; i++){
+    last_u[i] = *(in_u0+i);
+  }
+
+  /*
+  if (id == 0){
+    printf("last u0=%%.2f",last_u[1]*180.0/PI);
+  }
+  */
+
+  // run simulation
+  // loop over time horizon
+  for (int i=0; i<HORIZON; i++){
+    float _u[CONTROL_DIM];
+    float* u = _u;
+
+    // apply constrain on control input
+    for (int j=0; j<CONTROL_DIM; j++){
+      // NOTE control is variation
+      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      // CVaR
+      // only the last dimension matters
+      int state_noise_id = sample_id*(SUBSAMPLE_COUNT*HORIZON*STATE_DIM) + i*(SUBSAMPLE_COUNT*STATE_DIM) + subsample_id*STATE_DIM + j;
+      // NOTE may not need to calculate dudt again
+      // XXX race condition?
+      dudt += sampled_state_noise[state_noise_id];
+      float val = last_u[j] + dudt * DT;
+      val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
+      val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
+      out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
+      // TODO check if this out_dudt agrees with original evaluate_control_sequence
+      // TODO only one thread need to update this
+
+      u[j] = val;
+    }
+
+    // step forward dynamics, update state x in place
+    forward_dynamics(x,u);
+    /*
+    // update output trajectories
+    for (int j=0; j<STATE_DIM; j++){
+      out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
+    }
+    */
+
+    // evaluate step cost
+    if (i==0){
+      cost += evaluate_step_cost(x, last_u, u,&last_index);
+    } else {
+      cost += evaluate_step_cost(x, u, u,&last_index);
+    }
+    cost += evaluate_boundary_cost(x,&last_index);
+    for (int k=0;k<opponent_count;k++){
+      cost += evaluate_collision_cost(x,in_opponent_traj,k);
+    }
+
+    for (int k=0; k<CONTROL_DIM; k++){
+      last_u[k] = u[k];
+    }
+
+    u += CONTROL_DIM;
+
+  }
+  float terminal_cost = evaluate_terminal_cost(x,in_x0);
+  cost += evaluate_terminal_cost(x,in_x0);
+  cost += terminal_cost;
+  out_cost[id] = cost;
+}
+
+//extern c
 }
 // evaluate sampled control sequences
 // x0: x,y,heading, v_forward, v_sideways, omega
@@ -182,7 +327,7 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     // apply constrain on control input
     for (int j=0; j<CONTROL_DIM; j++){
       // NOTE control is variation
-      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
       float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;

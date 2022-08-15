@@ -15,10 +15,10 @@ class CvarCarController(CarController):
         super().__init__(car,config)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
-        # these setting should be handled in config file
+        #TODO these setting may be handled in config file
         self.n = self.state_dim = 6
         self.m = self.control_dim = 2
-        self.samples_count = 4096
+        self.samples_count = 1024
         self.horizon = 30
         assert (self.horizon == self.prediction_horizon)
         self.track = self.car.main.track
@@ -27,6 +27,12 @@ class CvarCarController(CarController):
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
+        # CVaR specific settings
+        # paper:15 N
+        self.noise_sample_count = 10
+        # paper:20A
+        self.cvar_A = 1.0
+
     def init(self):
         # directly sample control
         self.print_ok("max throttle = %.2f"%(self.car.max_throttle))
@@ -34,8 +40,11 @@ class CvarCarController(CarController):
         #self.noise_mean = np.array([0.207,0])
 
         # sample control change rate val/sec
-        self.noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
-        self.noise_mean = np.array([0.0,0])
+        self.control_noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
+        self.control_noise_mean = np.array([0.0,0])
+
+        self.state_noise_cov = np.array([(0)**2,(0)**2])
+        self.state_noise_mean = np.array([0,0,0,0,0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
         self.last_control = np.zeros(2,dtype=np.float32)
@@ -131,6 +140,7 @@ class CvarCarController(CarController):
 
         # prepare constants
         cuda_code_macros = {
+                "SUBSAMPLE_COUNT":100,
                 "SAMPLE_COUNT":self.samples_count,
                 "HORIZON":self.horizon, 
                 "CONTROL_DIM":self.m,
@@ -140,16 +150,22 @@ class CvarCarController(CarController):
                 "DT":self.dt
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
-        cuda_filename = "./controller/mppi/mppi_racecar.cu"
+        cuda_filename = "./controller/cvar/cvar_racecar.cu"
         self.loadCudaFile(cuda_filename, cuda_code_macros)
         self.setBlockGrid()
 
         self.cuda_init_curand_kernel = self.getFunctionSafe("init_curand_kernel")
         self.cuda_generate_control_noise = self.getFunctionSafe("generate_control_noise")
         self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
+        # CVaR
+        self.cuda_generate_state_noise = self.getFunctionSafe("generate_state_noise")
+        self.cuda_evaluate_noisy_control_sequence = self.getFunctionSafe("evaluate_noisy_control_sequence")
+
         self.cuda_set_control_limit = self.getFunctionSafe("set_control_limit")
-        self.cuda_set_noise_cov = self.getFunctionSafe("set_noise_cov")
-        self.cuda_set_noise_mean = self.getFunctionSafe("set_noise_mean")
+        self.cuda_set_control_noise_cov = self.getFunctionSafe("set_control_noise_cov")
+        self.cuda_set_control_noise_mean = self.getFunctionSafe("set_control_noise_mean")
+        self.cuda_set_state_noise_cov = self.getFunctionSafe("set_state_noise_cov")
+        self.cuda_set_state_noise_mean = self.getFunctionSafe("set_state_noise_mean")
         self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
         self.initCurand()
 
@@ -157,17 +173,26 @@ class CvarCarController(CarController):
         # set control limit
         device_control_limit = self.to_device(self.control_limit)
         self.cuda_set_control_limit(device_control_limit,block=(1,1,1),grid=(1,1,1))
-        # set noise variance
-        device_noise_cov = self.to_device(self.noise_cov)
-        self.cuda_set_noise_cov(device_noise_cov, block=(1,1,1),grid=(1,1,1))
-        # set noise mean
-        device_noise_mean = self.to_device(self.noise_mean)
-        self.cuda_set_noise_mean(device_noise_mean, block=(1,1,1),grid=(1,1,1))
+
+        # set control noise variance
+        device_control_noise_cov = self.to_device(self.control_noise_cov)
+        self.cuda_set_control_noise_cov(device_control_noise_cov, block=(1,1,1),grid=(1,1,1))
+        # set control noise mean
+        device_control_noise_mean = self.to_device(self.control_noise_mean)
+        self.cuda_set_control_noise_mean(device_control_noise_mean, block=(1,1,1),grid=(1,1,1))
+
+        # set state noise variance
+        device_state_noise_cov = self.to_device(self.state_noise_cov)
+        self.cuda_set_state_noise_cov(device_state_noise_cov, block=(1,1,1),grid=(1,1,1))
+        # set state noise mean
+        device_state_noise_mean = self.to_device(self.state_noise_mean)
+        self.cuda_set_state_noise_mean(device_state_noise_mean, block=(1,1,1),grid=(1,1,1))
+
+
+
         # set raceline
         device_raceline = self.to_device(self.discretized_raceline)
         self.cuda_set_raceline(device_raceline, block=(1,1,1),grid=(1,1,1))
-
-
         sleep(1)
 
     def initCurand(self):
@@ -226,11 +251,12 @@ class CvarCarController(CarController):
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
 
+
+        # NOTE paper: 4-14, as regular MPPI
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
-
         # generate random var
-        random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
+        #random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
         self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
         #random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
         #cov0 = np.std(random_vals[:,:,0])
@@ -265,8 +291,34 @@ class CvarCarController(CarController):
                 device_opponent_traj,
                 block=self.cuda_block_size,grid=self.cuda_grid_size
                 )
-        # sampled trajectory overhead with GPU has 10Hz impact
+
+        # retrieve sampled trajectory, for debugging
+        # overhead with GPU has 10Hz impact
         #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+
+        # NOTE paper: 15-22
+        self.cuda_generate_state_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+        breakpoint()
+
+        cvar_costs = np.zeros((self.samples_count), dtype=np.float32)
+        new_sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        self.cuda_evaluate_noisy_control_sequence(
+                device_initial_state, 
+                device_last_control,
+                device_ref_control_rate, 
+                drv.Out(cvar_costs),
+                drv.Out(new_sampled_control_rate),
+                #drv.Out(sampled_trajectory),
+                opponent_count,
+                device_opponent_traj,
+                block=self.cuda_block_size,grid=self.cuda_grid_size
+                )
+        # TODO visualize
+        # TODO check cvar_costs against costs
+        # check sampled_control_rate 
+        breakpoint()
+
+        # TODO paper:23-28
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
