@@ -1,7 +1,6 @@
 <config>
   <settings dt='0.01'>
-      <!-- Not checked, determined by if simulator or optitrack is initiated -->
-      <!-- <experiment_type>Simulation</experiment_type> -->
+      <experiment_type>Simulation</experiment_type>
     <track>full</track>
   </settings>
   <extensions>

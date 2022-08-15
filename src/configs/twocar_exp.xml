@@ -1,6 +1,5 @@
 <config>
   <settings dt='0.01'>
-      <!-- Not checked, determined by if simulator or optitrack is initiated -->
       <experiment_type>Realworld</experiment_type>
     <track>full</track>
   </settings>
