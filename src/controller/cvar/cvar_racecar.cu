@@ -238,7 +238,8 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
       float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
-      out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
+
+      out_dudt[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
       // TODO check if this out_dudt agrees with original evaluate_control_sequence
       // TODO only one thread need to update this
 
@@ -275,11 +276,9 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
   float terminal_cost = evaluate_terminal_cost(x,in_x0);
   cost += evaluate_terminal_cost(x,in_x0);
   cost += terminal_cost;
-  out_cost[id] = cost;
+  out_cost[sample_id] = cost;
 }
 
-//extern c
-}
 // evaluate sampled control sequences
 // x0: x,y,heading, v_forward, v_sideways, omega
 // u0: current control to penalize control time rate

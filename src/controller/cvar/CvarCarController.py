@@ -29,7 +29,7 @@ class CvarCarController(CarController):
 
         # CVaR specific settings
         # paper:15 N
-        self.noise_sample_count = 10
+        self.subsamples_count = 10
         # paper:20A
         self.cvar_A = 1.0
 
@@ -210,20 +210,32 @@ class CvarCarController(CarController):
     def setBlockGrid(self):
         if (self.samples_count < 1024):
             # if sample count is small only employ one grid
-            self.cuda_block_size = (self.samples_count,1,1)
-            self.cuda_grid_size = (1,1)
+            self.cuda_sample_block_size = (self.samples_count,1,1)
+            self.cuda_sample_grid_size = (1,1)
         else:
             # employ multiple grid,
-            self.cuda_block_size = (1024,1,1)
-            self.cuda_grid_size = (ceil(self.samples_count/1024.0),1)
-        self.print_info("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
+            self.cuda_sample_block_size = (1024,1,1)
+            self.cuda_sample_grid_size = (ceil(self.samples_count/1024.0),1)
+
+        total_samples_count = self.subsamples_count*self.samples_count 
+        if (total_samples_count< 1024):
+            # if sample count is small only employ one grid
+            self.cuda_total_sample_block_size = (total_samples_count,1,1)
+            self.cuda_total_sample_grid_size = (1,1)
+        else:
+            # employ multiple grid,
+            self.cuda_total_sample_block_size = (1024,1,1)
+            self.cuda_total_sample_grid_size = (ceil(total_samples_count/1024.0),1)
+
+        self.print_info("sample: cuda block size %d, grid size %d"%(self.cuda_sample_block_size[0],self.cuda_sample_grid_size[0]))
+        self.print_info("total sample: cuda block size %d, grid size %d"%(self.cuda_total_sample_block_size[0],self.cuda_total_sample_grid_size[0]))
         return
 
     def getFunctionSafe(self,name):
         fun = self.mod.get_function(name)
         self.print_info("registers used, ",name,"= %d"%(fun.num_regs))
         assert fun.num_regs < 64
-        assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
+        assert int(fun.num_regs * self.cuda_total_sample_block_size[0]) <= 65536
         return fun
 
     def getOpponentStatus(self):
@@ -289,7 +301,7 @@ class CvarCarController(CarController):
                 #drv.Out(sampled_trajectory),
                 opponent_count,
                 device_opponent_traj,
-                block=self.cuda_block_size,grid=self.cuda_grid_size
+                block=self.cuda_sample_block_size,grid=self.cuda_sample_grid_size
                 )
 
         # retrieve sampled trajectory, for debugging
@@ -298,7 +310,6 @@ class CvarCarController(CarController):
 
         # NOTE paper: 15-22
         self.cuda_generate_state_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-        breakpoint()
 
         cvar_costs = np.zeros((self.samples_count), dtype=np.float32)
         new_sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
@@ -311,7 +322,7 @@ class CvarCarController(CarController):
                 #drv.Out(sampled_trajectory),
                 opponent_count,
                 device_opponent_traj,
-                block=self.cuda_block_size,grid=self.cuda_grid_size
+                block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
                 )
         # TODO visualize
         # TODO check cvar_costs against costs
