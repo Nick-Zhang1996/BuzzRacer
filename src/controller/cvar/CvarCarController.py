@@ -29,9 +29,12 @@ class CvarCarController(CarController):
 
         # CVaR specific settings
         # paper:15 N
-        self.subsamples_count = 10
+        self.subsamples_count = 100
         # paper:20A
         self.cvar_A = 1.0
+        self.cvar_a = 0.95
+        # paper line 25, C_upper
+        self.cvar_Cu = 0.5
 
     def init(self):
         # directly sample control
@@ -327,14 +330,23 @@ class CvarCarController(CarController):
 
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
 
-        # TODO paper:23-28
+        # paper:23-28
+        # find highest cost quantile
+        count = int((1-self.cvar_a)*self.subsamples_count)
+        if (count == 0):
+            self.print_error('cvar_alpha too large or subsample count too low')
+        cvar_P = np.sort(collision_count)[:,-count:]
+        # average of highest cost quantile
+        cvar_Lx = np.mean(cvar_P,axis=1) * self.cvar_A
+        cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
+        # TODO is there another A?
+        costs = costs + self.cvar_A * cvar_Lx
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
         #print('shoulnt be zero',sampled_control_rate[1000,:])
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
-        #breakpoint()
 
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
         # display expected trajectory
@@ -364,106 +376,8 @@ class CvarCarController(CarController):
         self.print_info("steering std %.2f deg"%(180.0/np.pi*np.std(sampled_control[:,:,1])))
         '''
 
-        # verify GPU against cpu
-        '''
-        x0 = self.car.states
-        index = 50
-        cpu_control = sampled_control[index,:,:]
-        cpu_trajectory = self.getTrajectory(x0, cpu_control)
-        gpu_trajectory = sampled_trajectory[index,:]
-        self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
-        '''
         return True
 
-    '''
-    def getTrajectory(self, x0, control):
-        trajectory = []
-        state = x0
-        for i in range(control.shape[0]):
-            state = self.advanceDynamics( state, control[i] )
-            trajectory.append(state)
-        return np.array(trajectory)
-
-    # old dynamics
-    def advanceDynamics(self, state, control, dt=0.01):
-        # constants
-        lf = 0.09-0.036
-        lr = 0.036
-        L = 0.09
-
-        Df = 3.93731
-        Dr = 6.23597
-        C = 2.80646
-        B = 0.51943
-        Iz = 0.00278*0.5
-        m = 0.1667
-
-        # convert to local frame
-        #x,vxg,y,vyg,heading,omega = tuple(state)
-        x,y,heading,vx,vy,omega = tuple(state)
-        throttle,steering = tuple(control)
-
-        # for small velocity, use kinematic model 
-        if (vx<0.05):
-            beta = atan(lr/L*tan(steering))
-            norm = lambda a,b:(a**2+b**2)**0.5
-            # motor model
-            d_vx = 0.425*(15.2*throttle - vx - 3.157)
-
-            vx = vx + d_vx * dt
-            vy = norm(vx,vy)*sin(beta)
-            d_omega = 0.0
-            omega = vx/L*tan(steering)
-
-            slip_f = 0
-            slip_r = 0
-            Ffy = 0
-            Fry = 0
-
-        else:
-            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
-            slip_r = np.arctan((omega*lr - vy)/vx)
-
-            Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-            Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-
-            # motor model
-            #Frx = (1.8*0.425*(15.2*throttle - vx - 3.157))*m
-            # Dynamics
-            #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
-            d_vx = 1.8*0.425*(15.2*throttle - vx - 3.157)
-
-            d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
-            d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
-
-            # discretization
-            vx = vx + d_vx * dt
-            vy = vy + d_vy * dt
-            omega = omega + d_omega * dt 
-
-        # back to global frame
-        vxg = vx*cos(heading)-vy*sin(heading)
-        vyg = vx*sin(heading)+vy*cos(heading)
-
-        # apply updates
-        # TODO add 1/2 a t2
-        x += vxg*dt
-        y += vyg*dt
-        heading += omega*dt + 0.5* d_omega * dt * dt
-
-        retval = x,y,heading,vx,vy,omega
-        return retval
-
-    # TODO maybe move to Visualization
-    def plotTrajectory(self,trajectory):
-        if (not self.car.main.visualization.update_visualization.is_set()):
-            return
-        img = self.car.main.visualization.visualization_img
-        for coord in trajectory:
-            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
-        self.car.main.visualization.visualization_img = img
-        return
-    '''
 
     # select min cost control
     def synthesizeControlMin(self, cost_vec, sampled_control):
