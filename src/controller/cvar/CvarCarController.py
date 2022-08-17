@@ -43,7 +43,8 @@ class CvarCarController(CarController):
         self.control_noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
         self.control_noise_mean = np.array([0.0,0])
 
-        self.state_noise_cov = np.array([(0)**2,(0)**2])
+        state_noise_std = np.array([1,1,1,1,1,1])*self.dt
+        self.state_noise_cov = state_noise_std**2
         self.state_noise_mean = np.array([0,0,0,0,0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
@@ -147,7 +148,7 @@ class CvarCarController(CarController):
                 "STATE_DIM":self.state_dim,
                 "RACELINE_LEN":self.discretized_raceline.shape[0],
                 "TEMPERATURE":self.temperature,
-                "DT":self.dt
+                "DT":self.dt,
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
         cuda_filename = "./controller/cvar/cvar_racecar.cu"
@@ -327,9 +328,7 @@ class CvarCarController(CarController):
                 block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
                 )
         # check sampled_control_rate 
-        collision_count = collision_count.reshape((self.samples_count, self.subsamples_count))
-        print('max=',np.max(collision_count))
-        print('argmax=',np.argmax(collision_count))
+        collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
         breakpoint()
 
         # TODO paper:23-28
