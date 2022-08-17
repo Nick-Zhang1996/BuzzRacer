@@ -313,20 +313,23 @@ class CvarCarController(CarController):
 
         cvar_costs = np.zeros((self.samples_count), dtype=np.float32)
         new_sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        collision_count = np.zeros((self.samples_count*self.subsamples_count), dtype=np.int32)
         self.cuda_evaluate_noisy_control_sequence(
                 device_initial_state, 
                 device_last_control,
                 device_ref_control_rate, 
                 drv.Out(cvar_costs),
                 drv.Out(new_sampled_control_rate),
+                drv.Out(collision_count),
                 #drv.Out(sampled_trajectory),
                 opponent_count,
                 device_opponent_traj,
                 block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
                 )
-        # TODO visualize
-        # TODO check cvar_costs against costs
         # check sampled_control_rate 
+        collision_count = collision_count.reshape((self.samples_count, self.subsamples_count))
+        print('max=',np.max(collision_count))
+        print('argmax=',np.argmax(collision_count))
         breakpoint()
 
         # TODO paper:23-28

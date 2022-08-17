@@ -74,6 +74,10 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
+int evaluate_cvar_boundary_collision( float* state,  int* u_estimate);
+__device__
+void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj,int id);
+__device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
 float evaluate_collision_cost( float* state, float* opponent_traj,int opponent_id);
@@ -187,15 +191,24 @@ __global__ void generate_state_noise(){
 // opponent_count: integer
 // opponent_traj: opponent_count * prediction_horizon * 2(x,y)
 //__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
-__global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
+__global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int* out_collision_count, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (thread_id>=SUBSAMPLE_COUNT*SAMPLE_COUNT){
+  if (thread_id>=(1+SUBSAMPLE_COUNT)*SAMPLE_COUNT){
     return;
   }
-  // thread_id = sample_id * SUBSAMPLE_COUNT + subsample_id
-  int sample_id = thread_id / SUBSAMPLE_COUNT;
-  int subsample_id = thread_id - sample_id * SUBSAMPLE_COUNT;
+  // thread_id = sample_id * (1+SUBSAMPLE_COUNT) + subsample_id
+  // subsample_id = 0 -> no noise dynamics, output dudt, old fashion MPPI
+  // subsample_id > 0 -> noisy dynamics, output collision_count, CVaR
+  int sample_id = thread_id / (SUBSAMPLE_COUNT+1);
+  int subsample_id = thread_id - sample_id * (SUBSAMPLE_COUNT+1);
+
+  if (subsample_id == 0){
+    evaluate_control_sequence(in_x0, in_u0, ref_dudt, out_cost, out_dudt, opponent_count, in_opponent_traj, sample_id);
+    return;
+  }
+  // to make mapping in array later easier
+  --subsample_id;
 
   float x[STATE_DIM];
   // copy to local state
@@ -204,8 +217,7 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     x[i] = *(in_x0 + i);
   }
 
-  // initialize cost
-  float cost = 0;
+  int collision_count = 0;
   // used as estimate to find closest index on raceline
   int last_index = -1;
   float last_u[CONTROL_DIM];
@@ -229,25 +241,23 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     for (int j=0; j<CONTROL_DIM; j++){
       // NOTE control is variation
       float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
-      // CVaR
-      // only the last dimension matters
-      int state_noise_id = sample_id*(SUBSAMPLE_COUNT*HORIZON*STATE_DIM) + i*(SUBSAMPLE_COUNT*STATE_DIM) + subsample_id*STATE_DIM + j;
-      // NOTE may not need to calculate dudt again
-      // XXX race condition?
-      dudt += sampled_state_noise[state_noise_id];
       float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
 
-      out_dudt[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
-      // TODO check if this out_dudt agrees with original evaluate_control_sequence
-      // TODO only one thread need to update this
+      // this is handled in sample_id=0 case
+      //out_dudt[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
 
       u[j] = val;
     }
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
+    // CVaR : add state noise
+    for (int j=0; j<STATE_DIM; j++){
+      x[j] += sampled_state_noise[subsample_id*(SAMPLE_COUNT*HORIZON*STATE_DIM) + sample_id*(HORIZON*STATE_DIM) + i*(STATE_DIM) + j];
+    }
+
     /*
     // update output trajectories
     for (int j=0; j<STATE_DIM; j++){
@@ -256,27 +266,15 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     */
 
     // evaluate step cost
-    if (i==0){
-      cost += evaluate_step_cost(x, last_u, u,&last_index);
-    } else {
-      cost += evaluate_step_cost(x, u, u,&last_index);
-    }
-    cost += evaluate_boundary_cost(x,&last_index);
-    for (int k=0;k<opponent_count;k++){
-      cost += evaluate_collision_cost(x,in_opponent_traj,k);
-    }
+    // TODO: add opponent collision cost
+    collision_count += evaluate_cvar_boundary_collision(x,&last_index);
 
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
-
     u += CONTROL_DIM;
-
   }
-  float terminal_cost = evaluate_terminal_cost(x,in_x0);
-  cost += evaluate_terminal_cost(x,in_x0);
-  cost += terminal_cost;
-  out_cost[sample_id] = cost;
+  out_collision_count[sample_id*SUBSAMPLE_COUNT + subsample_id] = collision_count;
 }
 
 // evaluate sampled control sequences
@@ -369,6 +367,94 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
 }
 
 //extern c
+}
+
+// given a specified ID
+// evaluate sampled control sequences
+// x0: x,y,heading, v_forward, v_sideways, omega
+// u0: current control to penalize control time rate
+// ref_control: samples*horizon*control_dim
+// out_cost: samples 
+// out_trajectories: output trajectories, samples*horizon*n
+// opponent_count: integer
+// opponent_traj: opponent_count * prediction_horizon * 2(x,y)
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
+__device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj,int id){
+  if (id>=SAMPLE_COUNT){
+    return;
+  }
+
+  float x[STATE_DIM];
+  // copy to local state
+  // NOTE possible time saving by copy to local memory
+  for (int i=0; i<STATE_DIM; i++){
+    x[i] = *(in_x0 + i);
+  }
+
+  // initialize cost
+  float cost = 0;
+  // used as estimate to find closest index on raceline
+  int last_index = -1;
+  float last_u[CONTROL_DIM];
+  for (int i=0; i<CONTROL_DIM; i++){
+    last_u[i] = *(in_u0+i);
+  }
+
+  /*
+  if (id == 0){
+    printf("last u0=%%.2f",last_u[1]*180.0/PI);
+  }
+  */
+
+  // run simulation
+  // loop over time horizon
+  for (int i=0; i<HORIZON; i++){
+    float _u[CONTROL_DIM];
+    float* u = _u;
+
+    // apply constrain on control input
+    for (int j=0; j<CONTROL_DIM; j++){
+      // NOTE control is variation
+      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      float val = last_u[j] + dudt * DT;
+      val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
+      val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
+      //out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = val;
+      out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
+      u[j] = val;
+    }
+
+    // step forward dynamics, update state x in place
+    forward_dynamics(x,u);
+    /*
+    // update output trajectories
+    for (int j=0; j<STATE_DIM; j++){
+      out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
+    }
+    */
+
+    // evaluate step cost
+    if (i==0){
+      cost += evaluate_step_cost(x, last_u, u,&last_index);
+    } else {
+      cost += evaluate_step_cost(x, u, u,&last_index);
+    }
+    cost += evaluate_boundary_cost(x,&last_index);
+    for (int k=0;k<opponent_count;k++){
+      cost += evaluate_collision_cost(x,in_opponent_traj,k);
+    }
+
+    for (int k=0; k<CONTROL_DIM; k++){
+      last_u[k] = u[k];
+    }
+
+    u += CONTROL_DIM;
+
+  }
+  float terminal_cost = evaluate_terminal_cost(x,in_x0);
+  cost += evaluate_terminal_cost(x,in_x0);
+  cost += terminal_cost;
+  out_cost[id] = cost;
 }
 
 // x: x,y,heading, v_forward, v_sideways, omega
@@ -464,13 +550,13 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   float vx = state[STATE_VX];
 
   // velocity deviation from reference velocity profile
-  float dv = vx - raceline[idx][3];
+  float dv = vx - raceline[idx][RACELINE_V];
   // control change from last step, penalize to smooth control
 
   //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
   float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
-  float temp = fmodf(raceline[idx][2] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  float temp = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
   cost += temp*temp*2.5;
   //float cost = dist;
   // additional penalty on negative velocity 
@@ -491,8 +577,8 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   find_closest_id(state,*u_estimate,  &idx,&dist);
   *u_estimate = idx;
   
-  float tangent_angle = raceline[idx][4];
-  float raceline_to_point_angle = atan2f(raceline[idx][1] - state[STATE_Y], raceline[idx][0] - state[STATE_X]) ;
+  float tangent_angle = raceline[idx][RACELINE_HEADING];
+  float raceline_to_point_angle = atan2f(raceline[idx][RACELINE_Y] - state[STATE_Y], raceline[idx][RACELINE_X] - state[STATE_X]) ;
   float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
 
   float cost;
@@ -500,15 +586,43 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   if (angle_diff > 0.0){
     // point is to left of raceline
     //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][4]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = 20*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
 
   } else {
     //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][5]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = 20*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
   }
 
+  return cost;
+}
+
+// 1 if in out of boundary, 0 if not
+// NOTE potential improvement by reusing idx result from other functions
+// u_estimate is the estimate of index on raceline that's closest to state
+__device__
+int evaluate_cvar_boundary_collision( float* state,  int* u_estimate){
+  int idx;
+  float dist;
+
+  // performance barrier FIXME
+  find_closest_id(state,*u_estimate,  &idx,&dist);
+  *u_estimate = idx;
+  
+  float tangent_angle = raceline[idx][RACELINE_HEADING];
+  float raceline_to_point_angle = atan2f(raceline[idx][RACELINE_Y] - state[STATE_Y], raceline[idx][RACELINE_X] - state[STATE_X]) ;
+  float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
+
+  float cost;
+
+  if (angle_diff > 0.0){
+    // point is to left of raceline
+    cost = (dist +0.05> raceline[idx][RACELINE_LEFT_BOUNDARY])? 1:0;
+
+  } else {
+    cost = (dist +0.05> raceline[idx][RACELINE_RIGHT_BOUNDARY])? 1:0;
+  }
   return cost;
 }
 
