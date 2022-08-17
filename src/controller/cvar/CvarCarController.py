@@ -294,6 +294,22 @@ class CvarCarController(CarController):
         # this has significant overhead, so use only for debugging
         #sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
 
+        '''
+        self.cuda_evaluate_control_sequence(
+                device_initial_state, 
+                device_last_control,
+                device_ref_control_rate, 
+                drv.Out(costs),
+                drv.Out(sampled_control_rate),
+                #drv.Out(sampled_trajectory),
+                opponent_count,
+                device_opponent_traj,
+                block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
+                )
+        '''
+
+
+
         self.cuda_evaluate_noisy_control_sequence(
                 device_initial_state, 
                 device_last_control,
@@ -312,6 +328,7 @@ class CvarCarController(CarController):
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
 
         # TODO paper:23-28
+        breakpoint()
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
