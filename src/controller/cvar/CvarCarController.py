@@ -264,18 +264,6 @@ class CvarCarController(CarController):
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
 
-
-        # NOTE paper: 4-14, as regular MPPI
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
-        ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
-        # generate random var
-        #random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
-        self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-        #random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
-        #cov0 = np.std(random_vals[:,:,0])
-        #cov1 = np.std(random_vals[:,:,1])
-        #self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
-
         # prepare opponent info
         opponent_count, opponent_traj = self.getOpponentStatus()
         opponent_count = np.int32(opponent_count)
@@ -284,52 +272,44 @@ class CvarCarController(CarController):
         else:
             device_opponent_traj = self.to_device(opponent_traj)
 
-        # evaluate control sequence
+        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
+
+        # generate random var
+        self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+        self.cuda_generate_state_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
+
+        # cuda inputs
         device_ref_control_rate = self.to_device(ref_control_rate)
         device_initial_state = self.to_device(self.car.states)
-        costs = np.zeros((self.samples_count), dtype=np.float32)
-        sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
         device_last_control = self.to_device(self.last_control)
+        
+        # cuda outputs
+        sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        costs = np.zeros((self.samples_count), dtype=np.float32)
+        collision_count = np.zeros((self.samples_count*self.subsamples_count), dtype=np.int32)
 
+        # code can be configured to return sampled trajectory by uncommented related lines
+        # here and in .cu file
+        # this has significant overhead, so use only for debugging
+        #sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
 
-        sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
-        self.cuda_evaluate_control_sequence(
+        self.cuda_evaluate_noisy_control_sequence(
                 device_initial_state, 
                 device_last_control,
                 device_ref_control_rate, 
                 drv.Out(costs),
                 drv.Out(sampled_control_rate),
-                #drv.Out(sampled_trajectory),
-                opponent_count,
-                device_opponent_traj,
-                block=self.cuda_sample_block_size,grid=self.cuda_sample_grid_size
-                )
-
-        # retrieve sampled trajectory, for debugging
-        # overhead with GPU has 10Hz impact
-        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
-
-        # NOTE paper: 15-22
-        self.cuda_generate_state_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-
-        cvar_costs = np.zeros((self.samples_count), dtype=np.float32)
-        new_sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
-        collision_count = np.zeros((self.samples_count*self.subsamples_count), dtype=np.int32)
-        self.cuda_evaluate_noisy_control_sequence(
-                device_initial_state, 
-                device_last_control,
-                device_ref_control_rate, 
-                drv.Out(cvar_costs),
-                drv.Out(new_sampled_control_rate),
                 drv.Out(collision_count),
                 #drv.Out(sampled_trajectory),
                 opponent_count,
                 device_opponent_traj,
                 block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
                 )
-        # check sampled_control_rate 
+
+        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
-        breakpoint()
 
         # TODO paper:23-28
 
