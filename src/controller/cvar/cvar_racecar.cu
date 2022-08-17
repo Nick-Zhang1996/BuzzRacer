@@ -194,6 +194,7 @@ __global__ void generate_state_noise(){
 __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int* out_collision_count, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
   if (thread_id>=(1+SUBSAMPLE_COUNT)*SAMPLE_COUNT){
     return;
   }
@@ -205,9 +206,6 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
 
   if (subsample_id == 0){
     evaluate_control_sequence(in_x0, in_u0, ref_dudt, out_cost, out_dudt, opponent_count, in_opponent_traj, sample_id);
-    if (sample_id ==1000){
-      printf("base control no %%d",sample_id);
-    }
     return;
   }
   // to make mapping in array later easier

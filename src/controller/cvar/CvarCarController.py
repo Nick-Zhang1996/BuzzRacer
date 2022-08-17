@@ -141,7 +141,7 @@ class CvarCarController(CarController):
 
         # prepare constants
         cuda_code_macros = {
-                "SUBSAMPLE_COUNT":100,
+                "SUBSAMPLE_COUNT":self.subsamples_count,
                 "SAMPLE_COUNT":self.samples_count,
                 "HORIZON":self.horizon, 
                 "CONTROL_DIM":self.m,
@@ -218,7 +218,7 @@ class CvarCarController(CarController):
             self.cuda_sample_block_size = (1024,1,1)
             self.cuda_sample_grid_size = (ceil(self.samples_count/1024.0),1)
 
-        total_samples_count = self.subsamples_count*self.samples_count 
+        total_samples_count = (1+self.subsamples_count)*self.samples_count 
         if (total_samples_count< 1024):
             # if sample count is small only employ one grid
             self.cuda_total_sample_block_size = (total_samples_count,1,1)
@@ -328,12 +328,13 @@ class CvarCarController(CarController):
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
 
         # TODO paper:23-28
-        breakpoint()
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
+        #print('shoulnt be zero',sampled_control_rate[1000,:])
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
+        #breakpoint()
 
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
         # display expected trajectory
