@@ -60,7 +60,7 @@ __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
 
 // device functions
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state);
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index);
 __device__
 void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
@@ -218,8 +218,7 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     u += CONTROL_DIM;
 
   }
-  float terminal_cost = evaluate_terminal_cost(x,in_x0);
-  cost += evaluate_terminal_cost(x,in_x0);
+  float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;
   out_cost[id] = cost;
 }
@@ -333,6 +332,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   if (vx < 0.05){
     cost += 0.2;
   }
+
   return cost;
 }
 
@@ -403,21 +403,18 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist){
 
 }
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state){
-  //int idx0,idx;
-  //float dist;
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index ){
+  int idx0,idx;
+  float dist;
 
-  // we don't need distance info for initial state, 
-  //dist is put in as a dummy variable, it is immediately overritten
-  //find_closest_id(x0,raceline,-1,0,&idx0,&dist);
-  //find_closest_id(state,raceline,-1,0,&idx,&dist);
+  find_closest_id(initial_state,-1,&idx0,&dist);
+  find_closest_id(current_state,*last_index,&idx,&dist);
 
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
-  // NOTE ignoring terminal cost
-  return 0.0;
+  return HORIZON*DT*4.0*2.0 -2.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
+  //return 0.0;
 }
 
 __device__
