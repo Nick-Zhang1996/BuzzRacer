@@ -68,7 +68,7 @@ __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
 
 // device functions
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state);
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index);
 __device__
 void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
@@ -364,7 +364,7 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     u += CONTROL_DIM;
 
   }
-  float terminal_cost = evaluate_terminal_cost(x,in_x0);
+  float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;
   out_cost[id] = cost;
 }
@@ -454,29 +454,21 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // update estimate of closest index on raceline
   *last_index = idx;
 
-
-  // velocity cost
-  // current FORWARD velocity - target velocity at closest ref point
-
-  // forward vel
-  float vx = state[STATE_VX];
-
+  // VX: current FORWARD velocity - target velocity at closest ref point
   // velocity deviation from reference velocity profile
-  float dv = vx - raceline[idx][RACELINE_V];
-  // control change from last step, penalize to smooth control
+  float dv = state[STATE_VX] - raceline[idx][RACELINE_V];
 
-  //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
-  float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
-  float temp = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
-  cost += temp*temp*2.5;
-  //float cost = dist;
+  float heading_cost = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  float cost = 0.1*dist*dist + 0.6*dv*dv + 0.5*heading_cost*heading_cost;
   // additional penalty on negative velocity 
-  if (vx < 0.05){
+  if (state[STATE_VX] < 0.05){
     cost += 0.2;
   }
+
   return cost;
 }
+
 
 // NOTE potential improvement by reusing idx result from other functions
 // u_estimate is the estimate of index on raceline that's closest to state
@@ -495,15 +487,17 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
 
   float cost;
 
+  float coeff = 1.0;
   if (angle_diff > 0.0){
     // point is to left of raceline
+    // smooth ramping boundary cost
     //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
 
   } else {
     //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
   }
 
@@ -573,21 +567,18 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist){
 
 }
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state){
-  //int idx0,idx;
-  //float dist;
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index ){
+  int idx0,idx;
+  float dist;
 
-  // we don't need distance info for initial state, 
-  //dist is put in as a dummy variable, it is immediately overritten
-  //find_closest_id(x0,raceline,-1,0,&idx0,&dist);
-  //find_closest_id(state,raceline,-1,0,&idx,&dist);
+  find_closest_id(initial_state,-1,&idx0,&dist);
+  find_closest_id(current_state,*last_index,&idx,&dist);
 
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
-  // NOTE ignoring terminal cost
-  return 0.0;
+  return HORIZON*DT*4.0*2.0 -2.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
+  //return 0.0;
 }
 
 __device__

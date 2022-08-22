@@ -343,7 +343,6 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
 
   float cost;
 
-  //float coeff = 20.0;
   float coeff = 1.0;
   if (angle_diff > 0.0){
     // point is to left of raceline

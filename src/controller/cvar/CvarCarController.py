@@ -160,7 +160,7 @@ class CvarCarController(CarController):
 
         self.cuda_init_curand_kernel = self.getFunctionSafe("init_curand_kernel")
         self.cuda_generate_control_noise = self.getFunctionSafe("generate_control_noise")
-        self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
+        #self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
         # CVaR
         self.cuda_generate_state_noise = self.getFunctionSafe("generate_state_noise")
         self.cuda_evaluate_noisy_control_sequence = self.getFunctionSafe("evaluate_noisy_control_sequence")
