@@ -311,25 +311,15 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // update estimate of closest index on raceline
   *last_index = idx;
 
-
-  // velocity cost
-  // current FORWARD velocity - target velocity at closest ref point
-
-  // forward vel
-  float vx = state[STATE_VX];
-
+  // VX: current FORWARD velocity - target velocity at closest ref point
   // velocity deviation from reference velocity profile
-  float dv = vx - raceline[idx][RACELINE_V];
-  // control change from last step, penalize to smooth control
+  float dv = state[STATE_VX] - raceline[idx][RACELINE_V];
 
-  //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
-  float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
-  float temp = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
-  cost += temp*temp*2.5;
-  //float cost = dist;
+  float heading_cost = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  float cost = 0.1*dist*dist + 0.6*dv*dv + 0.5*heading_cost*heading_cost;
   // additional penalty on negative velocity 
-  if (vx < 0.05){
+  if (state[STATE_VX] < 0.05){
     cost += 0.2;
   }
 
@@ -353,15 +343,17 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
 
   float cost;
 
+  //float coeff = 20.0;
+  float coeff = 1.0;
   if (angle_diff > 0.0){
     // point is to left of raceline
     //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
 
   } else {
     //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
   }
 
