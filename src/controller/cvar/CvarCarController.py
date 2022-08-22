@@ -275,7 +275,7 @@ class CvarCarController(CarController):
         else:
             device_opponent_traj = self.to_device(opponent_traj)
 
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        #ref_control_rate = np.vstack([self.old_ref_control_rate[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
 
         # generate random var

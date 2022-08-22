@@ -320,13 +320,13 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   float vx = state[STATE_VX];
 
   // velocity deviation from reference velocity profile
-  float dv = vx - raceline[idx][3];
+  float dv = vx - raceline[idx][RACELINE_V];
   // control change from last step, penalize to smooth control
 
   //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
   float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
-  float temp = fmodf(raceline[idx][2] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  float temp = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
   cost += temp*temp*2.5;
   //float cost = dist;
   // additional penalty on negative velocity 
@@ -347,8 +347,8 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   find_closest_id(state,*u_estimate,  &idx,&dist);
   *u_estimate = idx;
   
-  float tangent_angle = raceline[idx][4];
-  float raceline_to_point_angle = atan2f(raceline[idx][1] - state[STATE_Y], raceline[idx][0] - state[STATE_X]) ;
+  float tangent_angle = raceline[idx][RACELINE_HEADING];
+  float raceline_to_point_angle = atan2f(raceline[idx][RACELINE_Y] - state[STATE_Y], raceline[idx][0] - state[STATE_X]) ;
   float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
 
   float cost;
@@ -356,12 +356,12 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   if (angle_diff > 0.0){
     // point is to left of raceline
     //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][4]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = 20*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
 
   } else {
     //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
-    cost = 20*(atanf(-(raceline[idx][5]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = 20*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
     cost = max(0.0,cost);
   }
 
