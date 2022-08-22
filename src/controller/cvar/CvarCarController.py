@@ -31,8 +31,8 @@ class CvarCarController(CarController):
         # paper:15 N
         self.subsamples_count = 100
         # paper:20A
-        self.cvar_A = 1.0
-        self.cvar_a = 0.95
+        self.cvar_A = 3.0
+        self.cvar_a = 0.7
         # paper line 25, C_upper
         self.cvar_Cu = 0.5
 
@@ -297,22 +297,6 @@ class CvarCarController(CarController):
         # this has significant overhead, so use only for debugging
         #sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
 
-        '''
-        self.cuda_evaluate_control_sequence(
-                device_initial_state, 
-                device_last_control,
-                device_ref_control_rate, 
-                drv.Out(costs),
-                drv.Out(sampled_control_rate),
-                #drv.Out(sampled_trajectory),
-                opponent_count,
-                device_opponent_traj,
-                block=self.cuda_total_sample_block_size,grid=self.cuda_total_sample_grid_size
-                )
-        '''
-
-
-
         self.cuda_evaluate_noisy_control_sequence(
                 device_initial_state, 
                 device_last_control,
@@ -339,7 +323,14 @@ class CvarCarController(CarController):
         # average of highest cost quantile
         cvar_Lx = np.mean(cvar_P,axis=1)
         cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
-        costs = costs + self.cvar_A * cvar_Lx
+
+        self.print_info('mppi cost (min/avg/max)',np.min(costs), np.mean(costs), np.max(costs))
+        # XXX disable cvar
+        cvar_costs = 0
+        cvar_costs = self.cvar_A * cvar_Lx
+        #self.print_info('cvar cost (min/avg/max)',np.min(cvar_costs), np.mean(cvar_costs), np.max(cvar_costs))
+
+        costs = costs + cvar_costs
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
