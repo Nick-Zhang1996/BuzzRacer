@@ -28,6 +28,8 @@ class CvarCarController(CarController):
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
         # CVaR specific settings
+        self.enable_cvar = True
+
         # paper:15 N
         self.subsamples_count = 100
         # paper:20A
@@ -35,6 +37,11 @@ class CvarCarController(CarController):
         self.cvar_a = 0.7
         # paper line 25, C_upper
         self.cvar_Cu = 0.5
+
+        if (self.enable_cvar):
+            pass
+        else:
+            self.print_info('CVaR is DIS ABLED')
 
     def init(self):
         # directly sample control
@@ -55,7 +62,7 @@ class CvarCarController(CarController):
         self.freq_vec = []
 
         self.prepareDiscretizedRaceline()
-        self.createBoundary()
+        #self.createBoundary()
         self.initCuda()
 
     def prepareDiscretizedRaceline(self):
@@ -85,6 +92,7 @@ class CvarCarController(CarController):
         '''
         return
 
+    # TODO move this to RCPTrack
     def createBoundary(self,show=False):
         # construct a (self.discretized_raceline_len * 2) vector
         # to record the left and right track boundary as an offset to the discretized raceline
@@ -324,10 +332,11 @@ class CvarCarController(CarController):
         cvar_Lx = np.mean(cvar_P,axis=1)
         cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
 
-        self.print_info('mppi cost (min/avg/max)',np.min(costs), np.mean(costs), np.max(costs))
-        # XXX disable cvar
-        cvar_costs = 0
-        cvar_costs = self.cvar_A * cvar_Lx
+        if (self.enable_cvar):
+            cvar_costs = self.cvar_A * cvar_Lx
+        else:
+            cvar_costs = 0
+        #self.print_info('mppi cost (min/avg/max)',np.min(costs), np.mean(costs), np.max(costs))
         #self.print_info('cvar cost (min/avg/max)',np.min(cvar_costs), np.mean(cvar_costs), np.max(cvar_costs))
 
         costs = costs + cvar_costs
