@@ -9,6 +9,7 @@ global drv
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
+import pickle
 
 class CvarCarController(CarController):
     def __init__(self,car,config):
@@ -147,9 +148,13 @@ class CvarCarController(CarController):
 
         if (show):
             img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
+            img*=0
+            #img = self.track.drawRaceline(img = img)
             img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
-            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
+            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,255,0),img=img)
+            with open("track_boundary_img.p",'wb') as f:
+                self.print_info("saved raw track background")
+                pickle.dump(img,f)
             plt.imshow(img)
             plt.show()
             return img

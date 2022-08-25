@@ -41,16 +41,24 @@ def plotTraj(track, filename, img, color, text):
 with open("track_img.p", 'rb') as f:
     img = pickle.load(f)
 
+with open("track_boundary_img.p", 'rb') as f:
+    boundary_img = pickle.load(f)
+    boundary_img[:,:,0] = boundary_img[:,:,1]
+    boundary_img[:,:,2] = boundary_img[:,:,1]
+
 
 track = TrackFactory(name='full')
 
 offset = 0
 
-filename = '../log/2022_8_25_sim/full_state1.p'
+filename = '../log/2022_8_25_sim/full_state17.p'
 img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CVaR")
 
-filename = '../log/2022_8_25_sim/full_state2.p'
+filename = '../log/2022_8_25_sim/full_state18.p'
 img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
+
+img1 = img1 - boundary_img
+img2 = img2 - boundary_img
 
 
 # combine img together
