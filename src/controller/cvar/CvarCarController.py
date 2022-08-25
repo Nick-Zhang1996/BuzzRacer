@@ -39,9 +39,9 @@ class CvarCarController(CarController):
         self.cvar_Cu = 0.5
 
         if (self.enable_cvar):
-            pass
+            self.print_info('CVaR is ENABLED')
         else:
-            self.print_info('CVaR is DIS ABLED')
+            self.print_warning('CVaR is DISABLED')
 
     def init(self):
         # directly sample control
