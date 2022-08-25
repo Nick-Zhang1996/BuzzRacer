@@ -62,7 +62,7 @@ class CvarCarController(CarController):
         self.control_noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
         self.control_noise_mean = np.array([0.0,0])
 
-        state_noise_std = np.array([1,1,1,1,1,1])*self.dt
+        state_noise_std = np.array(self.state_noise_std)*self.dt
         self.state_noise_cov = state_noise_std**2
         self.state_noise_mean = np.array([0,0,0,0,0,0])
 
