@@ -74,7 +74,7 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
-int evaluate_cvar_boundary_collision( float* state,  int* u_estimate);
+float evaluate_cvar_boundary_collision( float* state,  int* u_estimate);
 __device__
 void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj,int id);
 __device__
@@ -191,7 +191,7 @@ __global__ void generate_state_noise(){
 // opponent_count: integer
 // opponent_traj: opponent_count * prediction_horizon * 2(x,y)
 //__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_trajectories){
-__global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int* out_collision_count, int opponent_count, float* in_opponent_traj){
+__global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, float* out_collision_count, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -218,7 +218,7 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     x[i] = *(in_x0 + i);
   }
 
-  int collision_count = 0;
+  float collision_count = 0;
   // used as estimate to find closest index on raceline
   int last_index = -1;
   float last_u[CONTROL_DIM];
@@ -352,7 +352,7 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     } else {
       cost += evaluate_step_cost(x, u, u,&last_index);
     }
-    cost += evaluate_boundary_cost(x,&last_index);
+    cost += 2*evaluate_boundary_cost(x,&last_index);
     for (int k=0;k<opponent_count;k++){
       cost += evaluate_collision_cost(x,in_opponent_traj,k);
     }
@@ -492,12 +492,12 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
     // point is to left of raceline
     // smooth ramping boundary cost
     //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
-    cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*1+0.5f);
     cost = max(0.0,cost);
 
   } else {
     //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
-    cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*1+0.5f);
     cost = max(0.0,cost);
   }
 
@@ -508,7 +508,7 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
 // NOTE potential improvement by reusing idx result from other functions
 // u_estimate is the estimate of index on raceline that's closest to state
 __device__
-int evaluate_cvar_boundary_collision( float* state,  int* u_estimate){
+float evaluate_cvar_boundary_collision( float* state,  int* u_estimate){
   int idx;
   float dist;
 

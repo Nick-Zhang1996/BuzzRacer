@@ -311,7 +311,7 @@ class CvarCarController(CarController):
         # cuda outputs
         sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
         costs = np.zeros((self.samples_count), dtype=np.float32)
-        collision_count = np.zeros((self.samples_count*self.subsamples_count), dtype=np.int32)
+        collision_count = np.zeros((self.samples_count*self.subsamples_count), dtype=np.float32)
 
         # code can be configured to return sampled trajectory by uncommented related lines
         # here and in .cu file
