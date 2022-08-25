@@ -25,6 +25,7 @@ class Visualization(Extension):
     def init(self,):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
+        self.img_blank_track = self.img_track.copy()
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
 
 
@@ -44,7 +45,7 @@ class Visualization(Extension):
         self.saveBlankImg()
 
     def saveBlankImg(self):
-        img = self.img_track.copy()
+        img = self.img_blank_track.copy()
         try:
             obstacles = self.main.cars[0].controller.obstacles
             # plot obstacles

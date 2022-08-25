@@ -15,28 +15,36 @@ class CvarCarController(CarController):
         super().__init__(car,config)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
+
         #TODO these setting may be handled in config file
         self.n = self.state_dim = 6
         self.m = self.control_dim = 2
-        self.samples_count = 1024
-        self.horizon = 30
-        assert (self.horizon == self.prediction_horizon)
+        self.samples_count = None # to be set in config
+        self.horizon = None       # to be set in config
+
         self.track = self.car.main.track
         self.dt = 0.02
         self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
+
         # CVaR specific settings
-        self.enable_cvar = True
+        self.enable_cvar = None
 
         # paper:15 N
-        self.subsamples_count = 100
+        self.subsamples_count = None
         # paper:20A
-        self.cvar_A = 3.0
-        self.cvar_a = 0.7
+        self.cvar_A = None
+        # the lower the number, the more trajectory to be considered 
+        self.cvar_a = None
         # paper line 25, C_upper
-        self.cvar_Cu = 0.5
+        self.cvar_Cu = None
+
+
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            #self.print_info(" controller.",key,'=',value_text)
 
         if (self.enable_cvar):
             self.print_info('CVaR is ENABLED')

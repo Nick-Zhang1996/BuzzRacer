@@ -1,10 +1,13 @@
 import cv2
 import sys
-from common import *
+import os
 import pickle
 import matplotlib.pyplot as plt
-from TrackFactory import TrackFactory
-import cv2
+
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
+
+from common import *
+from track.TrackFactory import TrackFactory
 
 def plotTraj(track, filename, img, color, text):
     global offset
@@ -41,24 +44,27 @@ with open("track_img.p", 'rb') as f:
 
 track = TrackFactory(name='full')
 
-ccmppi_logno = 2652
-mppi_injected_logno = 2651
-
 offset = 0
 
-filename = "../log/kinematics_results/full_state"+str(ccmppi_logno)+".p"
-img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CCMPPI")
+filename = '../log/2022_8_25_sim/full_state1.p'
+img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CVaR")
 
-filename = "../log/kinematics_results/full_state"+str(mppi_injected_logno)+".p"
-img2 = plotTraj(track,filename, img.copy(), (0,255,0), "MPPI")
+filename = '../log/2022_8_25_sim/full_state2.p'
+img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
 
 
-img = (img1/2 + img2/2)
+# combine img together
+#img = (img1/2 + img2/2)
 #img = np.minimum(img1,img2)
-img = np.array(img,dtype=np.uint8)
+#img = np.array(img,dtype=np.uint8)
+
+# side by side image
+img = np.hstack([img1,img2])
+
+
+
 
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
 fig = plt.figure()
 plt.imshow(img)
 fig.savefig('out.png', bbox_inches='tight',transparent=True, pad_inches=0)

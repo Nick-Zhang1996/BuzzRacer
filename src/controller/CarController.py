@@ -10,8 +10,6 @@ class CarController(PrintObject):
         self.main = car.main
         self.track = car.main.track
 
-        # n*2, n being prediction horizon
-        self.prediction_horizon = 30
         self.predicted_traj = []
         KinematicSimulator.dt = self.car.main.dt
 
@@ -34,7 +32,7 @@ class CarController(PrintObject):
     def predict(self):
         # DEBUG plotting
         control = np.array((self.car.throttle, self.car.steering))
-        control = np.repeat(np.reshape(control,(1,-1)),self.prediction_horizon,0)
+        control = np.repeat(np.reshape(control,(1,-1)),self.horizon,0)
         # kinematic
         expected_trajectory = self.getKinematicTrajectory( self.car.states, control )
         self.plotTrajectory(expected_trajectory)

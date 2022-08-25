@@ -460,7 +460,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
 
   // heading cost
   float heading_cost = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
-  float cost = 0.1*dist*dist + 0.6*dv*dv + 0.5*heading_cost*heading_cost;
+  float cost = 0.1*dist*dist + 0.6*dv*dv + 1.0*heading_cost*heading_cost;
   // additional penalty on negative velocity 
   if (state[STATE_VX] < 0.05){
     cost += 0.2;

@@ -48,6 +48,7 @@ class Logger(Extension):
 
         logPrefix = "debug_dict"
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
+        self.logFolder = logFolder
 
     def update(self):
         # x,y,theta are in track frame

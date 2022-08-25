@@ -35,7 +35,7 @@ class BoundaryChecker(Extension):
         for i in range(len(self.main.cars)):
             total = np.sum(self.collision_by_lap_vec[i])
             mean = np.mean(self.collision_by_lap_vec[i])
-            self.print_ok("car %d, total collision = %d, mean = %.2f"%(i,total, mean))
+            self.print_info("car %d, total collision = %d, mean = %.2f"%(i,total, mean))
             self.main.cars[i].debug_dict.update({'collision_vec':self.collision_by_lap_vec[i]})
         self.main.car_total_collisions = self.collision_count
 
@@ -56,8 +56,7 @@ class BoundaryChecker(Extension):
 
         raceline_to_point_angle = np.arctan2(dy,dx)
         heading_diff = np.mod(raceline_to_point_angle - ref_heading[idx] + np.pi, 2*np.pi) - np.pi
-        #margin = 0.05
-        margin = 0.0
+        margin = 0.05
         if (heading_diff > 0):
             out = dist + margin > left_bdry[idx]
         else:
