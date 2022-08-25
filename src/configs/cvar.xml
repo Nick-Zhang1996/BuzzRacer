@@ -20,14 +20,14 @@
       <config_name>audi_12</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
-        state_noise_std='[1,1,1,1,1,1]'
+        state_noise_std='[0.99,0.99,0.99,0.99,0.99,0.99]'
         enable_cvar='True'
         horizon='30' 
         samples_count='1024' 
         subsamples_count='100' 
-        cvar_A='3.0' 
+        cvar_A='10.0' 
         cvar_a='0.7' 
-        cvar_Cu='0.5'
+        cvar_Cu='0.1'
         >
         <type>CvarCarController</type>
       </controller>

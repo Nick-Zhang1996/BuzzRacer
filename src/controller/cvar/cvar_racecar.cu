@@ -268,7 +268,8 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
 
     // evaluate step cost
     // TODO: add opponent collision cost
-    collision_count += evaluate_cvar_boundary_collision(x,&last_index);
+    //collision_count += evaluate_cvar_boundary_collision(x,&last_index);
+    collision_count += evaluate_boundary_cost(x,&last_index);
 
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
@@ -491,12 +492,10 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   if (angle_diff > 0.0){
     // point is to left of raceline
     // smooth ramping boundary cost
-    //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
     cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*1+0.5f);
     cost = max(0.0,cost);
 
   } else {
-    //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
     cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*1+0.5f);
     cost = max(0.0,cost);
   }
