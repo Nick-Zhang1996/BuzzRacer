@@ -134,6 +134,8 @@ class DynamicSimulator(Simulator):
             car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
             #print(self.prefix()+str(car.states))
             #print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
+        if (self.state_noise_enabled):
+            self.addStateNoise()
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()

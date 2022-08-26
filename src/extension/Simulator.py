@@ -1,6 +1,7 @@
 from common import *
 from extension import Extension
 from time import time,sleep
+import numpy as np
 # base class for all simulators
 # contains code for aligning simulator time with real time
 
@@ -11,7 +12,10 @@ from time import time,sleep
 class Simulator(Extension,PrintObject):
     def __init__(self,main):
         super().__init__(main)
-        self.match_time = True
+        self.match_time = None
+        self.state_noise_enabled = None
+        self.state_noise_std = None
+
         self.t0 = None
         self.real_sim_time_ratio = 1.0
         self.print_info("real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
@@ -21,6 +25,7 @@ class Simulator(Extension,PrintObject):
             self.print_error("Experiment type is not Simulation but a Simulator is loaded")
         self.main.sim_t = 0
         self.print_info( "match_time: " + str(self.match_time))
+        self.state_noise_std = np.array(self.state_noise_std)
 
     def matchRealTime(self):
         if (not self.match_time):
@@ -35,3 +40,6 @@ class Simulator(Extension,PrintObject):
 
         sleep(max(0,time_to_reach - time()))
 
+    def addStateNoise(self):
+        for car in self.cars:
+            car.states += np.random.normal(size=car.states.shape) * self.state_noise_std * self.main.dt

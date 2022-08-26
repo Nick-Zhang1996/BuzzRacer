@@ -1,0 +1,29 @@
+# Note: all experiments run for 10 laps, reference line length 10.52m?
+#      log location /log/2022_8_26_sim/, all experiments finished successfully
+#      For pictures, left is always cvar
+# algorithm,dynamics, cvar noise_stddev,laptime mean(stddev), collisions(total), log no
+
+# pic:5_4.png
+baseline, det,0.2,5.18(0.027),220,4
+cvar,     det,0.2,5.1555(0.0326),4,5
+
+# pic:7_6_noisy.png
+baseline,noisy,0.2,5.1782(0.0386),174,6
+cvar,    noisy,0.2,5.1391(0.0294),1,7
+
+baseline,noisy,0.05,5.17(0.0302),223,8
+baseline,noisy,0.1,5.1845(0.0287),190,10
+baseline,noisy,0.2,5.1764(0.0416), 251, 12
+baseline,noisy,0.3,5.1891(0.0421), 201, 14
+baseline,noisy,0.4,5.2027(0.0479), 280, 16
+baseline,noisy,0.5,5.1809(0.0647), 214,18
+
+cvar,noisy,0.05,5.1382(0.0262),3,9
+cvar,noisy,0.1 ,5.1455(0.0290),13,11
+cvar,noisy,0.2 ,5.1464(0.0253),3,13
+cvar,noisy,0.3 ,5.1382(0.0272),37,15
+cvar,noisy,0.4 ,5.1555(0.0246),90,17
+cvar,noisy,0.5 ,5.1636(0.0637),103,19
+
+
+

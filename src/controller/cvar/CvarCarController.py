@@ -335,17 +335,17 @@ class CvarCarController(CarController):
 
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
 
-        # paper:23-28
-        # find highest cost quantile
-        count = int((1-self.cvar_a)*self.subsamples_count)
-        if (count == 0):
-            self.print_error('cvar_alpha too large or subsample count too low')
-        cvar_P = np.sort(collision_count)[:,-count:]
-        # average of highest cost quantile
-        cvar_Lx = np.mean(cvar_P,axis=1)
-        cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
 
         if (self.enable_cvar):
+            # paper:23-28
+            # find highest cost quantile
+            count = int((1-self.cvar_a)*self.subsamples_count)
+            if (count == 0):
+                self.print_error('cvar_alpha too large or subsample count too low')
+            cvar_P = np.sort(collision_count)[:,-count:]
+            # average of highest cost quantile
+            cvar_Lx = np.mean(cvar_P,axis=1)
+            cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
             cvar_costs = self.cvar_A * cvar_Lx
         else:
             cvar_costs = 0

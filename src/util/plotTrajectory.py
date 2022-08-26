@@ -51,14 +51,14 @@ track = TrackFactory(name='full')
 
 offset = 0
 
-filename = '../log/2022_8_25_sim/full_state22.p'
+filename = '../log/2022_8_26_sim/full_state7.p'
 img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CVaR")
 
-filename = '../log/2022_8_25_sim/full_state21.p'
+filename = '../log/2022_8_26_sim/full_state6.p'
 img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
 
-img1 = img1 - boundary_img
-img2 = img2 - boundary_img
+#img1 = img1 - boundary_img
+#img2 = img2 - boundary_img
 
 
 # combine img together
