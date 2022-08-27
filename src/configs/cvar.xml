@@ -29,8 +29,8 @@
         horizon='30' 
         samples_count='1024' 
         subsamples_count='100' 
-        cvar_A='10.0' 
-        cvar_a='0.7' 
+        cvar_A='10.0'
+        cvar_a='0.9'
         cvar_Cu='0.1'
         >
         <type>CvarCarController</type>

@@ -25,5 +25,12 @@ cvar,noisy,0.3 ,5.1382(0.0272),37,15
 cvar,noisy,0.4 ,5.1555(0.0246),90,17
 cvar,noisy,0.5 ,5.1636(0.0637),103,19
 
+ji experiments:
+cvar,noisy,0.5 ,5.1636(0.0637),103,cvar_Cu = 0.1, cvar_A=10.0, cvar_a=0.7 
+cvar,noisy,0.5, 5.1273(0.0634), 278, cvar_Cu = 5, cvar_A=10.0, cvar_a=0.7
+cvar,noisy,0.5 ,5.1964(0.0768),74,cvar_Cu = 0.1, cvar_A=20.0, cvar_a=0.7 
+cvar,noisy,0.5 ,5.1945(0.0582),82,cvar_Cu = 0.1, cvar_A=10.0, cvar_a=0.9
+
+
 
 
