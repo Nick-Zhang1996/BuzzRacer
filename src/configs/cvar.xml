@@ -1,20 +1,28 @@
 <config>
   <settings dt='0.01'>
     <experiment_type>Simulation</experiment_type>
-    <track>full</track>
   </settings>
+
+  <track 
+    obstacle='True'
+    obstacle_count='10'
+    obstacle_filename='"obstacles.p"'
+    obstacle_radius='0.1'
+   >full</track>
+
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
       <extension handle='simulator' 
+        obstacle_count = '10'
         match_time='False'
         state_noise_enabled='True'
-        state_noise_std='[0.5,0.5,0.5,0.5,0.5,0.5]'
+        state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
         >DynamicSimulator</extension>
       <extension handle='boundary_checker'>BoundaryChecker</extension>
       <extension handle='lap_counter'>LapCounter</extension>
-      <extension handle='logger'>Logger</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
   </extensions>
 
   <cars>
@@ -24,7 +32,7 @@
       <config_name>audi_12</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
-        state_noise_std='[0.5,0.5,0.5,0.5,0.5,0.5]'
+        state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
         enable_cvar='True'
         horizon='30' 
         samples_count='1024' 

@@ -18,6 +18,7 @@ class Visualization(Extension):
         self.count = 0
         # default setting, will be overridden if defined in config
         self.car_graphics = False
+        self.track = self.main.track
 
     def final(self):
         cv2.destroyAllWindows()
@@ -26,6 +27,7 @@ class Visualization(Extension):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
         self.img_blank_track = self.img_track.copy()
+        self.img_blank_track_with_obstacles = self.drawObstacles(self.img_track.copy())
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
 
 
@@ -36,6 +38,7 @@ class Visualization(Extension):
 
         # draw static components onto background
         self.img_track = self.drawControlStaticForAllCars(self.img_track)
+        # FIXME
         self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
@@ -43,6 +46,37 @@ class Visualization(Extension):
 
     def postInit(self,):
         self.saveBlankImg()
+
+    def drawObstacles(self,img):
+        if (not self.track.obstacle):
+            return img
+        # plot obstacles
+        for obs in self.track.obstacles:
+            img = self.track.drawCircle(img, obs, self.track.obstacle_radius, color=(150,150,150))
+        for car in self.main.cars:
+            has_collided, obs_id = self.track.isInObstacle(car.states,get_obstacle_id=True)
+            if (has_collided):
+                # plot obstacle in collision red
+                img = self.track.drawCircle(img, self.track.obstacles[obs_id], self.track.obstacle_radius, color=(100,100,255))
+            return img
+
+        # FIXME
+        return
+
+        text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (200, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+        self.car.main.visualization.visualization_img = img
 
     def saveBlankImg(self):
         img = self.img_blank_track.copy()
@@ -98,6 +132,7 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.drawCar(img, car)
             img = self.drawControlForAllCars(img)
+            img = self.drawObstacles(img)
             self.visualization_img = img
 
 

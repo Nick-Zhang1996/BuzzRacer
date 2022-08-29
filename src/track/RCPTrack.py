@@ -14,6 +14,7 @@
 # 1 enable real time tuning of parameters
 # runfile
 
+from common import *
 from calendar import c
 from os import O_EXCL
 from re import X
@@ -57,8 +58,9 @@ class Node:
         self.entry = entry
         return
 
-class RCPTrack(Track):
-    def __init__(self):
+class RCPTrack(Track,PrintObject):
+    def __init__(self,config=None):
+        self.config = config
         self.t = execution_timer(True)
         # resolution : pixels per grid side length
         self.resolution = 120
@@ -73,6 +75,11 @@ class RCPTrack(Track):
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
+
+        self.obstacle=False
+        self.obstacle_count=0
+        self.obstacle_filename='obstacles.p'
+        self.obstacle_radius=0.1
 
     def isOutside(self,coord):
         grace = 1.0
@@ -1774,8 +1781,58 @@ class RCPTrack(Track):
 
 
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
-    def drawAcc(acc,img):
+    def drawAcc(self,acc,img):
         pass
+
+    def setUpObstacles(self):
+        if (not self.obstacle):
+            return
+
+        if (os.path.isfile(self.obstacle_filename)):
+            with open(self.obstacle_filename, 'rb') as f:
+                obstacles = pickle.load(f)
+            self.print_ok(" loading obstacles at " + self.obstacle_filename)
+            self.print_ok(" reuse obstacles, count = %d"%(obstacles.shape[0]))
+            self.print_ok(" if you wish to create new obstacles, remove current obstacle file or change parameter obstacle_filename")
+
+            # NOTE remove cluttered obstacles
+            '''
+            mask = np.invert(np.bitwise_and(obstacles[:,0]>0.8, obstacles[:,1]>0.6))
+            obstacles = obstacles[mask,:]
+            '''
+
+        else:
+            self.print_ok(" generating new obstacles, count = %d"%(self.obstacle_count))
+            obstacles = np.random.random((self.obstacle_count,2))
+            obstacles[:,0] *= self.gridsize[1]*self.scale
+            obstacles[:,1] *= self.gridsize[0]*self.scale
+            # save obstacles
+            with open(self.obstacle_filename, 'wb') as f:
+                pickle.dump(obstacles,f)
+            print_ok("[ccmppi]: saved obstacles at " + self.obstacle_filename)
+
+        #self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
+        self.obstacles = obstacles
+
+    # check if vehicle is currently in collision with obstacle
+    def isInObstacle(self, state, get_obstacle_id=False):
+        dist = self.obstacle_radius
+        x,y,heading,vf,vs,omega = state
+        min_dist = 100.0
+        for i in range(self.obstacles.shape[0]):
+            obs = self.obstacles[i]
+            dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
+            if (dist<min_dist):
+                min_dist = dist
+            if (dist < self.obstacle_radius):
+                if (get_obstacle_id):
+                    return (True,i)
+                else:
+                    return True
+        if (get_obstacle_id):
+            return (False,0)
+        else:
+            return False
     
 if __name__ == "__main__":
     fulltrack = RCPTrack()
