@@ -35,7 +35,7 @@ class BoundaryChecker(Extension):
         for i in range(len(self.main.cars)):
             total = np.sum(self.collision_by_lap_vec[i])
             mean = np.mean(self.collision_by_lap_vec[i])
-            self.print_info("car %d, total collision = %d, mean = %.2f"%(i,total, mean))
+            self.print_info("car %d, total boundary violation = %d, mean = %.2f"%(i,total, mean))
             self.main.cars[i].debug_dict.update({'collision_vec':self.collision_by_lap_vec[i]})
         self.main.car_total_collisions = self.collision_count
 
