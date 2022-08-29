@@ -44,11 +44,15 @@
 #define STATE_VY 4
 #define STATE_OMEGA 5
 
+#define OBSTACLE_X 0
+#define OBSTACLE_Y 1
+
 #define CONTROL_THROTTLE 0
 #define CONTROL_STEERING 1
 
 // one discretization step is around 1cm
 #define RACELINE_SEARCH_RANGE 10
+#define MAX_OBSTACLE_COUNT 200
 
 
 // vars
@@ -65,6 +69,9 @@ __device__ float state_noise_mean[STATE_DIM];
 __device__ float sampled_control_noise[SAMPLE_COUNT*HORIZON*CONTROL_DIM];
 __device__ float sampled_state_noise[SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM];
 __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
+__device__ int obstacle_count;
+__device__ float obstacle_radius;
+__device__ float obstacles[MAX_OBSTACLE_COUNT][2];
 
 // device functions
 __device__
@@ -74,13 +81,15 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
+float evaluate_collision_cost( float* state);
+__device__
 float evaluate_cvar_boundary_collision( float* state,  int* u_estimate);
 __device__
 void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj,int id);
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
-float evaluate_collision_cost( float* state, float* opponent_traj,int opponent_id);
+float evaluate_opponent_cost( float* state, float* opponent_traj,int opponent_id);
 __device__
 void forward_dynamics( float* state, float* u);
 __device__
@@ -127,6 +136,21 @@ __global__ void set_raceline(float* in_raceline){
     raceline[i][3] = in_raceline[i*RACELINE_DIM + 3];
     raceline[i][4] = in_raceline[i*RACELINE_DIM + 4];
     raceline[i][5] = in_raceline[i*RACELINE_DIM + 5];
+  }
+}
+
+__global__ void set_obstacle(int in_obstacle_count, float in_obstacle_radius, float[][2] in_obstacles){
+  if (in_obstacle_count > MAX_OBSTACLE_COUNT){
+    printf("Obstacle count exceeding limit, current limit is MAX_OBSTACLE_COUNT \n");
+    obstacle_count = 0;
+    return;
+  }
+  obstacle_count = in_obstacle_count;
+  obstacle_radius = in_obstacle_radius;
+  for(int i=0;i<obstacle_count;i++){ 
+    obstacles[i][0] = in_obstacles[i][0];
+    obstacles[i][1] = in_obstacles[i][1];
+    printf("i = %%d x=%%.2f, y=%%.2f \n",i,obstacles[i][0], obstacles[i][1]);
   }
 }
 
@@ -270,6 +294,7 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     // TODO: add opponent collision cost
     //collision_count += evaluate_cvar_boundary_collision(x,&last_index);
     collision_count += evaluate_boundary_cost(x,&last_index);
+    collision_count += evaluate_obstacle_cost(x);
 
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
@@ -354,9 +379,12 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       cost += evaluate_step_cost(x, u, u,&last_index);
     }
     cost += 2*evaluate_boundary_cost(x,&last_index);
+    // for each step, avoid entire trajectory of opponent
     for (int k=0;k<opponent_count;k++){
-      cost += evaluate_collision_cost(x,in_opponent_traj,k);
+      cost += evaluate_opponent_cost(x,in_opponent_traj,k);
     }
+    // obstacle collision cost
+    cost += evaluate_obstacle_cost(x);
 
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
@@ -471,6 +499,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
 }
 
 
+// 1 if boundary violation, 0 if no violation, use atan activation, range is [0,1]
 // NOTE potential improvement by reusing idx result from other functions
 // u_estimate is the estimate of index on raceline that's closest to state
 __device__
@@ -531,6 +560,22 @@ float evaluate_cvar_boundary_collision( float* state,  int* u_estimate){
   return cost;
 }
 
+// TODO
+// static obstacle collision cost, if in contact return 1, else 0, discrete function
+__device__
+float evaluate_collision_cost( float* state){
+  float dx,dy,dist;
+  for (int i=0; i<obstacle_count; i++){
+    dx = state[STATE_X] - obstacles[i][0];
+    dy = state[STATE_Y] - obstacles[i][1];
+    dist = sqrtf(dx*dx + dy*dy) ;
+    if (dist < obstacle_radius){
+      return 1.0;
+    }
+  }
+  return 0.0;
+}
+
 // find closest id in the index range (guess - range, guess + range)
 // if guess is -1 then the entire spectrum will be searched
 __device__
@@ -588,7 +633,7 @@ float tire_curve( float slip){
 
 // opponent_traj: opponent_count * horizon * [x,y]
 __device__
-float evaluate_collision_cost( float* state, float* opponent_traj, int opponent_id){
+float evaluate_opponent_cost( float* state, float* opponent_traj, int opponent_id){
 
   float cost = 0.0;
   for (int i=0; i<HORIZON;i++){
