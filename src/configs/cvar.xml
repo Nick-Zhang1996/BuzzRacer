@@ -23,6 +23,7 @@
       <extension handle='boundary_checker'>BoundaryChecker</extension>
       <extension handle='collision_checker'>CollisionChecker</extension>
       <extension handle='lap_counter'>LapCounter</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
         <!-- <extension handle='logger'>Logger</extension> -->
   </extensions>
 

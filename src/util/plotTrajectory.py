@@ -8,6 +8,8 @@ sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 from common import *
 from track.TrackFactory import TrackFactory
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
 
 def plotTraj(track, filename, img, color, text):
     global offset
@@ -47,14 +49,18 @@ with open("track_boundary_img.p", 'rb') as f:
     boundary_img[:,:,2] = boundary_img[:,:,1]
 
 
-track = TrackFactory(name='full')
+# load config cvar.xml
+config_filename = './configs/cvar.xml'
+config = minidom.parse(config_filename)
+config_track= config.getElementsByTagName('track')[0]
+track = TrackFactory(config_track)
 
 offset = 0
 
-filename = '../log/2022_8_26_sim/full_state7.p'
+filename = '../log/2022_8_30_sim/full_state1.p'
 img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CVaR")
 
-filename = '../log/2022_8_26_sim/full_state6.p'
+filename = '../log/2022_8_30_sim/full_state2.p'
 img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
 
 #img1 = img1 - boundary_img

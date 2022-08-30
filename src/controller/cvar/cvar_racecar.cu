@@ -89,6 +89,8 @@ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, floa
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
+float evaluate_control_cost( float* ref_dudt , int id);
+__device__
 float evaluate_opponent_cost( float* state, float* opponent_traj,int opponent_id);
 __device__
 float evaluate_obstacle_cost( float* state);
@@ -382,6 +384,8 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     } else {
       cost += evaluate_step_cost(x, u, u,&last_index);
     }
+
+
     cost += 2*evaluate_boundary_cost(x,&last_index);
     // for each step, avoid entire trajectory of opponent
     for (int k=0;k<opponent_count;k++){
@@ -397,6 +401,7 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     u += CONTROL_DIM;
 
   }
+  cost += evaluate_control_cost(ref_dudt, id);
   float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;
   out_cost[id] = cost;
@@ -650,4 +655,20 @@ float evaluate_obstacle_cost( float* state){
     }
   }
   return 0.0;
+}
+
+__device__
+float evaluate_control_cost( float* ref_dudt, int id){
+  // y = lambda * (1-alfa), alfa=0, lambda = 1/temperature = 100
+  // y = 100
+  // control cost = y * u.T @ 1/sigma @ v
+  float cost = 0.0;
+  for (int i=0; i<HORIZON; i++){
+    for (int j=0; j<CONTROL_DIM; j++){
+      float u = ref_dudt[i*CONTROL_DIM + j];
+      float v = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      cost += u * 1.0/control_noise_std[i]/control_noise_std[i] *v;
+    }
+  }
+  return cost;
 }

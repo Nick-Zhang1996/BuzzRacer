@@ -79,7 +79,8 @@ class Visualization(Extension):
         self.car.main.visualization.visualization_img = img
 
     def saveBlankImg(self):
-        img = self.img_blank_track.copy()
+        #img = self.img_blank_track.copy()
+        img = self.img_blank_track_with_obstacles.copy()
         try:
             obstacles = self.main.cars[0].controller.obstacles
             # plot obstacles

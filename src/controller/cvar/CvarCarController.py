@@ -66,7 +66,7 @@ class CvarCarController(CarController):
         self.state_noise_cov = state_noise_std**2
         self.state_noise_mean = np.array([0,0,0,0,0,0])
 
-        #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
+        self.old_ref_control_rate = np.zeros( (self.samples_count,self.control_dim) )
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
 
@@ -302,8 +302,8 @@ class CvarCarController(CarController):
         else:
             device_opponent_traj = self.to_device(opponent_traj)
 
-        #ref_control_rate = np.vstack([self.old_ref_control_rate[1:,:],np.zeros([1,self.m],dtype=np.float32)])
-        ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
+        ref_control_rate = np.vstack([self.old_ref_control_rate[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        #ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
 
         # generate random var
         self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
@@ -364,6 +364,7 @@ class CvarCarController(CarController):
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
         #print('shoulnt be zero',sampled_control_rate[1000,:])
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
+        self.old_ref_control_rate = control_rate
         #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
