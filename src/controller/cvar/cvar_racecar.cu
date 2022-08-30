@@ -91,6 +91,8 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
 __device__
 float evaluate_opponent_cost( float* state, float* opponent_traj,int opponent_id);
 __device__
+float evaluate_obstacle_cost( float* state);
+__device__
 void forward_dynamics( float* state, float* u);
 __device__
 float tire_curve( float slip);
@@ -139,9 +141,10 @@ __global__ void set_raceline(float* in_raceline){
   }
 }
 
-__global__ void set_obstacle(int in_obstacle_count, float in_obstacle_radius, float[][2] in_obstacles){
+__global__ 
+void set_obstacle(int in_obstacle_count, float in_obstacle_radius, float in_obstacles[][2]){
   if (in_obstacle_count > MAX_OBSTACLE_COUNT){
-    printf("Obstacle count exceeding limit, current limit is MAX_OBSTACLE_COUNT \n");
+    //printf("Obstacle count exceeding limit, current limit is MAX_OBSTACLE_COUNT \n");
     obstacle_count = 0;
     return;
   }
@@ -150,8 +153,9 @@ __global__ void set_obstacle(int in_obstacle_count, float in_obstacle_radius, fl
   for(int i=0;i<obstacle_count;i++){ 
     obstacles[i][0] = in_obstacles[i][0];
     obstacles[i][1] = in_obstacles[i][1];
-    printf("i = %%d x=%%.2f, y=%%.2f \n",i,obstacles[i][0], obstacles[i][1]);
+    //printf("i = %%d x=%%.2f, y=%%.2f \n",i,obstacles[i][0], obstacles[i][1]);
   }
+  //printf("obstacle radius = %%.2f\n",in_obstacle_radius);
 }
 
 __global__ void generate_control_noise(){
@@ -560,21 +564,6 @@ float evaluate_cvar_boundary_collision( float* state,  int* u_estimate){
   return cost;
 }
 
-// TODO
-// static obstacle collision cost, if in contact return 1, else 0, discrete function
-__device__
-float evaluate_collision_cost( float* state){
-  float dx,dy,dist;
-  for (int i=0; i<obstacle_count; i++){
-    dx = state[STATE_X] - obstacles[i][0];
-    dy = state[STATE_Y] - obstacles[i][1];
-    dist = sqrtf(dx*dx + dy*dy) ;
-    if (dist < obstacle_radius){
-      return 1.0;
-    }
-  }
-  return 0.0;
-}
 
 // find closest id in the index range (guess - range, guess + range)
 // if guess is -1 then the entire spectrum will be searched
@@ -646,4 +635,19 @@ float evaluate_opponent_cost( float* state, float* opponent_traj, int opponent_i
   }
 
   return cost;
+}
+
+// static obstacle collision cost, if in contact return 1, else 0, discrete function
+__device__
+float evaluate_obstacle_cost( float* state){
+  float dx,dy,dist;
+  for (int i=0; i<obstacle_count; i++){
+    dx = state[STATE_X] - obstacles[i][0];
+    dy = state[STATE_Y] - obstacles[i][1];
+    dist = sqrtf(dx*dx + dy*dy) ;
+    if (dist < obstacle_radius){
+      return 1.0;
+    }
+  }
+  return 0.0;
 }

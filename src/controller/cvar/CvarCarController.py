@@ -192,6 +192,7 @@ class CvarCarController(CarController):
         self.cuda_set_state_noise_cov = self.getFunctionSafe("set_state_noise_cov")
         self.cuda_set_state_noise_mean = self.getFunctionSafe("set_state_noise_mean")
         self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
+        self.cuda_set_obstacle = self.getFunctionSafe("set_obstacle")
         self.initCurand()
 
         # TODO:
@@ -218,6 +219,11 @@ class CvarCarController(CarController):
         # set raceline
         device_raceline = self.to_device(self.discretized_raceline)
         self.cuda_set_raceline(device_raceline, block=(1,1,1),grid=(1,1,1))
+
+        obstacle_count = np.int32(self.track.obstacle_count)
+        obstacle_radius = np.float32(self.track.obstacle_radius)
+        device_obstacles = self.to_device(self.track.obstacles)
+        self.cuda_set_obstacle(obstacle_count, obstacle_radius, device_obstacles, block=(1,1,1),grid=(1,1,1))
         sleep(1)
 
     def initCurand(self):
