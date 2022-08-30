@@ -659,7 +659,7 @@ float evaluate_obstacle_cost( float* state){
 
 __device__
 float evaluate_control_cost( float* ref_dudt, int id){
-  // y = lambda * (1-alfa), alfa=0, lambda = 1/temperature = 100
+  // y = lambda * (1-alfa), alfa=0, lambda = 1/(temperature*cost_mean) = 1/(0.01*35) = 0.03
   // y = 100
   // control cost = y * u.T @ 1/sigma @ v
   float cost = 0.0;
@@ -667,7 +667,7 @@ float evaluate_control_cost( float* ref_dudt, int id){
     for (int j=0; j<CONTROL_DIM; j++){
       float u = ref_dudt[i*CONTROL_DIM + j];
       float v = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
-      cost += u * 1.0/control_noise_std[i]/control_noise_std[i] *v;
+      cost += 0.03 * u * 1.0/control_noise_std[j]/control_noise_std[j] *v;
     }
   }
   return cost;

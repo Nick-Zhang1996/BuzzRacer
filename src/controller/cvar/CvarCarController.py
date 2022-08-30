@@ -410,7 +410,8 @@ class CvarCarController(CarController):
     def synthesizeControl(self, cost_vec, sampled_control_rate):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
-        cost_mean = np.mean(cost_vec-beta)
+        cost_mean = np.mean(cost_vec-beta) # around 35
+
 
         # calculate weights
         weights = np.exp(- (cost_vec - beta)/cost_mean/self.temperature)

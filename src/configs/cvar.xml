@@ -35,7 +35,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
         state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
-        enable_cvar='False'
+        enable_cvar='True'
         horizon='30' 
         samples_count='1024' 
         subsamples_count='100' 
