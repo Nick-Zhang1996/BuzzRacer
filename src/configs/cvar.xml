@@ -42,6 +42,7 @@
         cvar_A='10.0'
         cvar_a='0.5'
         cvar_Cu='0.1'
+        mppi_alpha='0.1'
         >
         <type>CvarCarController</type>
       </controller>

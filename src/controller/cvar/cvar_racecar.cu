@@ -9,6 +9,8 @@
 #define STATE_DIM %(STATE_DIM)s
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
+// ratio of control sequence without reference control
+#define ALPHA %(ALPHA)s
 
 #define OBSTACLE_RADIUS 0.1
 
@@ -22,6 +24,7 @@
 #define PARAM_B 2.3
 #define PARAM_C 1.6
 #define PARAM_D 1.1
+
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -271,7 +274,10 @@ __global__ void evaluate_noisy_control_sequence(float* in_x0, float* in_u0, floa
     // apply constrain on control input
     for (int j=0; j<CONTROL_DIM; j++){
       // NOTE control is variation
-      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      float dudt = sampled_control_noise[sample_id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      if (sample_id > (int)(ALPHA * SAMPLE_COUNT)){
+        dudt += ref_dudt[i*CONTROL_DIM + j];
+      }
       float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;
@@ -360,7 +366,11 @@ __device__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     // apply constrain on control input
     for (int j=0; j<CONTROL_DIM; j++){
       // NOTE control is variation
-      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+
+      float dudt = sampled_control_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      if (id > (int)(ALPHA * SAMPLE_COUNT)){
+        dudt += ref_dudt[i*CONTROL_DIM + j];
+      }
       float val = last_u[j] + dudt * DT;
       val = val < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:val;
       val = val > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:val;

@@ -173,6 +173,7 @@ class CvarCarController(CarController):
                 "RACELINE_LEN":self.discretized_raceline.shape[0],
                 "TEMPERATURE":self.temperature,
                 "DT":self.dt,
+                "ALPHA":self.mppi_alpha
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
         cuda_filename = "./controller/cvar/cvar_racecar.cu"

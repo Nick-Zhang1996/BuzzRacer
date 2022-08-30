@@ -1,0 +1,6 @@
+TODO, plots:
+1. two trajectory in one plot
+2. snapshot of cvar penalized trajectory as influenced by Cu, a=any
+3. total constraint violation by algorithm
+5. temp plot, w.r.t. cvar_a, cvar_Cu
+6. no. collision w.r.t. system noise
