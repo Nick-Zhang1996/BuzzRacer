@@ -43,7 +43,7 @@ class Laptimer(Extension):
     def logLaptime(self):
         try:
             #logname = "../log/laptime_" + str(self.main.logger.log_no) + ".p"
-            logname = self.main.logger.logFolder + str(self.main.logger.log_no) + ".p"
+            logname = self.main.logger.logFolder + 'laptime'+str(self.main.logger.log_no) + ".p"
             with open(logname,'wb') as f:
                 pickle.dump(self.main.cars[0].laptime_vec,f)
                 print_ok(self.prefix() + " saved laptime vec to " + logname)

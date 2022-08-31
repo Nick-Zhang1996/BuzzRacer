@@ -17,8 +17,11 @@ from os.path import exists
 
 class Main(PrintObject):
     def __init__(self,config_filename):
+        self.config_filename = config_filename
+
+    def init(self):
         self.print_ok(" loading settings")
-        config = minidom.parse(config_filename)
+        config = minidom.parse(self.config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
         self.print_ok(" setting main attributes")
         for key,value_text in config_settings.attributes.items():
@@ -160,6 +163,7 @@ if __name__ == '__main__':
         print_error(config_filename + '  does not exist!')
 
     experiment = Main(config_filename)
+    experiment.init()
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()

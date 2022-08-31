@@ -1,12 +1,20 @@
 # Example: load a config, modify as needed, then save xml
 # to run batch experiments, you should write a file like this to generate all configs needed, then call 
 # python batchExperiment.py folder_of_config
+from common import *
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 import numpy as np
 from copy import deepcopy
+import sys
 
-config_filename = 'master.xml'
+if (len(sys.argv) == 2):
+    name = sys.argv[1]
+else:
+    print_error("you must specify a folder name under configs/")
+
+config_folder = './configs/' + name + '/'
+config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
 index = 0
@@ -24,6 +32,6 @@ for cvar_a in cvar_a_vec:
 
         config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
         config_controller.attributes['cvar_a'] =   str(cvar_a)
-        with open('exp%d.xml'%(index),'w') as f:
+        with open(config_folder+'exp%d.xml'%(index),'w') as f:
             config.writexml(f)
         index += 1

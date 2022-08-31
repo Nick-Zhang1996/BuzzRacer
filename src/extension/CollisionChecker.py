@@ -14,7 +14,7 @@ class CollisionChecker(Extension):
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
             if (self.main.track.isInObstacle(car.states)):
-                self.print_info('collision with obstacle')
+                #self.print_info('collision with obstacle')
                 self.collision_count[i] += 1
                 car.in_collision = True
                 #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
@@ -28,10 +28,13 @@ class CollisionChecker(Extension):
                 pass
 
     def final(self):
+        total_vec = []
+        mean_vec = []
         for i in range(len(self.main.cars)):
             total = np.sum(self.collision_by_lap_vec[i])
             mean = np.mean(self.collision_by_lap_vec[i])
+            total_vec.append(total)
+            mean_vec.append(mean)
             self.print_info("car %d, total obstacle collision = %d, mean = %.2f"%(i,total, mean))
-            self.main.cars[i].debug_dict.update({'collision_vec':self.collision_by_lap_vec[i]})
-        self.main.car_total_collisions = self.collision_count
+        self.main.car_total_collisions = total_vec
 

@@ -32,12 +32,15 @@ class BoundaryChecker(Extension):
                 pass
 
     def final(self):
+        total_vec = []
+        mean_vec = []
         for i in range(len(self.main.cars)):
             total = np.sum(self.collision_by_lap_vec[i])
             mean = np.mean(self.collision_by_lap_vec[i])
+            total_vec.append(total)
+            mean_vec.append(mean)
             self.print_info("car %d, total boundary violation = %d, mean = %.2f"%(i,total, mean))
-            self.main.cars[i].debug_dict.update({'collision_vec':self.collision_by_lap_vec[i]})
-        self.main.car_total_collisions = self.collision_count
+        self.main.car_total_boundary_violation = total_vec
 
     def isOutOfBoundary(self,car):
         x,y,heading,vf,vs,omega = car.states
@@ -62,7 +65,8 @@ class BoundaryChecker(Extension):
         else:
             out = dist + margin > right_bdry[idx]
         if (out):
-            self.print_info('collision with boundary')
+            pass
+            #self.print_info('collision with boundary')
         return out
 
 

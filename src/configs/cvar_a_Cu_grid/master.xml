@@ -23,8 +23,9 @@
       <extension handle='boundary_checker'>BoundaryChecker</extension>
       <extension handle='collision_checker'>CollisionChecker</extension>
       <extension handle='lap_counter' lap_count='10'>LapCounter</extension>
+      <extension handle='config_logger'>ConfigLogger</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
-        <!-- <extension handle='logger'>Logger</extension> -->
+       <extension handle='logger'>Logger</extension>
   </extensions>
 
   <cars>
