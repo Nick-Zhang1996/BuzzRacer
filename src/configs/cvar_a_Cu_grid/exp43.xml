@@ -24,7 +24,7 @@
       <hardware>Offboard</hardware>
       <config_name>audi_12</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
-      <controller state_noise_std="[0.2,0.2,0.2,0.2,0.2,0.2]" enable_cvar="True" horizon="30" samples_count="1024" subsamples_count="100" cvar_A="10.0" cvar_a="0.8" cvar_Cu="1" mppi_alpha="0.1">
+      <controller state_noise_std="[0.2,0.2,0.2,0.2,0.2,0.2]" enable_cvar="False" horizon="30" samples_count="1024" subsamples_count="100" cvar_A="10.0" cvar_a="0.8" cvar_Cu="1" mppi_alpha="0.1">
         <type>CvarCarController</type>
       </controller>
     </car>

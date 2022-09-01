@@ -16,6 +16,7 @@ class ConfigLogger(Extension):
         # config file name, (e.g. Cu_a_param_sweep/exp48.xml)
         # log name
         # laps
+        # enable_cvar
         # cvar_A
         # cvar_a
         # cvar_Cu
@@ -50,8 +51,8 @@ class ConfigLogger(Extension):
         
         log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')
         with open(log_name,'a') as f:
-            f.write(labels)
-            f.write('\n')
+            #f.write(labels)
+            #f.write('\n')
             text_entry = [str(item) for item in entry]
             f.write(','.join(text_entry))
             f.write('\n')
