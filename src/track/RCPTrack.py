@@ -1786,6 +1786,7 @@ class RCPTrack(Track,PrintObject):
 
     def setUpObstacles(self):
         if (not self.obstacle):
+            self.obstacle_count = 0
             return
 
         if (os.path.isfile(self.obstacle_filename)):
@@ -1816,6 +1817,11 @@ class RCPTrack(Track,PrintObject):
 
     # check if vehicle is currently in collision with obstacle
     def isInObstacle(self, state, get_obstacle_id=False):
+        if (not self.obstacle):
+            if (get_obstacle_id):
+                return (False,0)
+            else:
+                return False
         dist = self.obstacle_radius
         x,y,heading,vf,vs,omega = state
         min_dist = 100.0

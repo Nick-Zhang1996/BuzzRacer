@@ -13,7 +13,7 @@
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-          <!-- <extension handle='visualization' car_graphics='False'>Visualization</extension> -->
+        <!-- <extension handle='visualization' car_graphics='False'>Visualization</extension> -->
       <extension handle='simulator' 
         match_time='False'
         state_noise_enabled='True'
@@ -22,8 +22,9 @@
       <extension handle='boundary_checker'>BoundaryChecker</extension>
       <extension handle='collision_checker'>CollisionChecker</extension>
       <extension handle='lap_counter' lap_count='10'>LapCounter</extension>
+      <extension handle='config_logger'>ConfigLogger</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
-        <!-- <extension handle='logger'>Logger</extension> -->
+       <extension handle='logger'>Logger</extension>
   </extensions>
 
   <cars>
@@ -34,7 +35,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
         state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
-        enable_cvar='True'
+        enable_cvar='False'
         horizon='30' 
         samples_count='1024' 
         subsamples_count='100' 

@@ -148,7 +148,7 @@ __global__ void set_raceline(float* in_raceline){
 
 __global__ 
 void set_obstacle(int in_obstacle_count, float in_obstacle_radius, float in_obstacles[][2]){
-  if (in_obstacle_count > MAX_OBSTACLE_COUNT){
+  if (in_obstacle_count > MAX_OBSTACLE_COUNT or in_obstacle_count==0){
     //printf("Obstacle count exceeding limit, current limit is MAX_OBSTACLE_COUNT \n");
     obstacle_count = 0;
     return;

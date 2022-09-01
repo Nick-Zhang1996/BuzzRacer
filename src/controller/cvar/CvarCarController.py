@@ -223,7 +223,10 @@ class CvarCarController(CarController):
 
         obstacle_count = np.int32(self.track.obstacle_count)
         obstacle_radius = np.float32(self.track.obstacle_radius)
-        device_obstacles = self.to_device(self.track.obstacles)
+        if (self.track.obstacle):
+            device_obstacles = self.to_device(self.track.obstacles)
+        else:
+            device_obstacles = np.uint64(0)
         self.cuda_set_obstacle(obstacle_count, obstacle_radius, device_obstacles, block=(1,1,1),grid=(1,1,1))
         sleep(1)
 
@@ -352,6 +355,11 @@ class CvarCarController(CarController):
             cvar_P = np.sort(collision_count)[:,-count:]
             # average of highest cost quantile
             cvar_Lx = np.mean(cvar_P,axis=1)
+
+            # median is about 5 
+            #escaped_ratio = len(np.nonzero(cvar_Lx < 5)[0])/ len(cvar_Lx)
+            #self.print_info(escaped_ratio)
+
             cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
             cvar_costs = self.cvar_A * cvar_Lx
         else:
