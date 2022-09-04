@@ -357,7 +357,8 @@ class CvarCarController(CarController):
             cvar_Lx = np.mean(cvar_P,axis=1)
 
             # median is about 5 
-            #escaped_ratio = len(np.nonzero(cvar_Lx < 5)[0])/ len(cvar_Lx)
+            # <1: 0.05-0.4
+            #escaped_ratio = len(np.nonzero(cvar_Lx < 1)[0])/ len(cvar_Lx)
             #self.print_info(escaped_ratio)
 
             cvar_Lx[cvar_Lx < self.cvar_Cu] = 0

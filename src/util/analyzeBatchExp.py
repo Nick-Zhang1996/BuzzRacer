@@ -35,8 +35,14 @@ if __name__ == '__main__':
             except (NameError,SyntaxError):
                 data_dict[label].append( text )
     # assemble matrix, x:cvar_a, y:cvar_Cu, val:total_collision
-    cvar_a_vec = np.linspace(0.1,0.9,9)
-    cvar_Cu_vec = [0,1,5,10,20,30]
+    #cvar_a_vec = np.linspace(0.1,0.9,9)
+    #cvar_Cu_vec = [0,1,5,10,20,30]
+    #cvar_a_vec = np.linspace(0.1,0.9,3)
+    #cvar_Cu_vec = [0,0.5,1,2]
+    #cvar_a_vec = np.linspace(0.1,0.9,9)
+    #cvar_Cu_vec = np.linspace(0.1,0.9,9)
+    cvar_a_vec = [0.99,0.95,0.93]
+    cvar_Cu_vec = np.linspace(0.5,0.9,5)
 
     cvar_enable = np.array(data_dict['enable_cvar'])
     cvar_a_data = np.array(data_dict['cvar_a'])
@@ -44,7 +50,8 @@ if __name__ == '__main__':
     boundary_data = np.array(data_dict['boundary_violation'])
     obstacle_data = np.array(data_dict['obstacle_violation'])
 
-    value = boundary_data + obstacle_data
+    text = '(boundary_data + obstacle_data)/101*11'
+    value = eval(text)
 
     grid_cvar = np.zeros((len(cvar_a_vec), len(cvar_Cu_vec)))
     grid_baseline = np.zeros((len(cvar_a_vec), len(cvar_Cu_vec)))
@@ -55,15 +62,25 @@ if __name__ == '__main__':
             mask1 = np.isclose(cvar_a_data,cvar_a)
             mask2 = np.isclose(cvar_Cu_data,cvar_Cu)
             mask = np.logical_and(mask1,mask2)
-            grid_cvar[i,j] = value[np.logical_and(mask,cvar_enable)]
-            grid_baseline[i,j] = value[np.logical_and(mask,np.logical_not(cvar_enable))]
+            try:
+                grid_cvar[i,j] = value[np.logical_and(mask,cvar_enable)]
+            except ValueError:
+                grid_cvar[i,j] = -1
+            #grid_baseline[i,j] = value[np.logical_and(mask,np.logical_not(cvar_enable))]
 
     # baseline collision - cvar collision
-    advantage = (-grid_cvar + grid_baseline).astype(np.int)
+    #advantage = (-grid_cvar + grid_baseline).astype(np.int)
+    #mean_baseline = np.mean(grid_baseline)
+    #std_baseline = np.std(grid_baseline)
+    mean_baseline = 367.095
+    std_baseline = 9.081
+    print('baseline mean = %.3f, std = %.3f'%(mean_baseline, std_baseline))
+    #advantage = (-grid_cvar + mean_baseline).astype(np.int)
+    advantage = (grid_cvar/mean_baseline)
     advantage = pandas.DataFrame(data=advantage, index=cvar_a_vec, columns=cvar_Cu_vec)
 
     ax = sns.heatmap(advantage, annot=True,linewidth=0.5)
-    plt.title('cvar collision advantage')
+    plt.title(text)
     plt.xlabel('cvar_Cu')
     plt.ylabel('cvar_a')
     plt.show()

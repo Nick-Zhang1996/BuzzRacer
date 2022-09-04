@@ -4,7 +4,7 @@ from run import Main
 import glob
 import sys
 
-skip = 88
+skip = 0
 if __name__ == '__main__':
     if (len(sys.argv) == 2):
         name = sys.argv[1]
