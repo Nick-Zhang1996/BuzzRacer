@@ -3,3 +3,6 @@ grid7,./configs/grid7/exp1.xml,../log/grid7/full_state2.p,100,True,4,0.95,0.5,5.
 grid7,./configs/grid7/exp2.xml,../log/grid7/full_state3.p,100,True,6,0.95,0.5,5.228118811877818,0.057792953616313814,603,244
 grid7,./configs/grid7/exp6.xml,../log/grid7/full_state4.p,100,True,10.0,0.95,10.0,5.094554455442296,0.0398145391740733,2743,1583
 grid7,./configs/grid7/exp4.xml,../log/grid7/full_state5.p,100,True,10,0.95,0.5,5.358811881184627,0.0796189828688114,378,220
+grid7,./configs/grid7/exp7.xml,../log/grid7/full_state6.p,100,True,10.0,0.95,10.0,5.096732673264076,0.06419507570183935,2781,1733
+grid7,./configs/grid7/exp0.xml,../log/grid7/full_state7.p,100,True,2,0.95,0.5,5.125445544551178,0.05269987417042741,1091,404
+grid7,./configs/grid7/exp3.xml,../log/grid7/full_state8.p,100,True,8,0.95,0.5,5.291485148511423,0.07196514748610049,508,271
