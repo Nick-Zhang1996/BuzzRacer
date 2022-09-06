@@ -1,0 +1,15 @@
+grid6,./configs/grid6/exp5.xml,../log/grid6/full_state1.p,100,True,10.0,0.95,0.5,5.343861386135136,0.05206565347070808,103,233
+grid6,./configs/grid6/exp9.xml,../log/grid6/full_state2.p,100,True,10.0,0.95,0.9,5.179603960392713,0.050696550003944685,2450,185
+grid6,./configs/grid6/exp12.xml,../log/grid6/full_state3.p,100,True,10.0,0.93,0.7,5.231287128709498,0.04833184314779969,1474,256
+grid6,./configs/grid6/exp1.xml,../log/grid6/full_state4.p,100,True,10.0,0.99,0.6,5.300990099006463,0.05292447356335842,364,187
+grid6,./configs/grid6/exp10.xml,../log/grid6/full_state5.p,100,True,10.0,0.93,0.5,5.344653465343056,0.05196275049015169,92,250
+grid6,./configs/grid6/exp13.xml,../log/grid6/full_state6.p,100,True,10.0,0.93,0.8,5.209999999996645,0.04894935754410578,1968,211
+grid6,./configs/grid6/exp11.xml,../log/grid6/full_state7.p,100,True,10.0,0.93,0.6,5.272376237620351,0.05087644740668564,483,285
+grid6,./configs/grid6/exp2.xml,../log/grid6/full_state8.p,100,True,10.0,0.99,0.7,5.272871287125301,0.051171167501462236,1160,205
+grid6,./configs/grid6/exp8.xml,../log/grid6/full_state9.p,100,True,10.0,0.95,0.8,5.225940594056035,0.050799123283347486,2179,206
+grid6,./configs/grid6/exp6.xml,../log/grid6/full_state10.p,100,True,10.0,0.95,0.6,5.2699009900956,0.05510557013953347,446,235
+grid6,./configs/grid6/exp4.xml,../log/grid6/full_state11.p,100,True,10.0,0.99,0.9,5.191089108907554,0.0621384750329608,2432,163
+grid6,./configs/grid6/exp7.xml,../log/grid6/full_state12.p,100,True,10.0,0.95,0.7,5.233762376234246,0.04698538818900432,1380,257
+grid6,./configs/grid6/exp0.xml,../log/grid6/full_state13.p,100,True,10.0,0.99,0.5,5.374950495045999,0.054493595997198205,103,217
+grid6,./configs/grid6/exp3.xml,../log/grid6/full_state14.p,100,True,10.0,0.99,0.8,5.239306930689689,0.05353369302187301,2065,228
+grid6,./configs/grid6/exp14.xml,../log/grid6/full_state15.p,100,True,10.0,0.93,0.9,5.171386138610543,0.04590195541449426,2352,218

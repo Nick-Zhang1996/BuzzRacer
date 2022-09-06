@@ -41,7 +41,7 @@ def plotTraj(track, filename, img, color, text):
 
 # load blank canvas
 with open("track_img.p", 'rb') as f:
-    img = pickle.load(f)
+    track_img = pickle.load(f)
 
 with open("track_boundary_img.p", 'rb') as f:
     boundary_img = pickle.load(f)
@@ -57,11 +57,13 @@ track = TrackFactory(config_track)
 
 offset = 0
 
-filename = '../log/2022_8_30_sim/full_state1.p'
-img1 = plotTraj(track,filename, img.copy(), (0,0,255), "CVaR")
-
+#blank = np.zeros_like(track_img)
 filename = '../log/2022_8_30_sim/full_state2.p'
-img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
+img2 = plotTraj(track,filename, track_img, (0,255,0), "Baseline")
+
+filename = '../log/2022_8_30_sim/full_state1.p'
+img1 = plotTraj(track,filename, track_img, (0,0,255), "CVaR")
+
 
 #img1 = img1 - boundary_img
 #img2 = img2 - boundary_img
@@ -69,14 +71,18 @@ img2 = plotTraj(track,filename, img.copy(), (0,255,0), "Baseline")
 
 # combine img together
 #img = (img1/2 + img2/2)
-#img = np.minimum(img1,img2)
-#img = np.array(img,dtype=np.uint8)
+#img = np.maximum(img1,img2)
+
+'''
+img = img1 + img2
+mask = np.sum(img,axis=2) > 0
+track_img[mask,:] = img[mask,:]
+'''
+img = track_img
+img = np.array(img,dtype=np.uint8)
 
 # side by side image
-img = np.hstack([img1,img2])
-
-
-
+#img = np.hstack([img1,img2])
 
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 fig = plt.figure()

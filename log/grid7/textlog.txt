@@ -1,1 +1,5 @@
-grid7,./configs/grid7/exp5.xml,../log/grid7/full_state1.p,100,True,10.0,0.95,10.0,5.1033663366304065,0.03333826712484127,2612,1602
+grid7,./configs/grid7/exp5.xml,../log/grid7/full_state1.p,100,True,10.0,0.95,10.0,5.099405940590806,0.029578617584045088,2567,1617
+grid7,./configs/grid7/exp1.xml,../log/grid7/full_state2.p,100,True,4,0.95,0.5,5.158217821778871,0.054106532970326505,799,358
+grid7,./configs/grid7/exp2.xml,../log/grid7/full_state3.p,100,True,6,0.95,0.5,5.228118811877818,0.057792953616313814,603,244
+grid7,./configs/grid7/exp6.xml,../log/grid7/full_state4.p,100,True,10.0,0.95,10.0,5.094554455442296,0.0398145391740733,2743,1583
+grid7,./configs/grid7/exp4.xml,../log/grid7/full_state5.p,100,True,10,0.95,0.5,5.358811881184627,0.0796189828688114,378,220

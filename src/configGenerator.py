@@ -22,23 +22,34 @@ index = 0
 #cvar_Cu_vec = [0,0.5,1,2,5]
 #cvar_a_vec = np.linspace(0.1,0.9,9)
 #cvar_Cu_vec = np.linspace(0.1,0.9,9)
-cvar_a_vec = [0.99,0.95,0.93]
-cvar_Cu_vec = np.linspace(0.5,0.9,5)
 
+# grid 5,6, grid 6 use 0.1 noise, grid5 use 0.2 noise
+#cvar_a_vec = [0.99,0.95,0.93]
+#cvar_Cu_vec = np.linspace(0.5,0.9,5)
+
+cvar_a_vec = [0.95]
+cvar_Cu_vec = [0.5]
 enable_cvar = True
-for cvar_a in cvar_a_vec:
-    for cvar_Cu in cvar_Cu_vec:
-        config = deepcopy(original_config)
-        # get cvar_a
-        config_cars = config.getElementsByTagName('cars')[0]
-        config_car = config_cars.getElementsByTagName('car')[0]
-        config_controller = config_car.getElementsByTagName('controller')[0]
-        attrs = config_controller.attributes.items()
+cvar_A_vec = [2,4,6,8,10]
 
-        config_controller.attributes['enable_cvar'] =  str(enable_cvar)
-        config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
-        config_controller.attributes['cvar_a'] =   str(cvar_a)
-        with open(config_folder+'exp%d.xml'%(index),'w') as f:
-            config.writexml(f)
-        index += 1
+for cvar_A in cvar_A_vec:
+    for cvar_a in cvar_a_vec:
+        for cvar_Cu in cvar_Cu_vec:
+            config = deepcopy(original_config)
+            # get cvar_a
+            config_cars = config.getElementsByTagName('cars')[0]
+            config_car = config_cars.getElementsByTagName('car')[0]
+            config_controller = config_car.getElementsByTagName('controller')[0]
+            attrs = config_controller.attributes.items()
+
+            config_controller.attributes['enable_cvar'] =  str(enable_cvar)
+            config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
+            config_controller.attributes['cvar_a'] =   str(cvar_a)
+            config_controller.attributes['cvar_A'] =   str(cvar_A)
+            with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                config.writexml(f)
+            index += 1
+
+
+
 print('generated %d configs'%index)
