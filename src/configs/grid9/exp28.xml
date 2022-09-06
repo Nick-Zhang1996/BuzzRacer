@@ -1,0 +1,33 @@
+<?xml version="1.0" ?><!-- change mppi_alpha to 0.9 --><config>
+  <settings dt="0.01">
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track obstacle="True" obstacle_count="10" obstacle_filename="&quot;obstacles.p&quot;" obstacle_radius="0.1">full</track>
+
+  <extensions>
+      <extension handle="laptimer">Laptimer</extension>
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+        <!-- <extension handle='visualization' car_graphics='False'>Visualization</extension> -->
+      <extension handle="simulator" match_time="False" state_noise_enabled="True" state_noise_std="[0.7, 0.7, 0.7, 0.7, 0.7, 0.7]">DynamicSimulator</extension>
+      <extension handle="boundary_checker">BoundaryChecker</extension>
+      <extension handle="collision_checker">CollisionChecker</extension>
+      <extension handle="lap_counter" lap_count="100">LapCounter</extension>
+      <extension handle="config_logger">ConfigLogger</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
+       <extension handle="logger">Logger</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_12</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller state_noise_std="[0.7, 0.7, 0.7, 0.7, 0.7, 0.7]" enable_cvar="True" horizon="30" samples_count="1024" subsamples_count="100" cvar_A="10" cvar_a="0.7000000000000001" cvar_Cu="0.5" mppi_alpha="0.9">
+        <type>CvarCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>
