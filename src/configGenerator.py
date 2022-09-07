@@ -43,8 +43,14 @@ index = 0
 #noise_vec = [0.3,0.5,0.7]
 
 # grid 13
+#cvar_a_vec = np.linspace(0.1,0.9,5)
+#cvar_Cu_vec = [0.5,0.8,1.0,10,100,200]
+#cvar_A = 10.0
+#enable_cvar = True
+
+# grid 13
 cvar_a_vec = np.linspace(0.1,0.9,5)
-cvar_Cu_vec = [0.5,0.8,1.0,10,100,200]
+cvar_Cu_vec = np.linspace(0.6,1.0,5)
 cvar_A = 10.0
 enable_cvar = True
 
