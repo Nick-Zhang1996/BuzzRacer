@@ -14,7 +14,9 @@ class Simulator(Extension,PrintObject):
         super().__init__(main)
         self.match_time = None
         self.state_noise_enabled = None
-        self.state_noise_std = None
+        self.state_noise_magnitude = None
+        self.state_noise_type = None
+        self.state_noise_probability = None
 
         self.t0 = None
         self.real_sim_time_ratio = 1.0
@@ -25,7 +27,20 @@ class Simulator(Extension,PrintObject):
             self.print_error("Experiment type is not Simulation but a Simulator is loaded")
         self.main.sim_t = 0
         self.print_info( "match_time: " + str(self.match_time))
-        self.state_noise_std = np.array(self.state_noise_std)
+
+        if state_noise_enabled:
+            assert (self.state_noise_type is not None)
+            assert (self.state_noise_magnitude is not None)
+            if (self.state_noise_type == 'normal'):
+                self.addStateNoise = self.addStateNoiseNormal
+            elif (self.state_noise_type == 'uniform'):
+                self.addStateNoise = self.addStateNoiseUniform
+            elif (self.state_noise_type == 'impulse'):
+                assert (self.state_noise_probability is not None)
+                self.addStateNoise = self.addStateNoiseImpulse
+            else:
+                self.print_error('unknown noise type ',self.state_noise_type)
+
 
     def matchRealTime(self):
         if (not self.match_time):
@@ -40,6 +55,16 @@ class Simulator(Extension,PrintObject):
 
         sleep(max(0,time_to_reach - time()))
 
-    def addStateNoise(self):
+    def addStateNoiseNormal(self):
         for car in self.cars:
-            car.states += np.random.normal(size=car.states.shape) * self.state_noise_std * self.main.dt
+            car.states += np.random.normal(size=car.states.shape) * self.state_noise_magnitude * self.main.dt
+
+    def addStateNoiseUniform(self):
+        for car in self.cars:
+            car.states += np.random.uniform(low=-1.0,high=1.0,size=car.states.shape) * self.state_noise_magnitude * self.main.dt
+
+    def addStateNoiseImpulse(self):
+        for car in self.cars:
+            val = np.random.uniform()
+            if val < self.state_noise_probability:
+                car.states += self.state_noise_std * self.main.dt
