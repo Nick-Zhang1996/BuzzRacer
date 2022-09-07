@@ -41,6 +41,7 @@ class CvarCarController(CarController):
         self.cvar_a = None
         # paper line 25, C_upper
         self.cvar_Cu = None
+        self.count = 0
 
 
         for key,value_text in config.attributes.items():
@@ -292,6 +293,7 @@ class CvarCarController(CarController):
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 # Note the difference between control_rate and actual control. Since we sample the time rate of change on control it's a bit confusing
     def control(self):
+        self.count += 1
         t = time()
         # vf: forward v
         # vs: lateral v, left positive
@@ -344,15 +346,21 @@ class CvarCarController(CarController):
         #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         collision_count = collision_count.reshape((self.samples_count, self.subsamples_count)).astype(np.float32)
-
-
-        if (self.enable_cvar):
-            # paper:23-28
-            # find highest cost quantile
-            count = int((1-self.cvar_a)*self.subsamples_count)
+        '''
+        cvar_costs_vec = []
+        for cvar_a in [0.1,0.5,0.9,0.99]:
+            count = int((1-cvar_a)*self.subsamples_count)
             if (count == 0):
                 self.print_error('cvar_alpha too large or subsample count too low')
-            cvar_P = np.sort(collision_count)[:,-count:]
+
+            my_collision_count = collision_count.copy()
+            mean_collision_vec = np.mean(my_collision_count,axis=1).reshape(-1,1)
+            std_collision_vec = np.std(my_collision_count,axis=1).reshape(-1,1)
+
+            #my_collision_count = np.exp((my_collision_count - mean_collision_vec)/std_collision_vec) + mean_collision_vec
+            my_collision_count = 10*(my_collision_count - mean_collision_vec) + mean_collision_vec
+
+            cvar_P = np.sort(my_collision_count)[:,-count:]
             # average of highest cost quantile
             cvar_Lx = np.mean(cvar_P,axis=1)
 
@@ -363,10 +371,51 @@ class CvarCarController(CarController):
 
             cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
             cvar_costs = self.cvar_A * cvar_Lx
+            cvar_costs_vec.append(cvar_costs)
+        '''
+
+
+        if (self.enable_cvar):
+            # paper:23-28
+            # find highest cost quantile
+            count = int((1-self.cvar_a)*self.subsamples_count)
+            if (count == 0):
+                self.print_error('cvar_alpha too large or subsample count too low')
+
+            mean_collision_vec = np.mean(collision_count,axis=1).reshape(-1,1)
+            collision_count = (collision_count - mean_collision_vec) * 10 + mean_collision_vec
+
+            cvar_P = np.sort(collision_count)[:,-count:]
+            # average of highest cost quantile
+            cvar_Lx = np.mean(cvar_P,axis=1)
+
+            # median is about 5 
+            # <1: 0.05-0.4
+            #escaped_ratio = len(np.nonzero(cvar_Lx < 1)[0])/ len(cvar_Lx)
+            #self.print_info(escaped_ratio)
+
+            cvar_Lx[cvar_Lx < self.cvar_Cu] = 0
+            # FIXME
+            #cvar_Lx[cvar_Lx > self.cvar_Cu] = 500
+            cvar_costs = self.cvar_A * cvar_Lx
         else:
             cvar_costs = 0
         #self.print_info('mppi cost (min/avg/max)',np.min(costs), np.mean(costs), np.max(costs))
         #self.print_info('cvar cost (min/avg/max)',np.min(cvar_costs), np.mean(cvar_costs), np.max(cvar_costs))
+
+        '''
+        mppi_costs = costs.copy()
+
+        if (self.count >300):
+            plt.plot(np.sort(cvar_costs),label='cvar')
+            plt.plot(np.sort(mppi_costs),label='mppi')
+            plt.plot(np.sort(cvar_costs_vec[0]),label='a=0.1')
+            plt.plot(np.sort(cvar_costs_vec[1]),label='a=0.5')
+            plt.plot(np.sort(cvar_costs_vec[2]),label='a=0.9')
+            plt.plot(np.sort(cvar_costs_vec[3]),label='a=0.99')
+            plt.legend()
+            plt.show()
+        '''
 
         costs = costs + cvar_costs
 

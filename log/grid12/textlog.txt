@@ -1,0 +1,2 @@
+grid12,./configs/grid12/exp1.xml,../log/grid12/full_state1.p,10,True,10.0,0.9,0.5,5.398181818181512,0.055566206509081444,21,27
+grid12,./configs/grid12/exp0.xml,../log/grid12/full_state2.p,10,True,10.0,0.5,0.5,5.30636363636328,0.032269526089548035,22,65
