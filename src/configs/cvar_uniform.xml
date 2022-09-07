@@ -17,7 +17,7 @@
       <extension handle='simulator' 
         match_time='False'
         state_noise_enabled='True'
-        state_noise_type='normal'
+        state_noise_type='uniform'
         state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         >DynamicSimulator</extension>
       <extension handle='boundary_checker'>BoundaryChecker</extension>
@@ -35,7 +35,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
         enable_cvar='True'
-        state_noise_type='normal'
+        state_noise_type='uniform'
         state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         horizon='30' 
         samples_count='1024' 

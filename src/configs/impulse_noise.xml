@@ -18,7 +18,7 @@
         match_time='True'
         state_noise_enabled='True'
         state_noise_type='impulse'
-        state_noise_magnitude='0.2'
+        state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         state_noise_probability='0.1'
         >DynamicSimulator</extension>
         <!-- <extension handle='boundary_checker'>BoundaryChecker</extension> -->

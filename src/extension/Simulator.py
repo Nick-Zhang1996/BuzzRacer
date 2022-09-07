@@ -68,4 +68,9 @@ class Simulator(Extension,PrintObject):
         for car in self.cars:
             val = np.random.uniform()
             if val < self.state_noise_probability:
-                car.states += (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt
+                # to stay consistent with cvar_racecar.cu
+                new_val = np.random.uniform()
+                if (new_val < 0.5):
+                    car.states += (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt
+                else:
+                    car.states -= (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt

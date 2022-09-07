@@ -12,6 +12,8 @@
 // ratio of control sequence without reference control
 #define ALPHA %(ALPHA)s
 
+#define IMPULSE_NOISE_PROBABILITY %(IMPULSE_NOISE_PROBABILITY)s
+
 #define OBSTACLE_RADIUS 0.1
 
 #define PARAM_LF 0.04824
@@ -63,7 +65,7 @@ __device__ curandState_t* curand_states[CURAND_KERNEL_N];
 __device__ float control_limit[2*CONTROL_DIM];
 __device__ float control_noise_std[CONTROL_DIM];
 __device__ float control_noise_mean[CONTROL_DIM];
-__device__ float state_noise_std[STATE_DIM];
+__device__ float state_noise_mag[STATE_DIM];
 __device__ float state_noise_mean[STATE_DIM];
 // paper notation legend:
 // M: SAMPLE_COUNT
@@ -127,9 +129,9 @@ __global__ void set_control_noise_mean(float* in_noise_mean){
   for(int i=0;i<sizeof(control_noise_mean);i++){ control_noise_mean[i] = in_noise_mean[i];}
 }
 
-__global__ void set_state_noise_cov(float* in_noise_cov){
-  for(int i=0;i<sizeof(state_noise_std);i++){ state_noise_std[i] = sqrtf(in_noise_cov[i]);}
-  //printf("std: %%.2f, %%.2f \n",state_noise_std[0],state_noise_std[1]);
+__global__ void set_state_noise_magnitude(float* in_noise_mag){
+  for(int i=0;i<sizeof(state_noise_mag);i++){ state_noise_mag[i] = sqrtf(in_noise_mag[i]);}
+  //printf("mag: %%.2f, %%.2f \n",state_noise_mag[0],state_noise_mag[1]);
 }
 __global__ void set_state_noise_mean(float* in_state_mean){
   for(int i=0;i<sizeof(state_noise_mean);i++){ state_noise_mean[i] = in_state_mean[i];}
@@ -189,14 +191,14 @@ __global__ void generate_control_noise(){
 
 }
 
-__global__ void generate_state_noise(){
+__global__ void generate_state_noise_normal(){
   int id = threadIdx.x + blockIdx.x * blockDim.x;
   
   // failsafe, should never be true
   if (id >= CURAND_KERNEL_N) {return;}
 
   float _scales[STATE_DIM*2];
-  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = state_noise_std[i];}
+  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = state_noise_mag[i];}
 
   curandState_t s = *curand_states[id];
   int start = id*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N;
@@ -206,7 +208,74 @@ __global__ void generate_state_noise(){
   for(int i=start; i < end; i+=STATE_DIM ) {
     for (int j=0; j<STATE_DIM; j++){
       float val = curand_normal(&s) * _scales[j] + state_noise_mean[j];
-      sampled_state_noise[i+j] = val;
+      sampled_state_noise[i+j] = val*DT;
+      // DEBUG
+      //out_values[i+j] = val;
+    }
+  }
+  *curand_states[id] = s;
+
+}
+
+__global__ void generate_state_noise_uniform(){
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  
+  // failsafe, should never be true
+  if (id >= CURAND_KERNEL_N) {return;}
+
+  float _scales[STATE_DIM*2];
+  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = state_noise_mag[i];}
+
+  curandState_t s = *curand_states[id];
+  int start = id*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N;
+  int end = min(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM,(id+1)*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N);
+  //printf("id %%d, %%d - %%d\n",id, start, end);
+
+  for(int i=start; i < end; i+=STATE_DIM ) {
+    for (int j=0; j<STATE_DIM; j++){
+      float val = (curand_uniform(&s)-0.5)*2.0 * _scales[j] + state_noise_mean[j];
+      sampled_state_noise[i+j] = val*DT;
+      // DEBUG
+      //out_values[i+j] = val;
+    }
+  }
+  *curand_states[id] = s;
+
+}
+
+__global__ void generate_state_noise_impulse(){
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  
+  // failsafe, should never be true
+  if (id >= CURAND_KERNEL_N) {return;}
+
+  float _scales[STATE_DIM*2];
+  for (int i=0; i<sizeof(_scales); i++){ _scales[i] = state_noise_mag[i];}
+
+  curandState_t s = *curand_states[id];
+  int start = id*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N;
+  int end = min(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM,(id+1)*(SUBSAMPLE_COUNT*SAMPLE_COUNT*HORIZON*STATE_DIM)/CURAND_KERNEL_N);
+  //printf("id %%d, %%d - %%d\n",id, start, end);
+
+  
+  // TODO FIXME
+  for(int i=start; i < end; i+=STATE_DIM ) {
+    bool impulse = curand_normal(&s) < IMPULSE_NOISE_PROBABILITY;
+    bool direction = curand_normal(&s) < 0.5;
+    float val=0;
+
+    for (int j=0; j<STATE_DIM; j++){
+      if (impulse){
+        val =  state_noise_mean[j];
+        if (direction){
+          val += (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
+        } else {
+          val -= (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
+        }
+        sampled_state_noise[i+j] = val*DT;
+      } else {
+        sampled_state_noise[i+j] = 0;
+      }
       // DEBUG
       //out_values[i+j] = val;
     }

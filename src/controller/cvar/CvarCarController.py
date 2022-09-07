@@ -29,7 +29,6 @@ class CvarCarController(CarController):
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
-
         # CVaR specific settings
         self.enable_cvar = None
 
@@ -43,9 +42,17 @@ class CvarCarController(CarController):
         self.cvar_Cu = None
         self.count = 0
 
+        # for impulse noise only
+        self.state_noise_probability = 0.0
 
+
+        # load config parameters
         for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
+            try:
+                value = eval(value_text)
+            except NameError:
+                value = value_text
+            setattr(self,key,value)
             #self.print_info(" controller.",key,'=',value_text)
 
         if (self.enable_cvar):
@@ -63,8 +70,8 @@ class CvarCarController(CarController):
         self.control_noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
         self.control_noise_mean = np.array([0.0,0])
 
-        state_noise_std = np.array(self.state_noise_std)*self.dt
-        self.state_noise_cov = state_noise_std**2
+        self.state_noise_magnitude = np.array(self.state_noise_magnitude)
+        assert (len(self.state_noise_magnitude) == 6)
         self.state_noise_mean = np.array([0,0,0,0,0,0])
 
         self.old_ref_control_rate = np.zeros( (self.samples_count,self.control_dim) )
@@ -74,6 +81,7 @@ class CvarCarController(CarController):
         self.prepareDiscretizedRaceline()
         #self.createBoundary()
         self.initCuda()
+
 
     def prepareDiscretizedRaceline(self):
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
@@ -174,7 +182,8 @@ class CvarCarController(CarController):
                 "RACELINE_LEN":self.discretized_raceline.shape[0],
                 "TEMPERATURE":self.temperature,
                 "DT":self.dt,
-                "ALPHA":self.mppi_alpha
+                "ALPHA":self.mppi_alpha,
+                "IMPULSE_NOISE_PROBABILITY":self.state_noise_probability
                 }
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
         cuda_filename = "./controller/cvar/cvar_racecar.cu"
@@ -185,17 +194,33 @@ class CvarCarController(CarController):
         self.cuda_generate_control_noise = self.getFunctionSafe("generate_control_noise")
         #self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
         # CVaR
-        self.cuda_generate_state_noise = self.getFunctionSafe("generate_state_noise")
+        self.cuda_generate_state_noise_normal = self.getFunctionSafe("generate_state_noise_normal")
+        self.cuda_generate_state_noise_uniform = self.getFunctionSafe("generate_state_noise_uniform")
+        self.cuda_generate_state_noise_impulse = self.getFunctionSafe("generate_state_noise_impulse")
         self.cuda_evaluate_noisy_control_sequence = self.getFunctionSafe("evaluate_noisy_control_sequence")
 
         self.cuda_set_control_limit = self.getFunctionSafe("set_control_limit")
         self.cuda_set_control_noise_cov = self.getFunctionSafe("set_control_noise_cov")
         self.cuda_set_control_noise_mean = self.getFunctionSafe("set_control_noise_mean")
-        self.cuda_set_state_noise_cov = self.getFunctionSafe("set_state_noise_cov")
+        self.cuda_set_state_noise_magnitude = self.getFunctionSafe("set_state_noise_magnitude")
         self.cuda_set_state_noise_mean = self.getFunctionSafe("set_state_noise_mean")
         self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
         self.cuda_set_obstacle = self.getFunctionSafe("set_obstacle")
         self.initCurand()
+
+        if self.enable_cvar:
+            assert (self.state_noise_type is not None)
+            assert (self.state_noise_magnitude is not None)
+            self.state_noise_magnitude = np.array(self.state_noise_magnitude)
+            if (self.state_noise_type == 'normal'):
+                self.cuda_generate_state_noise = self.cuda_generate_state_noise_normal
+            elif (self.state_noise_type == 'uniform'):
+                self.cuda_generate_state_noise = self.cuda_generate_state_noise_uniform
+            elif (self.state_noise_type == 'impulse'):
+                assert (self.state_noise_probability is not None)
+                self.cuda_generate_state_noise = self.cuda_generate_state_noise_impulse
+            else:
+                self.print_error('unknown noise type ',self.state_noise_type)
 
         # TODO:
         # set control limit
@@ -209,9 +234,9 @@ class CvarCarController(CarController):
         device_control_noise_mean = self.to_device(self.control_noise_mean)
         self.cuda_set_control_noise_mean(device_control_noise_mean, block=(1,1,1),grid=(1,1,1))
 
-        # set state noise variance
-        device_state_noise_cov = self.to_device(self.state_noise_cov)
-        self.cuda_set_state_noise_cov(device_state_noise_cov, block=(1,1,1),grid=(1,1,1))
+        # set state noise magnitude
+        device_state_noise_magnitude = self.to_device(self.state_noise_magnitude)
+        self.cuda_set_state_noise_magnitude(device_state_noise_magnitude, block=(1,1,1),grid=(1,1,1))
         # set state noise mean
         device_state_noise_mean = self.to_device(self.state_noise_mean)
         self.cuda_set_state_noise_mean(device_state_noise_mean, block=(1,1,1),grid=(1,1,1))
