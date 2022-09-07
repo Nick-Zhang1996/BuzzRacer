@@ -28,9 +28,10 @@ class Simulator(Extension,PrintObject):
         self.main.sim_t = 0
         self.print_info( "match_time: " + str(self.match_time))
 
-        if state_noise_enabled:
+        if self.state_noise_enabled:
             assert (self.state_noise_type is not None)
             assert (self.state_noise_magnitude is not None)
+            self.state_noise_magnitude = np.array(self.state_noise_magnitude)
             if (self.state_noise_type == 'normal'):
                 self.addStateNoise = self.addStateNoiseNormal
             elif (self.state_noise_type == 'uniform'):
@@ -67,4 +68,4 @@ class Simulator(Extension,PrintObject):
         for car in self.cars:
             val = np.random.uniform()
             if val < self.state_noise_probability:
-                car.states += self.state_noise_std * self.main.dt
+                car.states += (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt

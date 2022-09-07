@@ -65,15 +65,19 @@ class Main(PrintObject):
             #ext = eval(extension_class_name+'(self)')
             ext = eval(extension_class_name)(self)
             handle_name = ''
-            for key,value in config_extension.attributes.items():
+            for key,raw in config_extension.attributes.items():
                 if key == 'handle':
-                    handle_name = value
+                    handle_name = raw
                     setattr(self,handle_name,ext)
                     self.print_info('main.'+handle_name+' = '+ext.__class__.__name__)
                 else:
+                    try:
+                        value = eval(raw)
+                    except NameError:
+                        value = raw
                     # all other attributes will be set to extension
-                    setattr(ext,key,eval(value))
-                    self.print_info('main.'+handle_name+'.'+key+' = '+value)
+                    setattr(ext,key,value)
+                    self.print_info('main.'+handle_name+'.'+key+' = '+str(value))
 
         for item in self.extensions:
             item.init()
