@@ -266,7 +266,8 @@ class CvarCarController(CarController):
         self.print_info("loading cuda source code ...")
         with open(cuda_filename,"r") as f:
             code = f.read()
-        self.mod = SourceModule(code % macros, no_extern_c=True)
+        breakpoint()
+        self.mod = SourceModule(code % macros, no_extern_c=True,options=[(drv.jit_option.MAX_REGISTERS,63)])
 
     def setBlockGrid(self):
         if (self.samples_count < 1024):
@@ -295,6 +296,7 @@ class CvarCarController(CarController):
     def getFunctionSafe(self,name):
         fun = self.mod.get_function(name)
         self.print_info("registers used, ",name,"= %d"%(fun.num_regs))
+        # FIXME
         assert fun.num_regs < 64
         assert int(fun.num_regs * self.cuda_total_sample_block_size[0]) <= 65536
         return fun

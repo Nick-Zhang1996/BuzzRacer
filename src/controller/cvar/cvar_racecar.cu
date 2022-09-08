@@ -244,7 +244,6 @@ __global__ void generate_state_noise_uniform(){
 }
 
 __global__ void generate_state_noise_impulse(){
-  /*
   int id = threadIdx.x + blockIdx.x * blockDim.x;
   
   // failsafe, should never be true
@@ -282,7 +281,6 @@ __global__ void generate_state_noise_impulse(){
     }
   }
   *curand_states[id] = s;
-  */
 
 }
 
