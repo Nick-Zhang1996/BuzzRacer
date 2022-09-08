@@ -43,10 +43,19 @@ class ConfigLogger(Extension):
         entry.append( config_controller.getAttribute('cvar_a') )
         entry.append( config_controller.getAttribute('cvar_Cu') )
 
-        entry.append( self.main.car_laptime_mean[0])
-        entry.append( self.main.car_laptime_stddev[0])
-        entry.append( self.main.car_total_boundary_violation[0])
-        entry.append( self.main.car_total_collisions[0])
+        # these may not be available if watchdog is triggered
+        if (not self.main.watchdog.triggered):
+            entry.append( self.main.car_laptime_mean[0])
+            entry.append( self.main.car_laptime_stddev[0])
+            entry.append( self.main.car_total_boundary_violation[0])
+            entry.append( self.main.car_total_collisions[0])
+        else:
+            entry.append(-1 ) 
+            entry.append(-1 ) 
+            entry.append(-1 ) 
+            entry.append(-1 ) 
+
+        entry.append( self.main.simulator.state_noise_type )
 
         
         log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')

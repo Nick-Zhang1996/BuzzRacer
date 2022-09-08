@@ -1,0 +1,5 @@
+grid14,./configs/grid14/exp5.xml,../log/grid14/full_state1.p,100,True,10.0,0.1,0.7,5.286237623758951,0.0652011584228879,1159,465
+grid14,./configs/grid14/exp17.xml,../log/grid14/full_state2.p,100,True,10.0,0.5,0.9,5.485742574253819,0.09148225532230682,1967,197
+grid14,./configs/grid14/exp21.xml,../log/grid14/full_state3.p,100,True,10.0,0.3,1.0,5.321782178214364,0.07756691189523315,2191,272
+grid14,./configs/grid14/exp24.xml,../log/grid14/full_state4.p,100,True,10.0,0.9,1.0,360.1543564203846,313.0780600901386,2467,431
+grid14,./configs/grid14/exp9.xml,../log/grid14/full_state5.p,100,True,10.0,0.9,0.7,327.6994317985153,256.0465620837311,1817,457
