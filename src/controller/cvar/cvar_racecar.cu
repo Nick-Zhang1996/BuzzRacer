@@ -244,7 +244,6 @@ __global__ void generate_state_noise_uniform(){
 }
 
 __global__ void generate_state_noise_impulse(){
-  /*
   int id = threadIdx.x + blockIdx.x * blockDim.x;
   
   // failsafe, should never be true
@@ -259,20 +258,22 @@ __global__ void generate_state_noise_impulse(){
   //printf("id %%d, %%d - %%d\n",id, start, end);
 
   
-  // TODO FIXME
   for(int i=start; i < end; i+=STATE_DIM ) {
     bool impulse = curand_normal(&s) < IMPULSE_NOISE_PROBABILITY;
-    bool direction = curand_normal(&s) < 0.5;
+    //bool direction = curand_normal(&s) < 0.5;
     float val=0;
 
     for (int j=0; j<STATE_DIM; j++){
       if (impulse){
         val =  state_noise_mean[j];
+        /*
         if (direction){
           val += (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
         } else {
           val -= (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
         }
+        */
+        val += (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
         sampled_state_noise[i+j] = val*DT;
       } else {
         sampled_state_noise[i+j] = 0;
@@ -282,7 +283,6 @@ __global__ void generate_state_noise_impulse(){
     }
   }
   *curand_states[id] = s;
-  */
 
 }
 
