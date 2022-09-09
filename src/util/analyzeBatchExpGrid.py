@@ -47,8 +47,12 @@ if __name__ == '__main__':
     #cvar_Cu_vec = np.linspace(0.5,0.9,5)
 
     # grid 13
+    #cvar_a_vec = np.linspace(0.1,0.9,5)
+    #cvar_Cu_vec = [0.5,0.8,1.0,10,100,200]
+
+    # grid 15
     cvar_a_vec = np.linspace(0.1,0.9,5)
-    cvar_Cu_vec = [0.5,0.8,1.0,10,100,200]
+    cvar_Cu_vec = np.linspace(0.6,1.0,5)
 
     cvar_enable = np.array(data_dict['enable_cvar'])
     cvar_a_data = np.array(data_dict['cvar_a'])
@@ -83,7 +87,9 @@ if __name__ == '__main__':
     print('baseline mean = %.3f, std = %.3f'%(mean_baseline, std_baseline))
     #advantage = (-grid_cvar + mean_baseline).astype(np.int)
     advantage = (grid_cvar/mean_baseline)
-    advantage = pandas.DataFrame(data=advantage, index=cvar_a_vec, columns=cvar_Cu_vec)
+    cvar_a_vec_text = ['%.1f'%val for val in cvar_a_vec]
+    cvar_Cu_vec_text = ['%.1f'%val for val in cvar_Cu_vec]
+    advantage = pandas.DataFrame(data=advantage, index=cvar_a_vec_text, columns=cvar_Cu_vec_text)
 
     ax = sns.heatmap(advantage, annot=True,linewidth=0.5)
     plt.title(text)
