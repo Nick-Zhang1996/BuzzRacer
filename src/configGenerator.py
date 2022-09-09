@@ -49,27 +49,45 @@ index = 0
 #enable_cvar = True
 
 # grid 15
-cvar_a_vec = np.linspace(0.1,0.9,5)
-cvar_Cu_vec = np.linspace(0.6,1.0,5)
+#cvar_a_vec = np.linspace(0.1,0.9,5)
+#cvar_Cu_vec = np.linspace(0.6,1.0,5)
+#cvar_A = 10.0
+#enable_cvar = True
+
+# grid 16
+# baseline vs cvar
+# search noise level
+# search noise type
+cvar_a = 0.5
+cvar_Cu = 0.5
 cvar_A = 10.0
-enable_cvar = True
+enable_cvar_vec = [True,False]
+noise_vec = [0.1,0.2,0.3,0.4,0.5]
+noise_type_vec = ['normal','uniform','impulse']
 
-# 15 experiments
-for cvar_Cu in cvar_Cu_vec:
-    for cvar_a in cvar_a_vec:
-        config = deepcopy(original_config)
-        config_cars = config.getElementsByTagName('cars')[0]
-        config_car = config_cars.getElementsByTagName('car')[0]
-        config_controller = config_car.getElementsByTagName('controller')[0]
-        attrs = config_controller.attributes.items()
+for enable_cvar in enable_cvar_vec:
+    for noise_type in noise_type_vec:
+        for noise in noise_vec:
+            config = deepcopy(original_config)
+            config_extensions = config.getElementsByTagName('extensions')[0]
+            for config_extension in config_extensions.getElementsByTagName('extension'):
+                if config_extension.getAttribute('handle') == 'simulator':
+                    config_extension.attributes['state_noise_magnitude'] = str([noise]*6)
+                    config_extension.attributes['state_noise_type'] =  str(noise_type)
+            config_cars = config.getElementsByTagName('cars')[0]
+            config_car = config_cars.getElementsByTagName('car')[0]
+            config_controller = config_car.getElementsByTagName('controller')[0]
+            attrs = config_controller.attributes.items()
 
-        config_controller.attributes['enable_cvar'] =  str(enable_cvar)
-        config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
-        config_controller.attributes['cvar_a'] =   str(cvar_a)
-        config_controller.attributes['cvar_A'] =   str(cvar_A)
+            config_controller.attributes['enable_cvar'] =  str(enable_cvar)
+            config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
+            config_controller.attributes['cvar_a'] =   str(cvar_a)
+            config_controller.attributes['cvar_A'] =   str(cvar_A)
+            config_controller.attributes['state_noise_magnitude'] =  str([noise]*6) 
+            config_controller.attributes['state_noise_type'] =  str(noise_type)
 
-        with open(config_folder+'exp%d.xml'%(index),'w') as f:
-            config.writexml(f)
-        index += 1
+            with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                config.writexml(f)
+            index += 1
 
 print('generated %d configs'%index)

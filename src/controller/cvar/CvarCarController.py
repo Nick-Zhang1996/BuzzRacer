@@ -208,19 +208,18 @@ class CvarCarController(CarController):
         self.cuda_set_obstacle = self.getFunctionSafe("set_obstacle")
         self.initCurand()
 
-        if self.enable_cvar:
-            assert (self.state_noise_type is not None)
-            assert (self.state_noise_magnitude is not None)
-            self.state_noise_magnitude = np.array(self.state_noise_magnitude)
-            if (self.state_noise_type == 'normal'):
-                self.cuda_generate_state_noise = self.cuda_generate_state_noise_normal
-            elif (self.state_noise_type == 'uniform'):
-                self.cuda_generate_state_noise = self.cuda_generate_state_noise_uniform
-            elif (self.state_noise_type == 'impulse'):
-                assert (self.state_noise_probability is not None)
-                self.cuda_generate_state_noise = self.cuda_generate_state_noise_impulse
-            else:
-                self.print_error('unknown noise type ',self.state_noise_type)
+        assert (self.state_noise_type is not None)
+        assert (self.state_noise_magnitude is not None)
+        self.state_noise_magnitude = np.array(self.state_noise_magnitude)
+        if (self.state_noise_type == 'normal'):
+            self.cuda_generate_state_noise = self.cuda_generate_state_noise_normal
+        elif (self.state_noise_type == 'uniform'):
+            self.cuda_generate_state_noise = self.cuda_generate_state_noise_uniform
+        elif (self.state_noise_type == 'impulse'):
+            assert (self.state_noise_probability is not None)
+            self.cuda_generate_state_noise = self.cuda_generate_state_noise_impulse
+        else:
+            self.print_error('unknown noise type ',self.state_noise_type)
 
         # TODO:
         # set control limit
@@ -408,7 +407,7 @@ class CvarCarController(CarController):
                 self.print_error('cvar_alpha too large or subsample count too low')
 
             mean_collision_vec = np.mean(collision_count,axis=1).reshape(-1,1)
-            collision_count = (collision_count - mean_collision_vec) * 10 + mean_collision_vec
+            collision_count = (collision_count - mean_collision_vec) * 3 + mean_collision_vec
 
             cvar_P = np.sort(collision_count)[:,-count:]
             # average of highest cost quantile

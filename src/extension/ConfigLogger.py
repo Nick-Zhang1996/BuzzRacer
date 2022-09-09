@@ -9,6 +9,13 @@ class ConfigLogger(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
 
+    def init(self):
+        config = minidom.parse(self.main.config_filename)
+        config_extensions = config.getElementsByTagName('extensions')[0]
+        for config_extension in config_extensions.getElementsByTagName('extension'):
+            if config_extension.getAttribute('handle') == 'simulator':
+                self.noise = eval(config_extension.getAttribute('state_noise_magnitude'))[0]
+
     def postFinal(self):
         # stuff to log down
         entry = []
@@ -24,7 +31,7 @@ class ConfigLogger(Extension):
         # laptime_stddev
         # boundary violation
         # obstacle violation
-        labels = "experiment name , config file name , log name , laps , cvar_A , cvar_a , cvar_Cu , laptime_mean , laptime_stddev , boundary violation , obstacle violation "
+        labels = "experiment name , config file name , log name , laps , cvar_A , cvar_a , cvar_Cu , laptime_mean , laptime_stddev , boundary violation , obstacle violation, noise_type, noise_magnitude "
         entry.append(self.main.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
@@ -56,6 +63,7 @@ class ConfigLogger(Extension):
             entry.append(-1 ) 
 
         entry.append( self.main.simulator.state_noise_type )
+        entry.append( self.noise )
 
         
         log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')
