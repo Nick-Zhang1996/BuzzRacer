@@ -1,0 +1,4 @@
+grid16,./configs/grid16/exp5.xml,../log/grid16/full_state1.p,100,True,10.0,0.5,0.5,5.334356435640095,0.04629684337103871,175,443,uniform,0.1
+grid16,./configs/grid16/exp17.xml,../log/grid16/full_state2.p,100,False,10.0,0.5,0.5,5.14138613861057,0.05550898068388642,1922,1234,normal,0.3
+grid16,./configs/grid16/exp21.xml,../log/grid16/full_state3.p,100,False,10.0,0.5,0.5,5.1487128712838315,0.04220795679140459,2201,1333,uniform,0.2
+grid16,./configs/grid16/exp24.xml,../log/grid16/full_state4.p,100,False,10.0,0.5,0.5,5.154950495046201,0.057171338148364545,2113,1270,uniform,0.5
