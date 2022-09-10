@@ -48,7 +48,7 @@ index = 0
 #cvar_A = 10.0
 #enable_cvar = True
 
-# grid 15
+# grid 15, 17
 #cvar_a_vec = np.linspace(0.1,0.9,5)
 #cvar_Cu_vec = np.linspace(0.6,1.0,5)
 #cvar_A = 10.0
