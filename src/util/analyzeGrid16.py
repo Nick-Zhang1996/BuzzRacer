@@ -105,17 +105,17 @@ if __name__ == '__main__':
 
     noise_vec_text = ['%.1f'%val for val in noise_vec]
     mask = cvar_normal > 0
-    plt.plot(noise_vec[mask], cvar_normal[mask], 'r-',label='cvar normal')
+    plt.plot(noise_vec[mask], cvar_normal[mask], 'r*',label='cvar normal')
     mask = cvar_uniform > 0
-    plt.plot(noise_vec[mask], cvar_uniform[mask], 'g-',label='cvar uniform')
+    plt.plot(noise_vec[mask], cvar_uniform[mask], 'g*',label='cvar uniform')
     mask = cvar_impulse > 0
-    plt.plot(noise_vec[mask], cvar_impulse[mask], 'b-',label='cvar impulse')
+    plt.plot(noise_vec[mask], cvar_impulse[mask], 'b*',label='cvar impulse')
     mask = baseline_normal > 0
-    plt.plot(noise_vec[mask], baseline_normal[mask], 'r--',label='baseline normal')
+    plt.plot(noise_vec[mask], baseline_normal[mask], 'ro',label='baseline normal')
     mask = baseline_uniform > 0
-    plt.plot(noise_vec[mask], baseline_uniform[mask], 'g--',label='baseline uniform')
+    plt.plot(noise_vec[mask], baseline_uniform[mask], 'go',label='baseline uniform')
     mask = baseline_impulse > 0
-    plt.plot(noise_vec[mask], baseline_impulse[mask], 'b--',label='baseline impulse')
+    plt.plot(noise_vec[mask], baseline_impulse[mask], 'bo',label='baseline impulse')
     plt.title(text)
     plt.xlabel('noise')
     plt.ylabel('collision')

@@ -273,7 +273,8 @@ __global__ void generate_state_noise_impulse(){
           val -= (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
         }
         */
-        val += (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
+        //val += (1.0/IMPULSE_NOISE_PROBABILITY) * _scales[j] ;
+        val += (1.0) * _scales[j] ;
         sampled_state_noise[i+j] = val*DT;
       } else {
         sampled_state_noise[i+j] = 0;

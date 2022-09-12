@@ -54,17 +54,19 @@ index = 0
 #cvar_A = 10.0
 #enable_cvar = True
 
-# grid 16
+# grid 16, grid18
 # baseline vs cvar
 # search noise level
 # search noise type
-cvar_a = 0.5
-cvar_Cu = 0.5
-cvar_A = 10.0
-enable_cvar_vec = [True,False]
-noise_vec = [0.1,0.2,0.3,0.4,0.5]
-noise_type_vec = ['normal','uniform','impulse']
+#cvar_a = 0.5
+#cvar_Cu = 0.5
+#cvar_A = 10.0
+#enable_cvar_vec = [True,False]
+#noise_vec = [0.1,0.2,0.3,0.4,0.5]
+#noise_type_vec = ['normal','uniform','impulse']
 
+# grid 16,grid18
+'''
 for enable_cvar in enable_cvar_vec:
     for noise_type in noise_type_vec:
         for noise in noise_vec:
@@ -89,5 +91,30 @@ for enable_cvar in enable_cvar_vec:
             with open(config_folder+'exp%d.xml'%(index),'w') as f:
                 config.writexml(f)
             index += 1
+'''
+
+# grid 19
+cvar_a_vec = np.linspace(0.1,0.9,5)
+cvar_Cu_vec = np.linspace(0.6,1.0,5)
+cvar_A = 3.0
+enable_cvar = True
+
+for cvar_a in cvar_a_vec:
+    for cvar_Cu in cvar_Cu_vec:
+        config = deepcopy(original_config)
+        config_extensions = config.getElementsByTagName('extensions')[0]
+        config_cars = config.getElementsByTagName('cars')[0]
+        config_car = config_cars.getElementsByTagName('car')[0]
+        config_controller = config_car.getElementsByTagName('controller')[0]
+        attrs = config_controller.attributes.items()
+
+        config_controller.attributes['enable_cvar'] =  str(enable_cvar)
+        config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
+        config_controller.attributes['cvar_a'] =   str(cvar_a)
+        config_controller.attributes['cvar_A'] =   str(cvar_A)
+
+        with open(config_folder+'exp%d.xml'%(index),'w') as f:
+            config.writexml(f)
+        index += 1
 
 print('generated %d configs'%index)

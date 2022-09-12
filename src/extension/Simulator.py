@@ -76,4 +76,5 @@ class Simulator(Extension,PrintObject):
                 else:
                     car.states -= (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt
                 '''
-                car.states += (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt
+                #car.states += (1/self.state_noise_probability) * self.state_noise_magnitude * self.main.dt
+                car.states +=  self.state_noise_magnitude * self.main.dt

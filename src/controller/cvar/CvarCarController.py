@@ -407,7 +407,7 @@ class CvarCarController(CarController):
                 self.print_error('cvar_alpha too large or subsample count too low')
 
             mean_collision_vec = np.mean(collision_count,axis=1).reshape(-1,1)
-            collision_count = (collision_count - mean_collision_vec) * 3 + mean_collision_vec
+            collision_count = (collision_count - mean_collision_vec) * 10 + mean_collision_vec
 
             cvar_P = np.sort(collision_count)[:,-count:]
             # average of highest cost quantile
