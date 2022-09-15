@@ -59,6 +59,8 @@ if __name__ == '__main__':
     cvar_Cu_data = np.array(data_dict['cvar_Cu'])
     boundary_data = np.array(data_dict['boundary_violation'])
     obstacle_data = np.array(data_dict['obstacle_violation'])
+    laptime_data = np.array(data_dict['laptime_mean'])
+    print(np.mean(laptime_data))
 
     text = '(boundary_data + obstacle_data)/101*11'
     value = eval(text)

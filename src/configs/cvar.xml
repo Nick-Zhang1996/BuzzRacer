@@ -40,7 +40,7 @@
         state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         horizon='30' 
         samples_count='1024' 
-        subsamples_count='100' 
+        subsamples_count='500' 
         cvar_A='10.0'
         cvar_a='0.5'
         cvar_Cu='0.5'
