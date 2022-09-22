@@ -23,7 +23,6 @@ class MppiCarController(CarController):
         assert (self.horizon == self.prediction_horizon)
         self.track = self.car.main.track
         self.dt = 0.02
-        self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
 
@@ -41,90 +40,16 @@ class MppiCarController(CarController):
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
 
-        self.prepareDiscretizedRaceline()
-        self.createBoundary()
+        self.track.prepareDiscretizedRaceline()
+        self.track.createBoundary()
+        self.discretized_raceline = self.track.discretized_raceline
+        self.raceline_left_boundary = self.track.raceline_left_boundary
+        self.raceline_right_boundary = self.track.raceline_right_boundary
+
+
         self.initCuda()
 
-    def prepareDiscretizedRaceline(self):
-        ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
-        rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
-        drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
-        heading_vec = np.arctan2(drr[1],drr[0])
-        vv = self.track.sToV(ss) 
-        top_speed = 10
-        vv[vv>top_speed] = top_speed
 
-        # parameter, distance along track
-        self.ss = ss
-        self.raceline_points = np.array(rr)
-        self.raceline_headings = heading_vec
-        self.raceline_velocity = vv
-
-        # describe track boundary as offset from raceline
-        self.createBoundary()
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
-        '''
-        left = np.array(self.raceline_left_boundary)
-        right = np.array(self.raceline_right_boundary)
-        plt.plot(left+right)
-        plt.show()
-        breakpoint()
-        '''
-        return
-
-    def createBoundary(self,show=False):
-        # construct a (self.discretized_raceline_len * 2) vector
-        # to record the left and right track boundary as an offset to the discretized raceline
-        left_boundary = []
-        right_boundary = []
-
-        left_boundary_points = []
-        right_boundary_points = []
-
-        for i in range(self.discretized_raceline_len):
-            # find normal direction
-            coord = self.raceline_points[:,i]
-            heading = self.raceline_headings[i]
-
-            left, right = self.track.preciseTrackBoundary(coord,heading)
-            left_boundary.append(left)
-            right_boundary.append(right)
-
-            # debug boundary points
-            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-
-            left_boundary_points.append(left_point)
-            right_boundary_points.append(right_point)
-
-
-            # DEBUG
-            # plot left/right boundary
-            '''
-            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPoint(img,coord,color=(0,0,0))
-            img = self.track.drawPoint(img,left_point,color=(0,0,0))
-            img = self.track.drawPoint(img,right_point,color=(0,0,0))
-            plt.imshow(img)
-            plt.show()
-            '''
-
-
-        self.raceline_left_boundary = left_boundary
-        self.raceline_right_boundary = right_boundary
-
-        if (show):
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
-            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
-            plt.imshow(img)
-            plt.show()
-            return img
-        return
 
     def initCuda(self):
         self.curand_kernel_n = 1024
