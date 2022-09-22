@@ -39,6 +39,12 @@ class PurePursuitCarController(CarController):
         dt = car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
+        self.track.prepareDiscretizedRaceline()
+        self.track.createBoundary()
+        self.discretized_raceline = self.track.discretized_raceline
+        self.raceline_left_boundary = self.track.raceline_left_boundary
+        self.raceline_right_boundary = self.track.raceline_right_boundary
+
     def control(self):
         if self.planner is None:
             raceline = track.raceline
