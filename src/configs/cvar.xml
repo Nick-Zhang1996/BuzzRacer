@@ -24,7 +24,7 @@
       <extension handle='collision_checker'>CollisionChecker</extension>
       <extension handle='lap_counter' lap_count='10'>LapCounter</extension>
       <extension handle='watchdog'>Watchdog</extension>
-        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
+      <extension handle='gifsaver'>Gifsaver</extension>
         <!-- <extension handle='logger'>Logger</extension> -->
   </extensions>
 
@@ -40,7 +40,7 @@
         state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         horizon='30' 
         samples_count='1024' 
-        subsamples_count='500' 
+        subsamples_count='100' 
         cvar_A='10.0'
         cvar_a='0.5'
         cvar_Cu='0.5'
