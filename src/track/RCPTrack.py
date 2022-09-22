@@ -754,11 +754,6 @@ class RCPTrack(Track):
                 
         return
 
-
-    # optimize
-    def optimizePiecewiseCurvatureNorm(self,):
-        pass
-
     # constrain >= 0
     # given coord=(x,y) unit:m
     # calculate distance to left/right boundary

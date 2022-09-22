@@ -7,48 +7,30 @@ from planner import Planner
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
-        self.stanleyInit(car,config)
+        self.init(car,config)
 
-        config_planner = config.getElementsByTagName('planner')[0]
-        planner_class = eval(config_planner.firstChild.nodeValue)
-        self.planner = planner_class(config_planner)
-        self.planner.main = self.main
-        self.planner.car = self.car
-        self.print_ok("setting planner attributes")
-        for key,value_text in config_planner.attributes.items():
-            setattr(self.planner,key,eval(value_text))
-            self.print_info(" main.",key,'=',value_text)
-        self.planner.init()
-        #self.planner.test()
+        # if there's planner set it up
+        # TODO put this in a parent class constructor
+        try:
+            config_planner = config.getElementsByTagName('planner')[0]
+            planner_class = eval(config_planner.firstChild.nodeValue)
+            self.planner = planner_class(config_planner)
+            self.planner.main = self.main
+            self.planner.car = self.car
+            '''
+            self.print_ok("setting planner attributes")
+            for key,value_text in config_planner.attributes.items():
+                setattr(self.planner,key,eval(value_text))
+                self.print_info(" main.",key,'=',value_text)
+            '''
+            self.planner.init()
+        except IndexError as e:
+            self.print_info("planner not available")
+            self.planner = None
 
-    '''
-    def control(self):
-        self.planner.plan()
-        valid = True
-        throttle = self.calcThrottle(0)
-        steering = 0
-        if valid:
-            self.car.throttle = throttle
-            self.car.steering = steering
-        else:
-            print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
-            self.car.throttle = 0.0
-            self.car.steering = 0.0
-
-        return valid
-    def calcThrottle(self,ax):
-        vx = self.car.states[3]
-        return ax/6.17+0.333 + vx/15.2
-    '''
-
-    def stanleyInit(self,car,config):
+    def init(self,car,config):
         self.debug_dict = {}
         self.max_offset = 0.4
-        p1 = (1.0,2.0)
-        p2 = (4.0,0.5)
-        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
-        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
-        self.Pfun = lambda v: max(min((self.Pfun_slope*v+self.Pfun_offset),4.0),0.5)/280*pi/0.01
 
         #speed controller
         P = 5 # to be more aggressive use 15
@@ -58,66 +40,41 @@ class PurePursuitCarController(CarController):
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
     def control(self):
-        self.planner.plan()
+        if self.planner is None:
+            raceline = track.raceline
+        # find control point of distance lookahead
+        # change to local reference frame
+        # calculate steering
+        # find reference speed
+        # calculate throttle
+
+
+
+
+
+        # inquire information about desired trajectory close to the vehicle
+        if self.planner is None:
+            retval = track.localTrajectory(self.car.states)
+        else:
+            self.planner.plan()
+            retval = self.planner.localTrajectory(self.car.states)
+
+        if retval is None:
+            return (0,0,False,{'offset':0})
+
+        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+
+        v_target = min(v_target, self.max_speed)
+
+
+
+
+
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
+
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
         #print("[StanleyCarController]: T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
-        if valid:
-            self.car.throttle = throttle
-            self.car.steering = steering
-        else:
-            print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
-            self.car.throttle = 0.0
-            self.car.steering = 0.0
-        #self.predict()
-        return valid
-
-# given state of the vehicle and an instance of track, provide throttle and steering output
-# input:
-#   state: (x,y,heading,v_forward,v_sideway,omega)
-#   track: track object, can be RCPTrack or skidpad
-#   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
-#   reverse: true if running in opposite direction of raceline init direction
-
-# output:
-#   (throttle,steering,valid,debug) 
-# ranges for output:
-#   throttle -1.0,self.max_throttle
-#   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
-#   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
-#           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
-# debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
-    def ctrlCar(self,state,track,v_override=None,reverse=False):
-        coord = (state[0],state[1])
-
-        heading = state[2]
-        omega = state[5]
-        vf = state[3]
-        vs = state[4]
-
-        ret = (0,0,False,{'offset':0})
-
-        # inquire information about desired trajectory close to the vehicle
-        retval = track.localTrajectory(state)
-        if retval is None:
-            return (0,0,False,{'offset':0})
-            #return ret
-
-        # parse return value from localTrajectory
-        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        # for experiments
-        #v_target = min(v_target*0.8, 2.2)
-        v_target = min(v_target, 2.2)
-
-        if isnan(orientation):
-            return (0,0,False,{'offset':0})
-            
-        if reverse:
-            offset = -offset
-            orientation += pi
-
         # if vehicle cross error exceeds maximum allowable error, stop the car
         if (abs(offset) > self.max_offset):
             return (0,0,False,{'offset':offset})
@@ -139,9 +96,24 @@ class PurePursuitCarController(CarController):
             else:
                 throttle = self.calcThrottle(state,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            #ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            ret =  (throttle,steering,True,{})
 
-        return ret
+        if (v_override is None):
+            throttle = self.calcThrottle(state,v_target)
+        else:
+            throttle = self.calcThrottle(state,v_override)
+        if valid:
+            # TODO verify this is limiting
+            self.car.throttle = throttle
+            self.car.steering = steering
+        else:
+            self.print_warning(" car %d unable to control", self.car.id)
+            self.car.throttle = 0.0
+            self.car.steering = 0.0
+        #self.predict()
+        return valid
+
 
     # PID controller for forward velocity
     def calcThrottle(self,state,v_target):
