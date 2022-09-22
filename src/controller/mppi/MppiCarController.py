@@ -9,6 +9,7 @@ global drv
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
+import numpy as np
 
 class MppiCarController(CarController):
     def __init__(self,car,config):

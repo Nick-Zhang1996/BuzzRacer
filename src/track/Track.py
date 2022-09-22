@@ -1,10 +1,11 @@
 # Base class for RCPTrack and Skidpad
 # this class provides API for interacting with a Track object
 # a track object provides information on the trajectory and provide access for drawing the track
+import numpy as np
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from math import radians,degrees,cos,sin,ceil,floor,atan,tan
 class Track(object):
-    def __init__(self,resolution=200):
-        # resolution : pixels per grid length
-        self.resolution = resolution
+    def __init__(self):
         self.discretized_raceline_len = 1024
 
     # draw a picture of the track

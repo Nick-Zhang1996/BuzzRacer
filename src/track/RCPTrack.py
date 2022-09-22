@@ -60,6 +60,7 @@ class Node:
 
 class RCPTrack(Track,PrintObject):
     def __init__(self,config=None):
+        Track.__init__(self)
         self.config = config
         self.t = execution_timer(True)
         # resolution : pixels per grid side length

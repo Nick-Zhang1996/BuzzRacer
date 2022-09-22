@@ -9,6 +9,8 @@ class CarController(PrintObject):
         self.car = car
         self.main = car.main
         self.track = car.main.track
+        # default value
+        self.horizon = 30
 
         self.predicted_traj = []
         KinematicSimulator.dt = self.car.main.dt

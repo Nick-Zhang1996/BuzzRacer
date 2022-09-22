@@ -7,7 +7,10 @@ from planner import Planner
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
-        self.init(car,config)
+
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            self.print_info(" controller.",key,'=',value_text)
 
         # if there's planner set it up
         # TODO put this in a parent class constructor
@@ -28,7 +31,8 @@ class PurePursuitCarController(CarController):
             self.print_info("planner not available")
             self.planner = None
 
-    def init(self,car,config):
+    def init(self):
+        CarController.init(self)
         self.debug_dict = {}
         self.max_offset = 0.4
 
@@ -36,7 +40,7 @@ class PurePursuitCarController(CarController):
         P = 5 # to be more aggressive use 15
         I = 0.0 #0.1
         D = 0.4
-        dt = car.main.dt
+        dt = self.car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
         self.track.prepareDiscretizedRaceline()
@@ -47,8 +51,9 @@ class PurePursuitCarController(CarController):
 
     def control(self):
         if self.planner is None:
-            raceline = track.raceline
+            raceline = self.track.raceline
         # find control point of distance lookahead
+        breakpoint()
         # change to local reference frame
         # calculate steering
         # find reference speed
@@ -71,10 +76,6 @@ class PurePursuitCarController(CarController):
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
 
         v_target = min(v_target, self.max_speed)
-
-
-
-
 
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
 
