@@ -1,0 +1,2 @@
+1110 + 259 for cvar, impulse, 0.2
+1375+1420 for baseline, impulse, 0.2

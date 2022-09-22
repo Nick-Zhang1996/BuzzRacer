@@ -17,8 +17,11 @@ from os.path import exists
 
 class Main(PrintObject):
     def __init__(self,config_filename):
+        self.config_filename = config_filename
+
+    def init(self):
         self.print_ok(" loading settings")
-        config = minidom.parse(config_filename)
+        config = minidom.parse(self.config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
         self.print_ok(" setting main attributes")
         for key,value_text in config_settings.attributes.items():
@@ -29,8 +32,9 @@ class Main(PrintObject):
         self.experiment_type = eval('ExperimentType.'+config_experiment_text)
 
         # prepare track
-        config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
-        self.track = TrackFactory(name=config_track_text)
+        #config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
+        config_track= config.getElementsByTagName('track')[0]
+        self.track = TrackFactory(config_track)
 
         # prepare cars
         Car.reset()
@@ -61,15 +65,19 @@ class Main(PrintObject):
             #ext = eval(extension_class_name+'(self)')
             ext = eval(extension_class_name)(self)
             handle_name = ''
-            for key,value in config_extension.attributes.items():
+            for key,raw in config_extension.attributes.items():
                 if key == 'handle':
-                    handle_name = value
+                    handle_name = raw
                     setattr(self,handle_name,ext)
                     self.print_info('main.'+handle_name+' = '+ext.__class__.__name__)
                 else:
+                    try:
+                        value = eval(raw)
+                    except NameError:
+                        value = raw
                     # all other attributes will be set to extension
-                    setattr(ext,key,eval(value))
-                    self.print_info('main.'+handle_name+'.'+key+' = '+value)
+                    setattr(ext,key,value)
+                    self.print_info('main.'+handle_name+'.'+key+' = '+str(value))
 
         for item in self.extensions:
             item.init()
@@ -159,6 +167,7 @@ if __name__ == '__main__':
         print_error(config_filename + '  does not exist!')
 
     experiment = Main(config_filename)
+    experiment.init()
     experiment.run()
     experiment.timer.summary()
     #experiment.cars[0].controller.p.summary()

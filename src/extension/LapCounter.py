@@ -10,7 +10,8 @@ class LapCounter(Extension):
         self.plotLapCountFlag = False
 
     def init(self):
-        self.total_laps = 10
+        self.total_laps = self.lap_count
+        #self.total_laps = 10
         print_ok("[LapCounter]: total %d laps"%(self.total_laps))
         self.main.car_total_laps = []
         for car in self.main.cars:

@@ -4,27 +4,32 @@ from track.RCPTrack import RCPTrack
 from track.EmptyTrack import EmptyTrack
 from track.Skidpad import Skidpad
 from math import radians
-def TrackFactory(name='full'):
+def TrackFactory(config):
+    name = config.firstChild.nodeValue
     mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}
     if (name in mapping):
-        return mapping[name]()
+        return mapping[name](config)
     else:
         print_error("unknown track name")
         return
 
-def prepareEmptyTrack():
+def prepareEmptyTrack(config):
     return EmptyTrack()
 
 
-def prepareRcpTrack():
+def prepareRcpTrack(config):
+
     # width 0.563, square tile side length 0.6
 
     # full RCP track
     # NOTE load track instead of re-constructing
-    fulltrack = RCPTrack()
+    fulltrack = RCPTrack(config=config)
     fulltrack.startPos = (0.6*3.5,0.6*1.75)
     fulltrack.startDir = radians(90)
     fulltrack.load()
+    for key,value in config.attributes.items():
+        setattr(fulltrack,key,eval(value))
+    fulltrack.setUpObstacles()
     return fulltrack
 
     # row, col
@@ -64,13 +69,13 @@ def prepareRcpTrack():
     fulltrack.initRaceline((3,3),'d',10,offset=adjustment)
     return fulltrack
 
-def prepareSkidpad():
+def prepareSkidpad(config):
     target_velocity = 1.0
     sp = Skidpad()
     sp.initSkidpad(radius=2,velocity=target_velocity)
     return sp
 
-def prepareRcpTrackSmall():
+def prepareRcpTrackSmall(config):
     # current track setup in mk103, L shaped
     # width 0.563, length 0.6
     mk103 = RCPTrack()
