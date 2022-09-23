@@ -1,8 +1,9 @@
 from common import *
-from math import isnan,pi,degrees,radians
+from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 from planner import Planner
+import matplotlib.pyplot as plt
 
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
@@ -51,75 +52,73 @@ class PurePursuitCarController(CarController):
 
     def control(self):
         if self.planner is None:
-            raceline = self.track.raceline
+            raceline_pnts = self.track.raceline_points.T
+            raceline_headings = self.track.raceline_headings
+            raceline_speed = self.track.raceline_velocity
+
+        x,y,heading,vf,vs,omega = self.car.states
         # find control point of distance lookahead
-        breakpoint()
+        dist = ((raceline_pnts[:,0] - x)**2 + (raceline_pnts[:,1] - y)**2)**0.5
+        idx_car = np.argmin(dist)
+        idx_lookahead = np.argmin( np.abs(dist[idx_car:] - self.lookahead) ) + idx_car
+
         # change to local reference frame
+        dx = raceline_pnts[idx_lookahead,0] - x
+        dy = raceline_pnts[idx_lookahead,1] - y
+        dx_body = dx*cos(heading) + dy*sin(heading)
+        dy_body = -dx*sin(heading) + dy*cos(heading)
+
+        # pure pursuit
+        theta = np.arctan2(dx_body,dy_body)
+        R = dist[idx_lookahead] / 2 / cos(theta)
+        steering = np.arctan2(self.car.wheelbase,R)
+        steering = np.copysign(steering,dy_body)
+
+        '''
+        # plot for sanity
+        fig,ax = plt.subplots()
+        plt.plot(x,y,'o')
+        plt.plot(raceline_pnts[idx_car:idx_lookahead,0],raceline_pnts[idx_car:idx_lookahead,1])
+        #plt.plot(raceline_pnts[:,0],raceline_pnts[:,1])
+        plt.plot(raceline_pnts[idx_car,0],raceline_pnts[idx_car,1],'*')
+        plt.plot(raceline_pnts[idx_lookahead,0],raceline_pnts[idx_lookahead,1],'o')
+
+        # car centered
+        center = (x,y)
+        circle = plt.Circle(center,lookahead,fill=False)
+        ax.add_patch(circle)
+        ax.set_xlim((x-0.5,x+0.5))
+        ax.set_ylim((y-0.5,y+0.5))
+        center = (x + R*cos(heading - np.pi/2), y + R*sin(heading - np.pi/2))
+        circle = plt.Circle(center,R,fill=False)
+        ax.add_patch(circle)
+        plt.show()
+        '''
+
         # calculate steering
         # find reference speed
         # calculate throttle
+        v_target = raceline_speed[idx_car]
 
-
-
-
-
-        # inquire information about desired trajectory close to the vehicle
-        if self.planner is None:
-            retval = track.localTrajectory(self.car.states)
-        else:
-            self.planner.plan()
-            retval = self.planner.localTrajectory(self.car.states)
-
+        '''
         if retval is None:
             return (0,0,False,{'offset':0})
-
-        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        '''
 
         v_target = min(v_target, self.max_speed)
 
-        throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
+        # TODO more error handling
 
-        self.debug_dict = debug_dict
-        self.car.debug_dict.update(debug_dict)
-        #print("[StanleyCarController]: T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
-        # if vehicle cross error exceeds maximum allowable error, stop the car
-        if (abs(offset) > self.max_offset):
-            return (0,0,False,{'offset':offset})
-        else:
-            # sign convention for offset: negative offset(-) requires left steering(+)
-            # this is the convention used in track class, determined arbituarily
-            # control logic
-            #steering = (orientation-heading) - (offset * self.car.P) - (omega-curvature*vf)*self.car.D
-            steering = (orientation-heading) - (offset * self.Pfun(abs(vf)))
-            # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
-            # handle edge case, unwrap ( -355 deg turn -> +5 turn)
-            steering = (steering+pi)%(2*pi) -pi
-            if (steering>self.car.max_steering_left):
-                steering = self.car.max_steering_left
-            elif (steering<-self.car.max_steering_right):
-                steering = -self.car.max_steering_right
-            if (v_override is None):
-                throttle = self.calcThrottle(state,v_target)
-            else:
-                throttle = self.calcThrottle(state,v_override)
+        if (steering>self.car.max_steering_left):
+            steering = self.car.max_steering_left
+        elif (steering<-self.car.max_steering_right):
+            steering = -self.car.max_steering_right
 
-            #ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
-            ret =  (throttle,steering,True,{})
+        throttle = self.calcThrottle(self.car.states,v_target)
+        self.car.throttle = throttle
+        self.car.steering = steering
 
-        if (v_override is None):
-            throttle = self.calcThrottle(state,v_target)
-        else:
-            throttle = self.calcThrottle(state,v_override)
-        if valid:
-            # TODO verify this is limiting
-            self.car.throttle = throttle
-            self.car.steering = steering
-        else:
-            self.print_warning(" car %d unable to control", self.car.id)
-            self.car.throttle = 0.0
-            self.car.steering = 0.0
-        #self.predict()
-        return valid
+        return None
 
 
     # PID controller for forward velocity
