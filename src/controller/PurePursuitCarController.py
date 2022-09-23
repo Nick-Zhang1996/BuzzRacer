@@ -53,8 +53,14 @@ class PurePursuitCarController(CarController):
     def control(self):
         if self.planner is None:
             raceline_pnts = self.track.raceline_points.T
-            raceline_headings = self.track.raceline_headings
+            #raceline_headings = self.track.raceline_headings
             raceline_speed = self.track.raceline_velocity
+        else:
+            self.planner.plan()
+            raceline_pnts = self.planner.best_local_traj
+            # TODO 
+            raceline_speed = np.ones_like(raceline_pnts[:,0])*2.0
+
 
         x,y,heading,vf,vs,omega = self.car.states
         # find control point of distance lookahead
