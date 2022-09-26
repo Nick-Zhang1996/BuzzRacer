@@ -53,6 +53,7 @@ class StanleyCarController(CarController):
         # TODO do this more carefully
         if (self.planner is not None):
             self.planner.plan()
+            self.planner.plotAllSolutions()
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)

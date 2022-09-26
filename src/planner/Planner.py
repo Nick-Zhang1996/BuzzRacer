@@ -72,10 +72,6 @@ class Planner(ConfigObject):
         vec_path_to_car = (state[0] - traj[idx,0], state[1] - traj[idx,1])
         offset = np.cross(vec_path_tangent, vec_path_to_car) / np.linalg.norm(vec_path_tangent)
 
-        sols = self.solutions
-        best_sol_idx = self.best_solution_index
-        self.plotSolutions(sols)
-        self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
 
         # FIXME hacky
         (_,_,_,_,v_target) = self.track.localTrajectory(state)
@@ -123,6 +119,13 @@ class Planner(ConfigObject):
         self.best_solution_index = best_sol_idx
         self.best_local_traj = self.stateTrajToCartesianTraj(self.best_solution[1])
         return
+
+    def plotAllSolutions(self):
+        # plot solutions
+        sols = self.solutions
+        best_sol_idx = self.best_solution_index
+        self.plotSolutions(sols)
+        self.plotSolutions([sols[best_sol_idx]],color=(100,100,100))
 
     def plotSolutions(self,sols,color=(255,51,204)):
         img = self.main.visualization.visualization_img

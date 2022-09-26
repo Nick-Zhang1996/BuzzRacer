@@ -60,6 +60,7 @@ class PurePursuitCarController(CarController):
             raceline_pnts = self.planner.best_local_traj
             # TODO 
             raceline_speed = np.ones_like(raceline_pnts[:,0])*2.0
+            self.planner.plotAllSolutions()
 
 
         x,y,heading,vf,vs,omega = self.car.states
