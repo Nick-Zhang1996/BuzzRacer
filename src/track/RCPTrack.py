@@ -1764,6 +1764,16 @@ class RCPTrack(Track,PrintObject):
 
         return img
 
+    def drawPoints(self, img, coord_vec, color = (0,0,0)):
+        for coord in coord_vec:
+            src = self.m2canvas(coord)
+            if src is None:
+                #print("Can't draw point -- outside track")
+                return img
+            img = cv2.circle(img, src, 3, color,-1)
+
+        return img
+
     # draw a circle on canvas at coord
     def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
         src = self.m2canvas(coord)
