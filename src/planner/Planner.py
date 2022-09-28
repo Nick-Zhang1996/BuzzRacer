@@ -368,9 +368,11 @@ class Planner(ConfigObject):
         plt.show()
 
     def verifyCost(self,u):
+        mpc = self.mpc
         # calculate progress and curvature cost
         #u = sols[0][0]
         mse = lambda a: np.sum((a)**2)
+        x0 = self.x0
 
         progress_cost = 0.5*u.T @ mpc.old_P @ u + mpc.old_q.T @ u
         cur_cost = 0.5*u.T @ mpc.dP @ u + mpc.dq.T @ u
@@ -378,6 +380,7 @@ class Planner(ConfigObject):
         print("progress cost = %.2f"%(progress_cost))
         print("curvature cost = %.2f"%(cur_cost))
         print("total cost = %.2f"%(total_cost))
+        return
 
         # base curvature(r' * r'') for r
         k_r = np.cross(self.debug_dr, self.debug_ddr,axis=0)
@@ -419,7 +422,52 @@ class Planner(ConfigObject):
             k_p_norm = mse(k_p)
         return
 
-    def verifyTangentialConstraint(self,mpc,x0,u):
+    def verifyIniial(self,u):
+        x0 = self.x0
+        mpc = self.mpc
+        # calculate plan tangent at p0
+        # current heading:
+        heading = self.car.states[2]
+        heading_x = np.cos(heading) # = dp x
+        heading_y = np.sin(heading) # = dp y
+        # dp
+        ds = x0[2][0] * self.dt
+        idx = self.idx
+        r = self.r.T[:,idx]
+        dr = self.dr.T[:,idx]
+        N = self.N
+        I_2 = np.eye(2)
+        I_N = np.eye(N)
+        M = np.kron(I_N, [0,1,0]) @ mpc.F
+        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N,ds)
+        def C(i):
+            if i==1:
+                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
+            if i==N:
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
+            else:
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        Mat = A @ dr
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        n = (M @ u + K)
+        p = (r.T.reshape(-1,1) + D_Adr @ n)
+        dp = np.kron(M1,I_2) @ p
+        dp0 = C(1) @ dp
+        breakpoint()
+        heading = self.car.states[2]
+        heading_x = np.cos(heading) # = dp x
+        heading_y = np.sin(heading) # = dp y
+        dp0_ref = np.array([[heading_x,heading_y]]).T
+        print('dp0_ref',dp0_ref)
+        print('dp0',dp0)
+
+        return
+
+    def verifyTangentialConstraint(self,x0,u):
+        mpc = self.mpc
         # calculate plan tangent at p0
         # current heading:
         heading = self.car.states[2]
@@ -467,8 +515,9 @@ class Planner(ConfigObject):
         return
 
 
-    def buildTangentialConstraint(self,mpc,x0):
+    def buildTangentialConstraint(self,x0):
         # constrain path tangent to equal vehicle current heading
+        mpc = self.mpc
         # current heading:
         heading = self.car.states[2]
         heading_x = np.cos(heading) # = dp x
@@ -552,9 +601,18 @@ class Planner(ConfigObject):
         h_u0[0,0] = 0.1
         h_u0[1,0] = -0.1
         '''
+        # constrain u0=<0.01
+        G_u0 = np.zeros((2,N))
+        G_u0[0,0] = 1
+        G_u0[1,0] = -1
+        h_u0 = np.zeros((2,1))
+        h_u0[0,0] = 0.01
+        h_u0[1,0] = -0.01
+        mpc.G = np.vstack([mpc.G,G_u0])
+        mpc.h = np.vstack([mpc.h,h_u0])
 
         # add constraint: path start must be tangential to heading
-        G_tan, h_tan = self.buildTangentialConstraint(mpc,x0)
+        G_tan, h_tan = self.buildTangentialConstraint(x0)
         mpc.G = np.vstack([mpc.G,G_tan])
         mpc.h = np.vstack([mpc.h,h_tan])
 
@@ -608,7 +666,19 @@ class Planner(ConfigObject):
 
 
         print(sols[0][0])
-        #self.verifyTangentialConstraint(mpc,x0,sols[0][0])
+        #self.verifyTangentialConstraint(x0,sols[0][0])
+        ctrl = sols[0][0]
+        print(ctrl)
+        self.verifyCost(ctrl)
+
+        new_ctrl = ctrl.copy()
+        new_ctrl[0] = 0
+        print(new_ctrl)
+        self.verifyCost(new_ctrl)
+
+
+        self.verifyIniial(ctrl)
+
 
 
         return sols
@@ -841,6 +911,7 @@ class Planner(ConfigObject):
         k_0 = np.cross(dr.T,ddr.T) 
         M = np.kron(I_N, [0,1,0]) @ mpc.F
         K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        #n = (M @ u + K)
 
 
         k_0 = k_0.reshape((N,1))
