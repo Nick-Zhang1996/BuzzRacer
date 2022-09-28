@@ -33,20 +33,20 @@ class Planner(ConfigObject):
         # if opponents are closer than this threshold, pass them on same side
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
+        self.skip_count = 0
         '''
-        #self.opponent_length = 0.17*2
-        #self.opponent_width = 0.08*2
+        #self.opponent_length = 0.21*2
+        #self.opponent_width = 0.12*2
         self.opponent_length = 0.21*2
-        self.opponent_width = 0.12*2
+        self.opponent_width = 0.15*2
         self.best_solution = None
         self.best_plan_traj_points = None
         # replan every x steps
         #self.replan_steps = 3
         # when replan, overlap previous plan x steps
         #self.replan_overlap = 3
-        # iterations
-        self.iterations = 3
         self.no_solution = True
+        self.plan_age = 0
         return
 
     def init(self):
@@ -104,6 +104,13 @@ class Planner(ConfigObject):
         return retval
 
     def plan(self):
+        self.plan_age += 1
+
+        if (self.plan_age < self.skip_count and not self.no_solution):
+            return True
+
+        self.plan_age = 0
+
         vs = 1.3
         #x0 = [0,0,vs]
         coord = self.car.states[0:2]
@@ -120,7 +127,7 @@ class Planner(ConfigObject):
 
         costs = [x[2] for x in sols]
         best_sol_idx = np.argmin(costs)
-        self.print_info('min cost = ',np.min(costs))
+        #self.print_info('min cost = ',np.min(costs))
 
         '''
         # visualize

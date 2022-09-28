@@ -8,7 +8,7 @@
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <extension handle='simulator' match_time='True'>DynamicSimulator</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 
@@ -25,6 +25,7 @@
           opponent_lookahead_time='1.0' 
           same_side_passing_threshold='1.0' 
           dt='0.1'
+          skip_count='3'
           >Planner</planner>
       </controller>
     </car>
