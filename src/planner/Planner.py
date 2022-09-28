@@ -437,26 +437,25 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         N = self.N
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
-        M1 = self.getDiff1Matrix(N,ds)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         n = (M @ u + K)
         p = (r.T.reshape(-1,1) + D_Adr @ n)
         dp = np.kron(M1,I_2) @ p
         dp0 = C(1) @ dp
-        breakpoint()
         heading = self.car.states[2]
         heading_x = np.cos(heading) # = dp x
         heading_y = np.sin(heading) # = dp y
@@ -612,9 +611,9 @@ class Planner(ConfigObject):
         mpc.h = np.vstack([mpc.h,h_u0])
 
         # add constraint: path start must be tangential to heading
-        G_tan, h_tan = self.buildTangentialConstraint(x0)
-        mpc.G = np.vstack([mpc.G,G_tan])
-        mpc.h = np.vstack([mpc.h,h_tan])
+        #G_tan, h_tan = self.buildTangentialConstraint(x0)
+        #mpc.G = np.vstack([mpc.G,G_tan])
+        #mpc.h = np.vstack([mpc.h,h_tan])
 
         # save current mpc matrices
         # solve for different scenarios
@@ -689,8 +688,7 @@ class Planner(ConfigObject):
         N = self.N
         # state_traj in curvilinear frame
         state_traj = mpc.F @ mpc.u + mpc.Ex0
-        state_traj = state_traj.reshape((N,n))
-        state_traj = np.vstack([x0.T,state_traj])
+        state_traj = state_traj.reshape((N+1,n))
 
         # trajectory in cartesian frame
         # XXX can we treat plan_xy as p?
@@ -702,23 +700,22 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
 
         u = mpc.u
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        # N+1 * 2
         n = M @ u + K
-        # 2*N
+        # 2*N+1
         p = r.T.reshape(-1,1) + D_Adr @ n
-        M1 = self.getDiff1Matrix(N,ds)
-        M2 = self.getDiff2Matrix(N,ds)
-        # N*2
-        dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2))
-        # N*2
-        ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2))
-        # N*2
+        M1 = self.getDiff1Matrix(N+1,ds)
+        M2 = self.getDiff2Matrix(N+1,ds)
+        # N+1*2
+        dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N+1,2))
+        ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N+1,2))
         p = p.reshape(-1,2)
 
         P = self.bezierSpline(p,dp,ddp,ds)
@@ -747,16 +744,19 @@ class Planner(ConfigObject):
             M = np.kron(np.eye(N),np.array([[0,1,0]]))
         elif (self.n==2):
             M = np.kron(np.eye(N),np.array([[0,1]]))
-        # left is positive
-        G1 = M @ mpc.F
-        # left
-        L = self.left_limit[self.idx].reshape((N,1))
-        #L = np.ones((N,1))*self.track_width/2
-        h1 = L - M @ mpc.Ex0
 
-        G2 = -M @ mpc.F
-        R = -self.right_limit[self.idx].reshape((N,1))
-        h2 = R + M @ mpc.Ex0
+        # selection matrix, select [x1..xp] from x0..xp
+        C = np.eye((N+1)*self.n)[self.n:,:]
+        # left is positive
+        G1 = M @ C @ mpc.F
+        # left
+        L = self.left_limit[self.idx[1:]].reshape((N,1))
+        #L = np.ones((N,1))*self.track_width/2
+        h1 = L - M @ C @ mpc.Ex0
+
+        G2 = -M @ C @ mpc.F
+        R = -self.right_limit[self.idx[1:]].reshape((N,1))
+        h2 = R + M @ C @ mpc.Ex0
 
         if (mpc.G is None):
             mpc.G = np.vstack([G1,G2])
@@ -855,7 +855,7 @@ class Planner(ConfigObject):
         x0 = np.array(x0).flatten()
         idx = []
         s_step = self.s_step
-        for i in range(self.N):
+        for i in range(self.N+1):
             this_s = x0[0] + i*self.dt*x0[2]
             i = (this_s%self.track.raceline_len_m) / s_step
             idx.append(i)
@@ -882,39 +882,42 @@ class Planner(ConfigObject):
         self.debug_dr_norm = dr_norm
         if (n_estimate is None):
             n_estimate = np.zeros(N)
+        n_estimate = np.hstack([x0[1],n_estimate])
+
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         # this is where iterations may be necessary
+        # 2*(N+1) x0, p1, .... pN
         p = r + A @ dr/dr_norm * n_estimate
 
         def cross(A,B):
             return np.cross(A,B,axis=0)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
 
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
-        M = A @ dr
-        D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
+        Mat = A @ dr
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         # ds = ds/dt * dt
         ds = x0[2][0] * self.dt
-        M1 = self.getDiff1Matrix(N,ds)
-        M2 = self.getDiff2Matrix(N,ds)
+        M1 = self.getDiff1Matrix(N+1,ds)
+        M2 = self.getDiff2Matrix(N+1,ds)
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
+        I_N = np.eye(N+1)
+        G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,2+N)])
         k_0 = np.cross(dr.T,ddr.T) 
         M = np.kron(I_N, [0,1,0]) @ mpc.F
         K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
         #n = (M @ u + K)
 
-
-        k_0 = k_0.reshape((N,1))
+        # curvature of reference trajectory r
+        k_0 = k_0.reshape((N+1,1))
         dP = 2*(2*M.T @ G.T @ G @ M)
         dq = (2*K.T @ G.T @ G @ M + 2*k_0.T @ G @ M).T
         mpc.old_P = mpc.P.copy()
@@ -927,6 +930,7 @@ class Planner(ConfigObject):
 
 
     # get the constraint matrix G h for a single n constraint
+    # Note that the step here does not contain the first step x0
     def getGhForN(self,step,val,is_max_constrain):
         if (step>= self.N):
             return None
@@ -934,12 +938,14 @@ class Planner(ConfigObject):
         idx = step*self.n + 1
         M = np.zeros(self.N*self.n)
         M[idx] = 1
+        # selection matrix, select [x1..xp] from x0..xp
+        C = np.eye((self.N+1)*self.n)[self.n:,:]
         if (is_max_constrain):
-            G = M @ mpc.F
-            h = val - M @ mpc.Ex0
+            G = M @ C @ mpc.F
+            h = val - M @ C @ mpc.Ex0
         else:
-            G = -M @ mpc.F
-            h = -val + M @ mpc.Ex0
+            G = -M @ C @ mpc.F
+            h = -val + M @ C @ mpc.Ex0
         return (G,h)
 
     def calcDerivative(self,curve):
@@ -1153,12 +1159,12 @@ class Planner(ConfigObject):
     # return: vector function, domain [0,len(points)]
     def bezierSpline(self,p,dp,ddp,ds):
         N = self.N
-        assert p.shape == (N,2)
-        assert dp.shape == (N,2)
-        assert ddp.shape == (N,2)
+        assert p.shape == (N+1,2)
+        assert dp.shape == (N+1,2)
+        assert ddp.shape == (N+1,2)
 
         P = []
-        for i in range(N-1):
+        for i in range(N):
             # generate bezier spline segments
             rl = p[i]
             r  = p[i+1]
@@ -1175,8 +1181,7 @@ class Planner(ConfigObject):
 
             P.append(section_P)
 
-        # NOTE verify P dimension n*2*5 ???
-        # shape: N-1 * 6 * 2
+        # shape: N * 6 * 2
         return np.array(P)
 
     # P: array of control points, shape n*2*5

@@ -137,18 +137,17 @@ class MPC:
     #  u* = argmin_u (x-x_ref).T P (x-x_ref) + u.T Q u
     #  s.t. x_k+1 = A xk + B uk 
     # k = 0..h
-    # A = n*n
-    # B = n*m
+    # A = R(n*p)(n*p)
+    # B = R(n*p)(m*p)
     # to form 
     # J = 1/2 x.T P x + q.T x, where x is u in pervious eq
     # Gx <= h
     # Ax = b
-    # NOTE x = [x0,x1,...xp]
     # the result will be stored internally
     # user may call solve() to obtain solution
     # inputs:
-    # A = n*n
-    # B = n*m
+    # A = Rnn
+    # B = Rnm
     # xref = p,n,1 -> reference state / target state
     # p horizon
     # du_max max|uk - uk-1|
@@ -170,13 +169,21 @@ class MPC:
         P = np.kron(np.eye(p,dtype=int),P)
         Q = np.kron(np.eye(p,dtype=int),Q)
 
+        # TODO record these in setup
+        n = A.shape
+        n = n[1]
+
+        m = B.shape
+        m = m[1]
+
+
         # assemble cost function
         F = np.zeros([p*n,p*m])
         for i in range(p-1):
             F[i*n:(i+1)*n,i*m:(i+1)*m] = B
             F[(i+1)*n:(i+2)*n,:] = A @ F[i*n:(i+1)*n,:]
-        F[(p-1)*n:,(p-1)*m:] = B
 
+        F[(p-1)*n:,(p-1)*m:] = B
 
         E = np.empty([n*p,1])
 
@@ -216,8 +223,8 @@ class MPC:
     #  u* = argmin_u (x-x_ref).T P (x-x_ref) + u.T Q u
     #  s.t. x_k+1 = A xk + B uk 
     # k = 0..h
-    # A = n*n
-    # B = n*m
+    # A = R(n*p)(n*p)
+    # B = R(n*p)(m*p)
     # to form 
     # J = 1/2 x.T P x + q.T x, where x is u in pervious eq
     # Gx <= h
@@ -245,12 +252,15 @@ class MPC:
         assert x0.shape == (n,1)
         assert xref.shape == (p,n,1)
 
-
-        # do not penalize x0, for it cannot be optimized
-        helper = np.eye(p+1,dtype=int)
-        helper[0,0] = 0
-        P = np.kron(helper,P)
+        P = np.kron(np.eye(p,dtype=int),P)
         Q = np.kron(np.eye(p,dtype=int),Q)
+
+        # TODO record these in setup
+        n = A.shape
+        n = n[1]
+
+        m = B.shape
+        m = m[1]
 
 
         # assemble cost function
@@ -259,7 +269,6 @@ class MPC:
             F[i*n:(i+1)*n,i*m:(i+1)*m] = B
             F[(i+1)*n:(i+2)*n,:] = A @ F[i*n:(i+1)*n,:]
         F[(p-1)*n:,(p-1)*m:] = B
-        F = np.vstack([np.zeros([n,p*m]),F])
 
 
         # E @ x0
@@ -267,14 +276,9 @@ class MPC:
         Ex0[0*n:1*n] = A @ x0
         for i in range(1,p):
             Ex0[i*n:(i+1)*n] = A @ Ex0[(i-1)*n:i*n]
-        Ex0 = np.vstack([x0,Ex0])
-
-        # expand xref
-        xref = xref.reshape([n*p,1])
-        xref = np.vstack([x0,xref])
 
         P_qp = F.T @ P @ F + Q
-        q_qp = F.T @ P @ Ex0 - F.T @ P @ xref
+        q_qp = F.T @ P @ Ex0 - F.T @ P @ xref.reshape([n*p,1])
 
         # assemble constrains
         # u_k+1 - uk
