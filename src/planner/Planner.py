@@ -479,21 +479,21 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         N = self.N
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
-        M1 = self.getDiff1Matrix(N,ds)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         dp0 = C(1) @ np.kron(M1,I_2) @ (r.T.reshape(-1,1) + D_Adr @ (M @ u + K))
         heading = self.car.states[2]
         heading_x = np.cos(heading) # = dp x
@@ -529,21 +529,21 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         N = self.N
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
-        M1 = self.getDiff1Matrix(N,ds)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         G_dp = C(1) @ np.kron(M1,I_2) @ (D_Adr @ M)
         h_dp = C(1) @ np.kron(M1,I_2) @ (r.T.reshape(-1,1) + D_Adr @ K)
         G_dp1 = G_dp
