@@ -14,6 +14,7 @@ import scipy.optimize
 from scipy.linalg import block_diag
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from bisect import bisect
+from scipy.optimize import minimize
 
 # TODO:
 # properly fix first step error
@@ -45,6 +46,7 @@ class Planner(ConfigObject):
         #self.replan_overlap = 3
         # iterations
         self.iterations = 3
+        self.no_solution = True
         return
 
     def init(self):
@@ -61,33 +63,44 @@ class Planner(ConfigObject):
     # plan() should be called prior, ideally immediately before calling this function
     # However, it's possible to make multiple localTrajectory() inquiries for one planned trajectory
     # generated with plan() for computation efficiency
+    # TODO
     def localTrajectory(self,state):
         coord = (state[0],state[1])
         heading = state[2]
         omega = state[5]
         vf = state[3]
         vs = state[4]
-        traj = self.best_plan_traj_points
-        dist = np.sqrt((traj[:,0] - coord[0])**2 + (traj[:,1] - coord[1])**2)
-        # if plan() was called right before, then idx should be 0
-        idx = np.argmin(dist)
+        P = self.best_solution[4]
 
-        # find orientation
-        dy = traj[idx+1,1]-traj[idx,1]
-        dx = traj[idx+1,0]-traj[idx,0]
-        orientation = np.arctan2(dy,dx)
+        # find proper index u
+        def fun(u):
+            val = self.evalBezierSpline(P,u)
+            return (val[0][0]-coord[0])**2 + (val[0][1]-coord[1])**2
+        retval = minimize(fun,0.1)
+        u = retval.x[0]
+        p = self.evalBezierSpline(P,u)
+        dp = self.evalBezierSpline(P,u,der=1)
+        ddp = self.evalBezierSpline(P,u,der=2)
+        orientation = np.arctan2(dp[0][1],dp[0][0])
 
-        # find offset
-        vec_path_tangent = (dx,dy)
-        vec_path_to_car = (state[0] - traj[idx,0], state[1] - traj[idx,1])
+
+        # offset: negative offset means left steering needed
+        vec_path_tangent = dp
+        vec_path_to_car = p - np.array(coord)
         offset = np.cross(vec_path_tangent, vec_path_to_car) / np.linalg.norm(vec_path_tangent)
 
 
-        # FIXME hacky
-        (_,_,_,_,v_target) = self.track.localTrajectory(state)
-        # offset: negative offset means left steering needed
+        # calculate velocity based on a lookahead point
+        lookahead = 2
+        p = self.evalBezierSpline(P,u+lookahead)
+        dp = self.evalBezierSpline(P,u+lookahead,der=1)
+        ddp = self.evalBezierSpline(P,u+lookahead,der=2)
+        curvature = np.cross(dp,ddp)/ np.linalg.norm(dp)**3
+        v_target = (0.5*9.8/np.abs(curvature))**0.5
+
+
         #(local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        retval = (None,offset,orientation,None,v_target)
+        retval = (None,offset.item(),orientation,None,v_target.item())
         return retval
 
     def plan(self):
@@ -102,7 +115,12 @@ class Planner(ConfigObject):
         #opponent_state_vec = [[1,0],[0.5,-0.1]]
         opponent_state_vec = self.getOpponentState()
         sols = self.solveSingleControl(x0,opponent_state_vec)
-        best_sol_idx = np.argmin([x[2] for x in sols])
+        if (self.no_solution):
+            return False
+
+        costs = [x[2] for x in sols]
+        best_sol_idx = np.argmin(costs)
+        self.print_info('min cost = ',np.min(costs))
 
         '''
         # visualize
@@ -127,9 +145,8 @@ class Planner(ConfigObject):
         self.best_solution = sols[best_sol_idx]
         self.solutions = sols
         self.best_solution_index = best_sol_idx
-
         self.best_plan_traj_points = self.stateTrajToCartesianTraj(self.best_solution[1])
-        return
+        return True
 
     def plotAllSolutions(self):
         # plot solutions
@@ -638,33 +655,40 @@ class Planner(ConfigObject):
                 #print("constraints: %d"%(mpc.h.shape[0]))
                 pass
             sol = self.buildSolution(mpc,x0)
+            # usually cost is -200 to -30
+            # if cost too high neglect
+            if (sol[2] > 0):
+                continue
             sols.append(sol)
             duration = time()-t
-            self.print_info("case freq = %.2fHz"%(1/duration))
+            self.print_debug("case freq = %.2fHz"%(1/duration))
 
         # if there's no opponent in sight
         # or no way to pass them
         # TODO don't crash into opponents if ego can't pass
         if (len(scenarios)==0):
-            self.print_info("no opponent in horizon")
+            self.print_debug("no opponent in horizon")
         elif (len(sols)==0):
-            self.print_info("can't pass opponent")
+            self.print_debug("can't pass opponent")
+        else:
+            self.no_solution = False
 
         if (len(sols)==0):
             dt = time()-t
             success = mpc.solve()
             if (not success):
                 print_warning("MPC fail to find solution")
-                # still have to use this
-            if (mpc.h is not None):
-                #print(mpc.h.shape)
-                pass
+                self.no_solution = True
+                return sols
+            else:
+                self.no_solution = False
+
             sol = self.buildSolution(mpc,x0)
             sols.append(sol)
 
-        self.print_info("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
+        self.print_debug("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
         duration = time() - planner_t0
-        self.print_info("planner step freq = %.2fHz"%(1/duration))
+        self.print_debug("planner step freq = %.2fHz"%(1/duration))
 
 
         #self.verifyTangentialConstraint(x0,sols[0][0])
@@ -788,7 +812,7 @@ class Planner(ConfigObject):
             step_end = floor(step_end) + 1
             # if opponent is too far, skip
             if (step_begin > int(self.opponent_lookahead_time/self.dt)):
-                self.print_info("ignoring opponent at step %d"%(step_begin))
+                self.print_debug("ignoring opponent at step %d"%(step_begin))
                 continue
             opponent_constraints.append([])
             if (left > opponent[1]+self.opponent_width/2):
@@ -1200,20 +1224,27 @@ class Planner(ConfigObject):
     # P: array of control points, shape n*2*5
     # u (iterable): parameter, domain [0,n], where n is number of break points in spline generation
 
-    def evalBezierSpline(self,P,u):
-        u = np.array(u).flatten()
+    def evalBezierSpline(self,P,u,der=0):
         n = len(P)
-        assert (u>=0).all()
-        assert (u<=n).all()
+        u = np.array(u).flatten()
+        u[u<0]=0
+        u[u>n]=n
+        #assert (u>=0).all()
+        #assert (u<=n).all()
+        du = 0.001
 
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
-        try:
-            r = [ [B(uu%1,np.array(P[int(uu),:,0])),B(uu%1,np.array(P[int(uu),:,1]))] for uu in u]
-        except Warning as e:
-            print(e)
-
-        return np.array(r)
+        if der==0:
+            try:
+                r = [ [B(uu%1,np.array(P[int(uu),:,0])),B(uu%1,np.array(P[int(uu),:,1]))] for uu in u]
+            except Warning as e:
+                print(e)
+            return np.array(r)
+        elif der==1:
+            return (self.evalBezierSpline(P,u+du) - self.evalBezierSpline(P,u))/du
+        elif der==2:
+            return (self.evalBezierSpline(P,u+2*du,der=1) - self.evalBezierSpline(P,u,der=1))/(2*du)
 
 if __name__=='__main__':
     planner = Planner()

@@ -31,6 +31,7 @@ class StanleyCarController(CarController):
 
         # if there's planner set it up
         # TODO put this in a parent class constructor
+        self.no_planner_override = True
         try:
             config_planner = config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
@@ -52,12 +53,18 @@ class StanleyCarController(CarController):
     def control(self):
         # TODO do this more carefully
         if (self.planner is not None):
-            self.planner.plan()
-            self.planner.plotAllSolutions()
+            retval = self.planner.plan()
+            if (retval):
+                self.planner.plotAllSolutions()
+                self.no_planner_override = False
+            else:
+                self.no_planner_override = True
+                self.print_info('planner failed, override')
+
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -101,7 +108,7 @@ class StanleyCarController(CarController):
         ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
-        if self.planner is None:
+        if self.planner is None or self.no_planner_override:
             retval = track.localTrajectory(state)
         else:
             retval = self.planner.localTrajectory(state)
