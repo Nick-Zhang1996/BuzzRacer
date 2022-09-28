@@ -144,7 +144,7 @@ class Planner(ConfigObject):
         img = self.main.visualization.visualization_img
         for sol in sols:
             bezier_coeffs = sol[4]
-            u = np.linspace(0,self.N-2)
+            u = np.linspace(0,self.N-1)
             traj = self.evalBezierSpline(bezier_coeffs,u)
             img = self.track.drawPolyline(traj,lineColor=color,img=img)
         self.main.visualization.visualization_img = img
@@ -548,8 +548,8 @@ class Planner(ConfigObject):
         h_dp = C(1) @ np.kron(M1,I_2) @ (r.T.reshape(-1,1) + D_Adr @ K)
         G_dp1 = G_dp
         G_dp2 = -G_dp
-        h_dp1 = -h_dp + dp0_ref + 0.05
-        h_dp2 = -(-h_dp + dp0_ref - 0.05)
+        h_dp1 = -h_dp + dp0_ref + 0.5
+        h_dp2 = -(-h_dp + dp0_ref - 0.5)
         G = np.vstack([G_dp1,G_dp2])
         h = np.vstack([h_dp1,h_dp2])
         return (G,h)
@@ -582,9 +582,10 @@ class Planner(ConfigObject):
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
-        self.constructTrackBoundaryConstraint(mpc)
-        scenarios = self.constructOpponentConstraint(mpc,opponent_state)
-        self.addCurvatureNormObjective(mpc, x0, weight=1, n_estimate=None )
+        self.constructTrackBoundaryConstraint()
+        scenarios = self.constructOpponentConstraint(opponent_state)
+        self.addCurvatureNormObjective( weight=1, n_estimate=None )
+        self.addDeviationObjective( weight=1 )
         self.scenarios = scenarios
         sols = []
 
@@ -601,6 +602,7 @@ class Planner(ConfigObject):
         h_u0[1,0] = -0.1
         '''
         # constrain u0=<0.01
+        '''
         G_u0 = np.zeros((2,N))
         G_u0[0,0] = 1
         G_u0[1,0] = -1
@@ -609,11 +611,12 @@ class Planner(ConfigObject):
         h_u0[1,0] = -0.01
         mpc.G = np.vstack([mpc.G,G_u0])
         mpc.h = np.vstack([mpc.h,h_u0])
+        '''
 
         # add constraint: path start must be tangential to heading
-        #G_tan, h_tan = self.buildTangentialConstraint(x0)
-        #mpc.G = np.vstack([mpc.G,G_tan])
-        #mpc.h = np.vstack([mpc.h,h_tan])
+        G_tan, h_tan = self.buildTangentialConstraint(x0)
+        mpc.G = np.vstack([mpc.G,G_tan])
+        mpc.h = np.vstack([mpc.h,h_tan])
 
         # save current mpc matrices
         # solve for different scenarios
@@ -664,19 +667,10 @@ class Planner(ConfigObject):
         self.print_info("planner step freq = %.2fHz"%(1/duration))
 
 
-        print(sols[0][0])
         #self.verifyTangentialConstraint(x0,sols[0][0])
         ctrl = sols[0][0]
-        print(ctrl)
-        self.verifyCost(ctrl)
-
-        new_ctrl = ctrl.copy()
-        new_ctrl[0] = 0
-        print(new_ctrl)
-        self.verifyCost(new_ctrl)
-
-
-        self.verifyIniial(ctrl)
+        #self.verifyCost(ctrl)
+        #self.verifyIniial(ctrl)
 
 
 
@@ -734,9 +728,10 @@ class Planner(ConfigObject):
         return sol
 
     # construct the state limits
-    def constructTrackBoundaryConstraint(self,mpc):
+    def constructTrackBoundaryConstraint(self):
         # create additional lines for Gx<h
         # track boundary limits
+        mpc = self.mpc
         N = self.N
         if (self.n==4):
             M = np.kron(np.eye(N),np.array([[0,1,0,0]]))
@@ -766,7 +761,7 @@ class Planner(ConfigObject):
             mpc.h = np.vstack([mpc.h,h1,h2])
         return
 
-    def constructOpponentConstraint(self,mpc,opponent_state):
+    def constructOpponentConstraint(self,opponent_state):
         # TODO quick check feasibility
         # additional constraints to add
         # (G,h)
@@ -774,6 +769,7 @@ class Planner(ConfigObject):
         # one sublist for each opponent
         # sublist contains a set of OR constraints
         # solution need to satisfy ONE constraint from sublist 0, ONE constraint from sublist 1 ...
+        mpc = self.mpc
         opponent_constraints = []
         opponent_idx = 0
         for opponent in opponent_state:
@@ -865,10 +861,13 @@ class Planner(ConfigObject):
     # dr:(2,N)
     # ds: float scalar
     # p: (2,N)
-    def addCurvatureNormObjective(self, mpc, x0, weight, n_estimate=None):
+    def addCurvatureNormObjective(self, weight, n_estimate=None):
+        # x0 = s,n,ds
         N = self.N
         s_step = self.s_step
         idx = self.idx
+        x0 = self.x0
+        mpc = self.mpc
 
         # TODO maybe use good ddr approxmation instead of 2nd degree
         r = self.r.T[:,idx]
@@ -909,11 +908,11 @@ class Planner(ConfigObject):
         M1 = self.getDiff1Matrix(N+1,ds)
         M2 = self.getDiff2Matrix(N+1,ds)
         I_2 = np.eye(2)
-        I_N = np.eye(N+1)
+        I_N1 = np.eye(N+1)
         G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,2+N)])
         k_0 = np.cross(dr.T,ddr.T) 
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
         #n = (M @ u + K)
 
         # curvature of reference trajectory r
@@ -927,6 +926,20 @@ class Planner(ConfigObject):
         mpc.P += weight * dP
         mpc.q += weight * dq
         return 
+
+    def addDeviationObjective(self,weight):
+        mpc = self.mpc
+        x0 = self.x0
+        N = self.N
+        I_2 = np.eye(2)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        Q = weight * np.eye(N+1)
+
+        mpc.P += weight * M.T @ Q @ M
+        mpc.q += weight * K.T @ Q @ K
+        return
 
 
     # get the constraint matrix G h for a single n constraint
