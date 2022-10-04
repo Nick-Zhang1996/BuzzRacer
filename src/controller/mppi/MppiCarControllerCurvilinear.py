@@ -1,5 +1,5 @@
 # mppi car controller, with dynamic model
-from src.controller.CarController import CarController
+from controller.CarController import CarController
 import numpy as np
 from time import time, sleep
 from math import radians, degrees, cos, sin, ceil, floor, atan, tan

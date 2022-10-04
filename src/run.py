@@ -33,7 +33,7 @@ class Main():
 
         Car.reset()
         # car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
-        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        #car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
@@ -51,9 +51,9 @@ class Main():
         # --- Extensions ---
         self.extensions = []
         self.visualization = extension.Visualization(self)
-        #Optitrack(self)
-        self.simulator = CalebDynamicSimulator(self)
-        self.simulator.match_time = False
+        Optitrack(self)
+        #self.simulator = CalebDynamicSimulator(self)
+        #self.simulator.match_time = False
 
         #Gifsaver(self)
 
