@@ -1,11 +1,12 @@
 from common import *
-from math import isnan,pi,degrees,radians
+from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
+from planner import Planner
 
 class StanleyCarController(CarController):
-    def __init__(self, car):
-        super().__init__(car)
+    def __init__(self, car,config):
+        super().__init__(car,config)
         self.debug_dict = {}
         self.max_offset = 0.4
         p1 = (1.0,2.0)
@@ -21,20 +22,57 @@ class StanleyCarController(CarController):
         dt = car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
+        # to be overridden in config, if defined
+        self.max_speed = 2.2
+        self.print_ok("setting controller attributes")
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            self.print_info(" controller.",key,'=',value_text)
+
+        # if there's planner set it up
+        # TODO put this in a parent class constructor
+        self.no_planner_override = True
+        try:
+            config_planner = config.getElementsByTagName('planner')[0]
+            planner_class = eval(config_planner.firstChild.nodeValue)
+            self.planner = planner_class(config_planner)
+            self.planner.main = self.main
+            self.planner.car = self.car
+            '''
+            self.print_ok("setting planner attributes")
+            for key,value_text in config_planner.attributes.items():
+                setattr(self.planner,key,eval(value_text))
+                self.print_info(" main.",key,'=',value_text)
+            '''
+            self.planner.init()
+        except IndexError as e:
+            self.print_info("planner not available")
+            self.planner = None
+
+
     def control(self):
+        # TODO do this more carefully
+        if (self.planner is not None):
+            retval = self.planner.plan()
+            if (retval):
+                self.planner.plotAllSolutions()
+                self.no_planner_override = False
+            else:
+                self.no_planner_override = True
+                self.print_info('planner failed, override')
+
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        #print("[StanleyCarController]: T= %4.1f, S= %4.1f (deg)"%( throttle,degrees(steering)))
+        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
         else:
-            print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
+            self.print_warning(" car %d invalid results from ctrlCar", self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
-
-        self.predict()
+        #self.predict()
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -61,17 +99,28 @@ class StanleyCarController(CarController):
         vf = state[3]
         vs = state[4]
 
+        # add in a slight lookahead distance
+        lookahead = 3e-2
+        x_lookahead = coord[0] + cos(heading) * lookahead
+        y_lookahead = coord[1] + sin(heading) * lookahead
+        coord = (x_lookahead, y_lookahead)
+
         ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
-        retval = track.localTrajectory(state)
+        if self.planner is None or self.no_planner_override:
+            retval = track.localTrajectory(state)
+        else:
+            retval = self.planner.localTrajectory(state)
         if retval is None:
             return (0,0,False,{'offset':0})
             #return ret
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        v_target = min(v_target*0.8, 2.2)
+        # for experiments
+        #v_target = min(v_target*0.8, 2.2)
+        v_target = min(v_target, self.max_speed)
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
@@ -101,7 +150,8 @@ class StanleyCarController(CarController):
             else:
                 throttle = self.calcThrottle(state,v_override)
 
-            ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            #ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
+            ret =  (throttle,steering,True,{})
 
         return ret
 

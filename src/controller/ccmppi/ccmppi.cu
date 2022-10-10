@@ -15,13 +15,23 @@
 // control cost matrix R
 #define CONTROL_COST_MTX_R_1 %(R1)s
 #define CONTROL_COST_MTX_R_2 %(R2)s
-#define USE_RACELINE %(use_raceline)s
-#define OBSTACLE_RADIUS %(obstacle_radius)s
 
-#define ALFA %(alfa)s
-#define BETA %(beta)s
+#define CAR_LR %(car_lr)s
+#define CAR_LF %(car_lf)s
+#define CAR_L %(car_L)s
+#define CAR_DF %(car_Df)s
+#define CAR_DR %(car_Dr)s
+#define CAR_B %(car_B)s
+#define CAR_C %(car_C)s
+#define CAR_CM1 %(car_Cm1)s
+#define CAR_CM2 %(car_Cm2)s
+#define CAR_CR %(car_Cr)s
+#define CAR_CD %(car_Cd)s
+#define CAR_IZ %(car_Iz)s
+#define CAR_M %(car_m)s
 
 
+#define %(MODEL_NAME)s
 
 #define MODE_CC 1
 #define MODE_NOCC 2
@@ -92,8 +102,6 @@ void forward_kinematics( float* x, float* u);
 __device__
 void forward_dynamics( float* x, float* u);
 #endif
-__device__
-void forward_kinematics_with_collision(float* state, float* u, float opponents_prediction[][HORIZON+1][2], int opponent_count);
 
 
 // calculate matrix multiplication
@@ -170,7 +178,7 @@ void evaluate_control_sequence(
 
   if (id <= int(CC_RATIO * SAMPLE_COUNT)){
     if (id <= int(CC_RATIO * SAMPLE_COUNT * ZERO_REF_CTRL_RATIO)){
-      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_NOCC, MODE_ZERO_REF);
+      _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_ZERO_REF);
     } else {
       _evaluate_control_sequence(out_cost, out_control, x0, in_ref_control, limits, in_epsilon, in_raceline, opponents_prediction, opponent_count, Ks, As, Bs, MODE_CC, MODE_REF);
     }
@@ -222,7 +230,6 @@ void _evaluate_control_sequence(
     x[i] = *(x0 + i);
     y[i] = 0;
   }
-
   for (int i=0; i<CONTROL_DIM*2; i++){
     _limits[i] = limits[i];
   }
@@ -271,9 +278,17 @@ void _evaluate_control_sequence(
 
     }
 
+    /*
+    if (id == 0){
+      printf("states = %%7.4f, %%7.4f, %%7.4f, %%7.4f, ctrl =  %%7.4f, %%7.4f \n", x[0], x[1], x[2], x[3], u[0], u[1]);
+    }
+    */
     // step forward dynamics, update state x in place
 #ifdef KINEMATIC_MODEL
     forward_kinematics(x, u);
+#elif defined DYNAMIC_MODEL
+    forward_dynamics(x, u);
+#endif
 
     // evaluate step cost (crosstrack error and velocity deviation)
     // corresponds to q(x)
@@ -346,7 +361,6 @@ void find_closest_id(float* state, float in_raceline[][RACELINE_DIM], int guess,
 
   int idx = 0;
   float current_min = 1e6;
-  if (!USE_RACELINE){ *ret_idx=0; return;}
 
   int start, end;
   if (guess == -1){
@@ -378,25 +392,38 @@ float evaluate_step_cost( float* state, float* u, float in_raceline[][RACELINE_D
   int idx;
   float dist, cost;
   cost = 0;
-  // penalty on negative velocity 
-  //cost += -state[2];
-
-  find_closest_id(state,in_raceline,-1,0,&idx0,&dist);
-  find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
-  if (state[2]>0){
-    cost += 0.1*(in_raceline[idx][RACELINE_V] - state[2])*(in_raceline[idx][RACELINE_V] - state[2]);
-  } else {
-    cost += -0.1;
+  // velocity cost
+  //dv = state[2] - in_raceline[idx][3];
+  // additional penalty on negative velocity 
+  #ifdef KINEMATIC_MODEL
+  if (state[2] < 0){
+    cost += 0.1;
   }
-  cost += dist*dist;
-  return cost;
+  #elif defined DYNAMIC_MODEL
+  if (state[3] < 0){
+    cost += 0.1;
+  }
+  #endif
+
+  // progress cost
+  find_closest_id(state,in_raceline,idx0+80,80,&idx,&dist);
+  // update estimate of closest index on raceline
+  *last_u = idx;
+
+  // wrapping
+  // *0.01: convert index difference into length difference
+  // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*3.3;
+  cost += dist*dist*10;
+
+  //return cost;
+  return 0.0;
 }
 
 __device__
 float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELINE_DIM]){
   int idx0,idx;
   float dist,cost;
-  if (!USE_RACELINE){ return 0.0;}
 
   // we don't need distance info for initial state, 
   //dist is put in as a dummy variable, it is immediately overritten
@@ -406,9 +433,9 @@ float evaluate_terminal_cost( float* state,float* x0, float in_raceline[][RACELI
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*ALFA;
-  cost += dist*dist*500;
-  return 0.0;
+  cost =  (1.0-1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01)*5;
+  cost += dist*dist*10;
+  return cost;
 }
 
 // NOTE potential improvement by reusing idx result from other functions
@@ -417,7 +444,6 @@ __device__
 float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACELINE_DIM], int* u_estimate){
   int idx;
   float dist;
-  float invasion;
 
   // performance barrier FIXME
   find_closest_id(state,in_raceline,*u_estimate, RACELINE_SEARCH_RANGE, &idx,&dist);
@@ -431,13 +457,11 @@ float evaluate_boundary_cost( float* state, float* x0, float in_raceline[][RACEL
 
   if (angle_diff > 0.0){
     // point is to left of raceline
-    //cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
-    invasion = dist + 0.05 - in_raceline[idx][4];
-    cost = (invasion>0)? invasion*500 : 0.0;
+    //cost = (dist +0.05> in_raceline[idx][4])? 0.3:0.0;
+    cost = (dist +0.05> in_raceline[idx][4])? 2000.0:0.0;
   } else {
-    //cost = (dist + 0.05> in_raceline[idx][5])? 2000.0:0.0;
-    invasion = dist + 0.05 - in_raceline[idx][5];
-    cost = (invasion>0)? invasion*500 : 0.0;
+    //cost = (dist +0.05> in_raceline[idx][5])? 0.3:0.0;
+    cost = (dist +0.05> in_raceline[idx][5])? 2000.0:0.0;
   }
 
   return cost;
@@ -461,12 +485,14 @@ void forward_kinematics(float* state, float* u){
   float beta = atanf(tanf(steering)*PARAM_LR / PARAM_L);
   float dx = velocity * cosf(psi + beta) * DT;
   float dy = velocity * sinf(psi + beta) * DT;
-
   float dvelocity;
+  if (velocity > MAX_V){
+    dvelocity = -0.01;
+  } else {
+    dvelocity = throttle * DT;
 
-  dvelocity = throttle * DT;
+  }
 
->>>>>>> bd9b67f495fb8fdb730ca70d0fc96c647c66bc31
   float dpsi = velocity / PARAM_LR * sinf(beta) * DT;
 
   state[0] += dx;
@@ -682,15 +708,11 @@ float evaluate_collision_cost( float* state, float* opponent_pos){
 
   float dx = state[0]-opponent_pos[0];
   float dy = state[1]-opponent_pos[1];
-
-  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
-  //gradient linear cost
+  //float cost = 5.0*(0.1 - sqrtf(dx*dx + dy*dy)) ;
+  float cost = (0.1 - sqrtf(dx*dx + dy*dy)) ;
   cost = cost>0? cost:0;
-  // constant cost
-  //cost = cost>0? 10:0;
-  cost *= BETA;
 
-  return 0.0;
+  return cost ;
 }
 
 

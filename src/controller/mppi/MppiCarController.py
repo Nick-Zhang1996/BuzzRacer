@@ -9,23 +9,27 @@ global drv
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
+import numpy as np
 
 class MppiCarController(CarController):
-    def __init__(self,car):
-        super().__init__(car)
+    def __init__(self,car,config):
+        super().__init__(car,config)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # these setting should be handled in config file
         self.n = self.state_dim = 6
         self.m = self.control_dim = 2
-        self.samples_count = 4096
-        self.horizon = 30
-        assert (self.horizon == self.prediction_horizon)
         self.track = self.car.main.track
+        self.samples_count = None # to be set in config
+        self.horizon = None       # to be set in config
         self.dt = 0.02
-        self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+        for key,value_text in config.attributes.items():
+            setattr(self,key,eval(value_text))
+            #self.print_info(" controller.",key,'=',value_text)
+
+    def init(self):
         # directly sample control
         self.print_ok("max throttle = %.2f"%(self.car.max_throttle))
         #self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
@@ -39,83 +43,15 @@ class MppiCarController(CarController):
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
 
-        self.prepareDiscretizedRaceline()
-        self.createBoundary()
+        self.track.prepareDiscretizedRaceline()
+        self.track.createBoundary()
+        self.discretized_raceline = self.track.discretized_raceline
+        self.raceline_left_boundary = self.track.raceline_left_boundary
+        self.raceline_right_boundary = self.track.raceline_right_boundary
+
         self.initCuda()
 
-    def prepareDiscretizedRaceline(self):
-        ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
-        rr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=0)
-        drr = splev(ss%self.track.raceline_len_m,self.track.raceline_s,der=1)
-        heading_vec = np.arctan2(drr[1],drr[0])
-        vv = self.track.sToV(ss) 
-        top_speed = 10
-        vv[vv>top_speed] = top_speed
 
-        # parameter, distance along track
-        self.ss = ss
-        self.raceline_points = np.array(rr)
-        self.raceline_headings = heading_vec
-        self.raceline_velocity = vv
-
-        # describe track boundary as offset from raceline
-        self.createBoundary()
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
-        return
-
-    def createBoundary(self,show=False):
-        # construct a (self.discretized_raceline_len * 2) vector
-        # to record the left and right track boundary as an offset to the discretized raceline
-        left_boundary = []
-        right_boundary = []
-
-        left_boundary_points = []
-        right_boundary_points = []
-
-        for i in range(self.discretized_raceline_len):
-            # find normal direction
-            coord = self.raceline_points[:,i]
-            heading = self.raceline_headings[i]
-
-            left, right = self.track.preciseTrackBoundary(coord,heading)
-            left_boundary.append(left)
-            right_boundary.append(right)
-
-            # debug boundary points
-            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-
-            left_boundary_points.append(left_point)
-            right_boundary_points.append(right_point)
-
-
-            # DEBUG
-            # plot left/right boundary
-            '''
-            left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPoint(img,coord,color=(0,0,0))
-            img = self.track.drawPoint(img,left_point,color=(0,0,0))
-            img = self.track.drawPoint(img,right_point,color=(0,0,0))
-            plt.imshow(img)
-            plt.show()
-            '''
-
-
-        self.raceline_left_boundary = left_boundary
-        self.raceline_right_boundary = right_boundary
-
-        if (show):
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPolyline(left_boundary_points,lineColor=(0,255,0),img=img)
-            img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
-            plt.imshow(img)
-            plt.show()
-            return img
-        return
 
     def initCuda(self):
         self.curand_kernel_n = 1024
@@ -201,8 +137,9 @@ class MppiCarController(CarController):
                 opponent_traj.append(car.controller.predicted_traj)
         # dim: no_opponents, horizon, states
         opponent_traj = np.array(opponent_traj)
-        # use only x,y from the states
-        opponent_traj = opponent_traj[:,:,:2]
+        if (opponent_count > 0):
+            # use only x,y from the states
+            opponent_traj = opponent_traj[:,:,:2]
         return opponent_count, opponent_traj
 
 
@@ -242,6 +179,7 @@ class MppiCarController(CarController):
         sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
         device_last_control = self.to_device(self.last_control)
 
+
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
         self.cuda_evaluate_control_sequence(
                 device_initial_state, 
@@ -262,12 +200,14 @@ class MppiCarController(CarController):
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
+        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
         # display expected trajectory
         # 5Hz impact
-        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
+        '''
         expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
         self.plotTrajectory(expected_trajectory)
+        '''
 
         #self.last_ref_control = control.copy()
         self.last_ref_control = np.zeros_like(control)

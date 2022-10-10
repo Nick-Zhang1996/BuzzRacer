@@ -41,6 +41,7 @@ class Gifsaver(Extension):
 
     def postUpdate(self):
         self.count +=1
+        # save first and second rendering image
         '''
         if (self.count == 1):
             img = self.main.visualization.visualization_img.copy()

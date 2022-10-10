@@ -1,0 +1,40 @@
+<config>
+  <settings dt='0.01'>
+      <experiment_type>Simulation</experiment_type>
+    <track>full</track>
+  </settings>
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization'>Visualization</extension>
+      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_11</config_name>
+      <controller
+        horizon='30' 
+        samples_count='1024' 
+        >
+        <type>MppiCarController</type>
+        <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_12</config_name>
+      <controller
+        horizon='30' 
+        >
+        <type>StanleyCarController</type>
+        <init_states>(3.7*0.6,1.0*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+  </cars>
+</config>

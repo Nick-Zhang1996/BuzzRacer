@@ -23,7 +23,6 @@ class Logger(Extension):
     def resolveLogname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
-        #logFolder = "../log/jan12/"
 
         # create a folder using date and type of experiment
         today = date.today()
@@ -32,7 +31,11 @@ class Logger(Extension):
             suffix = 'sim'
         except AttributeError:
             suffix = 'exp'
-        logFolder = '../log/' + '%d_%d_%d_'%(today.year,today.month,today.day) + suffix + '/'
+
+        try:
+            logFolder = '../log/' + self.main.experiment_name +'/'
+        except AttributeError:
+            logFolder = '../log/' + '%d_%d_%d_'%(today.year,today.month,today.day) + suffix + '/'
         
 
         if not os.path.exists(logFolder):
@@ -48,6 +51,7 @@ class Logger(Extension):
 
         logPrefix = "debug_dict"
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
+        self.logFolder = logFolder
 
     def update(self):
         # x,y,theta are in track frame

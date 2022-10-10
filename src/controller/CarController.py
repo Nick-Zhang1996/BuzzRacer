@@ -4,19 +4,20 @@ import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
 class CarController(PrintObject):
-    def __init__(self, car):
+    def __init__(self, car, config):
+        self.config = config
         self.car = car
         self.main = car.main
         self.track = car.main.track
+        # default value
+        self.horizon = 30
 
-        # self-reported prediction of future trajectory
-        # to be used by opponents for collision avoidance
-        self.prediction_horizon = 30
-        # n*2, n being prediction horizon
         self.predicted_traj = []
         KinematicSimulator.dt = self.car.main.dt
 
     def init(self):
+        # self-reported prediction of future trajectory
+        # to be used by opponents for collision avoidance
         self.predict()
         return
 
@@ -33,7 +34,7 @@ class CarController(PrintObject):
     def predict(self):
         # DEBUG plotting
         control = np.array((self.car.throttle, self.car.steering))
-        control = np.repeat(np.reshape(control,(1,-1)),self.prediction_horizon,0)
+        control = np.repeat(np.reshape(control,(1,-1)),self.horizon,0)
         # kinematic
         expected_trajectory = self.getKinematicTrajectory( self.car.states, control )
         self.plotTrajectory(expected_trajectory)

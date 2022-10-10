@@ -9,7 +9,7 @@
 #define RACELINE_LEN %(RACELINE_LEN)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
-#define OBSTACLE_RADIUS 0.08
+#define OBSTACLE_RADIUS 0.1
 
 #define PARAM_LF 0.04824
 #define PARAM_LR (0.09-0.04824)
@@ -60,7 +60,7 @@ __device__ float raceline[RACELINE_LEN][RACELINE_DIM];
 
 // device functions
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state);
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index);
 __device__
 void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist);
 __device__
@@ -68,7 +68,7 @@ float evaluate_boundary_cost( float* state, int* u_estimate);
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
 __device__
-float evaluate_collision_cost( float* state, float* opponent_traj);
+float evaluate_collision_cost( float* state, float* opponent_traj,int opponent_id);
 __device__
 void forward_dynamics( float* state, float* u);
 __device__
@@ -190,15 +190,11 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
       u[j] = val;
     }
-    /*
-    if(id==0 && i==0){
-      printf("u-1 = %%.2f\n",last_u[1]*180.0/PI);
-    }
-    */
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u);
     /*
+    // update output trajectories
     for (int j=0; j<STATE_DIM; j++){
       out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
     }
@@ -211,6 +207,10 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       cost += evaluate_step_cost(x, u, u,&last_index);
     }
     cost += evaluate_boundary_cost(x,&last_index);
+    for (int k=0;k<opponent_count;k++){
+      cost += evaluate_collision_cost(x,in_opponent_traj,k);
+    }
+
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
@@ -218,8 +218,7 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     u += CONTROL_DIM;
 
   }
-  float terminal_cost = evaluate_terminal_cost(x,in_x0);
-  cost += evaluate_terminal_cost(x,in_x0);
+  float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;
   out_cost[id] = cost;
 }
@@ -312,27 +311,19 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // update estimate of closest index on raceline
   *last_index = idx;
 
-
-  // velocity cost
-  // current FORWARD velocity - target velocity at closest ref point
-
-  // forward vel
-  float vx = state[STATE_VX];
-
+  // VX: current FORWARD velocity - target velocity at closest ref point
   // velocity deviation from reference velocity profile
-  float dv = vx - raceline[idx][3];
-  // control change from last step, penalize to smooth control
+  float dv = state[STATE_VX] - raceline[idx][RACELINE_V];
 
-  //float cost = dist + 1.0*dv*dv + 1.0*du_sqr;
-  float cost = 3*dist*dist + 0.6*dv*dv ;
   // heading cost
-  float temp = fmodf(raceline[idx][2] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
-  cost += temp*temp*2.5;
-  //float cost = dist;
+  float heading_cost = fmodf(raceline[idx][RACELINE_HEADING] - state[STATE_HEADING] + 3*PI,2*PI) - PI;
+  //float cost = 0.1*dist*dist + 0.6*dv*dv + 0.5*heading_cost*heading_cost;
+  float cost = 3*dist*dist + 0.6*dv*dv + 2.5*heading_cost*heading_cost;
   // additional penalty on negative velocity 
-  if (vx < 0.05){
+  if (state[STATE_VX] < 0.05){
     cost += 0.2;
   }
+
   return cost;
 }
 
@@ -347,17 +338,23 @@ float evaluate_boundary_cost( float* state,  int* u_estimate){
   find_closest_id(state,*u_estimate,  &idx,&dist);
   *u_estimate = idx;
   
-  float tangent_angle = raceline[idx][4];
-  float raceline_to_point_angle = atan2f(raceline[idx][1] - state[STATE_Y], raceline[idx][0] - state[STATE_X]) ;
+  float tangent_angle = raceline[idx][RACELINE_HEADING];
+  float raceline_to_point_angle = atan2f(raceline[idx][RACELINE_Y] - state[STATE_Y], raceline[idx][0] - state[STATE_X]) ;
   float angle_diff = fmodf(raceline_to_point_angle - tangent_angle + PI, 2*PI) - PI;
 
   float cost;
 
+  float coeff = 1.0;
   if (angle_diff > 0.0){
     // point is to left of raceline
-    cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
+    //cost = (dist +0.05> raceline[idx][4])? 0.3:0.0;
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_LEFT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = max(0.0,cost);
+
   } else {
-    cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
+    //cost = (dist +0.05> raceline[idx][5])? 0.3:0.0;
+    cost = coeff*(atanf(-(raceline[idx][RACELINE_RIGHT_BOUNDARY]-(dist+0.05))*100)/PI*2+1.0f);
+    cost = max(0.0,cost);
   }
 
   return cost;
@@ -398,21 +395,18 @@ void find_closest_id(float* state, int guess, int* ret_idx, float* ret_dist){
 
 }
 __device__
-float evaluate_terminal_cost( float* current_state,float* initial_state){
-  //int idx0,idx;
-  //float dist;
+float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index ){
+  int idx0,idx;
+  float dist;
 
-  // we don't need distance info for initial state, 
-  //dist is put in as a dummy variable, it is immediately overritten
-  //find_closest_id(x0,raceline,-1,0,&idx0,&dist);
-  //find_closest_id(state,raceline,-1,0,&idx,&dist);
+  find_closest_id(initial_state,-1,&idx0,&dist);
+  find_closest_id(current_state,*last_index,&idx,&dist);
 
   // wrapping
   // *0.01: convert index difference into length difference
   // length of raceline is roughly 10m, with 1000 points roughly 1d_index=0.01m
-  //return -1.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
-  // NOTE ignoring terminal cost
-  return 0.0;
+  return HORIZON*DT*4.0*2.0 -2.0*float((idx - idx0 + RACELINE_LEN) %% RACELINE_LEN)*0.01;
+  //return 0.0;
 }
 
 __device__
@@ -421,14 +415,19 @@ float tire_curve( float slip){
 
 }
 
+// opponent_traj: opponent_count * horizon * [x,y]
 __device__
-float evaluate_collision_cost( float* state, float* opponent_pos){
-  //float heading = state[4];
+float evaluate_collision_cost( float* state, float* opponent_traj, int opponent_id){
 
-  float dx = state[STATE_X]-opponent_pos[0];
-  float dy = state[STATE_Y]-opponent_pos[1];
+  float cost = 0.0;
+  for (int i=0; i<HORIZON;i++){
+    float dx = state[STATE_X] - opponent_traj[opponent_id*HORIZON*2 + i*2 + 0];
+    float dy = state[STATE_Y] - opponent_traj[opponent_id*HORIZON*2 + i*2 + 1];
+    float dist = sqrtf(dx*dx + dy*dy) ;
+    // arctan based cost function, ramps to 2.0
+    float temp = 3*(atanf(-(dist-OBSTACLE_RADIUS)*100)/PI*2+1.0f);
+    cost += max(0.0,temp);
+  }
 
-  float cost = 5.0*(OBSTACLE_RADIUS - sqrtf(dx*dx + dy*dy)) ;
-
-  return 0.0;
+  return cost;
 }

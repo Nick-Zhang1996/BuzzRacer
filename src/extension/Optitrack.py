@@ -1,4 +1,5 @@
 # interface for Optitrack Motive stream via NatNet SDK library
+# FIXME hack
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -13,26 +14,18 @@ from math import pi,degrees,atan2
 from scipy.spatial.transform import Rotation
 from extension.Extension import Extension
 
-class Optitrack(Extension):
+class Optitrack(Extension,PrintObject):
     def __init__(self, main):
         super().__init__(main)
-        # ensure experiment_type hasn't been initialized
-        flag_is_unique = False
-        try:
-            main.experiment_type != ExperimentType.Simulation
-        except (AttributeError):
-            flag_is_unique = True
-        if (not flag_is_unique):
-            print_error("[Optitrack]: another state update source has been initialized")
-
-        main.experiment_type = ExperimentType.Realworld
+        if (main.experiment_type != ExperimentType.Realworld):
+            self.print_error("Experiment type is not Realworld but Optitrack is loaded")
 
     def init(self):
         self.vi = _Optitrack(self)
         self.main.vi = self.vi
         for car in self.main.cars:
             car.internal_id = self.vi.getInternalId(car.optitrack_id)
-            print_ok("[Optitrack]: Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))
+            self.print_ok(" Optitrack ID: %d, Internal ID: %d"%(car.optitrack_id, car.internal_id))
 
     def updateCarStates(self):
         for car in self.main.cars:
@@ -50,7 +43,7 @@ class Optitrack(Extension):
 
 # ---- Optitrack ---- old
     def initOptitrack(self,car,unused=None):
-        print_info("Initializing Optitrack...")
+        self.print_info("Initializing Optitrack...")
         car.vi = Optitrack(wheelbase=car.wheelbase)
         # TODO use acutal optitrack id for car
         # porsche: 2
@@ -73,7 +66,7 @@ class Optitrack(Extension):
         pass
 
 
-class _Optitrack:
+class _Optitrack(PrintObject):
     def __init__(self,base,enableKF=True):
         self.base = base
         self.newState = Event()
@@ -146,7 +139,7 @@ class _Optitrack:
         try:
             return self.optitrack_id_lookup[internal_id]
         except IndexError:
-            print_error("can't find internal ID %d"%internal_id)
+            self.print_error("can't find internal ID %d"%internal_id)
             return None
 
     # find internal id from optitrack id
@@ -154,7 +147,7 @@ class _Optitrack:
         try:
             return self.optitrack_id_lookup.index(optitrack_id)
         except ValueError:
-            print_error("can't find optitrack ID %d"%optitrack_id)
+            self.print_error("can't find optitrack ID %d"%optitrack_id)
             return None
 
     # optitrack callback for item discovery
@@ -247,7 +240,7 @@ class _Optitrack:
     # get state by internal id
     def getState(self, internal_id):
         if internal_id>=self.obj_count:
-            print_error("can't find internal id %d"%(internal_id))
+            self.print_error("can't find internal id %d"%(internal_id))
             return None
         self.state_lock.acquire(timeout=0.01)
         retval = self.state_list[internal_id]
@@ -256,17 +249,17 @@ class _Optitrack:
 
     def getState2d(self,internal_id):
         if internal_id>=self.obj_count:
-            print_error("can't find internal id %d"%(internal_id))
+            self.print_error("can't find internal id %d"%(internal_id))
             return None
         try:
             self.state_lock.acquire(timeout=0.01)
             retval = self.state2d_list[internal_id]
         except IndexError as e:
-            print_error("can't find internal id %d"%(internal_id))
-            print_error(str(e))
-            print_error("obj count "+str(self.obj_count))
-            print_error("state2d list len "+str(len(self.state2d_list)))
-            print_error("state list len "+str(len(self.state_list)))
+            self.print_error("can't find internal id %d"%(internal_id))
+            self.print_error(str(e))
+            self.print_error("obj count "+str(self.obj_count))
+            self.print_error("state2d list len "+str(len(self.state2d_list)))
+            self.print_error("state list len "+str(len(self.state_list)))
         finally:
             self.state_lock.release()
             
