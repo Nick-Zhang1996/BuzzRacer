@@ -1,0 +1,35 @@
+<config>
+  <settings dt='0.03'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>full</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <!-- NOTE ccmppi will switch underlying model depending on which simulator is used -->
+      <extension handle='simulator' match_time='False' simple_throttle_model='True' >KinematicSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>porsche</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2)</init_states>
+      <controller 
+        algorithm='ccmppi'
+        samples='8192'
+        temperature='0.2'
+        max_speed='3.0'
+        horizon='30' 
+        >
+        <type>CcmppiCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>
