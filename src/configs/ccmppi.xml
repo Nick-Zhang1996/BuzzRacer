@@ -10,7 +10,8 @@
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <!-- NOTE ccmppi will switch underlying model depending on which simulator is used -->
+      <extension handle='simulator' match_time='False'>KinematicSimulator</extension>
   </extensions>
 
   <cars>

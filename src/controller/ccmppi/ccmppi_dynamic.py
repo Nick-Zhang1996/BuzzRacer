@@ -75,7 +75,7 @@ class CCMPPI_DYNAMIC():
     def loadTrack(self):
         # full RCP track
         # NOTE load track instead of re-constructing
-        fulltrack = RCPtrack()
+        fulltrack = RCPTrack()
         # for laptimer
         fulltrack.startPos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)
@@ -120,7 +120,7 @@ class CCMPPI_DYNAMIC():
         '''
 
         # search for log_no lap
-        self.track = RCPtrack()
+        self.track = RCPTrack()
         self.track.startPos = (0.6*3.5,0.6*1.75)
         self.track.startDir = radians(90)
         self.track.load()
@@ -810,7 +810,7 @@ class CCMPPI_DYNAMIC():
         nocc_states_vec = ret_dict['nocc_states_vec']
 
         # prepare track map
-        track = RCPtrack()
+        track = RCPTrack()
         track.startPos = (0.6*3.5,0.6*1.75)
         track.startDir = radians(90)
         track.load()
