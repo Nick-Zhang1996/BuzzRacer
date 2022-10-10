@@ -22,12 +22,10 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
         algorithm='mppi-same-injected'
-        samples='1024'
+        samples='8192'
         temperature='0.2'
         Qf='3000'
-        alfa='1.0'
-        beta='1.0'
-        max_speed='1.0'
+        max_speed='3.0'
         horizon='30' 
         >
         <type>CcmppiCarController</type>
