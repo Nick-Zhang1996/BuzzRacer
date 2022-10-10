@@ -19,12 +19,11 @@
       <name>Red Porsche</name>
       <hardware>OldOffboard</hardware>
       <config_name>porsche</config_name>
-      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2)</init_states>
       <controller 
         algorithm='mppi-same-injected'
         samples='8192'
         temperature='0.2'
-        Qf='3000'
         max_speed='3.0'
         horizon='30' 
         >
