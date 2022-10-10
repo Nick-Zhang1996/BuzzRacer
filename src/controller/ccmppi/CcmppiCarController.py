@@ -399,6 +399,12 @@ class CcmppiCarController(CarController):
     def getEstimatedTerminalCov(self):
         # simulate where mppi think where the car will end up with
         states = self.debug_states
+        # expand
+        x,y,v_forward,heading = states
+        v_sideway = 0
+        omega = 0
+        states = x,y,heading,v_forward,v_sideway,omega
+
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
@@ -415,7 +421,7 @@ class CcmppiCarController(CarController):
             sim_states = states.copy()
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-                x,y,vf,heading = sim_states
+                x,y,heading,v_forward,v_sideway,omega = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -434,6 +440,11 @@ class CcmppiCarController(CarController):
         # DEBUG
         # simulate where mppi think where the car will end up with
         states = self.debug_states
+        # expand
+        x,y,v_forward,heading = states
+        v_sideway = 0
+        omega = 0
+        states = np.array([x,y,heading,v_forward,v_sideway,omega])
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
@@ -451,7 +462,8 @@ class CcmppiCarController(CarController):
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
                 if (self.model == KinematicSimulator):
-                    x,y,vf,heading = sim_states
+                    #x,y,vf,heading = sim_states
+                    x,y, heading,vf,vs,omega = sim_states
                 elif (self.model == DynamicSimulator):
                     x,y, heading,vf,vs,omega = sim_states
                 coord = (x,y)
@@ -488,7 +500,8 @@ class CcmppiCarController(CarController):
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,self.debug_uu[i],self.ccmppi_dt)
             if (self.model == KinematicSimulator):
-                x,y,vf,heading = sim_states
+                #x,y,vf,heading = sim_states
+                x,y, heading,vf,vs,omega = sim_states
             elif (self.model == DynamicSimulator):
                 x,y, heading,vf,vs,omega = sim_states
             coord = (x,y)
