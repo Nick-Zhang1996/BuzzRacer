@@ -19,23 +19,17 @@ from util.timeUtil import execution_timer
 try:
     from controller.ccmppi.ccmppi import CCMPPI
 except ModuleNotFoundError as e:
-    print("gurobipy unavailable, skipping ccmppi")
+    self.print_warning("Error importing CCMPPI")
 from controller.CarController import CarController
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from track import RCPTrack
 import pickle
 
 class CcmppiCarController(CarController):
-    def __init__(self,car):
-        super().__init__(car)
+    def __init__(self,car,config):
+        super().__init__(car,config)
         self.debug_dict = {}
-        self.model = type(car.main.simulator)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
-
-        self.p = execution_timer(True)
-        self.wheelbase = car.wheelbase
-        self.ccmppi_dt = car.main.dt
-        KinematicSimulator.dt = car.main.dt
 
         self.opponents = []
         self.opponent_prediction = []
@@ -49,6 +43,7 @@ class CcmppiCarController(CarController):
 
         self.pos_2_norm = None
         self.state_2_norm = None
+        self.algorithm = None
         self.pos_area = None
         self.pos_2_norm_vec = []
         self.state_2_norm_vec = []
@@ -61,6 +56,116 @@ class CcmppiCarController(CarController):
         self.utru = 0
         car.in_collision = False
         self.car = car
+        # set config items
+        for key,value_text in config.attributes.items():
+            try:
+                value = eval(value_text)
+            except NameError:
+                value = value_text
+            setattr(self,key,value)
+            #self.print_info(" controller.",key,'=',value_text)
+
+
+
+    # if running on real platform, set sim to None so that default values for car dimension/properties will be used
+    def init(self):
+        car = self.car
+        self.model = type(car.main.simulator)
+        self.p = execution_timer(True)
+        self.wheelbase = car.wheelbase
+        self.ccmppi_dt = car.main.dt
+        KinematicSimulator.dt = car.main.dt
+
+
+        algorithm = self.algorithm
+        if (algorithm == 'ccmppi'):
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            cc_ratio = 1.0
+        elif (algorithm == 'mppi-same-injected'):
+            ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'mppi-same-terminal-cov'):
+            ratio = 0.4
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        if (algorithm == 'narrow-ccmppi'):
+            ratio = 0.1
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 1.0
+        if (algorithm == 'wide-ccmppi'):
+            ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 1.0
+        elif (algorithm == 'narrow-mppi'):
+            ratio = 0.1
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'wide-mppi'):
+            ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'mppi-experiment'):
+            self.noise_cov = np.diag([(self.throttle2acc(0.0,self.car.max_throttle))**2,radians(20.0)**2])
+            cc_ratio = 0.0
+
+        self.print_info(algorithm)
+        self.print_info(" injected noise" + str(self.noise_cov))
+
+        self.control_dim = 2
+        self.state_dim = 4
+        self.horizon_steps = 30
+        self.samples_count = 4096
+        self.cc_ratio = cc_ratio
+        print_info('[CcmppiCarController]: ' + algorithm)
+        self.obstacle_radius = 0.1
+        self.zero_ref_ratio = 0.2
+
+        self.track = self.car.main.track
+        self.discretized_raceline_len = 1024
+        # control noise for MPPI exploration
+        self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
+
+        if (isinstance(self.track,RCPTrack)):
+            # discretize raceline for use in MPPI
+            self.prepareDiscretizedRaceline()
+        else:
+            self.prepareEmptyRaceline()
+
+        arg_list = {'samples':4096,
+                'horizon': self.horizon_steps,
+                'state_dim': self.state_dim,
+                'control_dim': self.control_dim,
+                'temperature': 0.2,
+                'dt': self.ccmppi_dt,
+                'noise_cov': self.noise_cov,
+                'cc_ratio': self.cc_ratio,
+                'raceline': self.discretized_raceline,
+                'cuda_filename': "./controller/ccmppi/ccmppi.cu",
+                'max_v': 2.0,
+                'R_diag': self.R_diag,
+                'alfa':1.0,
+                'beta':1.0,
+                'obstacle_radius':self.obstacle_radius,
+                'zero_ref_ratio': self.zero_ref_ratio}
+
+        KinematicSimulator.max_v = 2.0
+
+        #arg_list['rcp_track'] = isinstance(self.track,RCPTrack)
+        arg_list['rcp_track'] = True
+
+        self.ccmppi = CCMPPI(self,arg_list)
+        '''
+        if (isinstance(self.track,RCPTrack)):
+            # discretize raceline for use in MPPI
+            self.additionalSetupRcp()
+        else:
+            self.additionalSetupEmpty()
+        '''
+        self.additionalSetupEmpty()
+
+        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
+
         return
 
     # Hack
@@ -117,120 +222,6 @@ class CcmppiCarController(CarController):
             return (False,0)
         else:
             return False
-
-
-    # if running on real platform, set sim to None so that default values for car dimension/properties will be used
-    def init(self):
-
-
-        algorithm = 'ccmppi'
-        #algorithm = 'mppi-same-injected'
-        if ('algorithm' in self.car.main.params.keys()):
-            algorithm = self.car.main.params['algorithm']
-
-        if (algorithm == 'ccmppi'):
-            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
-            cc_ratio = 1.0
-        elif (algorithm == 'mppi-same-injected'):
-            ratio = 1.0
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        elif (algorithm == 'mppi-same-terminal-cov'):
-            ratio = 0.4
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        if (algorithm == 'narrow-ccmppi'):
-            ratio = 0.1
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 1.0
-        if (algorithm == 'wide-ccmppi'):
-            ratio = 1.0
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 1.0
-        elif (algorithm == 'narrow-mppi'):
-            ratio = 0.1
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        elif (algorithm == 'wide-mppi'):
-            ratio = 1.0
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        elif (algorithm == 'mppi-experiment'):
-            self.noise_cov = np.diag([(self.throttle2acc(0.0,self.car.max_throttle))**2,radians(20.0)**2])
-            cc_ratio = 0.0
-
-        print("[CcmppiCarController]: injected noise" + str(self.noise_cov))
-
-        self.control_dim = 2
-        self.state_dim = 4
-        self.horizon_steps = 30
-        self.samples_count = 4096
-        self.cc_ratio = cc_ratio
-        print_info('[CcmppiCarController]: ' + algorithm)
-        self.obstacle_radius = 0.1
-        self.zero_ref_ratio = 0.2
-
-        self.track = self.car.main.track
-        self.discretized_raceline_len = 1024
-        # control noise for MPPI exploration
-        self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
-
-        if (isinstance(self.track,RCPTrack)):
-            # discretize raceline for use in MPPI
-            self.prepareDiscretizedRaceline()
-        else:
-            self.prepareEmptyRaceline()
-
-        arg_list = {'samples':4096,
-                'horizon': self.horizon_steps,
-                'state_dim': self.state_dim,
-                'control_dim': self.control_dim,
-                'temperature': 0.2,
-                'dt': self.ccmppi_dt,
-                'noise_cov': self.noise_cov,
-                'cc_ratio': self.cc_ratio,
-                'raceline': self.discretized_raceline,
-                'cuda_filename': "ccmppi/ccmppi.cu",
-                'max_v': 2.0,
-                'R_diag': self.R_diag,
-                'alfa':1.0,
-                'beta':1.0,
-                'obstacle_radius':self.obstacle_radius,
-                'zero_ref_ratio': self.zero_ref_ratio}
-
-        KinematicSimulator.max_v = 2.0
-
-        if ('samples' in self.car.main.params.keys()):
-            arg_list['samples'] = self.car.main.params['samples']
-            print_info("ccmppi samples override to %d"%(arg_list['samples']))
-
-        if ('Qf' in self.car.main.params.keys()):
-            arg_list['Qf'] = self.car.main.params['Qf']
-            print_info("ccmppi terminal cov cost Q_f override to %d"%(arg_list['Qf']))
-
-        if ('alfa' in self.car.main.params.keys()):
-            arg_list['alfa'] = self.car.main.params['alfa']
-            print_info("ccmppi alfa override to %d"%(arg_list['alfa']))
-        if ('beta' in self.car.main.params.keys()):
-            arg_list['beta'] = self.car.main.params['beta']
-            print_info("ccmppi beta override to %d"%(arg_list['beta']))
-
-        #arg_list['rcp_track'] = isinstance(self.track,RCPTrack)
-        arg_list['rcp_track'] = True
-
-        self.ccmppi = CCMPPI(self,arg_list)
-        '''
-        if (isinstance(self.track,RCPTrack)):
-            # discretize raceline for use in MPPI
-            self.additionalSetupRcp()
-        else:
-            self.additionalSetupEmpty()
-        '''
-        self.additionalSetupEmpty()
-
-        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-
-        return
 
     def prepareEmptyRaceline(self):
         size = 400

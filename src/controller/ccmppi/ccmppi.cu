@@ -21,8 +21,6 @@
 #define ALFA %(alfa)s
 #define BETA %(beta)s
 
-
-
 #define MODE_CC 1
 #define MODE_NOCC 2
 #define MODE_ZERO_REF 3
@@ -274,6 +272,10 @@ void _evaluate_control_sequence(
     // step forward dynamics, update state x in place
 #ifdef KINEMATIC_MODEL
     forward_kinematics(x, u);
+#elif defined DYNAMIC_MODEL
+    forward_dynamics(x, u);
+#endif
+
 
     // evaluate step cost (crosstrack error and velocity deviation)
     // corresponds to q(x)

@@ -1,0 +1,36 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>full</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>porsche</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller 
+        algorithm='mppi-same-injected'
+        samples='1024'
+        Qf='3000'
+        alfa='1.0'
+        beta='1.0'
+        max_speed='1.0'
+        horizon='30' 
+        >
+        <type>CcmppiCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>

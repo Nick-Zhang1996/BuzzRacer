@@ -1,7 +1,11 @@
 # CCMPPI for kinematic bicycle model
 # using model in Ji's paper
-import gurobipy as gp
-from gurobipy import GRB
+try:
+    import gurobipy as gp
+    from gurobipy import GRB
+except ModuleNotFoundError as e:
+    self.print_warning("gurobipy unavailable, skipping")
+    raise e
 
 import os
 import sys
@@ -23,7 +27,6 @@ from cvxpy.atoms.affine.transpose import transpose
 
 
 from common import *
-from Car import Car
 #from laptimer import Laptimer
 from extension.Laptimer import _Laptimer as Laptimer
 from track.RCPTrack import RCPTrack
@@ -1246,22 +1249,4 @@ class CCMPPI_KINEMATIC():
         print("actual no cc cov")
         print(nocc_cov_mtx)
         plt.show()
-
-if __name__ == "__main__":
-    dt = 0.03
-    state = np.array([0.6*0.7,0.6*0.5, 0.5, radians(130)])
-    ratio = 0.4
-    noise_cov = np.diag([(0.7*ratio)**2,radians(20.0*ratio)**2])
-    debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-    car = Car(None)
-    car.lr = car.lf = 45e-3
-    car.serial_port = None
-
-    main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
-    KinematicSimulator.dt = dt
-    KinematicSimulator.max_v = 30.0
-    main.car = car
-    main.debug_info = debug_info
-    main.visualizeConfidenceEllipse()
-    #main.visualizeOnTrack()
 
