@@ -5,13 +5,6 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 import pickle
 import numpy as np
-import sys
-import os
-from common import *
-from laptimer import Laptimer
-from RCPTrack import RCPTrack
-from math import pi,radians,degrees,asin,acos,isnan
-from ethCarSim import ethCarSim
 from time import time
 
 import matplotlib.pyplot as plt
@@ -24,7 +17,12 @@ import cvxpy as cp
 from cvxpy.atoms.affine.trace import trace 
 from cvxpy.atoms.affine.transpose import transpose
 
-from RCPTrack import RCPTrack
+
+from common import *
+from car.Car import Car
+from extension.Laptimer import _Laptimer as Laptimer
+from track.RCPTrack import RCPTrack
+from extension.simulator.DynamicSimulator import DynamicSimulator
 
 class CCMPPI_DYNAMIC():
     def __init__(self,dt, N, noise_cov, debug_info=None):
@@ -77,7 +75,7 @@ class CCMPPI_DYNAMIC():
     def loadTrack(self):
         # full RCP track
         # NOTE load track instead of re-constructing
-        fulltrack = RCPTrack()
+        fulltrack = RCPtrack()
         # for laptimer
         fulltrack.startPos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)

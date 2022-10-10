@@ -22,6 +22,7 @@
       <controller 
         algorithm='mppi-same-injected'
         samples='1024'
+        temperature='0.2'
         Qf='3000'
         alfa='1.0'
         beta='1.0'
