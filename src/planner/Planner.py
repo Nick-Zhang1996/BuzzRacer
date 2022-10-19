@@ -14,6 +14,7 @@ import scipy.optimize
 from scipy.linalg import block_diag
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from bisect import bisect
+from scipy.optimize import minimize
 
 # TODO:
 # properly fix first step error
@@ -32,19 +33,20 @@ class Planner(ConfigObject):
         # if opponents are closer than this threshold, pass them on same side
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
+        self.skip_count = 0
         '''
-        self.opponent_length = 0.17*2
-        self.opponent_width = 0.08*2
-        #self.opponent_length = 0.21*2
-        #self.opponent_width = 0.12*2
+        #self.opponent_length = 0.17*2
+        #self.opponent_width = 0.08*2
+        self.opponent_length = 0.21*2
+        self.opponent_width = 0.12*2
         self.best_solution = None
         self.best_plan_traj_points = None
         # replan every x steps
         #self.replan_steps = 3
         # when replan, overlap previous plan x steps
         #self.replan_overlap = 3
-        # iterations
-        self.iterations = 3
+        self.no_solution = True
+        self.plan_age = 0
         return
 
     def init(self):
@@ -61,36 +63,54 @@ class Planner(ConfigObject):
     # plan() should be called prior, ideally immediately before calling this function
     # However, it's possible to make multiple localTrajectory() inquiries for one planned trajectory
     # generated with plan() for computation efficiency
+    # TODO
     def localTrajectory(self,state):
         coord = (state[0],state[1])
         heading = state[2]
         omega = state[5]
         vf = state[3]
         vs = state[4]
-        traj = self.best_plan_traj_points
-        dist = np.sqrt((traj[:,0] - coord[0])**2 + (traj[:,1] - coord[1])**2)
-        # if plan() was called right before, then idx should be 0
-        idx = np.argmin(dist)
+        P = self.best_solution[4]
 
-        # find orientation
-        dy = traj[idx+1,1]-traj[idx,1]
-        dx = traj[idx+1,0]-traj[idx,0]
-        orientation = np.arctan2(dy,dx)
+        # find proper index u
+        def fun(u):
+            val = self.evalBezierSpline(P,u)
+            return (val[0][0]-coord[0])**2 + (val[0][1]-coord[1])**2
+        retval = minimize(fun,0.1)
+        u = retval.x[0]
+        p = self.evalBezierSpline(P,u)
+        dp = self.evalBezierSpline(P,u,der=1)
+        ddp = self.evalBezierSpline(P,u,der=2)
+        orientation = np.arctan2(dp[0][1],dp[0][0])
 
-        # find offset
-        vec_path_tangent = (dx,dy)
-        vec_path_to_car = (state[0] - traj[idx,0], state[1] - traj[idx,1])
+
+        # offset: negative offset means left steering needed
+        vec_path_tangent = dp
+        vec_path_to_car = p - np.array(coord)
         offset = np.cross(vec_path_tangent, vec_path_to_car) / np.linalg.norm(vec_path_tangent)
 
 
-        # FIXME hacky
-        (_,_,_,_,v_target) = self.track.localTrajectory(state)
-        # offset: negative offset means left steering needed
+        # calculate velocity based on a lookahead point
+        lookahead = 2
+        p = self.evalBezierSpline(P,u+lookahead)
+        dp = self.evalBezierSpline(P,u+lookahead,der=1)
+        ddp = self.evalBezierSpline(P,u+lookahead,der=2)
+        curvature = np.cross(dp,ddp)/ np.linalg.norm(dp)**3
+        v_target = (0.5*9.8/np.abs(curvature))**0.5
+
+
         #(local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
-        retval = (None,offset,orientation,None,v_target)
+        retval = (None,offset.item(),orientation,None,v_target.item())
         return retval
 
     def plan(self):
+        self.plan_age += 1
+
+        if (self.plan_age < self.skip_count and not self.no_solution):
+            return True
+
+        self.plan_age = 0
+
         vs = 1.3
         #x0 = [0,0,vs]
         coord = self.car.states[0:2]
@@ -102,8 +122,13 @@ class Planner(ConfigObject):
         #opponent_state_vec = [[1,0],[0.5,-0.1]]
         opponent_state_vec = self.getOpponentState()
         sols = self.solveSingleControl(x0,opponent_state_vec)
-        breakpoint()
+        if (self.no_solution or len(sols)==0):
+            return False
         best_sol_idx = np.argmin([x[2] for x in sols])
+
+        costs = [x[2] for x in sols]
+        best_sol_idx = np.argmin(costs)
+        #self.print_info('min cost = ',np.min(costs))
 
         '''
         # visualize
@@ -128,9 +153,8 @@ class Planner(ConfigObject):
         self.best_solution = sols[best_sol_idx]
         self.solutions = sols
         self.best_solution_index = best_sol_idx
-
         self.best_plan_traj_points = self.stateTrajToCartesianTraj(self.best_solution[1])
-        return
+        return True
 
     def plotAllSolutions(self):
         # plot solutions
@@ -145,7 +169,7 @@ class Planner(ConfigObject):
         img = self.main.visualization.visualization_img
         for sol in sols:
             bezier_coeffs = sol[4]
-            u = np.linspace(0,self.N-2)
+            u = np.linspace(0,self.N-1)
             traj = self.evalBezierSpline(bezier_coeffs,u)
             img = self.track.drawPolyline(traj,lineColor=color,img=img)
         self.main.visualization.visualization_img = img
@@ -369,9 +393,11 @@ class Planner(ConfigObject):
         plt.show()
 
     def verifyCost(self,u):
+        mpc = self.mpc
         # calculate progress and curvature cost
         #u = sols[0][0]
         mse = lambda a: np.sum((a)**2)
+        x0 = self.x0
 
         progress_cost = 0.5*u.T @ mpc.old_P @ u + mpc.old_q.T @ u
         cur_cost = 0.5*u.T @ mpc.dP @ u + mpc.dq.T @ u
@@ -379,6 +405,7 @@ class Planner(ConfigObject):
         print("progress cost = %.2f"%(progress_cost))
         print("curvature cost = %.2f"%(cur_cost))
         print("total cost = %.2f"%(total_cost))
+        return
 
         # base curvature(r' * r'') for r
         k_r = np.cross(self.debug_dr, self.debug_ddr,axis=0)
@@ -420,7 +447,9 @@ class Planner(ConfigObject):
             k_p_norm = mse(k_p)
         return
 
-    def verifyTangentialConstraint(self,mpc,x0,u):
+    def verifyIniial(self,u):
+        x0 = self.x0
+        mpc = self.mpc
         # calculate plan tangent at p0
         # current heading:
         heading = self.car.states[2]
@@ -433,21 +462,63 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         N = self.N
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
-        M1 = self.getDiff1Matrix(N,ds)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
+        n = (M @ u + K)
+        p = (r.T.reshape(-1,1) + D_Adr @ n)
+        dp = np.kron(M1,I_2) @ p
+        dp0 = C(1) @ dp
+        heading = self.car.states[2]
+        heading_x = np.cos(heading) # = dp x
+        heading_y = np.sin(heading) # = dp y
+        dp0_ref = np.array([[heading_x,heading_y]]).T
+        print('dp0_ref',dp0_ref)
+        print('dp0',dp0)
+
+        return
+
+    def verifyTangentialConstraint(self,x0,u):
+        mpc = self.mpc
+        # calculate plan tangent at p0
+        # current heading:
+        heading = self.car.states[2]
+        heading_x = np.cos(heading) # = dp x
+        heading_y = np.sin(heading) # = dp y
+        # dp
+        ds = x0[2][0] * self.dt
+        idx = self.idx
+        r = self.r.T[:,idx]
+        dr = self.dr.T[:,idx]
+        N = self.N
+        I_2 = np.eye(2)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
+        def C(i):
+            if i==1:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
+            else:
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        Mat = A @ dr
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         dp0 = C(1) @ np.kron(M1,I_2) @ (r.T.reshape(-1,1) + D_Adr @ (M @ u + K))
         heading = self.car.states[2]
         heading_x = np.cos(heading) # = dp x
@@ -468,8 +539,9 @@ class Planner(ConfigObject):
         return
 
 
-    def buildTangentialConstraint(self,mpc,x0):
+    def buildTangentialConstraint(self,x0):
         # constrain path tangent to equal vehicle current heading
+        mpc = self.mpc
         # current heading:
         heading = self.car.states[2]
         heading_x = np.cos(heading) # = dp x
@@ -482,27 +554,27 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         N = self.N
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
-        M1 = self.getDiff1Matrix(N,ds)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        M1 = self.getDiff1Matrix(N+1,ds)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         G_dp = C(1) @ np.kron(M1,I_2) @ (D_Adr @ M)
         h_dp = C(1) @ np.kron(M1,I_2) @ (r.T.reshape(-1,1) + D_Adr @ K)
         G_dp1 = G_dp
         G_dp2 = -G_dp
-        h_dp1 = -h_dp + dp0_ref + 0.05
-        h_dp2 = -(-h_dp + dp0_ref - 0.05)
+        h_dp1 = -h_dp + dp0_ref + 0.5
+        h_dp2 = -(-h_dp + dp0_ref - 0.5)
         G = np.vstack([G_dp1,G_dp2])
         h = np.vstack([h_dp1,h_dp2])
         return (G,h)
@@ -535,9 +607,10 @@ class Planner(ConfigObject):
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
-        self.constructTrackBoundaryConstraint(mpc)
-        scenarios = self.constructOpponentConstraint(mpc,opponent_state)
-        self.addCurvatureNormObjective(mpc, x0, weight=1, n_estimate=None )
+        self.constructTrackBoundaryConstraint()
+        scenarios = self.constructOpponentConstraint(opponent_state)
+        self.addCurvatureNormObjective( weight=1, n_estimate=None )
+        self.addDeviationObjective( weight=1 )
         self.scenarios = scenarios
         sols = []
 
@@ -553,9 +626,20 @@ class Planner(ConfigObject):
         h_u0[0,0] = 0.1
         h_u0[1,0] = -0.1
         '''
+        # constrain u0=<0.01
+        '''
+        G_u0 = np.zeros((2,N))
+        G_u0[0,0] = 1
+        G_u0[1,0] = -1
+        h_u0 = np.zeros((2,1))
+        h_u0[0,0] = 0.01
+        h_u0[1,0] = -0.01
+        mpc.G = np.vstack([mpc.G,G_u0])
+        mpc.h = np.vstack([mpc.h,h_u0])
+        '''
 
         # add constraint: path start must be tangential to heading
-        G_tan, h_tan = self.buildTangentialConstraint(mpc,x0)
+        G_tan, h_tan = self.buildTangentialConstraint(x0)
         mpc.G = np.vstack([mpc.G,G_tan])
         mpc.h = np.vstack([mpc.h,h_tan])
 
@@ -579,37 +663,47 @@ class Planner(ConfigObject):
                 #print("constraints: %d"%(mpc.h.shape[0]))
                 pass
             sol = self.buildSolution(mpc,x0)
+            # usually cost is -200 to -30
+            # if cost too high neglect
+            if (sol[2] > 0):
+                continue
             sols.append(sol)
             duration = time()-t
-            self.print_info("case freq = %.2fHz"%(1/duration))
+            self.print_debug("case freq = %.2fHz"%(1/duration))
 
         # if there's no opponent in sight
         # or no way to pass them
         # TODO don't crash into opponents if ego can't pass
         if (len(scenarios)==0):
-            self.print_info("no opponent in horizon")
+            self.print_debug("no opponent in horizon")
         elif (len(sols)==0):
-            self.print_info("can't pass opponent")
+            self.print_debug("can't pass opponent")
+        else:
+            self.no_solution = False
 
         if (len(sols)==0):
             dt = time()-t
             success = mpc.solve()
             if (not success):
                 print_warning("MPC fail to find solution")
-                # still have to use this
-            if (mpc.h is not None):
-                #print(mpc.h.shape)
-                pass
+                self.no_solution = True
+                return sols
+            else:
+                self.no_solution = False
+
             sol = self.buildSolution(mpc,x0)
             sols.append(sol)
 
-        self.print_info("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
+        self.print_debug("found %d valid trajectory from  %d scenarios"%(len(sols),len(scenarios)))
         duration = time() - planner_t0
-        self.print_info("planner step freq = %.2fHz"%(1/duration))
+        self.print_debug("planner step freq = %.2fHz"%(1/duration))
 
 
-        print(sols[0][0])
-        #self.verifyTangentialConstraint(mpc,x0,sols[0][0])
+        #self.verifyTangentialConstraint(x0,sols[0][0])
+        ctrl = sols[0][0]
+        #self.verifyCost(ctrl)
+        #self.verifyIniial(ctrl)
+
 
 
         return sols
@@ -620,8 +714,7 @@ class Planner(ConfigObject):
         N = self.N
         # state_traj in curvilinear frame
         state_traj = mpc.F @ mpc.u + mpc.Ex0
-        state_traj = state_traj.reshape((N,n))
-        state_traj = np.vstack([x0.T,state_traj])
+        state_traj = state_traj.reshape((N+1,n))
 
         # trajectory in cartesian frame
         # XXX can we treat plan_xy as p?
@@ -633,23 +726,22 @@ class Planner(ConfigObject):
         dr = self.dr.T[:,idx]
         A = np.array([[0,-1],[1,0]])
         Mat = A @ dr
-        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N)])
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
 
         u = mpc.u
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        # N+1 * 2
         n = M @ u + K
-        # 2*N
+        # 2*N+1
         p = r.T.reshape(-1,1) + D_Adr @ n
-        M1 = self.getDiff1Matrix(N,ds)
-        M2 = self.getDiff2Matrix(N,ds)
-        # N*2
-        dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N,2))
-        # N*2
-        ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N,2))
-        # N*2
+        M1 = self.getDiff1Matrix(N+1,ds)
+        M2 = self.getDiff2Matrix(N+1,ds)
+        # N+1*2
+        dp = (np.kron(M1,I_2) @ p.T.flatten()).reshape((N+1,2))
+        ddp = (np.kron(M2,I_2) @ p.T.flatten()).reshape((N+1,2))
         p = p.reshape(-1,2)
 
         P = self.bezierSpline(p,dp,ddp,ds)
@@ -668,9 +760,10 @@ class Planner(ConfigObject):
         return sol
 
     # construct the state limits
-    def constructTrackBoundaryConstraint(self,mpc):
+    def constructTrackBoundaryConstraint(self):
         # create additional lines for Gx<h
         # track boundary limits
+        mpc = self.mpc
         N = self.N
         if (self.n==4):
             M = np.kron(np.eye(N),np.array([[0,1,0,0]]))
@@ -678,16 +771,19 @@ class Planner(ConfigObject):
             M = np.kron(np.eye(N),np.array([[0,1,0]]))
         elif (self.n==2):
             M = np.kron(np.eye(N),np.array([[0,1]]))
-        # left is positive
-        G1 = M @ mpc.F
-        # left
-        L = self.left_limit[self.idx].reshape((N,1))
-        #L = np.ones((N,1))*self.track_width/2
-        h1 = L - M @ mpc.Ex0
 
-        G2 = -M @ mpc.F
-        R = -self.right_limit[self.idx].reshape((N,1))
-        h2 = R + M @ mpc.Ex0
+        # selection matrix, select [x1..xp] from x0..xp
+        C = np.eye((N+1)*self.n)[self.n:,:]
+        # left is positive
+        G1 = M @ C @ mpc.F
+        # left
+        L = self.left_limit[self.idx[1:]].reshape((N,1))
+        #L = np.ones((N,1))*self.track_width/2
+        h1 = L - M @ C @ mpc.Ex0
+
+        G2 = -M @ C @ mpc.F
+        R = -self.right_limit[self.idx[1:]].reshape((N,1))
+        h2 = R + M @ C @ mpc.Ex0
 
         if (mpc.G is None):
             mpc.G = np.vstack([G1,G2])
@@ -697,7 +793,7 @@ class Planner(ConfigObject):
             mpc.h = np.vstack([mpc.h,h1,h2])
         return
 
-    def constructOpponentConstraint(self,mpc,opponent_state):
+    def constructOpponentConstraint(self,opponent_state):
         # TODO quick check feasibility
         # additional constraints to add
         # (G,h)
@@ -705,6 +801,7 @@ class Planner(ConfigObject):
         # one sublist for each opponent
         # sublist contains a set of OR constraints
         # solution need to satisfy ONE constraint from sublist 0, ONE constraint from sublist 1 ...
+        mpc = self.mpc
         opponent_constraints = []
         opponent_idx = 0
         for opponent in opponent_state:
@@ -723,7 +820,7 @@ class Planner(ConfigObject):
             step_end = floor(step_end) + 1
             # if opponent is too far, skip
             if (step_begin > int(self.opponent_lookahead_time/self.dt)):
-                self.print_info("ignoring opponent at step %d"%(step_begin))
+                self.print_debug("ignoring opponent at step %d"%(step_begin))
                 continue
             opponent_constraints.append([])
             if (left > opponent[1]+self.opponent_width/2):
@@ -786,7 +883,7 @@ class Planner(ConfigObject):
         x0 = np.array(x0).flatten()
         idx = []
         s_step = self.s_step
-        for i in range(self.N):
+        for i in range(self.N+1):
             this_s = x0[0] + i*self.dt*x0[2]
             i = (this_s%self.track.raceline_len_m) / s_step
             idx.append(i)
@@ -796,10 +893,13 @@ class Planner(ConfigObject):
     # dr:(2,N)
     # ds: float scalar
     # p: (2,N)
-    def addCurvatureNormObjective(self, mpc, x0, weight, n_estimate=None):
+    def addCurvatureNormObjective(self, weight, n_estimate=None):
+        # x0 = s,n,ds
         N = self.N
         s_step = self.s_step
         idx = self.idx
+        x0 = self.x0
+        mpc = self.mpc
 
         # TODO maybe use good ddr approxmation instead of 2nd degree
         r = self.r.T[:,idx]
@@ -813,38 +913,42 @@ class Planner(ConfigObject):
         self.debug_dr_norm = dr_norm
         if (n_estimate is None):
             n_estimate = np.zeros(N)
+        n_estimate = np.hstack([x0[1],n_estimate])
+
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
         # this is where iterations may be necessary
+        # 2*(N+1) x0, p1, .... pN
         p = r + A @ dr/dr_norm * n_estimate
 
         def cross(A,B):
             return np.cross(A,B,axis=0)
         def C(i):
             if i==1:
-                return np.hstack([np.eye(2),np.zeros((2,(N-i)*2))])
-            if i==N:
+                return np.hstack([np.eye(2),np.zeros((2,(N+1-i)*2))])
+            if i==N+1:
                 return np.hstack([np.zeros((2,2*(i-1))),np.eye(2)])
             else:
-                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N-i)*2))])
+                return np.hstack([np.zeros((2,2*(i-1))),np.eye(2),np.zeros((2,(N+1-i)*2))])
 
         # ccw 90 deg
         A = np.array([[0,-1],[1,0]])
-        M = A @ dr
-        D_Adr = block_diag(* [M[:,[i]] for i in range(N)])
+        Mat = A @ dr
+        D_Adr = block_diag(* [Mat[:,[i]] for i in range(N+1)])
         # ds = ds/dt * dt
         ds = x0[2][0] * self.dt
-        M1 = self.getDiff1Matrix(N,ds)
-        M2 = self.getDiff2Matrix(N,ds)
+        M1 = self.getDiff1Matrix(N+1,ds)
+        M2 = self.getDiff2Matrix(N+1,ds)
         I_2 = np.eye(2)
-        I_N = np.eye(N)
-        G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,1+N)])
+        I_N1 = np.eye(N+1)
+        G = dkdn = np.vstack([ cross(C(i) @ np.kron(M1,I_2) @ D_Adr, C(i) @ np.kron(M2,I_2) @ p.T.flatten()) + cross(C(i) @ np.kron(M1,I_2) @ p.T.flatten(), C(i) @ np.kron(M2,I_2) @ D_Adr) for i in range(1,2+N)])
         k_0 = np.cross(dr.T,ddr.T) 
-        M = np.kron(I_N, [0,1,0]) @ mpc.F
-        K = np.kron(I_N, [0,1,0]) @ mpc.Ex0
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        #n = (M @ u + K)
 
-
-        k_0 = k_0.reshape((N,1))
+        # curvature of reference trajectory r
+        k_0 = k_0.reshape((N+1,1))
         dP = 2*(2*M.T @ G.T @ G @ M)
         dq = (2*K.T @ G.T @ G @ M + 2*k_0.T @ G @ M).T
         mpc.old_P = mpc.P.copy()
@@ -855,8 +959,23 @@ class Planner(ConfigObject):
         mpc.q += weight * dq
         return 
 
+    def addDeviationObjective(self,weight):
+        mpc = self.mpc
+        x0 = self.x0
+        N = self.N
+        I_2 = np.eye(2)
+        I_N1 = np.eye(N+1)
+        M = np.kron(I_N1, [0,1,0]) @ mpc.F
+        K = np.kron(I_N1, [0,1,0]) @ mpc.Ex0
+        Q = weight * np.eye(N+1)
+
+        mpc.P += weight * M.T @ Q @ M
+        mpc.q += weight * K.T @ Q @ K
+        return
+
 
     # get the constraint matrix G h for a single n constraint
+    # Note that the step here does not contain the first step x0
     def getGhForN(self,step,val,is_max_constrain):
         if (step>= self.N):
             return None
@@ -864,12 +983,14 @@ class Planner(ConfigObject):
         idx = step*self.n + 1
         M = np.zeros(self.N*self.n)
         M[idx] = 1
+        # selection matrix, select [x1..xp] from x0..xp
+        C = np.eye((self.N+1)*self.n)[self.n:,:]
         if (is_max_constrain):
-            G = M @ mpc.F
-            h = val - M @ mpc.Ex0
+            G = M @ C @ mpc.F
+            h = val - M @ C @ mpc.Ex0
         else:
-            G = -M @ mpc.F
-            h = -val + M @ mpc.Ex0
+            G = -M @ C @ mpc.F
+            h = -val + M @ C @ mpc.Ex0
         return (G,h)
 
     def calcDerivative(self,curve):
@@ -1083,12 +1204,12 @@ class Planner(ConfigObject):
     # return: vector function, domain [0,len(points)]
     def bezierSpline(self,p,dp,ddp,ds):
         N = self.N
-        assert p.shape == (N,2)
-        assert dp.shape == (N,2)
-        assert ddp.shape == (N,2)
+        assert p.shape == (N+1,2)
+        assert dp.shape == (N+1,2)
+        assert ddp.shape == (N+1,2)
 
         P = []
-        for i in range(N-1):
+        for i in range(N):
             # generate bezier spline segments
             rl = p[i]
             r  = p[i+1]
@@ -1105,27 +1226,33 @@ class Planner(ConfigObject):
 
             P.append(section_P)
 
-        # NOTE verify P dimension n*2*5 ???
-        # shape: N-1 * 6 * 2
+        # shape: N * 6 * 2
         return np.array(P)
 
     # P: array of control points, shape n*2*5
     # u (iterable): parameter, domain [0,n], where n is number of break points in spline generation
 
-    def evalBezierSpline(self,P,u):
-        u = np.array(u).flatten()
+    def evalBezierSpline(self,P,u,der=0):
         n = len(P)
-        assert (u>=0).all()
-        assert (u<=n).all()
+        u = np.array(u).flatten()
+        u[u<0]=0
+        u[u>n]=n
+        #assert (u>=0).all()
+        #assert (u<=n).all()
+        du = 0.001
 
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
-        try:
-            r = [ [B(uu%1,np.array(P[int(uu),:,0])),B(uu%1,np.array(P[int(uu),:,1]))] for uu in u]
-        except Warning as e:
-            print(e)
-
-        return np.array(r)
+        if der==0:
+            try:
+                r = [ [B(uu%1,np.array(P[int(uu),:,0])),B(uu%1,np.array(P[int(uu),:,1]))] for uu in u]
+            except Warning as e:
+                print(e)
+            return np.array(r)
+        elif der==1:
+            return (self.evalBezierSpline(P,u+du) - self.evalBezierSpline(P,u))/du
+        elif der==2:
+            return (self.evalBezierSpline(P,u+2*du,der=1) - self.evalBezierSpline(P,u,der=1))/(2*du)
 
 if __name__=='__main__':
     planner = Planner()

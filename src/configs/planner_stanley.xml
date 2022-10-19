@@ -8,7 +8,7 @@
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <extension handle='simulator' match_time='True'>DynamicSimulator</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 
@@ -23,8 +23,9 @@
         <planner 
           N='20' 
           opponent_lookahead_time='1.0' 
-          same_side_passing_threshold='0.5' 
+          same_side_passing_threshold='1.0' 
           dt='0.1'
+          skip_count='3'
           >Planner</planner>
       </controller>
     </car>
@@ -53,7 +54,7 @@
       <name>Green Porsche</name>
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
-      <init_states>(2.4*0.6,1.3*0.6, radians(90), 0.1)</init_states>
+      <init_states>(2.8*0.6,1.3*0.6, radians(90), 0.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>
       </controller>
