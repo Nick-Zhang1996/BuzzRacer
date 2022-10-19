@@ -57,7 +57,7 @@ class PurePursuitCarController(CarController):
             raceline_speed = self.track.raceline_velocity
         else:
             self.planner.plan()
-            raceline_pnts = self.planner.best_local_traj
+            raceline_pnts = self.planner.best_plan_traj_points
             # TODO 
             raceline_speed = np.ones_like(raceline_pnts[:,0])*2.0
             self.planner.plotAllSolutions()

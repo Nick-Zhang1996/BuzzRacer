@@ -68,12 +68,15 @@ class KinematicSimulator(Simulator):
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
-        if KinematicSimulator.simple_throttle_model:
-            if (v > KinematicSimulator.max_v):
-                dvdt = -0.01
+        try:
+            if KinematicSimulator.simple_throttle_model:
+                if (v > KinematicSimulator.max_v):
+                    dvdt = -0.01
+                else:
+                    dvdt = throttle
             else:
-                dvdt = throttle
-        else:
+                dvdt = 6.17*(throttle - v/15.2 -0.333)
+        except AttributeError:
             dvdt = 6.17*(throttle - v/15.2 -0.333)
         omega = dheadingdt = v/lr*np.sin(beta)
 

@@ -33,8 +33,8 @@ class Planner(ConfigObject):
         # if opponents are closer than this threshold, pass them on same side
         self.same_side_passing_threshold = 0.5
         self.dt = 0.1
-        self.skip_count = 0
         '''
+        self.skip_count = 0
         #self.opponent_length = 0.17*2
         #self.opponent_width = 0.08*2
         self.opponent_length = 0.21*2
