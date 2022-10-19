@@ -168,6 +168,20 @@ class Car:
 
         car.Iz = 417757e-9
         car.m = 0.1667
+
+        # ethCarsim moved for ccmppi
+
+        # tire model
+        car.Df = 3.93731
+        car.Dr = 6.23597
+        car.C = 2.80646
+        car.B = 0.51943
+        # motor/longitudinal model
+        car.Cm1 = 6.03154
+        car.Cm2 = 0.96769
+        car.Cr = -0.20375
+        car.Cd = 0.00000
+
         # ----
         car.initParam()
 

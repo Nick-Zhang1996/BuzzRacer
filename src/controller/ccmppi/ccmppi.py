@@ -10,11 +10,13 @@ sys.path.append(base_dir)
 
 from common import *
 from util.timeUtil import execution_timer
-from ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
+from controller.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
+from controller.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
+from extension.simulator.KinematicSimulator import KinematicSimulator
+from extension.simulator.DynamicSimulator import DynamicSimulator
 
 class CCMPPI:
-    def __init__(self,parent,arg_list):
-        self.parent = parent
+    def __init__(self,arg_list):
 
         self.K = arg_list['samples']
 
@@ -33,7 +35,12 @@ class CCMPPI:
         discretized_raceline = arg_list['raceline']
         # kinematic simulator velocity cap
         max_v = arg_list['max_v']
-        self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov,arg_list)
+        self.model = arg_list['model_name']
+        self.car = arg_list['car']
+        if (self.model == KinematicSimulator):
+            self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
+        elif (self.model == DynamicSimulator):
+            self.cc = CCMPPI_DYNAMIC(self.dt, self.T, self.noise_cov)
 
         self.p = execution_timer(True)
         self.debug_dict = {}
@@ -41,9 +48,6 @@ class CCMPPI:
         self.old_ref_control = np.zeros([self.T,self.m],dtype=np.float32)
         self.curand_kernel_n = 1024
         print_info("loading cuda module ...")
-        self.ref_traj = None
-        self.ref_ctrl = None
-
 
         import pycuda.autoinit
         global drv
@@ -55,17 +59,30 @@ class CCMPPI:
 
         car = self.car
         # prepare constants
-        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":arg_list['zero_ref_ratio'], "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1] }
+        model_name = "KINEMATIC_MODEL" if (self.model == KinematicSimulator) else "DYNAMIC_MODEL"
+        cuda_code_macros = {"SAMPLE_COUNT":self.K, "HORIZON":self.T, "CONTROL_DIM":self.m,"STATE_DIM":self.state_dim,"RACELINE_LEN":discretized_raceline.shape[0],"TEMPERATURE":self.temperature,"DT":self.dt, "CC_RATIO":arg_list['cc_ratio'], "ZERO_REF_CTRL_RATIO":0.2, "MAX_V":max_v, "R1":arg_list['R_diag'][0],"R2":arg_list['R_diag'][1], "MODEL_NAME":model_name}
+
+        #old_param = {"Caf":car.Caf,"Car":car.Car,"car_m":car.m,"car_Iz":car.Iz,"car_lf":car.lf,"car_lr":car.lr}
+        new_param = {"car_lf":car.lf,
+                "car_lr":car.lr,
+                "car_L":car.L,
+                "car_Iz":car.Iz,
+                "car_m":car.m,
+                "car_Df":car.Df,
+                "car_Dr":car.Dr,
+                "car_C":car.C,
+                "car_B":car.B,
+                "car_Cm1":car.Cm1,
+                "car_Cm2":car.Cm2,
+                "car_Cr":car.Cr,
+                "car_Cd":car.Cd}
+        cuda_code_macros.update(new_param)
+        
         self.cuda_code_macros = cuda_code_macros
         # add curand related config
         # new feature for Python 3.9
         #cuda_code_macros = cuda_code_macros | {"CURAND_KERNEL_N":self.curand_kernel_n}
         cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
-        cuda_code_macros.update({"alfa":arg_list['alfa']})
-        cuda_code_macros.update({"beta":arg_list['beta']})
-        cuda_code_macros.update({"use_raceline":"true" if arg_list['rcp_track'] else "false"})
-        cuda_code_macros.update({"obstacle_radius":arg_list['obstacle_radius']})
-        print_info("[ccmppi]:"+str(cuda_code_macros))
 
         mod = SourceModule(code % cuda_code_macros, no_extern_c=True)
 
@@ -122,18 +139,10 @@ class CCMPPI:
 
         # CCMPPI specific, generate and pack K matrices
         if (self.cuda_code_macros['CC_RATIO'] > 0.01):
-            #Ks, As, Bs, ds = self.cc.cc(state)
-            if (self.ref_traj is None):
-                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.old_cc(state, return_sx = True , debug=False)
-            else:
-                Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc.cc(state, self.ref_traj, self.ref_ctrl, return_sx = True , debug=False)
-            self.theory_cov_mtx =  Sx_cc[-4:-2,-4:-2]
-
+            Ks, As, Bs, ds = self.cc.cc(state)
         else:
             # effectively disable cc
             #print_warning("CC disabled")
-            Sx_nocc = self.cc.getNoCcSx(state)
-            self.theory_cov_mtx =  Sx_nocc[-4:-2,-4:-2]
             Ks = np.zeros([self.N*self.m*self.n])
             As = np.zeros([self.N*self.n*self.n])
             Bs = np.zeros([self.N*self.n*self.m])
@@ -245,6 +254,7 @@ class CCMPPI:
         # Calculate statistics of cost function
         cost = np.array(cost)
         beta = np.min(cost)
+        #print("overall best cost %.2f"%(beta))
         min_cost_index = np.argmin(cost)
 
         # calculate weights
@@ -263,8 +273,30 @@ class CCMPPI:
         self.old_ref_control = ref_control.copy()
         p.e("post")
 
-        # generate ref_traj by simulating synthesized optimal control sequence 
-        self.buildReferenceTrajectory(x0, ref_control)
+        # DEBUG
+        # simulate same control sequence in CPU to simpler debugging
+        # No CC
+
+        '''
+        print("CPU sim of min cost control sequence")
+        i = min_cost_index
+        this_control_seq = control[i]
+        state = x0.copy()
+        cost = 0.0
+        for k in range(self.N):
+            print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
+            state = self.applyDiscreteDynamics(state,this_control_seq[k],self.dt)
+            step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
+            cost += step_cost
+            print(step_cost, index, dist)
+        '''
+
+        # DEBUG
+        '''
+        self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
+        self.cc.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
+        self.cc.visualizeOnTrack()
+        '''
 
 
         # throttle, steering
@@ -275,21 +307,6 @@ class CCMPPI:
         if isnan(ref_control[0,1]):
             print_error("cc-mppi fail to return valid control")
         return ref_control
-
-    # given initial state and control sequence, generate ref_traj and ref_ctrl
-    def buildReferenceTrajectory(self, x0, ctrl_sequence):
-        assert (ctrl_sequence.shape[0] == self.N)
-        assert (ctrl_sequence.shape[1] == self.m)
-        state = x0.copy()
-        self.ref_traj = [state]
-        self.ref_ctrl = ctrl_sequence.copy()
-        for k in range(self.N):
-            #print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-            state = self.parent.applyDiscreteDynamics(state,self.ref_ctrl[k],self.dt)
-            self.ref_traj.append(state)
-        self.ref_traj = np.array(self.ref_traj)
-        self.ref_ctrl = np.array(self.ref_ctrl)
-        return
 
     def evalControl(self,state,candidate_control):
         candidate_control = np.array(candidate_control).reshape(-1,self.m)

@@ -13,18 +13,18 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import random
 
 from common import *
-from util.timeUtil import execution_timer
-from controller.ccmppi.ccmppi import CCMPPI
+from timeUtil import execution_timer
+from ccmppi import CCMPPI
 from CarController import CarController
-from extension.simulator.KinematicSimulator import KinematicSimulator
-from extension.simulator.DynamicSimulator import DynamicSimulator
+from KinematicSimulator import KinematicSimulator
+from DynamicSimulator import DynamicSimulator
 import pickle
 
 class CcmppiCarController(CarController):
-    def __init__(self,car,config):
-        super().__init__(car,config)
-        self.car = car
+    def __init__(self,car):
+        super().__init__(car)
         self.debug_dict = {}
+        self.model = type(car.main.simulator)
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
         # given parameterized raceline x,y = R(s), this corresponds to raceline_s
@@ -32,6 +32,8 @@ class CcmppiCarController(CarController):
         # used as a starting point for root finding
         self.last_s = None
         self.p = execution_timer(True)
+        self.wheelbase = car.wheelbase
+        self.ccmppi_dt = car.main.dt
 
         self.opponents = []
         self.opponent_prediction = []
@@ -45,84 +47,6 @@ class CcmppiCarController(CarController):
         self.R_diag = [0.01, 0.01]
         # control effort u'Ru
         self.utru = 0
-        # set config items
-        for key,value_text in config.attributes.items():
-            try:
-                value = eval(value_text)
-            except NameError:
-                value = value_text
-            setattr(self,key,value)
-            #self.print_info(" controller.",key,'=',value_text)
-
-
-
-    # if running on real platform, set sim to None so that default values for car dimension/properties will be used
-    def init(self):
-        car = self.car
-        self.model = type(car.main.simulator)
-        self.wheelbase = car.wheelbase
-        self.ccmppi_dt = car.main.dt
-        algorithm = self.algorithm
-
-        if (algorithm == 'ccmppi'):
-            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
-            cc_ratio = 0.8
-        elif (algorithm == 'mppi-same-injected'):
-            ratio = 1.0
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        elif (algorithm == 'mppi-same-terminal-cov'):
-            ratio = 0.4
-            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
-            cc_ratio = 0.0
-        self.print_info(algorithm)
-        self.print_info(" injected noise" + str(self.noise_cov))
-
-        self.track = self.car.main.track
-        self.discretized_raceline_len = 1024
-        # control noise for MPPI exploration
-        self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
-
-
-        # discretize raceline for use in MPPI
-        self.prepareDiscretizedRaceline()
-        try:
-            cc_ratio = self.cc_ratio
-            self.print_info('overriding cc_ratio to %.2f'%cc_ratio)
-        except AttributeError as e:
-            self.cc_ratio = cc_ratio
-            self.print_info('using default cc_ratio %.2f'%cc_ratio)
-        self.cc_ratio = cc_ratio
-
-        arg_list = {'samples':self.samples,
-                'horizon': self.horizon,
-                'control_dim': 2,
-                'temperature': self.temperature,
-                'dt': self.ccmppi_dt,
-                'noise_cov': self.noise_cov,
-                'cc_ratio': self.cc_ratio,
-                'raceline': self.discretized_raceline,
-                'cuda_filename': "controller/ccmppi/ccmppi.cu",
-                'max_v': self.max_speed,
-                'R_diag': self.R_diag}
-        if (self.model == KinematicSimulator):
-            arg_list['state_dim'] = 4
-            arg_list['model_name'] = KinematicSimulator
-        elif (self.model == DynamicSimulator):
-            arg_list['state_dim'] = 6
-            arg_list['model_name'] = DynamicSimulator
-
-
-        self.control_dim = arg_list['control_dim']
-        self.horizon_steps = arg_list['horizon']
-        self.samples_count = self.samples
-        arg_list['car'] = self.car
-
-        self.ccmppi = CCMPPI(arg_list)
-        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        # add obstacles
-        self.additionalSetup()
-
         return
 
     # Hack
@@ -169,6 +93,73 @@ class CcmppiCarController(CarController):
             return (False,0)
         else:
             return False
+
+
+    # if running on real platform, set sim to None so that default values for car dimension/properties will be used
+    def init(self):
+
+        algorithm = 'ccmppi'
+        if ('algorithm' in self.car.main.params.keys()):
+            algorithm = self.car.main.params['algorithm']
+
+        if (algorithm == 'ccmppi'):
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,radians(20.0)**2])
+            cc_ratio = 0.8
+        elif (algorithm == 'mppi-same-injected'):
+            ratio = 1.0
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        elif (algorithm == 'mppi-same-terminal-cov'):
+            ratio = 0.4
+            self.noise_cov = np.diag([(self.car.max_throttle*ratio)**2,radians(20.0*ratio)**2])
+            cc_ratio = 0.0
+        print_info('[CcmppiCarController]: ' + algorithm)
+
+        self.track = self.car.main.track
+        self.discretized_raceline_len = 1024
+        # control noise for MPPI exploration
+        self.control_limit = np.array([[-self.car.max_throttle,self.car.max_throttle],[-radians(27.1),radians(27.1)]])
+
+
+        # discretize raceline for use in MPPI
+        self.prepareDiscretizedRaceline()
+
+        arg_list = {'samples':4096,
+                'horizon': 30,
+                'control_dim': 2,
+                'temperature': 0.2,
+                'dt': self.ccmppi_dt,
+                'noise_cov': self.noise_cov,
+                'cc_ratio': cc_ratio,
+                'raceline': self.discretized_raceline,
+                'cuda_filename': "ccmppi/ccmppi.cu",
+                'max_v': self.car.main.simulator.max_v,
+                'R_diag': self.R_diag}
+        if (self.model == KinematicSimulator):
+            arg_list['state_dim'] = 4
+            arg_list['model_name'] = KinematicSimulator
+        elif (self.model == DynamicSimulator):
+            arg_list['state_dim'] = 6
+            arg_list['model_name'] = DynamicSimulator
+
+
+        if ('samples' in self.car.main.params.keys()):
+            arg_list['samples'] = self.car.main.params['samples']
+            print_info("ccmppi samples override to %d"%(arg_list['samples']))
+
+        self.control_dim = arg_list['control_dim']
+        self.horizon_steps = arg_list['horizon']
+        self.samples_count = arg_list['samples']
+        self.cc_ratio = arg_list['cc_ratio']
+        arg_list['car'] = self.car
+
+        self.ccmppi = CCMPPI(arg_list)
+        self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
+        # add obstacles
+        self.additionalSetup()
+
+        return
+
 
     def prepareDiscretizedRaceline(self):
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
@@ -399,12 +390,6 @@ class CcmppiCarController(CarController):
     def getEstimatedTerminalCov(self):
         # simulate where mppi think where the car will end up with
         states = self.debug_states
-        # expand
-        x,y,v_forward,heading = states
-        v_sideway = 0
-        omega = 0
-        states = x,y,heading,v_forward,v_sideway,omega
-
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
@@ -421,7 +406,7 @@ class CcmppiCarController(CarController):
             sim_states = states.copy()
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
-                x,y,heading,v_forward,v_sideway,omega = sim_states
+                x,y,vf,heading = sim_states
                 coord = (x,y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -440,11 +425,6 @@ class CcmppiCarController(CarController):
         # DEBUG
         # simulate where mppi think where the car will end up with
         states = self.debug_states
-        # expand
-        x,y,v_forward,heading = states
-        v_sideway = 0
-        omega = 0
-        states = np.array([x,y,heading,v_forward,v_sideway,omega])
         # simulate vehicle trajectory with selected rollouts
         sampled_control = self.ccmppi.debug_dict['sampled_control']
         # use only first 100
@@ -462,8 +442,7 @@ class CcmppiCarController(CarController):
             for i in range(self.horizon_steps):
                 sim_states = self.applyDiscreteDynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
                 if (self.model == KinematicSimulator):
-                    #x,y,vf,heading = sim_states
-                    x,y, heading,vf,vs,omega = sim_states
+                    x,y,vf,heading = sim_states
                 elif (self.model == DynamicSimulator):
                     x,y, heading,vf,vs,omega = sim_states
                 coord = (x,y)
@@ -500,8 +479,7 @@ class CcmppiCarController(CarController):
         for i in range(self.horizon_steps):
             sim_states = self.applyDiscreteDynamics(sim_states,self.debug_uu[i],self.ccmppi_dt)
             if (self.model == KinematicSimulator):
-                #x,y,vf,heading = sim_states
-                x,y, heading,vf,vs,omega = sim_states
+                x,y,vf,heading = sim_states
             elif (self.model == DynamicSimulator):
                 x,y, heading,vf,vs,omega = sim_states
             coord = (x,y)

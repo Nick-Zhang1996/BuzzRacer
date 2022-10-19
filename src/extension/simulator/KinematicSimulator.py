@@ -20,9 +20,12 @@ class KinematicSimulator(Simulator):
         self.lf = 45e-3
         KinematicSimulator.max_v = 3.0
         KinematicSimulator.dt = self.main.dt
+        self.simple_throttle_model = False
 
     def init(self):
         super().init()
+        KinematicSimulator.simple_throttle_model = self.simple_throttle_model
+
         self.cars = self.main.cars
         for car in self.cars:
             self.addCar(car)
@@ -65,14 +68,13 @@ class KinematicSimulator(Simulator):
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
-        '''
-        if (v > KinematicSimulator.max_v):
-            dvdt = -0.01
+        if KinematicSimulator.simple_throttle_model:
+            if (v > KinematicSimulator.max_v):
+                dvdt = -0.01
+            else:
+                dvdt = throttle
         else:
-            dvdt = throttle
-        '''
-        #dvdt = (6-v)*(throttle - 0.245)
-        dvdt = 6.17*(throttle - v/15.2 -0.333)
+            dvdt = 6.17*(throttle - v/15.2 -0.333)
         omega = dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt

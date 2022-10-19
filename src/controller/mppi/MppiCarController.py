@@ -49,7 +49,6 @@ class MppiCarController(CarController):
         self.raceline_left_boundary = self.track.raceline_left_boundary
         self.raceline_right_boundary = self.track.raceline_right_boundary
 
-
         self.initCuda()
 
 
