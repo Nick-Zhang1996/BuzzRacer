@@ -4,8 +4,9 @@ from track.RCPTrack import RCPTrack
 from track.EmptyTrack import EmptyTrack
 from track.Skidpad import Skidpad
 from math import radians
-def TrackFactory(config):
-    name = config.firstChild.nodeValue
+def TrackFactory(config,name=None):
+    if name is None:
+        name = config.firstChild.nodeValue
     mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}
     if (name in mapping):
         return mapping[name](config)
@@ -15,7 +16,6 @@ def TrackFactory(config):
 
 def prepareEmptyTrack(config):
     return EmptyTrack()
-
 
 def prepareRcpTrack(config):
 

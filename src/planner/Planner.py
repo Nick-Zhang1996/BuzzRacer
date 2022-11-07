@@ -267,12 +267,14 @@ class Planner(ConfigObject):
 
         left_boundary_points = []
         right_boundary_points = []
-        self.raceline_points = self.ref_path.T
+
+        ref_path = self.ref_path.T
+        ref_heading = self.raceline_headings
 
         for i in range(self.discretized_raceline_len):
             # find normal direction
-            coord = self.raceline_points[:,i]
-            heading = self.raceline_headings[i]
+            coord = ref_path[:,i]
+            heading = ref_heading[i]
 
             left, right = self.track.preciseTrackBoundary(coord,heading)
             left_boundary.append(left)
@@ -311,7 +313,7 @@ class Planner(ConfigObject):
             img = self.track.drawPolyline(right_boundary_points,lineColor=(0,0,255),img=img)
             plt.imshow(img)
             plt.show()
-            return img
+            return  img
         return
 
     # generate a path
@@ -999,9 +1001,9 @@ class Planner(ConfigObject):
         n = curve.shape[0]
         ds = self.s_vec[1]-self.s_vec[0]
         for i in range(1,n-1):
-            rl = self.ref_path[i-1,:]
-            r = self.ref_path[i,:]
-            rr = self.ref_path[i+1,:]
+            rl = curve[i-1,:]
+            r = curve[i,:]
+            rr = curve[i+1,:]
             points = [rl, r, rr]
             ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points,ds=[ds,ds])
             dr.append(al*rl+a*r+ar*rr)

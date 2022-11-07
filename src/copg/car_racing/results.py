@@ -14,8 +14,10 @@ import car_racing_simulator.Track as Track
 p1 = Actor(10, 2, std=0.1)
 p2 = Actor(10, 2, std=0.1)
 
-player1 = 'CoPG'
-player2 = 'GDA'
+player1 = 'CoPG-420'
+player2 = 'CoPG'
+#player1 = 'CoPG'
+#player2 = 'GDA'
 
 # player1 = 'TRCoPO'
 # player2 = 'TRGDA'
@@ -25,7 +27,7 @@ player2 = 'GDA'
 
 #p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
 #p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
-p1.load_state_dict(torch.load("model/agent1_420.pth"))
+p1.load_state_dict(torch.load("model/model/agent1_420.pth"))
 p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
 
 config = json.load(open('config.json'))
@@ -77,7 +79,7 @@ a_win=0
 b_win=0
 overtakings_p1 = 0
 overtakings_p2 = 0
-for i in range(1000):
+for i in range(2000):
 
     #sample action from random policy
     dist1 = p1(torch.cat([state_c1[:, 0:5], state_c2[:, 0:5]], dim=1))

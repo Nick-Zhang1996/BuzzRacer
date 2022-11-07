@@ -87,3 +87,4 @@ class KinematicSimulator(Simulator):
         car_states = x,y,heading,v_forward,v_sideway,omega
         return np.array(car_states)
 
+KinematicSimulator.simple_throttle_model = False

@@ -5,10 +5,14 @@ import copy
 
 
 class VehicleModel():
-    def __init__(self,n_batch,device,config):
+    def __init__(self,n_batch,device,config,track='orca'):
 
         self.device = device
-        self.track = Track.Track(config)
+        self.track = Track.Track()
+        if (track == 'orca'):
+            self.track.loadOrcaTrack(config)
+        elif (track == 'rcp'):
+            self.track.loadRcpTrack()
 
         self.track_s = torch.from_numpy(self.track.s).type(torch.FloatTensor).to(self.device)
         self.track_kappa = torch.from_numpy(self.track.kappa).type(torch.FloatTensor).to(self.device)

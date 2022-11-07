@@ -729,6 +729,126 @@ class RCPTrack(Track,PrintObject):
         plt.show()
         '''
 
+    def getOrcaStyleTrack(self):
+        # ORCA compatible representation
+        N = self.discretized_raceline_len = 1024
+        s = s_vec = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        # resample to fixed interval s_vec
+        self.r = ref_path = np.array(splev(s_vec%self.raceline_len_m,self.raceline_s,der=0)).T
+        X = self.r[:,0].flatten()
+        Y = self.r[:,1].flatten()
+
+
+        diff_s = s_vec[1]-s_vec[0]
+        dr, ddr = self.calcDerivative(ref_path,ds=diff_s)
+        # TODO verify sign
+        kappa = self.calcCurvature(dr,ddr)
+
+        # raceline heading
+        #dr = splev(s_vec%self.raceline_len_m,self.raceline_s,der=1)
+        phi = np.arctan2(dr[:,1],dr[:,0])
+        old_phi = phi.copy()
+        # wrap angle
+        d_phi = np.diff(phi)
+        d_phi = (d_phi + np.pi) % (2*np.pi) - np.pi
+        phi = phi[0] + np.hstack([0,np.cumsum(d_phi)]) + 2*np.pi
+
+        # describe track boundary as offset from raceline
+        left_limit, right_limit = self.createBoundary(ref_path,phi)
+        # TODO: verify sign and upper/lower ordering
+        d_upper = np.array(left_limit)
+        d_lower = -np.array(right_limit)
+
+        border_angle_upper = phi + 40/180*np.pi
+        border_angle_lower = phi - 40/180*np.pi
+
+        # ccw 90 deg
+        #R = np.array([[0,-1],[1,0]])
+        #tangent_dir = (R @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
+        #self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
+        #self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
+        return (N,X,Y,s,phi,kappa,diff_s,d_upper,d_lower,border_angle_upper,border_angle_lower)
+
+
+    def calcDerivative(self,curve,ds):
+        # find first and second derivative
+        dr = []
+        ddr = []
+        n = curve.shape[0]
+        for i in range(1,n-1):
+            rl = curve[i-1,:]
+            r = curve[i,:]
+            rr = curve[i+1,:]
+            points = [rl, r, rr]
+            ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points,ds=[ds,ds])
+            dr.append(al*rl+a*r+ar*rr)
+            ddr.append(bl*rl+b*r+br*rr)
+        dr = np.array(dr)
+        ddr = np.array(ddr)
+        dr = np.vstack([dr[0],dr,dr[-1]])
+        ddr = np.vstack([ddr[0],ddr,ddr[-1]])
+        return (dr,ddr)
+
+    # right turn negative curvature
+    def calcCurvature(self,dr_vec,ddr_vec):
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        a = (A @ dr_vec.T).T
+        b = ddr_vec
+        curvature = np.sum(a*b,axis=1).flatten()
+        return curvature
+
+    # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
+    # return: 2*3, tuple
+    #       ((al, a, ar),
+    #        (bl, b, br))
+    # where f'@r = al*rl + a*r + ar*rr
+    # where f''@r = bl*rl + b*r + br*rr
+    # ds, arc length between rl,r and r, rr 
+    # if not specified, |r-rl|_2 will be used as approximation
+    def lagrangeDer(self,points,ds=None):
+        rl,r,rr = points
+        dist = lambda x,y:((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
+        if ds is None:
+            sl = -dist(rl,r)
+            sr = dist(r,rr)
+        else:
+            sl = -ds[0]
+            sr = ds[1]
+
+        try:
+            al = - sr/sl/(sl-sr)
+            a = -(sl+sr)/sl/sr
+            ar = -sl/sr/(sr-sl)
+
+            bl = 2/sl/(sl-sr)
+            b = 2/sl/sr
+            br = 2/sr/(sr-sl)
+        except Warning as e:
+            print(e)
+
+        return ((al,a,ar),(bl,b,br))
+
+    def createBoundary(self,ref_path=None,ref_heading=None):
+        # construct a (self.discretized_raceline_len * 2) vector
+        # to record the left and right track boundary as an offset to the discretized raceline
+        left_boundary = []
+        right_boundary = []
+
+        left_boundary_points = []
+        right_boundary_points = []
+
+        for i in range(self.discretized_raceline_len):
+            # find normal direction
+            coord = ref_path[i,:]
+            heading = ref_heading[i]
+
+            left, right = self.preciseTrackBoundary(coord,heading)
+            left_boundary.append(left)
+            right_boundary.append(right)
+
+        return left_boundary, right_boundary
+
     # verify that we can restore x,y coordinate from K(s)/curvature path distance space
     def verify(self,K=None):
         # convert from K(s) space to X,Y(s) space using Fresnel integral
