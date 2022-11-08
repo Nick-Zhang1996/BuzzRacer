@@ -5,6 +5,7 @@ import inspect
 class ExperimentType(Enum):
     Simulation = auto()
     Realworld = auto()
+    Replay = auto()
 
 class PrintObject:
     debug = False

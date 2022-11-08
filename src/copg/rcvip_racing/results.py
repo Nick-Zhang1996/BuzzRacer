@@ -3,6 +3,7 @@ import sys
 import os
 # sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..') # inorder to run within the folder
+sys.path.insert(0,'../..') # inorder to run within the folder
 import numpy as np
 import json
 
@@ -36,7 +37,7 @@ track1.loadOrcaTrack(config)
 
 device = torch.device("cpu")
 
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='orca')
+vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
 
 mat_action1 = []
 mat_action2 = []
@@ -52,6 +53,7 @@ curvilinear_coordinates1 = []
 global_coordinates2 = []
 curvilinear_coordinates2 = []
 init_size  = 10000
+#init_size  = 10
 curr_batch_size = init_size
 state_c1 = torch.zeros(curr_batch_size, config["n_state"])  # state[:, 6:12].view(6)
 state_c2 = torch.zeros(curr_batch_size, config["n_state"])  # state[:, 6:12].view(6)

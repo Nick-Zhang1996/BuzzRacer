@@ -5,6 +5,7 @@ import os
 sys.path.insert(0,'..') # inorder to run within the folder
 import numpy as np
 import json
+import pickle
 
 from car_racing.network import Actor as Actor
 from car_racing.orca_env_function import getNFcollosionreward
@@ -15,7 +16,9 @@ p1 = Actor(10, 2, std=0.1)
 p2 = Actor(10, 2, std=0.1)
 
 player1 = 'CoPG'
-player2 = 'GDA'
+player2 = 'CoPG'
+#player1 = 'CoPG'
+#player2 = 'GDA'
 
 # player1 = 'TRCoPO'
 # player2 = 'TRGDA'
@@ -25,13 +28,16 @@ player2 = 'GDA'
 
 p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
 p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
+#p1.load_state_dict(torch.load("model/agent1_5320.pth"))
+#p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
 
 config = json.load(open('config.json'))
-track1 = Track.Track(config)
+track1 = Track.Track()
+track1.loadOrcaTrack(config)
 
 device = torch.device("cpu")
 
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config)
+vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='orca')
 
 mat_action1 = []
 mat_action2 = []
@@ -46,8 +52,16 @@ curvilinear_coordinates1 = []
 
 global_coordinates2 = []
 curvilinear_coordinates2 = []
-init_size  = 10000
+#init_size  = 10000
+init_size  = 10
 curr_batch_size = init_size
+
+state_c1_vec = []
+state_c2_vec = []
+action_c1_vec = []
+action_c2_vec = []
+
+
 state_c1 = torch.zeros(curr_batch_size, config["n_state"])  # state[:, 6:12].view(6)
 state_c2 = torch.zeros(curr_batch_size, config["n_state"])  # state[:, 6:12].view(6)
 state_c1[:, 0] = torch.zeros((curr_batch_size))#torch.rand((curr_batch_size))
@@ -75,7 +89,7 @@ a_win=0
 b_win=0
 overtakings_p1 = 0
 overtakings_p2 = 0
-for i in range(1000):
+for i in range(2000):
 
     #sample action from random policy
     dist1 = p1(torch.cat([state_c1[:, 0:5], state_c2[:, 0:5]], dim=1))
@@ -89,6 +103,12 @@ for i in range(1000):
 
     prev_state_c1 = state_c1
     prev_state_c2 = state_c2
+
+    # log state
+    state_c1_vec.append(state_c1[0].detach().numpy())
+    state_c2_vec.append(state_c2[0].detach().numpy())
+    action_c1_vec.append(action1[0].detach().numpy())
+    action_c2_vec.append(action2[0].detach().numpy())
 
     # advance state
     state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1, 6), action1.view(-1, 2)).view(-1, 6)
@@ -156,3 +176,18 @@ for i in range(1000):
 
         # print("done", i)
         break
+
+# save state and action history
+
+state_c1_vec = np.array(state_c1_vec)
+state_c2_vec = np.array(state_c2_vec)
+action_c1_vec = np.array(action_c1_vec)
+action_c2_vec = np.array(action_c2_vec)
+
+c1 = np.hstack([state_c1_vec, action_c1_vec])[:,np.newaxis,:]
+c2 = np.hstack([state_c2_vec, action_c2_vec])[:,np.newaxis,:]
+data = np.hstack([c1,c2])
+print(data.shape)
+
+with open('log.p','wb') as f:
+    pickle.dump(data,f)

@@ -1,0 +1,33 @@
+<config>
+  <settings dt='0.03'>
+    <experiment_type>Simulation</experiment_type>
+    <track>full</track>
+  </settings>
+  <extensions>
+      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <extension handle='replay' match_time='True' curvilinear='True' log_name='src/copg/rcvip_racing/log.p'>Replay</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='1.0'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='1.0'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>

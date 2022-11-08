@@ -21,3 +21,5 @@ from extension.ConfigLogger import ConfigLogger
 
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
+
+from extension.Replay import Replay
