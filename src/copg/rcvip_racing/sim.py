@@ -89,7 +89,7 @@ a_win=0
 b_win=0
 overtakings_p1 = 0
 overtakings_p2 = 0
-for i in range(2000):
+for i in range(3000):
 
     #sample action from random policy
     dist1 = p1(torch.cat([state_c1[:, 0:5], state_c2[:, 0:5]], dim=1))

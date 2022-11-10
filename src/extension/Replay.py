@@ -69,13 +69,12 @@ class Replay(Simulator):
         tangent = np.array(splev(progress%self.track.raceline_len_m,self.track.raceline_s,der=1))
         track_heading = np.arctan2(tangent[1],tangent[0])
         lateral = A @ (tangent/np.linalg.norm(tangent))
-        car_pos = pos + lateral_err * tangent
+        car_pos = pos + lateral_err * lateral
         x,y = car_pos
         heading = rel_heading + track_heading
-        print(f'tangent = {tangent}')
-        print(f'lateral = {lateral}')
-        print(f'track_heading = {track_heading}')
-        breakpoint()
+        #print(f'tangent = {tangent}')
+        #print(f'lateral = {lateral}')
+        #print(f'track_heading = {track_heading}')
 
         return (x,y,heading,v_forward,v_sideways,omega)
 

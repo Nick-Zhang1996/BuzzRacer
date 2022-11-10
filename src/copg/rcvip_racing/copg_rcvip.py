@@ -36,8 +36,8 @@ config = json.load(open('config.json'))
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 device = 'cpu'#torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# device = torch.device("cpu")
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], 'cpu', config)
+device = torch.device("cpu")
+vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
 
 x0 = torch.zeros(config["n_batch"], config["n_state"])
 # x0[:, 3] = 0
