@@ -6,6 +6,7 @@ from extension.Extension import Extension
 from extension import Simulator
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+import matplotlib.pyplot as plt
 
 class Replay(Simulator):
     def __init__(self,main):
@@ -25,6 +26,11 @@ class Replay(Simulator):
         else:
             self.loadCartesianLog(self.log_name)
         self.main.new_state_update.set()
+        ## DEBUG
+        #lateral_err = self.data[:,0,1]
+        #plt.plot(lateral_err)
+        #plt.show()
+        #breakpoint()
 
     def loadCurvilinearLog(self,log_name):
         # time_steps * cars * (states + action)
@@ -66,11 +72,14 @@ class Replay(Simulator):
         car_pos = pos + lateral_err * tangent
         x,y = car_pos
         heading = rel_heading + track_heading
+        print(f'tangent = {tangent}')
+        print(f'lateral = {lateral}')
+        print(f'track_heading = {track_heading}')
+        breakpoint()
 
         return (x,y,heading,v_forward,v_sideways,omega)
 
     def update(self):
-        #breakpoint()
         if (self.curvilinear):
             for (i,car) in enumerate(self.main.cars):
                 car.states = self.CurvilinearToCartesian(self.data[self.timestep,i])
