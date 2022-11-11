@@ -54,7 +54,7 @@ class Visualization(Extension):
         for obs in self.track.obstacles:
             img = self.track.drawCircle(img, obs, self.track.obstacle_radius, color=(150,150,150))
         for car in self.main.cars:
-            has_collided, obs_id = self.track.isInObstacle(car.states,get_obstacle_id=True)
+            has_collided, obs_id = self.track.isInObstacle(car.states)
             if (has_collided):
                 # plot obstacle in collision red
                 img = self.track.drawCircle(img, self.track.obstacles[obs_id], self.track.obstacle_radius, color=(100,100,255))
