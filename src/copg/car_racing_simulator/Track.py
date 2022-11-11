@@ -100,6 +100,8 @@ class Track:
         rela_proj = (s - self.s[index]) / self.diff_s
         return [index, rela_proj]
 
+    # x_local: s,d,mu, (progress, lateral_err, heading)
+    # return: pos_global (x,y,heading)
     def fromLocaltoGlobal(self, x_local):
         s = x_local[0]
         d = x_local[1]

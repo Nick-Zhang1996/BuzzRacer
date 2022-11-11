@@ -9,7 +9,7 @@ import cv2
 import os.path
 import pickle
 class Track(ConfigObject):
-    def __init__(self,main,config=None):
+    def __init__(self,main,config):
         self.main=main
         # the following variables need to be overriden in subclass initilization
         # pixels per meter
@@ -32,10 +32,6 @@ class Track(ConfigObject):
         self.setUpObstacles()
 
     # NOTE funs that need to move to this file TODO
-
-
-    def drawArrow(self):
-        return
 
 
     # NOTE need to be overridden in each subclass Track
@@ -77,7 +73,7 @@ class Track(ConfigObject):
     # NOTE plotting related
     def m2canvas(self,coord):
         x_new = int(np.clip(coord[0],0,self.x_limit) * self.resolution)
-        y_new = int((self.y_limit-np.clip(coord[1],0,self.y_limit)) * self.resolution)
+        y_new = int( (self.y_limit-np.clip(coord[1],0,self.y_limit)) * self.resolution )
         return (x_new,y_new)
 
     # draw a circle on canvas at coord

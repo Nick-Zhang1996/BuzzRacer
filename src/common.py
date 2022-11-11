@@ -52,6 +52,9 @@ class PrintObject:
 class ConfigObject(PrintObject):
     def __init__(self,config):
         self.config = config
+        if config is None:
+            self.print_warning('no config available')
+            return
         self.print_ok("setting " + config.firstChild.nodeValue + " attributes")
         # load config parameters
         for key,value_text in config.attributes.items():
