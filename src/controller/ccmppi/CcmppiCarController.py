@@ -24,6 +24,7 @@ class CcmppiCarController(CarController):
     def __init__(self,car,config):
         super().__init__(car,config)
         self.car = car
+        self.track = self.car.main.track
         self.debug_dict = {}
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
@@ -117,58 +118,18 @@ class CcmppiCarController(CarController):
         self.horizon_steps = arg_list['horizon']
         self.samples_count = self.samples
         arg_list['car'] = self.car
+        arg_list['track'] = self.track
+
 
         self.ccmppi = CCMPPI(arg_list)
         self.ccmppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        # add obstacles
         self.additionalSetup()
 
         return
 
-    # Hack
     def additionalSetup(self):
-        obstacle_count = 30
-        filename = "obstacles.p"
-        if (os.path.isfile(filename)):
-            with open(filename, 'rb') as f:
-                obstacles = pickle.load(f)
-            print_ok("[ccmppi]: reuse obstacles, count = %d"%(obstacles.shape[0]))
-            print_ok("[ccmppi]: loading obstacles at " + filename)
-        else:
-            print_ok("[ccmppi]: new obstacles, count = %d"%(obstacle_count))
-            obstacles = np.random.random((obstacle_count,2))
-            # save obstacles
-            with open(filename, 'wb') as f:
-                pickle.dump(obstacles,f)
-            print_ok("[ccmppi]: saved obstacles at " + filename)
-
-
-        track = self.car.main.track
-        obstacles[:,0] *= track.gridsize[1]*track.scale
-        obstacles[:,1] *= track.gridsize[0]*track.scale
-
-        self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
-        self.obstacles = obstacles
-
-    # check if vehicle is currently in collision with obstacle
-    def isInObstacle(self, dist = 0.1, get_obstacle_id=False):
-        x,y,heading,vf,vs,omega = self.car.states
-        min_dist = 100.0
-        for i in range(self.obstacles.shape[0]):
-            obs = self.obstacles[i]
-            dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
-            if (dist<min_dist):
-                min_dist = dist
-            if (dist < 0.1):
-                if (get_obstacle_id):
-                    return (True,i)
-                else:
-                    return True
-        #print("[ccmppi]: min = %3.2f"%(min_dist))
-        if (get_obstacle_id):
-            return (False,0)
-        else:
-            return False
+        self.opponent_prediction = np.repeat(self.track.obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
+        self.obstacles = self.track.obstacles
 
     def prepareDiscretizedRaceline(self):
         ss = np.linspace(0,self.track.raceline_len_m,self.discretized_raceline_len)
@@ -334,7 +295,7 @@ class CcmppiCarController(CarController):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
-            self.plotObstacles()
+            self.track.plotObstacles()
             self.plotAlgorithm()
             pass
         except AttributeError:
@@ -368,32 +329,6 @@ class CcmppiCarController(CarController):
                            fontScale, color, thickness, cv2.LINE_AA)
         self.car.main.visualization.visualization_img = img
 
-    def plotObstacles(self):
-        if (not self.car.main.visualization.update_visualization.is_set()):
-            return
-        img = self.car.main.visualization.visualization_img
-        # plot obstacles
-        for obs in self.obstacles:
-            img = self.car.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
-        has_collided, obs_id = self.isInObstacle(get_obstacle_id=True)
-        if (has_collided):
-            # plot obstacle in collision red
-            img = self.car.main.track.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
-
-        text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
-        # font
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        # org
-        org = (250, 50)
-        # fontScale
-        fontScale = 1
-        # Blue color in BGR
-        color = (255, 0, 0)
-        # Line thickness of 2 px
-        thickness = 2
-        img = cv2.putText(img, text, org, font,
-                           fontScale, color, thickness, cv2.LINE_AA)
-        self.car.main.visualization.visualization_img = img
 
 
     def getEstimatedTerminalCov(self):

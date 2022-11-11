@@ -1,15 +1,16 @@
 # Base class for RCPTrack and Skidpad
 # this class provides API for interacting with a Track object
 # a track object provides information on the trajectory and provide access for drawing the track
+from common import *
 import numpy as np
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from math import radians,degrees,cos,sin,ceil,floor,atan,tan
 import cv2
-class Track(object):
-    def __init__(self,config=None):
-        self.config = config
-
-
+import os.path
+import pickle
+class Track(ConfigObject):
+    def __init__(self,main,config=None):
+        self.main=main
         # the following variables need to be overriden in subclass initilization
         # pixels per meter
         self.resolution = None
@@ -24,19 +25,40 @@ class Track(object):
         # track dimension, in meters
         self.x_limit = None
         self.y_limit = None
+        
+        ConfigObject.__init__(self,config)
+
+    def init(self):
+        self.setUpObstacles()
+
+    # NOTE funs that need to move to this file TODO
 
 
-    # need to move to this file TODO
-    # draw a circle on canvas at coord
-    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
-        src = self.m2canvas(coord)
-        radius_pix = int(radius_m * self.resolution)
-        img = cv2.circle(img, src, radius_pix, color,-1)
-        return img
+    def drawArrow(self):
+        return
+
+
+    # NOTE need to be overridden in each subclass Track
+
+    # draw a raceline
+    def drawRaceline(self,img=None):
+        raise NotImplementedError
+
+    # draw a picture of the track
+    def drawTrack(self, img=None,show=False):
+        raise NotImplementedError
+
+    def localTrajectory(self,state):
+        raise NotImplementedError
+
+
+    # NOTE universal function for all Track classes
+    def setResolution(self,res):
+        self.resolution = res
+        return
 
     # check if vehicle is currently in collision with obstacle
     # only give index of the first obstacle if multiple obstacle is in collision
-    # TODO optimize
     def isInObstacle(self, state):
         if (not self.obstacle):
             return (False,-1)
@@ -52,34 +74,124 @@ class Track(object):
                 return (True,i)
         return (False,-1)
 
+    # NOTE plotting related
     def m2canvas(self,coord):
         x_new = int(np.clip(coord[0],0,self.x_limit) * self.resolution)
         y_new = int((self.y_limit-np.clip(coord[1],0,self.y_limit)) * self.resolution)
         return (x_new,y_new)
 
+    # draw a circle on canvas at coord
+    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
+        src = self.m2canvas(coord)
+        radius_pix = int(radius_m * self.resolution)
+        img = cv2.circle(img, src, radius_pix, color,-1)
+        return img
 
-    def drawArrow(self):
-        return
+    def plotObstacles(self,img = None):
+        if (not self.obstacle):
+            return img
+        if img is None:
+            if (not self.main.visualization.update_visualization.is_set()):
+                return
+            img = self.main.visualization.visualization_img
+
+        # plot obstacles
+        for obs in self.obstacles:
+            img = self.drawCircle(img, obs, 0.1, color=(255,100,100))
+        for car in self.main.cars:
+            has_collided, obs_id = self.isInObstacle(car.states)
+            if (has_collided):
+                # plot obstacle in collision red
+                img = self.drawCircle(img, self.obstacles[obs_id], 0.1, color=(100,100,255))
+
+        '''
+        text = "collision: %d"%(self.main.collision_checker.collision_count[car.id])
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (250, 50)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+        '''
+        if img is None:
+            self.main.visualization.visualization_img = img
+        else:
+            return img
+
+    # draw a polynomial line defined in track space
+    # points: a list of coordinates in format (x,y)
+    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
+
+        if img is None:
+            img = np.zeros([int(self.resolution*self.x_limit),int(self.resolution*self.y_limit),3],dtype='uint8')
+
+        pts = [self.m2canvas(point) for point in points]
+        for i in range(len(points)-1):
+            p1 = np.array(pts[i])
+            p2 = np.array(pts[i+1])
+            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
+        return img
+
+    # draw ONE arrow, unit: meter, coord sys: dimensioned
+    # source: source of arrow, in meter
+    # orientation, radians from x axis, ccw positive
+    # length: in pixels, though this is only qualitative
+    def drawArrow(self,source, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
+        if img is None:
+            img = np.zeros([int(self.resolution*self.x_limit),int(self.resolution*self.y_limit),3],dtype='uint8')
+
+        length = int(length)
+        src = self.m2canvas(source)
+
+        # y-axis positive direction in real world and cv plotting is reversed
+        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
+
+        img = cv2.circle(img, src, 3, (0,0,0),-1)
+        img = cv2.line(img, src, dest, color, thickness) 
+
+        return img
+
+    # NOTE obstacles
+    # obstacle related class variables need to be set prior
+    def setUpObstacles(self):
+        if (not self.obstacle):
+            self.obstacle_count = 0
+            return
+        filename = os.path.join(self.main.basedir,self.obstacle_filename)
+
+        if (os.path.isfile(filename)):
+            with open(filename, 'rb') as f:
+                obstacles = pickle.load(f)
+            self.obstacle_count = obstacles.shape[0]
+            self.print_ok(f"loading obstacles at {filename}, count = {obstacles.shape[0]}")
+            self.print_ok(" if you wish to create new obstacles, remove current obstacle file or change parameter obstacle_filename")
+        else:
+            self.print_ok(f"generating new obstacles, count = {obstacle_count}")
+            obstacles = np.random.random((obstacle_count,2))
+            # save obstacles
+            if (not filename is None):
+                with open(filename, 'wb') as f:
+                    pickle.dump(obstacles,f)
+                self.print_ok(f"saved obstacles at {filename}")
+
+        # spread obstacle to entire track
+        obstacles[:,0] *= self.x_limit
+        obstacles[:,1] *= self.y_limit
+
+        self.obstacles = obstacles
 
 
-    # NOTE need to be overridden in each subclass Track
-    # draw a raceline
-    def drawRaceline(self,img=None):
-        raise NotImplementedError
-
-    # draw a picture of the track
-    def drawTrack(self, img=None,show=False):
-        pass
-
-    def localTrajectory(self,state):
-        raise NotImplementedError
 
 
-    # universal function for all Track classes
-    def setResolution(self,res):
-        self.resolution = res
-        return
 
+
+    # NOTE others
     def prepareDiscretizedRaceline(self):
         ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
