@@ -3,15 +3,16 @@ from track.Track import Track
 from track.RCPTrack import RCPTrack
 from track.EmptyTrack import EmptyTrack
 from track.Skidpad import Skidpad
+from track.OrcaTrack import OrcaTrack
 from math import radians
 def TrackFactory(main,config,name=None):
     if name is None:
         name = config.firstChild.nodeValue
-    mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack}
+    mapping = {'full':prepareRcpTrack, 'small':prepareRcpTrackSmall, 'skidpad':prepareSkidpad, 'empty':prepareEmptyTrack,'orca':prepareOrcaTrack}
     if (name in mapping):
         return mapping[name](main,config)
     else:
-        print_error("unknown track name")
+        print_error(f"unknown track name, use one in {mapping.keys()}")
         return
 
 def prepareEmptyTrack(main,config):
@@ -89,3 +90,7 @@ def prepareRcpTrackSmall(main,config):
     adjustment[10] = -0.5
     mk103.initRaceline((2,2),'d',4,offset=adjustment)
     return mk103
+
+def prepareOrcaTrack(main,config):
+    track = OrcaTrack(main,config)
+    return track

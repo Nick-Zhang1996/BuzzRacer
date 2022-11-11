@@ -21,13 +21,14 @@ class OrcaTrack(Track):
         self.buildContinuousTrack()
 
     def loadTrack(self,):
-        config = json.load(open('../copg/car_racing/config.json'))
+        #config = json.load(open('../copg/car_racing/config.json'))
         #self.path = config['data_dir']
-        self.path = '../copg/car_racing_simulator/ORCA_OPT/'
-        self.N = config['n_track']
+        self.path = os.path.join(self.main.basedir,'src/copg/car_racing_simulator/ORCA_OPT/')
+        #self.N = config['n_track']
         # ref point location
         self.X = np.loadtxt(self.path + "x_center.txt")[:, 0]
         self.Y = np.loadtxt(self.path + "x_center.txt")[:, 1]
+        self.N = len(self.X)
         # ??
         self.s = np.loadtxt(self.path + "s_center.txt")
         self.phi = np.loadtxt(self.path + "phi_center.txt")
@@ -80,7 +81,7 @@ class OrcaTrack(Track):
         self.lower = lower
 
         self.raceline_len_m = s_vec[-1]
-        self.raceline_m = self.buildSpline(r_vec)
+        self.raceline_s = self.buildSpline(r_vec)
         self.upper_fun = self.buildSpline(upper)
         self.lower_fun = self.buildSpline(lower)
 
@@ -99,16 +100,15 @@ class OrcaTrack(Track):
         y_pix = int(self.y_limit*self.resolution)
         # height, width
         img = 255*np.ones([y_pix,x_pix,3],dtype=np.uint8)
-        print(f'{np.min(self.lower)}')
         img = self.drawPolyline(self.upper,img,lineColor=(0,0,0),thickness=2)
         img = self.drawPolyline(self.lower,img,lineColor=(0,0,0),thickness=2)
-        img = self.drawPolyline(self.r_vec,img,lineColor=(0,0,255),thickness=1)
         return img
 
 
     # draw a raceline
     def drawRaceline(self,img=None):
-        raise NotImplementedError
+        img = self.drawPolyline(self.r_vec,img,lineColor=(0,0,255),thickness=1)
+        return img
 
 if __name__=='__main__':
     track = OrcaTrack(None,None)
