@@ -14,9 +14,8 @@
       <name>Green Porsche</name>
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
-      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller max_speed='1.0'>
-        <type>StanleyCarController</type>
+        <type>EmptyCarController</type>
       </controller>
     </car>
 
@@ -24,9 +23,8 @@
       <name>Green Porsche</name>
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
-      <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
       <controller max_speed='1.0'>
-        <type>StanleyCarController</type>
+        <type>EmptyCarController</type>
       </controller>
     </car>
 
