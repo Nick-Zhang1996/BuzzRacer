@@ -1,7 +1,9 @@
+# RC car dynamics
 import torch
 import car_racing_simulator.Track as Track
 import numpy as np
 import copy
+from math import radians
 
 
 class VehicleModel():
@@ -31,54 +33,52 @@ class VehicleModel():
         self.n_batch = n_batch
 
         # Model Parameters
-        self.Cm1 = 0.287
-        self.Cm2 = 0.054527
-        self.Cr0 = 0.051891
-        self.Cr2 = 0.000348
+        #self.Cm1 = 0.287
+        #self.Cm2 = 0.054527
+        #self.Cr0 = 0.051891
+        #self.Cr2 = 0.000348
 
-        self.B_r = 3.3852 / 1.2
-        self.C_r = 1.2691
-        self.D_r = 1. * 0.1737 * 1.2
+        #self.B_r = 3.3852 / 1.2
+        #self.C_r = 1.2691
+        #self.D_r = 1. * 0.1737 * 1.2
 
-        self.B_f = 2.579
-        self.C_f = 1.2
-        self.D_f = 1.05 * .192
+        #self.B_f = 2.579
+        #self.C_f = 1.2
+        #self.D_f = 1.05 * .192
 
-        self.mass = 0.041
-        self.mass_long = 0.041
-        self.I_z = 27.8e-6
-        self.l_f = 0.029
-        self.l_r = 0.033
+        #self.mass = 0.041
+        #self.mass = 0.041
+        #self.I_z = 27.8e-6
+        #self.l_f = 0.029
+        #self.l_r = 0.033
 
-        self.L = 0.06
-        self.W = 0.03
+        #self.L = 0.06
+        #self.W = 0.03
 
-        self.tv_p = 0
+        #self.tv_p = 0
+
+        self.L = 0.09
+        self.l_f = 0.04824
+        self.l_r = self.L - self.l_f
+        self.I_z = 417757e-9
+        self.mass = 0.1667
 
         self.Ts = 0.03
+        self.max_steering = radians(26.5)
 
 
-    def dynModel(self, x, u):
-
-        k1 = self.dx(x, u)
-        k2 = self.dx(x + self.Ts / 2. * k1, u)
-        k3 = self.dx(x + self.Ts / 2. * k2, u)
-        k4 = self.dx(x + self.Ts * k3, u)
-
-        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
-
-        return x_next
 
     # advance dynamics in cartesian frame
     def dx(self, x, u):
-
         f = torch.empty(self.n_batch, self.n_full_state,device=self.device)
+        # state x: X,Y,phi, v_x, v_y, omega
 
         phi = x[:, 2]
         v_x = x[:, 3]
         v_y = x[:, 4]
         r = x[:, 5]
 
+        throttle = u[:,0]
         delta = u[:, 1]
 
         r_tar = delta * v_x / (self.l_f + self.l_r)
@@ -88,41 +88,47 @@ class VehicleModel():
         f[:, 0] = v_x * torch.cos(phi) - v_y * torch.sin(phi)
         f[:, 1] = v_x * torch.sin(phi) + v_y * torch.cos(phi)
         f[:, 2] = r
-        f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+        # orca
+        #f[:, 3] = 1 / self.mass * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+        #f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+        # rcvip
+        f[:,3] =  F_rx / self.mass
         f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
-        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r)
         return f
 
-    def slipAngle(self, x, u):
-        v_x = x[:, 3]
-        v_y = x[:, 4]
-        r = x[:, 5]
-
-        delta = u[:, 1]
-
-        alpha_f = -torch.atan((self.l_f * r + v_y) / (v_x+1e-5)) + delta
-        alpha_r = torch.atan((self.l_r * r - v_y) / (v_x+1e-5))
-
-        return alpha_f, alpha_r
-
     def forceModel(self, x, u):
+        # cartesian: X,Y,phi, vx,vy,w
+        # curvilinear: progress, lateral_err, heading_err, vx,vy,w
         v_x = x[:, 3]
         v_y = x[:, 4]
         r = x[:, 5]
 
+        # throttle, steering
         D = u[:, 0]
         delta = u[:, 1]
 
         alpha_f = -torch.atan((self.l_f * r + v_y) / (v_x+1e-5)) + delta
         alpha_r = torch.atan((self.l_r * r - v_y) / (v_x+1e-5))
 
-        F_rx = self.Cm1 * D - self.Cm2*v_x*D - self.Cr2*v_x**2 - self.Cr0
-        F_ry = self.D_r * torch.sin(self.C_r * torch.atan(self.B_r * alpha_r))
-        F_fy = self.D_f * torch.sin(self.C_f * torch.atan(self.B_f * alpha_f))
+        # orca
+        #F_rx = self.Cm1 * D - self.Cm2*v_x*D - self.Cr2*v_x**2 - self.Cr0
+        #F_ry = self.D_r * torch.sin(self.C_r * torch.atan(self.B_r * alpha_r))
+        #F_fy = self.D_f * torch.sin(self.C_f * torch.atan(self.B_f * alpha_f))
+
+        # rcvip
+        F_rx = 6.17*(D - v_x/15.2 -0.333) * self.mass
+        F_fy = self.tireCurve(alpha_f) * self.mass * 9.8 *self.l_r/(self.l_r+self.l_f)
+        F_ry = 1.15*self.tireCurve(alpha_r) * self.mass * 9.8 *self.l_f/(self.l_r+self.l_f)
 
         return F_rx, F_ry, F_fy
 
-
+    def tireCurve(self,alpha):
+        C = 1.6
+        B = 2.3
+        D = 1.1
+        retval = D * torch.sin( C * torch.atan(B *alpha)) 
+        return retval
 
     def compLocalCoordinates(self, x):
 
@@ -203,6 +209,28 @@ class VehicleModel():
 
         return x_local
 
+    # refine discretization
+    def dynModel(self, x, u):
+
+        k1 = self.dx(x, u)
+        k2 = self.dx(x + self.Ts / 2. * k1, u)
+        k3 = self.dx(x + self.Ts / 2. * k2, u)
+        k4 = self.dx(x + self.Ts * k3, u)
+
+        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
+
+        return x_next
+    def kinModelCurve(self,x,u):
+
+        k1 = self.dxkin(x, u).to(self.device)
+        k2 = self.dxkin(x + self.Ts / 2. * k1, u).to(self.device)
+        k3 = self.dxkin(x + self.Ts / 2. * k2, u).to(self.device)
+        k4 = self.dxkin(x + self.Ts * k3, u).to(self.device)
+
+        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+
+        return x_next
+
     def dynModelCurve(self, x, u):
 
         k1 = self.dxCurve(x, u).to(self.device)
@@ -214,77 +242,32 @@ class VehicleModel():
 
         return x_next
 
-    def dynModelBlend(self, x, u):
-
-        blend_ratio = (x[:,3] - 0.3)/(0.2)
-
-        lambda_blend = np.min([np.max([blend_ratio,0]),1])
-        # blend_max = torch.max(torch.cat([blend_ratio.view(-1,1), torch.zeros(blend_ratio.size(0),1)],dim=1),dim=1)
-        # blend_min = torch.min(torch.cat([blend_max.values.view(-1, 1), torch.ones(blend_max.values.size(0), 1)], dim=1), dim=1)
-        # lambda_blend = blend_min.values
-
-        if lambda_blend <1:
-            v_x = x[:,3]
-            v_y = x[:, 4]
-            x_kin = torch.cat([x[:,0:3], torch.sqrt(v_x*v_x + v_y*v_y).reshape(-1,1)],dim =1)
-
-            k1 = self.dxkin(x_kin, u).to(self.device)
-            k2 = self.dxkin(x_kin + self.Ts / 2. * k1, u).to(self.device)
-            k3 = self.dxkin(x_kin + self.Ts / 2. * k2, u).to(self.device)
-            k4 = self.dxkin(x_kin + self.Ts * k3, u).to(self.device)
-
-            x_kin_state = x_kin + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
-            delta = u[:, 1]
-            beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
-            v_x_state = x_kin_state[:,3] * torch.cos(beta) # V*cos(beta)
-            v_y_state = x_kin_state[:,3] * torch.sin(beta) # V*sin(beta)
-            yawrate_state = v_x_state * torch.tan(delta)/(self.l_f + self.l_r)
-
-            x_kin_full = torch.cat([x_kin_state[:,0:3],v_x_state.view(-1,1),v_y_state.view(-1,1), yawrate_state.view(-1,1)],dim =1)
-
-            if lambda_blend ==0:
-                return x_kin_full
-
-        if lambda_blend >0:
-
-            k1 = self.dxCurve(x, u).to(self.device)
-            k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-            k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-            k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
-
-            x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
-            if lambda_blend ==1:
-                return x_dyn
-
-        return  x_dyn*lambda_blend + (1-lambda_blend)*x_kin_full
-
+    # x: curvlinear states : (progress, lateral_err, orientation_err, vx,vy
     def dynModelBlendBatch(self, x, u_unclipped):
-
+        '''
         blend_ratio = (x[:,3] - 0.3)/(0.2)
-
         # lambda_blend = np.min([np.max([blend_ratio,0]),1])
         blend_max = torch.max(torch.cat([blend_ratio.view(-1,1), torch.zeros(blend_ratio.size(0),1)],dim=1),dim=1)
         blend_min = torch.min(torch.cat([blend_max.values.view(-1, 1), torch.ones(blend_max.values.size(0), 1)], dim=1), dim=1)
         lambda_blend = blend_min.values
-        # print(lambda_blend)
-        u = u_unclipped
-        # u[:,0] = torch.clamp(u_unclipped[:,0],-0.2,1) #
-        # u[:,1] = torch.clamp(u_unclipped[:,1],-0.35,0.35) # steering angle
-        u[:,0] = torch.clamp(u_unclipped[:,0],-1,1) #
-        u[:,1] = torch.clamp(u_unclipped[:,1],-1,1) # steering angle
-        # u[:, 0] = u[:, 0]*1.2/2 + 0.4 #(-0.2,1)
-        # u[:, 1] = u[:, 1] * 0.35 #(-0.35,035)
+        '''
 
+        # TODO verify this is OK
+        blend_ratio = (x[:,3]>0.05).float()
+        lambda_blend = blend_ratio
+
+        u = u_unclipped
+        u[:,0] = torch.clamp(u_unclipped[:,0],-1,1) # throttle
+        # original curoff is [-1,1]
+        u[:,1] = torch.clamp(u_unclipped[:,1],-self.max_steering,self.max_steering) # steering angle
+
+        # Kinematic Model
         v_x = x[:,3]
         v_y = x[:, 4]
         x_kin = torch.cat([x[:,0:3], torch.sqrt(v_x*v_x + v_y*v_y).reshape(-1,1)],dim =1)
 
-        k1 = self.dxkin(x_kin, u).to(self.device)
-        k2 = self.dxkin(x_kin + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxkin(x_kin + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxkin(x_kin + self.Ts * k3, u).to(self.device)
+        x_kin_state = self.kinModelCurve(x_kin,u)
 
-        x_kin_state = x_kin + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
         delta = u[:, 1]
         beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
         v_x_state = x_kin_state[:,3] * torch.cos(beta) # V*cos(beta)
@@ -293,12 +276,8 @@ class VehicleModel():
 
         x_kin_full = torch.cat([x_kin_state[:,0:3],v_x_state.view(-1,1),v_y_state.view(-1,1), yawrate_state.view(-1,1)],dim =1)
 
-        k1 = self.dxCurve(x, u).to(self.device)
-        k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
-
-        x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        # Dynamic Model
+        x_dyn = self.dynModelCurve(x,u)
 
         return  (x_dyn.transpose(0,1)*lambda_blend + x_kin_full.transpose(0,1)*(1-lambda_blend)).transpose(0,1)
 
@@ -309,8 +288,9 @@ class VehicleModel():
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
         mu = x[:, 2] #orientation
-        v = x[:, 3]
+        v_x = v = x[:, 3]
 
+        throttle = u[:,0]
         delta = u[:, 1]
 
         kappa = self.getCurvature(s)
@@ -320,14 +300,16 @@ class VehicleModel():
         fkin[:, 0] = (v*torch.cos(beta + mu))/(1.0 - kappa*d)   # s_dot
         fkin[:, 1] = v*torch.sin(beta + mu) # d_dot
         fkin[:, 2] = v*torch.sin(beta)/self.l_r - kappa*(v*torch.cos(beta + mu))/(1.0 - kappa*d)
+        '''
         slow_ind =  v<=0.1
         D_0 = (self.Cr0 + self.Cr2*v*v)/(self.Cm1 - self.Cm2 * v)
         D_slow  = torch.max(D_0,u[:,0])
         D_fast = u[:,0]
-
         D = D_slow*slow_ind + D_fast*(~slow_ind)
+        '''
 
-        fkin[:, 3] = 1 / self.mass_long * (self.Cm1 * D - self.Cm2 * v * D - self.Cr0 - self.Cr2*v*v)
+        F_rx = 6.17*(throttle - v_x/15.2 -0.333) * self.mass
+        fkin[:, 3] = 1 / self.mass * F_rx
 
         return fkin
 
@@ -360,9 +342,9 @@ class VehicleModel():
             fkin[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)   # s_dot
             fkin[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu) # d_dot
             fkin[:, 2] = v*torch.sin(beta)/self.l_r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-            v_dot = 1 / self.mass_long * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
+            v_dot = 1 / self.mass * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
 
-            fkin[:, 3] = 1 / self.mass_long * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
+            fkin[:, 3] = 1 / self.mass * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
             fkin[:, 4] = delta * fkin[:, 3] * self.l_r / (self.l_r + self.l_f)
             fkin[:, 5] = delta * fkin[:, 3] / (self.l_r + self.l_f)
             if lambda_blend ==0:
@@ -374,7 +356,7 @@ class VehicleModel():
             f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
             f[:, 1] =  v_x * torch.sin(mu) + v_y * torch.cos(mu)
             f[:, 2] = r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-            f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+            f[:, 3] = 1 / self.mass * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
             f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
             f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
             if lambda_blend ==1:
@@ -383,8 +365,8 @@ class VehicleModel():
         return f*lambda_blend + (1-lambda_blend)*fkin
 
 
+    # advance dynamics in curvilinear frame
     def dxCurve(self, x, u):
-
         f = torch.empty(x.size(0), self.n_full_state)
 
         s = x[:,0] #progress
@@ -405,9 +387,16 @@ class VehicleModel():
         f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
         f[:, 1] =  v_x * torch.sin(mu) + v_y * torch.cos(mu)
         f[:, 2] = r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-        f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+
+        # orca
+        #f[:, 3] = 1 / self.mass * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+        #f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
+        #f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+
+        # rcvip
+        f[:, 3] = F_rx / self.mass
         f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
-        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r)
         return f
 
     def fromStoIndexBatch(self,s_in):

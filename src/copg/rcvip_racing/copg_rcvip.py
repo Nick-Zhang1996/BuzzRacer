@@ -1,3 +1,5 @@
+# TODO use gpu
+# TODO update cost function
 # Game imports
 import torch
 import sys
@@ -18,13 +20,13 @@ import random
 import json
 import sys
 
-import car_racing_simulator.VehicleModel as VehicleModel
-import car_racing_simulator.Track as Track
-from car_racing.orca_env_function import getfreezeTimecollosionReachedreward
+import rcvip_simulator.VehicleModel as VehicleModel
+import rcvip_simulator.Track as Track
+from rcvip_env_function import getfreezeTimecollosionReachedreward
 import gc
 
-folder_location = 'model/'
-experiment_name = 'copg/'
+folder_location = 'pretrained_model/'
+experiment_name = 'rcptrack_rcvipmodel/copg/'
 directory = './' + folder_location + experiment_name + 'model'
 
 if not os.path.exists(directory):
@@ -34,7 +36,8 @@ writer = SummaryWriter('./' + folder_location + experiment_name + 'data')
 config = json.load(open('config.json'))
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-device = 'cpu'#torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
+#torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 device = torch.device("cpu")
 vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
