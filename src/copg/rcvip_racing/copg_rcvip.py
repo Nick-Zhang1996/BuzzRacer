@@ -24,7 +24,7 @@ import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
 import gc
 
-folder_location = 'pretrained_model/'
+folder_location = 'trained_model/'
 experiment_name = 'rcptrack_rcvipmodel/copg/'
 directory = './' + folder_location + experiment_name + 'model'
 
