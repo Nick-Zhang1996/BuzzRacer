@@ -1,5 +1,4 @@
-# TODO use gpu
-# TODO update cost function
+# TODO use gpu in simulation
 # Game imports
 import torch
 import sys
@@ -36,10 +35,10 @@ writer = SummaryWriter('./' + folder_location + experiment_name + 'data')
 config = json.load(open('config.json'))
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-device = 'cpu'
-#torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
+print(f'using device: {device}')
 
-device = torch.device("cpu")
 vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
 
 x0 = torch.zeros(config["n_batch"], config["n_state"])
@@ -65,6 +64,7 @@ optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
 
 batch_size = 8
 num_episode = 10000
+print(f'training for {num_episode} episodes')
 
 for t_eps in range(num_episode):
     mat_action1 = []
@@ -90,6 +90,7 @@ for t_eps in range(num_episode):
     init_p2 = torch.zeros((curr_batch_size)) #5*torch.rand((curr_batch_size))
     state_c1[:,0] = init_p1
     state_c2[:,0] = init_p2
+    # random initial state:  lateral_offset
     a = random.choice([-0.1,0.1])
     b = a*(-1)
     state_c1[:, 1] = a*torch.ones((curr_batch_size))
@@ -117,12 +118,14 @@ for t_eps in range(num_episode):
         st1_gpu = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1).to(device)
 
         dist1 = p1(st1_gpu)
-        action1 = dist1.sample().to('cpu')
+        #action1 = dist1.sample().to('cpu')
+        action1 = dist1.sample()
 
         st2_gpu = torch.cat([state_c2[:, 0:5], state_c1[:, 0:5]], dim=1).to(device)
 
         dist2 = p2(st2_gpu)
-        action2 = dist2.sample().to('cpu')
+        #action2 = dist2.sample().to('cpu')
+        action2 = dist2.sample()
 
         if itr>0:
             mat_state1 = torch.cat([mat_state1.view(-1,curr_batch_size,5),state_c1[:,0:5].view(-1,curr_batch_size,5)],dim=0) # concate along dim = 0
@@ -143,6 +146,8 @@ for t_eps in range(num_episode):
 
         state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1,6), action1.view(-1,2)).view(-1,6)
         state_c2 = vehicle_model.dynModelBlendBatch(state_c2.view(-1,6), action2.view(-1,2)).view(-1,6)
+
+
 
         state_c1 = (state_c1.transpose(0, 1) * (~done_c1) + prev_state_c1.transpose(0, 1) * (done_c1)).transpose(0, 1)
         state_c2 = (state_c2.transpose(0, 1) * (~done_c2) + prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
@@ -226,6 +231,7 @@ for t_eps in range(num_episode):
             batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1).reshape(-1, 1)],dim=0) #should i create a false or true array?
+            # NOTE debug
             print("done", itr)
             print(mat_done.shape)
             mat_done[mat_done.size(0)-1,:,:] = torch.ones((mat_done[mat_done.size(0)-1,:,:].shape))>=2 # creating a true array of that shape
@@ -250,6 +256,7 @@ for t_eps in range(num_episode):
 
     # print(avg_itr)
 
+
     print(batch_mat_state1.shape,itr)
     writer.add_scalar('Dist/variance_throttle_p1', dist1.variance[0,0], t_eps)
     writer.add_scalar('Dist/variance_steer_p1', dist1.variance[0,1], t_eps)
@@ -262,6 +269,7 @@ for t_eps in range(num_episode):
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
     writer.add_scalar('Progress/agent1', batch_mat_state1[:,0].mean(), t_eps)
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
+
 
     val1 = q(torch.cat([batch_mat_state1,batch_mat_state2],dim=1).to(device))
     val1 = val1.detach().to('cpu')
