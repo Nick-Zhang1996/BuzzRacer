@@ -37,7 +37,9 @@ track1.loadOrcaTrack(config)
 
 device = torch.device("cpu")
 
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='orca')
+track = 'rcp'
+print(f'running on {track} track')
+vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track=track)
 
 mat_action1 = []
 mat_action2 = []

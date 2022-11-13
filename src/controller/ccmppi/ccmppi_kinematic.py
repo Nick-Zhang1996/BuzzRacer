@@ -25,7 +25,7 @@ from track.RCPTrack import RCPTrack
 from extension.simulator.KinematicSimulator import KinematicSimulator
 
 class CCMPPI_KINEMATIC():
-    def __init__(self,dt, N, noise_cov, debug_info=None):
+    def __init__(self,dt, N, noise_cov, track,debug_info=None):
         # set time horizon
         self.N = N
         self.n = 4
@@ -35,6 +35,7 @@ class CCMPPI_KINEMATIC():
         self.debug_info = debug_info
         self.rand_vals = None
         self.v = None
+        self.track=track
 
         self.dt = dt
         #self.Sigma_epsilon = np.diag([0.2,radians(20)])
@@ -47,7 +48,6 @@ class CCMPPI_KINEMATIC():
         # set up parameters for the model
         self.setupParam()
         # load track 
-        #self.loadTrack()
         self.getRefTraj("../log/ref_traj/kinematic.p",show=False)
         
         np.random.seed()
@@ -70,17 +70,6 @@ class CCMPPI_KINEMATIC():
         
         self.Caf = Df *  C * B * 9.8 * lr / (lr + lf) * m
         self.Car = Dr *  C * B * 9.8 * lr / (lr + lf) * m
-
-    def loadTrack(self):
-        # full RCP track
-        # NOTE load track instead of re-constructing
-        fulltrack = RCPTrack()
-        # for laptimer
-        fulltrack.startPos = (0.6*3.5,0.6*1.75)
-        fulltrack.startDir = radians(90)
-        fulltrack.load()
-        self.track = fulltrack
-        return 
 
     # read a log
     # use trajectory of second lap as reference trajectory
@@ -119,10 +108,6 @@ class CCMPPI_KINEMATIC():
         '''
 
         # search for log_no lap
-        self.track = RCPTrack()
-        self.track.startPos = (0.6*3.5,0.6*1.75)
-        self.track.startDir = radians(90)
-        self.track.load()
         laptimer = Laptimer(self.track.startPos, self.track.startDir)
         current_lap = 0
         index = 0
@@ -802,12 +787,7 @@ class CCMPPI_KINEMATIC():
         cc_states_vec = ret_dict['cc_states_vec']
         nocc_states_vec = ret_dict['nocc_states_vec']
 
-        # prepare track map
-        track = RCPTrack()
-        track.startPos = (0.6*3.5,0.6*1.75)
-        track.startDir = radians(90)
-        track.load()
-
+        track = self.track
         img = track.drawTrack()
         track.drawRaceline(img=img)
         car_steering = 0.0

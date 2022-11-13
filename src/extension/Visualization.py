@@ -27,7 +27,7 @@ class Visualization(Extension):
         self.visualization_ts = time()
         self.img_track = self.main.track.drawTrack()
         self.img_blank_track = self.img_track.copy()
-        self.img_blank_track_with_obstacles = self.drawObstacles(self.img_track.copy())
+        self.img_blank_track_with_obstacles = self.track.plotObstacles(self.img_track.copy())
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
 
 
@@ -47,36 +47,6 @@ class Visualization(Extension):
     def postInit(self,):
         self.saveBlankImg()
 
-    def drawObstacles(self,img):
-        if (not self.track.obstacle):
-            return img
-        # plot obstacles
-        for obs in self.track.obstacles:
-            img = self.track.drawCircle(img, obs, self.track.obstacle_radius, color=(150,150,150))
-        for car in self.main.cars:
-            has_collided, obs_id = self.track.isInObstacle(car.states,get_obstacle_id=True)
-            if (has_collided):
-                # plot obstacle in collision red
-                img = self.track.drawCircle(img, self.track.obstacles[obs_id], self.track.obstacle_radius, color=(100,100,255))
-            return img
-
-        # FIXME
-        return
-
-        text = "collision: %d"%(self.car.main.collision_checker.collision_count[self.car.id])
-        # font
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        # org
-        org = (200, 50)
-        # fontScale
-        fontScale = 1
-        # Blue color in BGR
-        color = (255, 0, 0)
-        # Line thickness of 2 px
-        thickness = 2
-        img = cv2.putText(img, text, org, font,
-                           fontScale, color, thickness, cv2.LINE_AA)
-        self.car.main.visualization.visualization_img = img
 
     def saveBlankImg(self):
         #img = self.img_blank_track.copy()
@@ -133,7 +103,7 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.drawCar(img, car)
             img = self.drawControlForAllCars(img)
-            img = self.drawObstacles(img)
+            img = self.track.plotObstacles(img)
             self.visualization_img = img
 
 
@@ -258,26 +228,11 @@ class Visualization(Extension):
         if (src is None):
             print("overlayCarRendering err -- coordinate outside canvas")
             return img
+        return self.overlayCarRenderingRaw(img,car,src,heading)
 
-        # image rotation according to heading and steering angles
-        height, width = car.image.shape[:2]
-        center = (width/2, height/2)
-        scale = 40/height
-        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(heading), scale=scale)
-        rotated_car = cv2.warpAffine(src=car.image, M=rotate_matrix, dsize=(width, height)) 
-        overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
-        bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        bg_img = Image.alpha_composite(Image.new("RGBA", bg_img.size),bg_img.convert('RGBA'))
-        x, y = (src[0]-width//2), (src[1]-height//2)
-
-        bg_img.paste(overlay_t,(x,y),overlay_t)
-        bg_img = np.array(bg_img,dtype=np.uint8)
-        bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
-        
-        return bg_img
-
+    # TODO optimize this
     # overlay Car rendering at specified location in pixel coord, for plotting controls
-    def overlayCarRenderingRaw(self,img, car, src):
+    def overlayCarRenderingRaw(self,img, car, src,angle=np.pi/2):
         #x,y,heading, vf_lf, vs_lf, omega_lf = car.states
         #coord = (x,y)
         #src = self.main.track.m2canvas(coord)
@@ -286,11 +241,12 @@ class Visualization(Extension):
         #    return img
 
         # image rotation according to heading and steering angles
-        heading = np.pi/2
+        #heading = np.pi/2
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
-        scale = 40/height
-        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(heading), scale=scale)
+        # dynamic scale
+        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.width 
+        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(src=car.image, M=rotate_matrix, dsize=(width, height)) 
         overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
         bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))

@@ -58,13 +58,12 @@ class Node:
         self.entry = entry
         return
 
-class RCPTrack(Track,PrintObject):
-    def __init__(self,config=None):
-        Track.__init__(self)
-        self.config = config
+class RCPTrack(Track):
+    def __init__(self,main,config=None):
+        Track.__init__(self,main,config)
         self.t = execution_timer(True)
         # resolution : pixels per grid side length
-        self.resolution = 120
+        self.setResolution(200)
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -76,11 +75,6 @@ class RCPTrack(Track,PrintObject):
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
-
-        self.obstacle=False
-        self.obstacle_count=0
-        self.obstacle_filename='obstacles.p'
-        self.obstacle_radius=0.1
 
     def isOutside(self,coord):
         grace = 1.0
@@ -127,6 +121,9 @@ class RCPTrack(Track,PrintObject):
         self.gridsize = gridsize
         self.track_length_grid = len(description)
         self.grid_sequence = []
+
+        self.x_limit = self.gridsize[1]*self.scale
+        self.y_limit = self.gridsize[0]*self.scale
         
         grid = [[None for i in range(gridsize[0])] for j in range(gridsize[1])]
 
@@ -185,11 +182,12 @@ class RCPTrack(Track,PrintObject):
 
     def drawTrack(self, img=None,show=False):
         # show a picture of the track
-        # resolution : pixels per grid length
+        # resolution : pixels per peter
+        # scale: side length of a grid (meter)
         color_side = (255,0,0)
         # boundary width / grid width
         deadzone = 0.087
-        gs = self.resolution
+        gs = int(self.resolution * self.scale)
 
         # prepare straight section (WE)
         straight = 255*np.ones([gs,gs,3],dtype='uint8')
@@ -670,6 +668,8 @@ class RCPTrack(Track,PrintObject):
         self.track = save['track']
         self.min_v = save['min_v']
         self.max_v = save['max_v']
+        self.x_limit = self.gridsize[1]*self.scale
+        self.y_limit = self.gridsize[0]*self.scale
 
         print_ok("track and raceline loaded")
         self.reconstructRaceline()
@@ -1195,7 +1195,7 @@ class RCPTrack(Track,PrintObject):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
-        res = self.resolution
+        res = int(self.resolution*self.scale)
 
         # this gives smoother result, but difficult to relate u to actual grid
         #u_new = np.linspace(self.u.min(),self.u.max(),1000)
@@ -1205,11 +1205,9 @@ class RCPTrack(Track,PrintObject):
         u_new = np.linspace(0,self.track_length_grid,1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        y_new /= self.scale
+        x_new *= self.resolution 
         y_new *= self.resolution
-        y_new = self.resolution*rows - y_new
+        y_new = self.resolution*self.scale*rows - y_new
 
         if img is None:
             img = np.zeros([res*rows,res*cols,3],dtype='uint8')
@@ -1231,124 +1229,14 @@ class RCPTrack(Track,PrintObject):
             for point in points:
                 x = point[0]
                 y = point[1]
-                x /= self.scale
                 x *= self.resolution
-                y /= self.scale
                 y *= self.resolution
-                y = self.resolution*rows - y
+                y = self.resolution*self.scale*rows - y
                 
                 img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         return img
 
-    # draw a polynomial line defined in track space
-    # points: a list of coordinates in format (x,y)
-    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        # this gives smoother result, but difficult to relate u to actual grid
-        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
-
-        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
-        # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0,self.track_length_grid,1000)
-        points = np.array(points)
-        x_new = points[:,0]
-        y_new = points[:,1]
-        # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        y_new /= self.scale
-        y_new *= self.resolution
-        y_new = self.resolution*rows - y_new
-
-        if img is None:
-            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
-
-        pts = np.vstack([x_new,y_new]).T
-        # for polylines, pts = pts.reshape((-1,1,2))
-        pts = pts.reshape((-1,2))
-        pts = pts.astype(int)
-        # render different color based on speed
-        # slow - red, fast - green (BGR)
-        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        getColor = lambda v:(0,v2c(v),255-v2c(v))
-        gs = self.resolution
-        pts[:,0] = np.clip(pts[:,0],0,gs*cols)
-        pts[:,1] = np.clip(pts[:,1],0,gs*rows)
-        for i in range(len(points)-1):
-            p1 = np.array(pts[i])
-            p2 = np.array(pts[i+1])
-            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
-
-        # plot reference points
-        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        '''
-        if not (points is None):
-            for point in points:
-                x = point[0]
-                y = point[1]
-                x /= self.scale
-                x *= self.resolution
-                y /= self.scale
-                y *= self.resolution
-                y = self.resolution*rows - y
-                
-                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
-        '''
-
-        return img
-
-    # draw ONE arrow, unit: meter, coord sys: dimensioned
-    # source: source of arrow, in meter
-    # orientation, radians from x axis, ccw positive
-    # length: in pixels, though this is only qualitative
-    def drawArrow(self,source, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
-
-        if (length>1):
-            length = int(length)
-        else:
-            pass
-            '''
-            if show:
-                plt.imshow(img)
-                plt.show()
-            '''
-            return img
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        src = self.m2canvas(source)
-        if (src is None):
-            print("drawArrow err -- point outside canvas")
-            return img
-        #test_pnt = self.m2canvas(test_pnt)
-
-        if img is None:
-            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
-
-    
-        # y-axis positive direction in real world and cv plotting is reversed
-        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
-
-        #img = cv2.circle(img,test_pnt , 3, color,-1)
-
-        img = cv2.circle(img, src, 3, (0,0,0),-1)
-        img = cv2.line(img, src, dest, color, thickness) 
-            
-
-        '''
-        if show:
-            plt.imshow(img)
-            plt.show()
-        '''
-
-        return img
 
     def loadRaceline(self,filename=None):
         pass
@@ -1851,11 +1739,12 @@ class RCPTrack(Track,PrintObject):
 
 
 # conver a world coordinate in meters to canvas coordinate
+    '''
     def m2canvas(self,coord):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
-        res = self.resolution
+        res = self.resolution * self.scale
 
         x_new, y_new = coord[0], coord[1]
         # x_new and y_new are converted to non-dimensional grid unit
@@ -1865,21 +1754,19 @@ class RCPTrack(Track,PrintObject):
             return None
 
         # convert to visualization coordinate
-        x_new *= self.resolution
+        x_new *= self.resolution * self.scale
         x_new = int(x_new)
-        y_new *= self.resolution
+        y_new *= self.resolution * self.scale
         # y-axis positive direction in real world and cv plotting is reversed
-        y_new = int(self.resolution*rows - y_new)
+        y_new = int(self.resolution*self.scale*rows - y_new)
         return (x_new, y_new)
+    '''
 
     
 
     # draw a point on canvas at coord
     def drawPoint(self, img, coord, color = (0,0,0)):
         src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw point -- outside track")
-            return img
         img = cv2.circle(img, src, 3, color,-1)
 
         return img
@@ -1887,21 +1774,7 @@ class RCPTrack(Track,PrintObject):
     def drawPoints(self, img, coord_vec, color = (0,0,0)):
         for coord in coord_vec:
             src = self.m2canvas(coord)
-            if src is None:
-                #print("Can't draw point -- outside track")
-                return img
             img = cv2.circle(img, src, 3, color,-1)
-
-        return img
-
-    # draw a circle on canvas at coord
-    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
-        src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw point -- outside track")
-            return img
-        radius_pix = int(radius_m / self.scale * self.resolution)
-        img = cv2.circle(img, src, radius_pix, color,-1)
 
         return img
 
@@ -1909,62 +1782,6 @@ class RCPTrack(Track,PrintObject):
 # draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
     def drawAcc(self,acc,img):
         pass
-
-    def setUpObstacles(self):
-        if (not self.obstacle):
-            self.obstacle_count = 0
-            return
-
-        if (os.path.isfile(self.obstacle_filename)):
-            with open(self.obstacle_filename, 'rb') as f:
-                obstacles = pickle.load(f)
-            self.print_ok(" loading obstacles at " + self.obstacle_filename)
-            self.print_ok(" reuse obstacles, count = %d"%(obstacles.shape[0]))
-            self.print_ok(" if you wish to create new obstacles, remove current obstacle file or change parameter obstacle_filename")
-
-            # NOTE remove cluttered obstacles
-            '''
-            mask = np.invert(np.bitwise_and(obstacles[:,0]>0.8, obstacles[:,1]>0.6))
-            obstacles = obstacles[mask,:]
-            '''
-
-        else:
-            self.print_ok(" generating new obstacles, count = %d"%(self.obstacle_count))
-            obstacles = np.random.random((self.obstacle_count,2))
-            obstacles[:,0] *= self.gridsize[1]*self.scale
-            obstacles[:,1] *= self.gridsize[0]*self.scale
-            # save obstacles
-            with open(self.obstacle_filename, 'wb') as f:
-                pickle.dump(obstacles,f)
-            print_ok("[ccmppi]: saved obstacles at " + self.obstacle_filename)
-
-        #self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
-        self.obstacles = obstacles
-
-    # check if vehicle is currently in collision with obstacle
-    def isInObstacle(self, state, get_obstacle_id=False):
-        if (not self.obstacle):
-            if (get_obstacle_id):
-                return (False,0)
-            else:
-                return False
-        dist = self.obstacle_radius
-        x,y,heading,vf,vs,omega = state
-        min_dist = 100.0
-        for i in range(self.obstacles.shape[0]):
-            obs = self.obstacles[i]
-            dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
-            if (dist<min_dist):
-                min_dist = dist
-            if (dist < self.obstacle_radius):
-                if (get_obstacle_id):
-                    return (True,i)
-                else:
-                    return True
-        if (get_obstacle_id):
-            return (False,0)
-        else:
-            return False
     
 if __name__ == "__main__":
     fulltrack = RCPTrack()

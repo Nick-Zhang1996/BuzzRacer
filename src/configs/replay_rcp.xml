@@ -1,0 +1,32 @@
+<config>
+  <settings dt='0.03'>
+    <experiment_type>Simulation</experiment_type>
+    <track>full</track>
+  </settings>
+  <extensions>
+      <extension handle='visualization' car_graphics='True'>Visualization</extension>
+      <extension handle='replay' match_time='True' curvilinear='True' log_name='src/copg/rcvip_racing/pretrained_rcp.p'>Replay</extension>
+      <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <controller max_speed='1.0'>
+        <type>EmptyCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <controller max_speed='1.0'>
+        <type>EmptyCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>

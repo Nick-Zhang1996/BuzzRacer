@@ -6,12 +6,15 @@ import torch
 import sys
 sys.path.insert(0,'../..') # inorder to run within the folder
 from track.TrackFactory import TrackFactory
+from math import radians
+import matplotlib.pyplot as plt
 
 class Track:
 
     def __init__(self):
         return
 
+    '''
     def loadOrcaTrack(self,config):
         self.path = config['data_dir']
         self.N = config['n_track']
@@ -30,6 +33,7 @@ class Track:
         # self.d_lower[520:565] = np.clip(self.d_lower[520:565], -1, -0.2)
         self.border_angle_upper = np.loadtxt(self.path + "con_angle_inner.txt")
         self.border_angle_lower = np.loadtxt(self.path + "con_angle_outer.txt")
+    '''
 
     def loadRcpTrack(self):
         config = minidom.parse('config.xml')
@@ -67,11 +71,8 @@ class Track:
         return np.array([self.X[next_index] - self.X[index], self.Y[next_index] - self.Y[index]])
 
     def interpol(self, name, index, rela_proj):
-        if index == self.N:
-            index = 0
-            next_index = 1
-        else:
-            next_index = index + 1
+        index = index % self.N
+        next_index = (index + 1) % self.N
 
         if name == "s":
             return self.s[index] + (rela_proj * (self.s[next_index] - self.s[index]))
@@ -178,5 +179,23 @@ class Track:
 
         return np.array([s, d, mu, x[3], x[4], x[5], kappa, phi])
 
+
+if __name__=='__main__':
+    track = Track()
+    track.loadRcpTrack()
+    s = 0.1
+    d = 0.0
+    mu = radians(90)
+    global_state = track.fromLocaltoGlobal((s,d,mu))
+    print(f'global_state: {global_state}')
+    pos_vec = []
+    for s in np.linspace(0,track.track.raceline_len_m,300):
+        d = 0.0
+        mu = radians(90)
+        global_state = track.fromLocaltoGlobal((s,d,mu))
+        pos_vec.append( [global_state[0],global_state[1]] )
+    pos_vec = np.array(pos_vec)
+    plt.plot(pos_vec[:,0], pos_vec[:,1])
+    plt.show()
 
 

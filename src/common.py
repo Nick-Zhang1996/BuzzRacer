@@ -2,6 +2,7 @@ import numpy as np
 from enum import Enum, auto
 import inspect
 
+
 class ExperimentType(Enum):
     Simulation = auto()
     Realworld = auto()
@@ -45,11 +46,23 @@ class PrintObject:
 
 
 
+# if variables are declared in a subclass for readability,
+# then the contructor of this method needs to be called AFTER those definitions
+# so they don't get overridden
 class ConfigObject(PrintObject):
     def __init__(self,config):
+        self.config = config
+        if config is None:
+            self.print_warning('no config available')
+            return
         self.print_ok("setting " + config.firstChild.nodeValue + " attributes")
+        # load config parameters
         for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
+            try:
+                value = eval(value_text)
+            except NameError:
+                value = value_text
+            setattr(self,key,value)
             self.print_info(config.firstChild.nodeValue, ".",key,'=',value_text)
 
 # ----------

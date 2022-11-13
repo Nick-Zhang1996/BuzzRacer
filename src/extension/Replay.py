@@ -15,8 +15,8 @@ class Replay(Simulator):
         self.timestep = 0
         self.curvilinear = None
         self.log_name = None
-        # rcvip/src
-        self.basedir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        # rcvip
+        self.basedir = self.main.basedir
         self.track = self.main.track
 
     def init(self):

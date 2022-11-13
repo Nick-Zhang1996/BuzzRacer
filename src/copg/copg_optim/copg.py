@@ -153,8 +153,11 @@ class RCoPG(object):
                                            device=self.device)
             self.square_avgy = torch.zeros(grad_y_vec.size(), requires_grad=False,
                                            device=self.device)
-        self.square_avgx.mul_(self.beta2).addcmul_(1 - self.beta2, grad_x_vec.data, grad_x_vec.data)
-        self.square_avgy.mul_(self.beta2).addcmul_(1 - self.beta2, grad_y_vec.data, grad_y_vec.data)
+        # below is depreciated
+        #self.square_avgx.mul_(self.beta2).addcmul_(1 - self.beta2, grad_x_vec.data, grad_x_vec.data)
+        #self.square_avgy.mul_(self.beta2).addcmul_(1 - self.beta2, grad_y_vec.data, grad_y_vec.data)
+        self.square_avgx.mul_(self.beta2).addcmul_( grad_x_vec.data, grad_x_vec.data, value=1-self.beta2)
+        self.square_avgy.mul_(self.beta2).addcmul_( grad_y_vec.data, grad_y_vec.data, value=1-self.beta2)
 
         # Initialization bias correction
         bias_correction2 = 1 - self.beta2 ** self.count
