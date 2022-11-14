@@ -5,7 +5,7 @@
   </settings>
   <extensions>
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
-      <extension handle='replay' match_time='True' curvilinear='True' log_name='src/copg/rcvip_racing/pretrained_rcp.p'>Replay</extension>
+      <extension handle='replay' match_time='True' curvilinear='True' log_name='src/copg/rcvip_racing/log_trained_rcp.p'>Replay</extension>
       <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 

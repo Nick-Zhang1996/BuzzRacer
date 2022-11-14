@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 class OrcaTrack(Track):
     def __init__(self,main,config):
         super().__init__(main,config)
-        self.setResolution(300)
+        self.setResolution(200)
         self.loadTrack()
         self.buildContinuousTrack()
 

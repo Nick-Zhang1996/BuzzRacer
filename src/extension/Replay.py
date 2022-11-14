@@ -34,7 +34,9 @@ class Replay(Simulator):
 
     def loadCurvilinearLog(self,log_name):
         # time_steps * cars * (states + action)
-        with open(os.path.join(self.basedir,log_name),'rb') as f:
+        full_path = os.path.join(self.basedir,log_name) 
+        self.print_ok(f'opening file at {full_path}')
+        with open(full_path,'rb') as f:
             self.data = pickle.load(f)
         # create cars
         self.car_count = self.data.shape[1]

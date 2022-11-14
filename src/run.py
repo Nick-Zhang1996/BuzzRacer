@@ -17,7 +17,7 @@ import os.path
 
 class Main(PrintObject):
     def __init__(self,config_filename):
-        self.basedir = os.path.dirname(os.path.dirname(__file__))
+        self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
 
     def init(self):
