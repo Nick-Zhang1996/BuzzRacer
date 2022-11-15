@@ -23,7 +23,7 @@ import car_racing_simulator.Track as Track
 from car_racing.orca_env_function import getfreezeTimecollosionReachedreward
 import gc
 
-folder_location = 'model/'
+folder_location = 'model_20000ep/'
 experiment_name = 'copg/'
 directory = './' + folder_location + experiment_name + 'model'
 
@@ -60,8 +60,10 @@ optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
 
 optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
 
+#batch_size = 8
+#num_episode = 10000
 batch_size = 8
-num_episode = 10000
+num_episode = 30000
 
 for t_eps in range(num_episode):
     mat_action1 = []

@@ -11,3 +11,4 @@ __pycache__/
 *.swp
 *.0
 tags
+nohup.out

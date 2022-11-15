@@ -53,8 +53,9 @@ curvilinear_coordinates1 = []
 
 global_coordinates2 = []
 curvilinear_coordinates2 = []
-#init_size  = 10000
-init_size  = 10
+init_size  = 10000
+#init_size  = 10
+print(f'running {init_size} experiments')
 curr_batch_size = init_size
 
 state_c1_vec = []
