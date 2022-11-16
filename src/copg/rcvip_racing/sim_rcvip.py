@@ -29,8 +29,16 @@ player2 = 'CoPG'
 
 #p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
 #p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
-p1.load_state_dict(torch.load("trained_model/rcptrack_rcvipmodel/copg/model/agent1_9980.pth"))
-p2.load_state_dict(torch.load("trained_model/rcptrack_rcvipmodel/copg/model/agent2_9980.pth"))
+#p1.load_state_dict(torch.load("trained_model/rcptrack_rcvipmodel/copg/model/agent1_9980.pth"))
+#p2.load_state_dict(torch.load("trained_model/rcptrack_rcvipmodel/copg/model/agent2_9980.pth"))
+
+init_size  = 10000
+#init_size  = 10
+i = 24020
+p1_policy_pth = f"../car_racing/model_20000ep/copg/model/agent1_{i}.pth"
+p2_policy_pth = f"../car_racing/model_20000ep/copg/model/agent1_{i}.pth"
+p1.load_state_dict(torch.load(p1_policy_pth))
+p2.load_state_dict(torch.load(p2_policy_pth))
 
 config = json.load(open('config.json'))
 
@@ -53,8 +61,6 @@ curvilinear_coordinates1 = []
 
 global_coordinates2 = []
 curvilinear_coordinates2 = []
-init_size  = 10000
-#init_size  = 10
 print(f'running {init_size} experiments')
 curr_batch_size = init_size
 
