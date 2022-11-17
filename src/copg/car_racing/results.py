@@ -25,12 +25,10 @@ player2 = 'CoPG'
 # player1 = 'CoPG'
 # player2 = 'TRCoPO'
 
-p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
-p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
-#p1.load_state_dict(torch.load("model_20000ep/copg/model/agent1_24060.pth"))
-#p2.load_state_dict(torch.load("model_20000ep/copg/model/agent2_24060.pth"))
-#p1.load_state_dict(torch.load("model_20000ep/copg/model/agent1_5000.pth"))
-#p2.load_state_dict(torch.load("model_20000ep/copg/model/agent2_5000.pth"))
+#p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
+#p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
+p1.load_state_dict(torch.load("model_20000ep/copg/model/agent1_29980.pth"))
+p2.load_state_dict(torch.load("model_20000ep/copg/model/agent1_29980.pth"))
 
 config = json.load(open('config.json'))
 #track1 = Track.Track(config)
