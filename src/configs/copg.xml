@@ -1,0 +1,41 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>Simulation</experiment_type>
+    <track>full</track>
+  </settings>
+  <extensions>
+        <!-- <extension handle='laptimer'>Laptimer</extension>-->
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <extension handle='simulator' match_time='True'>DynamicSimulator</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
+  </extensions>
+
+  <cars>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller 
+        max_speed='1.0'
+        model_weights_pth='src/copg/rcvip_racing/pretrained_models/CoPG.pth'
+      >
+        <type>CopgCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>lambo</config_name>
+      <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='1.0'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>

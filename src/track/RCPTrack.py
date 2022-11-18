@@ -732,7 +732,7 @@ class RCPTrack(Track):
     def getOrcaStyleTrack(self):
         # ORCA compatible representation
         N = self.discretized_raceline_len = 1024
-        s = s_vec = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        s = self.s_vec = s_vec = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
         # resample to fixed interval s_vec
         self.r = ref_path = np.array(splev(s_vec%self.raceline_len_m,self.raceline_s,der=0)).T
         X = self.r[:,0].flatten()
@@ -741,6 +741,8 @@ class RCPTrack(Track):
 
         diff_s = s_vec[1]-s_vec[0]
         dr, ddr = self.calcDerivative(ref_path,ds=diff_s)
+        self.dr = dr
+        self.ddr = ddr
         # TODO verify sign
         kappa = self.calcCurvature(dr,ddr)
 
