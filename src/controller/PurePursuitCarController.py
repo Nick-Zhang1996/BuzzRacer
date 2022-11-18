@@ -9,9 +9,11 @@ class PurePursuitCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
 
+        '''
         for key,value_text in config.attributes.items():
             setattr(self,key,eval(value_text))
             self.print_info(" controller.",key,'=',value_text)
+        '''
 
         # if there's planner set it up
         # TODO put this in a parent class constructor

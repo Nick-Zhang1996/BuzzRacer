@@ -6,14 +6,20 @@ from planner import Planner
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
-        super().__init__(car,config)
-        self.debug_dict = {}
+        # defaults for configurable parameters
         self.max_offset = 0.4
+        self.max_speed = 2.2
+        # load config etc
+        super().__init__(car,config)
+
+
+        self.debug_dict = {}
         p1 = (1.0,2.0)
         p2 = (4.0,0.5)
         self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
         self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
         self.Pfun = lambda v: max(min((self.Pfun_slope*v+self.Pfun_offset),4.0),0.5)/280*pi/0.01
+
 
         #speed controller
         P = 5 # to be more aggressive use 15
@@ -22,12 +28,12 @@ class StanleyCarController(CarController):
         dt = car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
-        # to be overridden in config, if defined
-        self.max_speed = 2.2
+        '''
         self.print_ok("setting controller attributes")
         for key,value_text in config.attributes.items():
             setattr(self,key,eval(value_text))
             self.print_info(" controller.",key,'=',value_text)
+        '''
 
         # if there's planner set it up
         # TODO put this in a parent class constructor

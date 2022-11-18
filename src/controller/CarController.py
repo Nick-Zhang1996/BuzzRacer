@@ -1,9 +1,9 @@
 # parent class, used as documentation for common function and properties
-from common import PrintObject
+from common import *
 import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
-class CarController(PrintObject):
+class CarController(ConfigObject):
     def __init__(self, car, config):
         self.config = config
         self.car = car
@@ -14,6 +14,7 @@ class CarController(PrintObject):
 
         self.predicted_traj = []
         KinematicSimulator.dt = self.car.main.dt
+        super().__init__(config)
 
     def init(self):
         # self-reported prediction of future trajectory

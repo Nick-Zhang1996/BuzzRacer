@@ -22,7 +22,15 @@ import pickle
 
 class CcmppiCarController(CarController):
     def __init__(self,car,config):
+        # default parameters
+        # diagnal terms of control cost matrix u'Ru
+        self.R_diag = [0.01, 0.01]
+        # control effort u'Ru
+        self.utru = 0
+        # load parameters
         super().__init__(car,config)
+
+
         self.car = car
         self.track = self.car.main.track
         self.debug_dict = {}
@@ -42,10 +50,7 @@ class CcmppiCarController(CarController):
         self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
 
-        # diagnal terms of control cost matrix u'Ru
-        self.R_diag = [0.01, 0.01]
-        # control effort u'Ru
-        self.utru = 0
+        '''
         # set config items
         for key,value_text in config.attributes.items():
             try:
@@ -54,6 +59,7 @@ class CcmppiCarController(CarController):
                 value = value_text
             setattr(self,key,value)
             #self.print_info(" controller.",key,'=',value_text)
+        '''
 
 
 

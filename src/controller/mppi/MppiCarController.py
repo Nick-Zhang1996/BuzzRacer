@@ -13,21 +13,29 @@ import numpy as np
 
 class MppiCarController(CarController):
     def __init__(self,car,config):
-        super().__init__(car,config)
-        np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
 
-        # these setting should be handled in config file
-        self.n = self.state_dim = 6
-        self.m = self.control_dim = 2
-        self.track = self.car.main.track
+        # reconfigurable parameters
+        self.state_dim = 6
+        self.control_dim = 2
         self.samples_count = None # to be set in config
         self.horizon = None       # to be set in config
         self.dt = 0.02
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+
+        super().__init__(car,config)
+        self.track = self.car.main.track
+        self.n =  self.state_dim
+        self.m =  self.control_dim
+
+        np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
+
+
+        '''
         for key,value_text in config.attributes.items():
             setattr(self,key,eval(value_text))
             #self.print_info(" controller.",key,'=',value_text)
+        '''
 
     def init(self):
         # directly sample control
