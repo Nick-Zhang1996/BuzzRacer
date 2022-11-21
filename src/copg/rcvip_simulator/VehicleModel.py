@@ -222,26 +222,27 @@ class VehicleModel():
         return x_next
     def kinModelCurve(self,x,u):
 
-        k1 = self.dxkin(x, u).to(self.device)
-        k2 = self.dxkin(x + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxkin(x + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxkin(x + self.Ts * k3, u).to(self.device)
+        k1 = self.dxkin(x, u)
+        k2 = self.dxkin(x + self.Ts / 2. * k1, u)
+        k3 = self.dxkin(x + self.Ts / 2. * k2, u)
+        k4 = self.dxkin(x + self.Ts * k3, u)
 
-        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
 
         return x_next
 
     def dynModelCurve(self, x, u):
 
-        k1 = self.dxCurve(x, u).to(self.device)
-        k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
+        k1 = self.dxCurve(x, u)
+        k2 = self.dxCurve(x + self.Ts / 2. * k1, u)
+        k3 = self.dxCurve(x + self.Ts / 2. * k2, u)
+        k4 = self.dxCurve(x + self.Ts * k3, u)
 
-        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
 
         return x_next
 
+    # NOTE used
     # x: curvlinear states : (progress, lateral_err, orientation_err, vx,vy
     def dynModelBlendBatch(self, x, u_unclipped):
         '''
@@ -283,7 +284,7 @@ class VehicleModel():
 
     def dxkin(self, x, u):
 
-        fkin = torch.empty(x.size(0), 4)
+        fkin = torch.empty(x.size(0), 4,device=self.device)
 
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
@@ -315,7 +316,7 @@ class VehicleModel():
 
     def dxCurve_blend(self, x, u):
 
-        f = torch.empty(self.n_batch, self.n_full_state)
+        f = torch.empty(self.n_batch, self.n_full_state,device=self.device)
 
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
@@ -334,7 +335,7 @@ class VehicleModel():
         kappa = self.getCurvature(s)
 
         if lambda_blend<1:
-            fkin = torch.empty(self.n_batch, self.n_full_state)
+            fkin = torch.empty(self.n_batch, self.n_full_state,device=self.device)
 
             v = np.sqrt(v_x*v_x + v_y*v_y)
             beta = torch.tan(self.l_r*torch.atan(delta/(self.l_f + self.lr)))
@@ -367,7 +368,7 @@ class VehicleModel():
 
     # advance dynamics in curvilinear frame
     def dxCurve(self, x, u):
-        f = torch.empty(x.size(0), self.n_full_state)
+        f = torch.empty(x.size(0), self.n_full_state,device=self.device)
 
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
@@ -414,7 +415,7 @@ class VehicleModel():
         if torch.max(s) > self.track_s[-1] or torch.min(s) < 0:
             s = torch.fmod(s,self.track_s[-1])
             # i_wrapdown = (s > self.track_s[-1]).type(torch.FloatTensor)
-            i_wrapup = (s < 0).type(torch.FloatTensor)
+            i_wrapup = (s < 0).float()
 
             s = s + i_wrapup * self.track_s[-1]
 
@@ -424,14 +425,14 @@ class VehicleModel():
 
             # print(s-s_in)
 
-        index = (torch.floor(s / self.track.diff_s)).type(torch.LongTensor)
+        index = (torch.floor(s / self.track.diff_s)).to(torch.long)
         if torch.min(index) < 0:
             print(index)
 
         rela_proj = (s - self.track_s[index]) / self.track.diff_s
 
         next_index = index + 1
-        i_index_wrap = (next_index < self.track.N).type(torch.LongTensor)
+        i_index_wrap = (next_index < self.track.N).to(torch.long)
         next_index = torch.fmod(next_index,self.track.N)# * i_index_wrap
 
         return index, next_index, rela_proj
@@ -472,11 +473,11 @@ class VehicleModel():
         v_y = state_local[:, 4]
         r = state_local[:, 5]
         index, next_index, rela_proj = self.fromStoIndexBatch(s)
-        vec_track = torch.empty(self.n_batch,2)
+        vec_track = torch.empty(self.n_batch,2,device=self.device)
         vec_track[:, 0] = (self.track_X[next_index] - self.track_X[index])* rela_proj
         vec_track[:, 1] = (self.track_Y[next_index] - self.track_Y[index])* rela_proj
 
-        pos_index = torch.empty(self.n_batch,2)
+        pos_index = torch.empty(self.n_batch,2,device=self.device)
         pos_index[:, 0] = self.track_X[index]
         pos_index[:, 1] = self.track_Y[index]
 
@@ -487,7 +488,7 @@ class VehicleModel():
         phi = phi_0
         # phi = self.getTrackHeading(s)#self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
 
-        pos_global = torch.empty(self.n_batch,2)
+        pos_global = torch.empty(self.n_batch,2,device=self.device)
         pos_global[:, 0] = pos_center[:, 0] - d * torch.sin(phi)
         pos_global[:, 1] = pos_center[:, 1] + d * torch.cos(phi)
 
@@ -503,7 +504,7 @@ class VehicleModel():
         downwrap_index = ((phi_ref - heading) < -1.5 * np.pi).type(torch.FloatTensor)
         heading = heading - 2 * np.pi * downwrap_index + 2 * np.pi * upwrap_index
 
-        x_global = torch.empty(self.n_batch,self.n_full_state)
+        x_global = torch.empty(self.n_batch,self.n_full_state,device=self.device)
         x_global[:, 0] = pos_global[:, 0]
         x_global[:, 1] = pos_global[:, 1]
         x_global[:, 2] = heading
@@ -523,7 +524,7 @@ class VehicleModel():
         elif s != s:
             s = torch.tensor(0.0)
 
-        index = (torch.floor(s / self.track.diff_s)).type(torch.LongTensor)
+        index = (torch.floor(s / self.track.diff_s)).to(torch.long)
         rela_proj = (s - self.track_s[index]) / self.track.diff_s
         return [index, rela_proj]
 

@@ -238,7 +238,7 @@ def getfreezecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll
 
 # NOTE used in copg_rcvip
-def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2):
+def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
     #reward = state_c1[:,0] - state_c2[:,0]
@@ -256,11 +256,11 @@ def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_st
 
     c1_coll = collision * (long_dist<0)
     c2_coll = collision * (long_dist >= 0)
-    counter1 = counter1 + prev_coll_c1*torch.ones(reward.shape) #increasing counter if collided
+    counter1 = counter1 + prev_coll_c1*torch.ones(reward.shape,device=device) #increasing counter if collided
     prev_coll_c1 = (counter1<34) * prev_coll_c1 #if counter is above 34 then reseting
     counter1 = counter1*(counter1<34) # this will reset the counter
 
-    counter2 = counter2 + prev_coll_c2*torch.ones(reward.shape) #increasing counter if collided
+    counter2 = counter2 + prev_coll_c2*torch.ones(reward.shape,device=device) #increasing counter if collided
     prev_coll_c2 = (counter2<34) * prev_coll_c2 #if counter is above 34 then reseting
     counter2 = counter2*(counter2<34) # this will reset the counter
 
@@ -287,7 +287,7 @@ def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_st
     done_c1 = ~((~reached) * (~done_c1))
     done_c2 = ~((~reached) * (~done_c2))
 
-    reached_reward = 1 * torch.ones(reward.shape)
+    reached_reward = 1 * torch.ones(reward.shape,device=device)
     reward = reward + reached_c1 * reached_reward
     reward = reward - reached_c2 * reached_reward
 

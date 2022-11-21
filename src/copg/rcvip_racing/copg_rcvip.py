@@ -24,8 +24,12 @@ import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
 import gc
 
+from util.timeUtil import execution_timer
+t = execution_timer(True)
+
+
 folder_location = 'trained_model/'
-experiment_name = 'rcptrack_rcvipmodel/copg/'
+experiment_name = 'rcvip_half_lr/copg/'
 directory = './' + folder_location + experiment_name + 'model'
 
 if not os.path.exists(directory):
@@ -36,7 +40,7 @@ config = json.load(open('config.json'))
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cpu') # cpu is faster
 print(f'using device: {device}')
 
 vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
@@ -58,15 +62,19 @@ q = Critic(10).to(device)
 # q.load_state_dict(
 #     torch.load("model.pth"))
 
-optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
+#optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
+optim_q = torch.optim.Adam(q.parameters(), lr=0.004)
 
-optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
+#optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
+optim = CoPG(p1.parameters(),p2.parameters(), lr=1.5e-5, device=device)
 
 batch_size = 8
 num_episode = 10000
 print(f'training for {num_episode} episodes')
 
 for t_eps in range(num_episode):
+    t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
+    t.s('prep')
     mat_action1 = []
     mat_action2 = []
 
@@ -84,10 +92,10 @@ for t_eps in range(num_episode):
     curr_batch_size = 8
 
     #state = torch.zeros(config["n_batch"], config["n_state"])
-    state_c1 = torch.zeros(curr_batch_size, config["n_state"])#state[:,0:6].view(6)
-    state_c2 = torch.zeros(curr_batch_size, config["n_state"])#state[:, 6:12].view(6)
-    init_p1 = torch.zeros((curr_batch_size)) #5*torch.rand((curr_batch_size))
-    init_p2 = torch.zeros((curr_batch_size)) #5*torch.rand((curr_batch_size))
+    state_c1 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:,0:6].view(6)
+    state_c2 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:, 6:12].view(6)
+    init_p1 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
+    init_p2 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
     state_c1[:,0] = init_p1
     state_c2[:,0] = init_p2
     # random initial state:  lateral_offset
@@ -103,16 +111,18 @@ for t_eps in range(num_episode):
     batch_mat_done = torch.empty(0)
 
     itr = 0
-    done = torch.tensor([False])
-    done_c1 = torch.zeros((curr_batch_size)) <= -0.1
-    done_c2 = torch.zeros((curr_batch_size)) <= -0.1
-    prev_coll_c1 = torch.zeros((curr_batch_size)) <= -0.1
-    prev_coll_c2 = torch.zeros((curr_batch_size)) <= -0.1
-    counter1 = torch.zeros((curr_batch_size))
-    counter2 = torch.zeros((curr_batch_size))
+    done = torch.tensor([False],device=device)
+    done_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
+    done_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
+    prev_coll_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
+    prev_coll_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
+    counter1 = torch.zeros((curr_batch_size),device=device)
+    counter2 = torch.zeros((curr_batch_size),device=device)
+    t.e('prep')
 
     #for itr in range(50):
-    while np.all(done.numpy()) == False:
+    t.s('sim')
+    while np.all(done.cpu().numpy()) == False:
         avg_itr+=1
 
         st1_gpu = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1).to(device)
@@ -144,6 +154,7 @@ for t_eps in range(num_episode):
         prev_state_c1 = state_c1
         prev_state_c2 = state_c2
 
+
         state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1,6), action1.view(-1,2)).view(-1,6)
         state_c2 = vehicle_model.dynModelBlendBatch(state_c2.view(-1,6), action2.view(-1,2)).view(-1,6)
 
@@ -155,11 +166,12 @@ for t_eps in range(num_episode):
         reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(state_c1, state_c2,
                                                                      vehicle_model.getLocalBounds(state_c1[:, 0]),
                                                                      vehicle_model.getLocalBounds(state_c2[:, 0]),
-                                                                     prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2)
+                                                                     prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device=device)
 
         done = (done_c1) * (done_c2)  # ~((~done_c1) * (~done_c2))
         # done =  ~((~done_c1) * (~done_c2))
         mask_ele = ~done
+
 
         if itr>0:
             mat_reward1 = torch.cat([mat_reward1.view(-1,curr_batch_size,1),reward1.view(-1,curr_batch_size,1)],dim=0) # concate along dim = 0
@@ -224,7 +236,7 @@ for t_eps in range(num_episode):
         # writer.add_scalar('Reward/agent1', reward1, t_eps)
         itr = itr + 1
 
-        if np.all(done.numpy()) == True or batch_mat_state1.size(0)>900 or itr>400:# or itr>900: #brak only if all elements in the array are true
+        if np.all(done.cpu().numpy()) == True or batch_mat_state1.size(0)>900 or itr>400:# or itr>900: #brak only if all elements in the array are true
             prev_size = batch_mat_state1.size(0)
             batch_mat_state1 = torch.cat([batch_mat_state1, mat_state1.transpose(0, 1).reshape(-1, 5)],dim=0)
             batch_mat_state2 = torch.cat([batch_mat_state2, mat_state2.transpose(0, 1).reshape(-1, 5)],dim=0)
@@ -255,6 +267,7 @@ for t_eps in range(num_episode):
             break
 
     # print(avg_itr)
+    t.e('sim')
 
 
     print(batch_mat_state1.shape,itr)
@@ -271,10 +284,13 @@ for t_eps in range(num_episode):
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
 
 
+    t.s('train')
     val1 = q(torch.cat([batch_mat_state1,batch_mat_state2],dim=1).to(device))
-    val1 = val1.detach().to('cpu')
+    #NOTE should this be detached?
+    #val1 = val1.detach().to('cpu')
+    val1 = val1.detach()
     next_value = 0  # because currently we end ony when its done which is equivalent to no next state
-    returns_np1 = get_advantage(next_value, batch_mat_reward1, val1, batch_mat_done, gamma=0.99, tau=0.95)
+    returns_np1 = get_advantage(next_value, batch_mat_reward1, val1, batch_mat_done, gamma=0.99, tau=0.95,device=device)
 
     returns1 = torch.cat(returns_np1)
     advantage_mat1 = returns1.view(1,-1) - val1.transpose(0,1)
@@ -343,6 +359,7 @@ for t_eps in range(num_episode):
     lp2=lp2.mean()
     optim.zero_grad()
     optim.step(ob, ob+ob2+ob3, lp1,lp2)
+    t.e('train')
 
 
 
@@ -372,6 +389,7 @@ for t_eps in range(num_episode):
     writer.add_scalar('grad/norm_cgy', norm_cgy, t_eps)
     writer.add_scalar('grad/norm_cgx_cal', norm_cgx_cal, t_eps)
     writer.add_scalar('grad/norm_cgy_cal', norm_cgy_cal, t_eps)
+    writer.flush()
 
     if t_eps%20==0:
             torch.save(p1.state_dict(),
@@ -383,3 +401,5 @@ for t_eps in range(num_episode):
             torch.save(q.state_dict(),
                        './' + folder_location + experiment_name + 'model/val_' + str(
                            t_eps) + ".pth")
+    t.e()
+t.summary()
