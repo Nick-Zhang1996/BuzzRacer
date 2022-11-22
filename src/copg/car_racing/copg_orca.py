@@ -24,7 +24,7 @@ from car_racing.orca_env_function import getfreezeTimecollosionReachedreward
 import gc
 
 folder_location = 'trained_model/'
-experiment_name = 'original/copg/'
+experiment_name = 'lr2/copg/'
 directory = './' + folder_location + experiment_name + 'model'
 
 if not os.path.exists(directory):
@@ -56,9 +56,11 @@ q = Critic(10).to(device)
 # q.load_state_dict(
 #     torch.load("model.pth"))
 
-optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
+#optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
+optim_q = torch.optim.Adam(q.parameters(), lr=0.002)
 
-optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
+#optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
+optim = CoPG(p1.parameters(),p2.parameters(), lr=1e-6, device=device)
 
 batch_size = 8
 num_episode = 10000
