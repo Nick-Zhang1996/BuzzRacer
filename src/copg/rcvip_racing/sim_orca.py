@@ -21,22 +21,16 @@ player2 = 'CoPG'
 #player1 = 'CoPG'
 #player2 = 'GDA'
 
-# player1 = 'TRCoPO'
-# player2 = 'TRGDA'
-
-# player1 = 'CoPG'
-# player2 = 'TRCoPO'
+#player1 = 'TRCoPO'
+#player2 = 'TRCoPO'
 
 #p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
 #p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
 
-#p1.load_state_dict(torch.load("trained_model/orcatrack_orcamodel/copg/model/agent1_9980.pth"))
-#p2.load_state_dict(torch.load("trained_model/orcatrack_orcamodel/copg/model/agent2_9980.pth"))
-#init_size  = 10000
-init_size  = 2
-i = 24020
-p1_policy_pth = f"../car_racing/model_20000ep/copg/model/agent1_{i}.pth"
-p2_policy_pth = f"../car_racing/model_20000ep/copg/model/agent1_{i}.pth"
+init_size  = 10000
+i = 2160
+p1_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
+p2_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
 p1.load_state_dict(torch.load(p1_policy_pth))
 p2.load_state_dict(torch.load(p2_policy_pth))
 
