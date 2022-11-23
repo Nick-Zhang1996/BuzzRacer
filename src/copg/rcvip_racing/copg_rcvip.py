@@ -5,36 +5,40 @@ else:
     print('specify experiment name')
     exit(1)
 
+import time
+import random
 import torch
 import os
+import json
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..')
-from copg_optim import RCoPG as CoPG
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from car_racing.network import Actor
 from car_racing.network import Critic
-
+from copg_optim import RCoPG as CoPG
 from copg_optim.critic_functions import critic_update, get_advantage
-import time
-import random
 
-import json
-import sys
 
 import rcvip_simulator.VehicleModel as VehicleModel
 import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
-import gc
-
 from util.timeUtil import execution_timer
 t = execution_timer(True)
+
+critic_lr = 0.004 # default 0.008
+actor_lr = 1.5e-5 # default 3e-5
 
 folder_location = 'trained_model/'
 directory = os.path.join(folder_location, experiment_name, 'model')
 if not os.path.exists(directory):
     os.makedirs(directory)
+
+# save learning rate
+with open(os.path.join(folder_location, experiment_name, 'param.json'),'w') as f:
+        data = { 'critic_lr':critic_lr, 'actor_lr':actor_lr}
+        json.dump(data,f,indent=4)
 
 writer = SummaryWriter(os.path.join(folder_location, experiment_name, 'data'))
 
@@ -56,13 +60,6 @@ p1 = Actor(10,2, std=0.1).to(device)
 p2 = Actor(10,2, std=0.1).to(device)
 q = Critic(10).to(device)
 
-##To load a pretrained model
-# p1.load_state_dict(
-#     torch.load("model.pth"))
-# p2.load_state_dict(
-#     torch.load("model.pth"))
-# q.load_state_dict(
-#     torch.load("model.pth"))
 
 try:
     last_checkpoint_eps = torch.load(os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
@@ -78,11 +75,8 @@ except FileNotFoundError:
     print('Starting new training')
     last_checkpoint_eps = 0
 
-#optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
-optim_q = torch.optim.Adam(q.parameters(), lr=0.004)
-
-#optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
-optim = CoPG(p1.parameters(),p2.parameters(), lr=1.5e-5, device=device)
+optim_q = torch.optim.Adam(q.parameters(), lr=critic_lr)
+optim = CoPG(p1.parameters(),p2.parameters(), lr=actor_lr, device=device)
 
 batch_size = 8
 num_episode = 10000
@@ -102,7 +96,7 @@ def simulate(device):
 
     mat_state2 = []
     mat_reward2 = []
-    print(t_eps)
+    print(f'episode {t_eps}')
 
     #data_collection
     avg_itr = 0
@@ -259,7 +253,7 @@ def simulate(device):
             batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1).reshape(-1, 1)],dim=0) #should i create a false or true array?
-            print(f"all episodes done at {itr}")
+            print(f"all episodes done at step {itr}")
             mat_done[mat_done.size(0)-1,:,:] = torch.ones((mat_done[mat_done.size(0)-1,:,:].shape))>=2 # creating a true array of that shape
             #print(mat_done.shape, batch_mat_done.shape)
             if batch_mat_done.nelement() == 0:
