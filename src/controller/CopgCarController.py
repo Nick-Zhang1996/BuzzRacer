@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import torch
 import os
@@ -15,7 +16,11 @@ class CopgCarController(CarController):
         self.track = self.main.track
 
         self.model = Actor(10,2, std=0.1)
-        self.model.load_state_dict(torch.load(os.path.join(self.main.basedir, self.model_weights_pth)))
+        try:
+            self.model.load_state_dict(torch.load(os.path.join(self.main.basedir, self.model_weights_pth)))
+        except FileNotFoundError:
+            self.print_error(f'cannot find specified .pth file')
+            sys.exit(1)
 
     def init(self):
         super().init()
