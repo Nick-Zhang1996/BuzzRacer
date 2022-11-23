@@ -20,6 +20,22 @@ from track.RCPTrack import RCPTrack
 class RCPTrackDebug(RCPTrack):
     def __init__(self,main,config=None):
         super().__init__(main,config)
+
+    def resolveLogname(self,):
+
+        # setup log file
+        # log file will record state of the vehicle for later analysis
+        logFolder = "./optimization/"
+        logPrefix = "K"
+        logSuffix = ".p"
+        no = 1
+        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
+            no += 1
+
+        self.log_no = no
+        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+        return
+
     # calculate curvature cost, among other things
     def cost(self,k):
         self.cost_count += 1

@@ -53,6 +53,12 @@ class Track(ConfigObject):
         self.resolution = res
         return
 
+    # determine if an coordinate is outside of track boundary, used in watchdog
+    def isOutside(self,coord):
+        grace = 1.0
+        x,y = coord
+        return x<-grace or y<-grace or x>self.x_limit+grace or y>self.y_limit+grace
+
     # check if vehicle is currently in collision with obstacle
     # only give index of the first obstacle if multiple obstacle is in collision
     def isInObstacle(self, state):

@@ -59,6 +59,7 @@ class RCPTrack(Track):
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
 
+    '''
     # determine if an coordinate is outside of track boundary, used in watchdog
     def isOutside(self,coord):
         grace = 1.0
@@ -70,21 +71,8 @@ class RCPTrack(Track):
         res = self.resolution
 
         return x>cols*self.scale+grace or y>rows*self.scale+grace or x<-grace or y<-grace
+    '''
 
-    def resolveLogname(self,):
-
-        # setup log file
-        # log file will record state of the vehicle for later analysis
-        logFolder = "./optimization/"
-        logPrefix = "K"
-        logSuffix = ".p"
-        no = 1
-        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
-            no += 1
-
-        self.log_no = no
-        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
-        return
 
 
     def initTrack(self,description, gridsize, scale,savepath=None):
@@ -226,13 +214,7 @@ class RCPTrack(Track):
 
         return img
     
-    def loadTrackfromFile(self,filename,newtrack,gridsize):
-        # load a track 
-        self.track = newtrack
-        self.gridsize = gridsize
-
-        return
-
+    # create a heuristic raceline
     # this function stores result in self.raceline
     # seq_no: labeling the starting grid as 0, progressing through the raceline direction, the sequence number of (0,0) grid, i.e., bottom left. In other words, how many grids are between the starting grid and the origin? If starting gtid is origin grid, then seq_no is zero
     # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
