@@ -1,7 +1,11 @@
-# TODO use gpu in simulation
-# Game imports
-import torch
 import sys
+if (len(sys.argv) == 2):
+    experiment_name = sys.argv[1]
+else:
+    print('specify experiment name')
+    exit(1)
+
+import torch
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..')
@@ -27,28 +31,26 @@ import gc
 from util.timeUtil import execution_timer
 t = execution_timer(True)
 
-
 folder_location = 'trained_model/'
-experiment_name = 'rcvip_half_lr/copg/'
-directory = './' + folder_location + experiment_name + 'model'
-
+directory = os.path.join(folder_location, experiment_name, 'model')
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-writer = SummaryWriter('./' + folder_location + experiment_name + 'data')
-config = json.load(open('config.json'))
+writer = SummaryWriter(os.path.join(folder_location, experiment_name, 'data'))
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu') # cpu is faster
 print(f'using device: {device}')
 
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
+n_control = 2
+n_batch = 2
+n_pred = 200
+n_state = 6
 
-x0 = torch.zeros(config["n_batch"], config["n_state"])
-# x0[:, 3] = 0
+vehicle_model = VehicleModel.VehicleModel(n_batch, device, track='rcp')
 
-u0 = torch.zeros(config["n_batch"], config["n_control"])
+x0 = torch.zeros(n_batch, n_state)
+u0 = torch.zeros(n_batch, n_control)
 
 p1 = Actor(10,2, std=0.1).to(device)
 p2 = Actor(10,2, std=0.1).to(device)
@@ -62,6 +64,20 @@ q = Critic(10).to(device)
 # q.load_state_dict(
 #     torch.load("model.pth"))
 
+try:
+    last_checkpoint_eps = torch.load(os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
+    print(f'resuming training from {last_checkpoint_eps}, optimizer state not loaded')
+    t_eps = last_checkpoint_eps
+    p1_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'agent1_{t_eps}.pth'))
+    p2_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'agent2_{t_eps}.pth'))
+    q_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'val_{t_eps}.pth'))
+    p1.load_state_dict(p1_state_dict)
+    p2.load_state_dict(p2_state_dict)
+    q.load_state_dict(q_state_dict)
+except FileNotFoundError:
+    print('Starting new training')
+    last_checkpoint_eps = 0
+
 #optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
 optim_q = torch.optim.Adam(q.parameters(), lr=0.004)
 
@@ -72,9 +88,11 @@ batch_size = 8
 num_episode = 10000
 print(f'training for {num_episode} episodes')
 
-for t_eps in range(num_episode):
-    t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
-    t.s('prep')
+
+
+# -------------- funs ----------
+
+def simulate(device):
     mat_action1 = []
     mat_action2 = []
 
@@ -91,9 +109,9 @@ for t_eps in range(num_episode):
 
     curr_batch_size = 8
 
-    #state = torch.zeros(config["n_batch"], config["n_state"])
-    state_c1 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:,0:6].view(6)
-    state_c2 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:, 6:12].view(6)
+    #state = torch.zeros(n_batch, n_state)
+    state_c1 = torch.zeros(curr_batch_size, n_state).to(device)#state[:,0:6].view(6)
+    state_c2 = torch.zeros(curr_batch_size, n_state).to(device)#state[:, 6:12].view(6)
     init_p1 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
     init_p2 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
     state_c1[:,0] = init_p1
@@ -118,10 +136,8 @@ for t_eps in range(num_episode):
     prev_coll_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
     counter1 = torch.zeros((curr_batch_size),device=device)
     counter2 = torch.zeros((curr_batch_size),device=device)
-    t.e('prep')
 
     #for itr in range(50):
-    t.s('sim')
     while np.all(done.cpu().numpy()) == False:
         avg_itr+=1
 
@@ -243,11 +259,9 @@ for t_eps in range(num_episode):
             batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1).reshape(-1, 1)],dim=0) #should i create a false or true array?
-            # NOTE debug
-            print("done", itr)
-            print(mat_done.shape)
+            print(f"all episodes done at {itr}")
             mat_done[mat_done.size(0)-1,:,:] = torch.ones((mat_done[mat_done.size(0)-1,:,:].shape))>=2 # creating a true array of that shape
-            print(mat_done.shape, batch_mat_done.shape)
+            #print(mat_done.shape, batch_mat_done.shape)
             if batch_mat_done.nelement() == 0:
                 batch_mat_done = mat_done.transpose(0, 1).reshape(-1, 1)
                 progress_done1 = 0
@@ -262,15 +276,13 @@ for t_eps in range(num_episode):
                                            mat_state1.transpose(0, 1)[:, 0, 0])
                 progress_done2 = progress_done2 + torch.sum(mat_state2.transpose(0, 1)[:, mat_state2.size(0) - 1, 0] -
                                            mat_state2.transpose(0, 1)[:, 0, 0])
-            print(batch_mat_done.shape)
+            #print(batch_mat_done.shape)
             # print("done", itr)
             break
 
     # print(avg_itr)
-    t.e('sim')
 
 
-    print(batch_mat_state1.shape,itr)
     writer.add_scalar('Dist/variance_throttle_p1', dist1.variance[0,0], t_eps)
     writer.add_scalar('Dist/variance_steer_p1', dist1.variance[0,1], t_eps)
     writer.add_scalar('Dist/variance_throttle_p2', dist2.variance[0,0], t_eps)
@@ -282,9 +294,9 @@ for t_eps in range(num_episode):
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
     writer.add_scalar('Progress/agent1', batch_mat_state1[:,0].mean(), t_eps)
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
+    return batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done
 
-
-    t.s('train')
+def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device):
     val1 = q(torch.cat([batch_mat_state1,batch_mat_state2],dim=1).to(device))
     #NOTE should this be detached?
     #val1 = val1.detach().to('cpu')
@@ -359,9 +371,6 @@ for t_eps in range(num_episode):
     lp2=lp2.mean()
     optim.zero_grad()
     optim.step(ob, ob+ob2+ob3, lp1,lp2)
-    t.e('train')
-
-
 
     # torch.autograd.grad(ob2.mean(), list(p1.parameters), create_graph=True, retain_graph=True)
     ed_time = time.time()
@@ -391,15 +400,31 @@ for t_eps in range(num_episode):
     writer.add_scalar('grad/norm_cgy_cal', norm_cgy_cal, t_eps)
     writer.flush()
 
+# TODO, test performance against benchmark
+def test():
+    pass
+
+# simulate episodes
+for t_eps in range(last_checkpoint_eps,num_episode):
+    t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
+
+    t.s('sim')
+    retval = simulate(device)
+    batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done = retval
+    t.e('sim')
+
+    t.s('update')
+    update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device)
+    t.e('update')
+
+    t.s('test')
+    test()
+    t.e('test')
+
     if t_eps%20==0:
-            torch.save(p1.state_dict(),
-                       './' + folder_location + experiment_name + 'model/agent1_' + str(
-                           t_eps) + ".pth")
-            torch.save(p2.state_dict(),
-                       './' + folder_location + experiment_name + 'model/agent2_' + str(
-                           t_eps) + ".pth")
-            torch.save(q.state_dict(),
-                       './' + folder_location + experiment_name + 'model/val_' + str(
-                           t_eps) + ".pth")
+        torch.save(p1.state_dict(),os.path.join(folder_location,experiment_name,'model',f'agent1_{t_eps}.pth'))
+        torch.save(p2.state_dict(),os.path.join(folder_location,experiment_name,'model',f'agent2_{t_eps}.pth'))
+        torch.save(q.state_dict(),os.path.join(folder_location,experiment_name,'model',f'val_{t_eps}.pth'))
+        torch.save(t_eps,os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
     t.e()
 t.summary()

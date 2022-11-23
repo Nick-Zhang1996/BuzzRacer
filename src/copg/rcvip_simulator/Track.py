@@ -14,10 +14,9 @@ class Track:
     def __init__(self):
         return
 
-    '''
-    def loadOrcaTrack(self,config):
-        self.path = config['data_dir']
-        self.N = config['n_track']
+    def loadOrcaTrack(self):
+        self.path = "../car_racing_simulator/ORCA_OPT/"
+        self.N = 999
         # ref point location
         self.X = np.loadtxt(self.path + "x_center.txt")[:, 0]
         self.Y = np.loadtxt(self.path + "x_center.txt")[:, 1]
@@ -33,7 +32,6 @@ class Track:
         # self.d_lower[520:565] = np.clip(self.d_lower[520:565], -1, -0.2)
         self.border_angle_upper = np.loadtxt(self.path + "con_angle_inner.txt")
         self.border_angle_lower = np.loadtxt(self.path + "con_angle_outer.txt")
-    '''
 
     def loadRcpTrack(self):
         config = minidom.parse('config.xml')
