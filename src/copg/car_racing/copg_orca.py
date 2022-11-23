@@ -259,6 +259,7 @@ for t_eps in range(num_episode):
     writer.add_scalar('Progress/final_p1', progress_done1/batch_size, t_eps)
     writer.add_scalar('Progress/final_p2', progress_done2/batch_size, t_eps)
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
+    # mean progress
     writer.add_scalar('Progress/agent1', batch_mat_state1[:,0].mean(), t_eps)
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
 

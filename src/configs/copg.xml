@@ -21,7 +21,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
         max_speed='1.0'
-        model_weights_pth='src/copg/rcvip_racing/pretrained_models/CoPG.pth'
+        model_weights_pth='src/copg/rcvip_racing/trained_model/rcvip_half_lr/copg/model/agent1_9980.pth'
       >
         <type>CopgCarController</type>
       </controller>
