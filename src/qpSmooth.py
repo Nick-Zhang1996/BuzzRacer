@@ -845,7 +845,7 @@ if __name__ == "__main__":
     qp = QpSmooth()
     val = qp.optimizePath()
 
-    # load and show
+    # verify results: load and show
     fulltrack = RCPTrack()
     print("-----------------")
     print_info("testing loading")
