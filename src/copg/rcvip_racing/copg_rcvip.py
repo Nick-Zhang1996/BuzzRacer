@@ -450,4 +450,5 @@ for t_eps in range(last_checkpoint_eps,num_episode):
         torch.save(q.state_dict(),os.path.join(folder_location,experiment_name,'model',f'val_{t_eps}.pth'))
         torch.save(t_eps,os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
     t.e()
+    sys.stdout.flush()
 t.summary()
