@@ -12,6 +12,7 @@
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
       <!-- NOTE ccmppi will switch underlying model depending on which simulator is used -->
       <extension handle='simulator' match_time='False' simple_throttle_model='True' >KinematicSimulator</extension>
+      <extension handle='collision_checker'>CollisionChecker</extension>
   </extensions>
 
   <cars>
@@ -22,7 +23,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2)</init_states>
       <controller 
         algorithm='ccmppi'
-        samples='8192'
+        samples='512'
         temperature='0.2'
         max_speed='3.0'
         horizon='30' 
