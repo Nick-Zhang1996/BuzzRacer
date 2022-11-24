@@ -1,15 +1,41 @@
 import sys
+import json
+
+
 if (len(sys.argv) == 2):
-    experiment_name = sys.argv[1]
+    arg = sys.argv[1]
+    if (".json" in arg):
+        with open(arg,'r') as f:
+            param = json.load(f)
+        critic_lr = param['critic_lr']
+        actor_lr = param['actor_lr']
+        num_episode = param['num_episode']
+        experiment_name = param['experiment_name']
+        batch_size = param['batch_size']
+        num_episode = param['num_episode']
+        print(f'Loading config from {arg}')
+    else:
+        critic_lr = 1e-4 # default 0.008
+        actor_lr = 1e-4 # default 3e-5
+        experiment_name = sys.argv[1]
+        batch_size = 8
+        num_episode = 5
+        print(f'Using hard-coded params')
 else:
-    print('specify experiment name')
+    print(f'usage1: python copg_rvip.py exp_name')
+    print(f'usage2: python copg_rvip.py param_json_name')
     exit(1)
+
+print(f'experiment_name: {experiment_name}')
+print(f'critic_lr: {critic_lr}')
+print(f'actor_lr:{actor_lr}')
+print(f'batch_size: {batch_size}')
+print(f'num_episode: {num_episode}')
 
 import time
 import random
 import torch
 import os
-import json
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..')
 import numpy as np
@@ -27,8 +53,6 @@ from rcvip_env_function import getfreezeTimecollosionReachedreward
 from util.timeUtil import execution_timer
 t = execution_timer(True)
 
-critic_lr = 0.004 # default 0.008
-actor_lr = 1.5e-5 # default 3e-5
 
 folder_location = 'trained_model/'
 directory = os.path.join(folder_location, experiment_name, 'model')
@@ -38,6 +62,12 @@ if not os.path.exists(directory):
 # save learning rate
 with open(os.path.join(folder_location, experiment_name, 'param.json'),'w') as f:
         data = { 'critic_lr':critic_lr, 'actor_lr':actor_lr}
+        data['critic_lr'] = critic_lr
+        data['actor_lr'] = actor_lr
+        data['num_episode'] = num_episode
+        data['experiment_name'] = experiment_name
+        data['batch_size'] = batch_size
+        data['num_episode'] = num_episode
         json.dump(data,f,indent=4)
 
 writer = SummaryWriter(os.path.join(folder_location, experiment_name, 'data'))
@@ -78,8 +108,6 @@ except FileNotFoundError:
 optim_q = torch.optim.Adam(q.parameters(), lr=critic_lr)
 optim = CoPG(p1.parameters(),p2.parameters(), lr=actor_lr, device=device)
 
-batch_size = 8
-num_episode = 10
 print(f'training for {num_episode} episodes')
 
 
