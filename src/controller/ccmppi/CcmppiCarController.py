@@ -301,14 +301,36 @@ class CcmppiCarController(CarController):
                 self.plotDebug()
             elif (self.getEstimatedTerminalCovFlag):
                 self.getEstimatedTerminalCov()
+            # TODO check if visualization is enabled
             self.track.plotObstacles()
             self.plotAlgorithm()
+            self.plotCollision()
             pass
         except AttributeError:
             pass
         p.e("debug")
         p.e()
         return True
+
+    def plotCollision(self):
+        if (not self.main.visualization.update_visualization.is_set()):
+            return
+        text = f'Collision: {self.main.collision_checker.collision_count[0]}'
+        img = self.main.visualization.visualization_img
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (50, 100)
+        # fontScale
+        fontScale = 1
+        # Blue color in BGR
+        color = (255, 0, 0)
+        # Line thickness of 2 px
+        thickness = 2
+        # Using cv2.putText() method
+        img = cv2.putText(img, text, org, font,
+                           fontScale, color, thickness, cv2.LINE_AA)
+        self.main.visualization.visualization_img = img
 
     def plotAlgorithm(self):
         if (not self.car.main.visualization.update_visualization.is_set()):

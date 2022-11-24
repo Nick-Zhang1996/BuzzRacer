@@ -38,3 +38,4 @@ class CollisionChecker(Extension):
             self.print_info("car %d, total obstacle collision = %d, mean = %.2f"%(i,total, mean))
         self.main.car_total_collisions = total_vec
 
+
