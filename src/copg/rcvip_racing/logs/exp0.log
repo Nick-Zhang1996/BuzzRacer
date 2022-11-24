@@ -3,23 +3,398 @@ experiment_name: exp0
 critic_lr: 0.001
 actor_lr:0.001
 batch_size: 8
-num_episode: 1
+num_episode: 10000
 using device: cpu
 [92m [RCPTrack]:  setting full attributes [0m
 [92m track and raceline loaded [0m
 Starting new training
-training for 1 episodes
+training for 10000 episodes
 episode 0
-all episodes done at step 214
------Variables--------
--------Time-----------
-prep		0.0 %
-sample_policy		0.9 %
-cat state		0.1 %
-dynamics		4.2 %
-reward		1.5 %
-sim		7.1 %
-update		92.9 %
-test		0.0 %
-avg frequency = 0.090Hz
-unaccounted time = -6.7 %
+all episodes done at step 391
+episode 1
+all episodes done at step 190
+episode 2
+all episodes done at step 179
+episode 3
+all episodes done at step 249
+episode 4
+all episodes done at step 262
+episode 5
+all episodes done at step 210
+episode 6
+all episodes done at step 162
+episode 7
+all episodes done at step 390
+episode 8
+all episodes done at step 209
+episode 9
+all episodes done at step 334
+episode 10
+all episodes done at step 313
+episode 11
+all episodes done at step 259
+episode 12
+all episodes done at step 218
+episode 13
+all episodes done at step 257
+episode 14
+all episodes done at step 108
+episode 15
+all episodes done at step 92
+episode 16
+all episodes done at step 68
+episode 17
+all episodes done at step 60
+episode 18
+all episodes done at step 84
+episode 19
+all episodes done at step 91
+episode 20
+all episodes done at step 69
+episode 21
+all episodes done at step 63
+episode 22
+all episodes done at step 36
+episode 23
+all episodes done at step 129
+episode 24
+all episodes done at step 87
+episode 25
+all episodes done at step 174
+episode 26
+all episodes done at step 152
+episode 27
+all episodes done at step 137
+episode 28
+all episodes done at step 224
+episode 29
+all episodes done at step 136
+episode 30
+all episodes done at step 179
+episode 31
+all episodes done at step 218
+episode 32
+all episodes done at step 148
+episode 33
+all episodes done at step 188
+episode 34
+all episodes done at step 167
+episode 35
+all episodes done at step 254
+episode 36
+all episodes done at step 119
+episode 37
+all episodes done at step 66
+episode 38
+all episodes done at step 104
+episode 39
+all episodes done at step 68
+episode 40
+all episodes done at step 50
+episode 41
+all episodes done at step 68
+episode 42
+all episodes done at step 63
+episode 43
+all episodes done at step 74
+episode 44
+all episodes done at step 59
+episode 45
+all episodes done at step 56
+episode 46
+all episodes done at step 79
+episode 47
+all episodes done at step 54
+episode 48
+all episodes done at step 56
+episode 49
+all episodes done at step 49
+episode 50
+all episodes done at step 82
+episode 51
+all episodes done at step 70
+episode 52
+all episodes done at step 54
+episode 53
+all episodes done at step 81
+episode 54
+all episodes done at step 53
+episode 55
+all episodes done at step 62
+episode 56
+all episodes done at step 78
+episode 57
+all episodes done at step 56
+episode 58
+all episodes done at step 52
+episode 59
+all episodes done at step 98
+episode 60
+all episodes done at step 85
+episode 61
+all episodes done at step 72
+episode 62
+all episodes done at step 52
+episode 63
+all episodes done at step 54
+episode 64
+all episodes done at step 82
+episode 65
+all episodes done at step 64
+episode 66
+all episodes done at step 61
+episode 67
+all episodes done at step 64
+episode 68
+all episodes done at step 52
+episode 69
+all episodes done at step 58
+episode 70
+all episodes done at step 81
+episode 71
+all episodes done at step 49
+episode 72
+all episodes done at step 53
+episode 73
+all episodes done at step 52
+episode 74
+all episodes done at step 55
+episode 75
+all episodes done at step 67
+episode 76
+all episodes done at step 60
+episode 77
+all episodes done at step 67
+episode 78
+all episodes done at step 56
+episode 79
+all episodes done at step 64
+episode 80
+all episodes done at step 57
+episode 81
+all episodes done at step 57
+episode 82
+all episodes done at step 77
+episode 83
+all episodes done at step 52
+episode 84
+all episodes done at step 75
+episode 85
+all episodes done at step 77
+episode 86
+all episodes done at step 73
+episode 87
+all episodes done at step 53
+episode 88
+all episodes done at step 73
+episode 89
+all episodes done at step 65
+episode 90
+all episodes done at step 48
+episode 91
+all episodes done at step 49
+episode 92
+all episodes done at step 42
+episode 93
+all episodes done at step 58
+episode 94
+all episodes done at step 36
+episode 95
+all episodes done at step 32
+episode 96
+all episodes done at step 30
+episode 97
+all episodes done at step 42
+episode 98
+all episodes done at step 46
+episode 99
+all episodes done at step 41
+episode 100
+all episodes done at step 40
+episode 101
+all episodes done at step 48
+episode 102
+all episodes done at step 47
+episode 103
+all episodes done at step 50
+episode 104
+all episodes done at step 52
+episode 105
+all episodes done at step 42
+episode 106
+all episodes done at step 59
+episode 107
+all episodes done at step 56
+episode 108
+all episodes done at step 48
+episode 109
+all episodes done at step 56
+episode 110
+all episodes done at step 40
+episode 111
+all episodes done at step 56
+episode 112
+all episodes done at step 45
+episode 113
+all episodes done at step 70
+episode 114
+all episodes done at step 65
+episode 115
+all episodes done at step 63
+episode 116
+all episodes done at step 50
+episode 117
+all episodes done at step 37
+episode 118
+all episodes done at step 53
+episode 119
+all episodes done at step 71
+episode 120
+all episodes done at step 71
+episode 121
+all episodes done at step 69
+episode 122
+all episodes done at step 65
+episode 123
+all episodes done at step 67
+episode 124
+all episodes done at step 50
+episode 125
+all episodes done at step 55
+episode 126
+all episodes done at step 57
+episode 127
+all episodes done at step 69
+episode 128
+all episodes done at step 53
+episode 129
+all episodes done at step 46
+episode 130
+all episodes done at step 59
+episode 131
+all episodes done at step 79
+episode 132
+all episodes done at step 53
+episode 133
+all episodes done at step 62
+episode 134
+all episodes done at step 63
+episode 135
+all episodes done at step 73
+episode 136
+all episodes done at step 71
+episode 137
+all episodes done at step 47
+episode 138
+all episodes done at step 76
+episode 139
+all episodes done at step 60
+episode 140
+all episodes done at step 74
+episode 141
+all episodes done at step 74
+episode 142
+all episodes done at step 61
+episode 143
+all episodes done at step 75
+episode 144
+all episodes done at step 71
+episode 145
+all episodes done at step 53
+episode 146
+all episodes done at step 79
+episode 147
+all episodes done at step 70
+episode 148
+all episodes done at step 60
+episode 149
+all episodes done at step 57
+episode 150
+all episodes done at step 69
+episode 151
+all episodes done at step 82
+episode 152
+all episodes done at step 50
+episode 153
+all episodes done at step 39
+episode 154
+all episodes done at step 46
+episode 155
+all episodes done at step 69
+episode 156
+all episodes done at step 55
+episode 157
+all episodes done at step 83
+episode 158
+all episodes done at step 68
+episode 159
+all episodes done at step 69
+episode 160
+all episodes done at step 50
+episode 161
+all episodes done at step 63
+episode 162
+all episodes done at step 56
+episode 163
+all episodes done at step 77
+episode 164
+all episodes done at step 59
+episode 165
+all episodes done at step 70
+episode 166
+all episodes done at step 63
+episode 167
+all episodes done at step 70
+episode 168
+all episodes done at step 96
+episode 169
+all episodes done at step 65
+episode 170
+all episodes done at step 64
+episode 171
+all episodes done at step 64
+episode 172
+all episodes done at step 94
+episode 173
+all episodes done at step 65
+episode 174
+all episodes done at step 69
+episode 175
+all episodes done at step 53
+episode 176
+all episodes done at step 51
+episode 177
+all episodes done at step 74
+episode 178
+all episodes done at step 54
+episode 179
+all episodes done at step 46
+episode 180
+all episodes done at step 68
+episode 181
+all episodes done at step 67
+episode 182
+all episodes done at step 58
+episode 183
+all episodes done at step 55
+episode 184
+all episodes done at step 36
+episode 185
+all episodes done at step 64
+episode 186
+all episodes done at step 39
+episode 187
+all episodes done at step 64
+episode 188
+all episodes done at step 70
+episode 189
+all episodes done at step 61
+episode 190
+all episodes done at step 68
+episode 191
+all episodes done at step 69
+episode 192
+all episodes done at step 74
+episode 193
+all episodes done at step 68
+episode 194
