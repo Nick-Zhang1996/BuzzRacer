@@ -18,7 +18,7 @@ from util.timeUtil import execution_timer
 from track.RCPTrack import RCPTrack
 
 class RCPTrackDebug(RCPTrack):
-    def __init__(self,main,config=None):
+    def __init__(self,main=None,config=None):
         super().__init__(main,config)
 
     def resolveLogname(self,):
@@ -273,8 +273,3 @@ class RCPTrackDebug(RCPTrack):
 
         self.reconstructRaceline()
         return t_total
-
-
-class Track():
-
-    def isOutside(self,coord):

@@ -42,7 +42,7 @@ class Node:
         return
 
 class RCPTrack(Track):
-    def __init__(self,main,config=None):
+    def __init__(self,main=None,config=None):
         Track.__init__(self,main,config)
         self.t = execution_timer(True)
         # resolution : pixels per grid side length

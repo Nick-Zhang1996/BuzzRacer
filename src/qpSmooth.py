@@ -15,7 +15,8 @@ import matplotlib.pyplot as plt
 
 from time import time
 from common import *
-from track.RCPTrack import RCPTrack
+#from track.RCPTrack import RCPTrack
+from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
 
 
 class QpSmooth(RCPTrack):
@@ -300,11 +301,20 @@ class QpSmooth(RCPTrack):
         y_new = xy[:,1]
 
         # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        y_new /= self.scale
-        y_new *= self.resolution
-        y_new = self.resolution*rows - y_new
+        #x_new /= self.scale
+        #x_new *= self.resolution
+        #y_new /= self.scale
+        #y_new *= self.resolution
+        #y_new = self.resolution*rows - y_new
+        x_temp = []
+        y_temp = []
+        for coord in zip(x_new,y_new):
+            x,y = self.m2canvas(coord)
+            x_temp.append(x)
+            y_temp.append(y)
+        x_new = x_temp
+        y_new = y_temp
+
 
         if img is None:
             img = np.zeros([res*rows,res*cols,3],dtype='uint8')
@@ -327,11 +337,12 @@ class QpSmooth(RCPTrack):
         for point in self.break_pts:
             x = point[0]
             y = point[1]
-            x /= self.scale
-            x *= self.resolution
-            y /= self.scale
-            y *= self.resolution
-            y = self.resolution*rows - y
+            #x /= self.scale
+            #x *= self.resolution
+            #y /= self.scale
+            #y *= self.resolution
+            #y = self.resolution*rows - y
+            x,y = self.m2canvas(point)
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
