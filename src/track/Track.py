@@ -174,8 +174,8 @@ class Track(ConfigObject):
             self.print_ok(f"loading obstacles at {filename}, count = {obstacles.shape[0]}")
             self.print_ok(" if you wish to create new obstacles, remove current obstacle file or change parameter obstacle_filename")
         else:
-            self.print_ok(f"generating new obstacles, count = {obstacle_count}")
-            obstacles = np.random.random((obstacle_count,2))
+            self.print_ok(f"generating new obstacles, count = {self.obstacle_count}")
+            obstacles = np.random.random((self.obstacle_count,2))
             # save obstacles
             if (not filename is None):
                 with open(filename, 'wb') as f:

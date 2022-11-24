@@ -3,7 +3,7 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track obstacle='True' obstacle_filename='src/obstacles.p' obstacle_radius='0.1'>full</track>
+  <track obstacle='True' obstacle_filename='src/obstacles.p' obstacle_count='20' obstacle_radius='0.1'>full</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
