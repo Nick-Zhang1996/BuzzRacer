@@ -31,8 +31,8 @@ class CollisionChecker(Extension):
         total_vec = []
         mean_vec = []
         for i in range(len(self.main.cars)):
-            total = np.sum(self.collision_by_lap_vec[i])
-            mean = np.mean(self.collision_by_lap_vec[i])
+            total = np.sum(self.collision_by_lap_vec[i][1:])
+            mean = np.mean(self.collision_by_lap_vec[i][1:])
             total_vec.append(total)
             mean_vec.append(mean)
             self.print_info("car %d, total obstacle collision = %d, mean = %.2f"%(i,total, mean))

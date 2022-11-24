@@ -3,7 +3,7 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track obstacle='True' obstacle_filename='src/obstacles.p' obstacle_count='20' obstacle_radius='0.1'>full</track>
+  <track obstacle='True' obstacle_filename='src/obstacles.p' obstacle_count='30' obstacle_radius='0.1'>full</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
@@ -13,6 +13,7 @@
       <!-- NOTE ccmppi will switch underlying model depending on which simulator is used -->
       <extension handle='simulator' match_time='False' simple_throttle_model='True' >KinematicSimulator</extension>
       <extension handle='collision_checker'>CollisionChecker</extension>
+      <extension handle='lap_counter' lap_count='2'>LapCounter</extension>
   </extensions>
 
   <cars>
@@ -26,7 +27,7 @@
         samples='512'
         temperature='0.2'
         max_speed='3.0'
-        horizon='30' 
+        horizon='10' 
         >
         <type>CcmppiCarController</type>
       </controller>
