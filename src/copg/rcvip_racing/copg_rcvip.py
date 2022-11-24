@@ -79,44 +79,42 @@ optim_q = torch.optim.Adam(q.parameters(), lr=critic_lr)
 optim = CoPG(p1.parameters(),p2.parameters(), lr=actor_lr, device=device)
 
 batch_size = 8
-num_episode = 10000
+num_episode = 10
 print(f'training for {num_episode} episodes')
 
 
 
 # -------------- funs ----------
 
-def simulate(device):
-    mat_action1 = []
-    mat_action2 = []
+def simulate(device,t):
+    t.s('prep')
 
-    mat_state1 = []
-    mat_reward1 = []
-    mat_done = []
-
-    mat_state2 = []
-    mat_reward2 = []
+    batch_size = 8
+    mat_state1 =  torch.empty(0,batch_size,5,device = device)
+    mat_state2 =  torch.empty(0,batch_size,5,device = device)
+    mat_action1 = torch.empty(0,batch_size,2,device = device)
+    mat_action2 = torch.empty(0,batch_size,2,device = device)
+    mat_done =    torch.empty(0,batch_size,1,device = device)
+    mat_reward1 = torch.empty(0,batch_size,1,device = device)
+    mat_reward2 = torch.empty(0,batch_size,1,device = device)
     print(f'episode {t_eps}')
 
-    #data_collection
     avg_itr = 0
 
-    curr_batch_size = 8
-
     #state = torch.zeros(n_batch, n_state)
-    state_c1 = torch.zeros(curr_batch_size, n_state).to(device)#state[:,0:6].view(6)
-    state_c2 = torch.zeros(curr_batch_size, n_state).to(device)#state[:, 6:12].view(6)
-    init_p1 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
-    init_p2 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
+    state_c1 = torch.zeros(batch_size, n_state).to(device)#state[:,0:6].view(6)
+    state_c2 = torch.zeros(batch_size, n_state).to(device)#state[:, 6:12].view(6)
+    init_p1 = torch.zeros((batch_size)).to(device) #5*torch.rand((batch_size))
+    init_p2 = torch.zeros((batch_size)).to(device) #5*torch.rand((batch_size))
     state_c1[:,0] = init_p1
     state_c2[:,0] = init_p2
     # random initial state:  lateral_offset
     a = random.choice([-0.1,0.1])
     b = a*(-1)
-    state_c1[:, 1] = a*torch.ones((curr_batch_size))
-    state_c2[:, 1] = b*torch.ones((curr_batch_size))
-    batch_mat_state1 = torch.empty(0)
-    batch_mat_state2 = torch.empty(0)
+    state_c1[:, 1] = a*torch.ones((batch_size))
+    state_c2[:, 1] = b*torch.ones((batch_size))
+    batch_mat_state1 =  torch.empty(0)
+    batch_mat_state2 =  torch.empty(0)
     batch_mat_action1 = torch.empty(0)
     batch_mat_action2 = torch.empty(0)
     batch_mat_reward1 = torch.empty(0)
@@ -124,71 +122,70 @@ def simulate(device):
 
     itr = 0
     done = torch.tensor([False],device=device)
-    done_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    done_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    prev_coll_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    prev_coll_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    counter1 = torch.zeros((curr_batch_size),device=device)
-    counter2 = torch.zeros((curr_batch_size),device=device)
+    done_c1 = torch.zeros((batch_size),device=device) <= -0.1
+    done_c2 = torch.zeros((batch_size),device=device) <= -0.1
+    prev_coll_c1 = torch.zeros((batch_size),device=device) <= -0.1
+    prev_coll_c2 = torch.zeros((batch_size),device=device) <= -0.1
+    counter1 = torch.zeros((batch_size),device=device)
+    counter2 = torch.zeros((batch_size),device=device)
+    t.e('prep')
+
+
 
     #for itr in range(50):
     while np.all(done.cpu().numpy()) == False:
         avg_itr+=1
 
-        st1_gpu = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1).to(device)
-
-        dist1 = p1(st1_gpu)
-        #action1 = dist1.sample().to('cpu')
+        t.s('sample_policy')
+        # drop the last state state_c1[:,5] is angular rate
+        full_state1 = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1)
+        dist1 = p1(full_state1)
         action1 = dist1.sample()
 
-        st2_gpu = torch.cat([state_c2[:, 0:5], state_c1[:, 0:5]], dim=1).to(device)
-
-        dist2 = p2(st2_gpu)
-        #action2 = dist2.sample().to('cpu')
+        full_state2 = torch.cat([state_c2[:, 0:5], state_c1[:, 0:5]], dim=1)
+        dist2 = p2(full_state2)
         action2 = dist2.sample()
+        t.e('sample_policy')
 
-        if itr>0:
-            mat_state1 = torch.cat([mat_state1.view(-1,curr_batch_size,5),state_c1[:,0:5].view(-1,curr_batch_size,5)],dim=0) # concate along dim = 0
-            mat_state2 = torch.cat([mat_state2.view(-1, curr_batch_size, 5), state_c2[:, 0:5].view(-1, curr_batch_size, 5)], dim=0)
-            mat_action1 = torch.cat([mat_action1.view(-1, curr_batch_size, 2), action1.view(-1, curr_batch_size, 2)], dim=0)
-            mat_action2 = torch.cat([mat_action2.view(-1, curr_batch_size, 2), action2.view(-1, curr_batch_size, 2)], dim=0)
-        else:
-            mat_state1 = state_c1[:,0:5]
-            mat_state2 = state_c2[:, 0:5]
-            mat_action1 = action1
-            mat_action2 = action2
-        #mat_state2.append(state_c2[:,0:5])
-        # mat_action1.append(action1)
-        # mat_action2.append(action2)
+        t.s('cat state')
+        mat_state1 = torch.cat([mat_state1,   state_c1[:,0:5].view(-1,batch_size,5)],dim=0) # concate along dim = 0
+        mat_state2 = torch.cat([mat_state2,   state_c2[:, 0:5].view(-1, batch_size, 5)], dim=0)
+        mat_action1 = torch.cat([mat_action1, action1.view(-1, batch_size, 2)], dim=0)
+        mat_action2 = torch.cat([mat_action2, action2.view(-1, batch_size, 2)], dim=0)
+        t.e('cat state')
+
 
         prev_state_c1 = state_c1
         prev_state_c2 = state_c2
 
 
-        state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1,6), action1.view(-1,2)).view(-1,6)
-        state_c2 = vehicle_model.dynModelBlendBatch(state_c2.view(-1,6), action2.view(-1,2)).view(-1,6)
+        t.s('dynamics')
+        state_c1 = vehicle_model.dynModelBlendBatch(state_c1, action1,t)
+        state_c2 = vehicle_model.dynModelBlendBatch(state_c2, action2,t)
+        t.e('dynamics')
 
 
-
+        t.s('reward')
+        # if a sim is done, then freeze its state
         state_c1 = (state_c1.transpose(0, 1) * (~done_c1) + prev_state_c1.transpose(0, 1) * (done_c1)).transpose(0, 1)
         state_c2 = (state_c2.transpose(0, 1) * (~done_c2) + prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
 
-        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(state_c1, state_c2,
+        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(
+                                                                     state_c1, state_c2,
                                                                      vehicle_model.getLocalBounds(state_c1[:, 0]),
                                                                      vehicle_model.getLocalBounds(state_c2[:, 0]),
                                                                      prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device=device)
 
+        t.e('reward')
+
+        
         done = (done_c1) * (done_c2)  # ~((~done_c1) * (~done_c2))
         # done =  ~((~done_c1) * (~done_c2))
         mask_ele = ~done
 
 
-        if itr>0:
-            mat_reward1 = torch.cat([mat_reward1.view(-1,curr_batch_size,1),reward1.view(-1,curr_batch_size,1)],dim=0) # concate along dim = 0
-            mat_done = torch.cat([mat_done.view(-1, curr_batch_size, 1), mask_ele.view(-1, curr_batch_size, 1)], dim=0)
-        else:
-            mat_reward1 = reward1
-            mat_done = mask_ele
+        mat_reward1 = torch.cat([mat_reward1.view(-1,batch_size,1),reward1.view(-1,batch_size,1)],dim=0)
+        mat_done = torch.cat([mat_done.view(-1, batch_size, 1), mask_ele.view(-1, batch_size, 1)], dim=0)
 
         remaining_xo = ~done
 
@@ -199,9 +196,9 @@ def simulate(device):
         counter1 = counter1[remaining_xo]
         counter2 = counter2[remaining_xo]
 
-        curr_batch_size = state_c1.size(0)
+        batch_size = state_c1.size(0)
 
-        if curr_batch_size<remaining_xo.size(0):
+        if batch_size<remaining_xo.size(0):
             if batch_mat_action1.nelement() == 0:
                 batch_mat_state1 = mat_state1.transpose(0, 1)[~remaining_xo].view(-1, 5)
                 batch_mat_state2 = mat_state2.transpose(0, 1)[~remaining_xo].view(-1, 5)
@@ -277,12 +274,16 @@ def simulate(device):
     # print(avg_itr)
 
 
-    writer.add_scalar('Dist/variance_throttle_p1', dist1.variance[0,0], t_eps)
-    writer.add_scalar('Dist/variance_steer_p1', dist1.variance[0,1], t_eps)
-    writer.add_scalar('Dist/variance_throttle_p2', dist2.variance[0,0], t_eps)
-    writer.add_scalar('Dist/variance_steer_p2', dist2.variance[0,1], t_eps)
+    dist = {'variance_throttle_p1':dist1.variance[0,0],
+            'variance_steer_p1': dist1.variance[0,1],
+            'variance_throttle_p2': dist2.variance[0,0],
+            'variance_steer_p2': dist2.variance[0,1]}
+    writer.add_scalars('Dist/control_var', dist, t_eps)
+
+
     writer.add_scalar('Reward/mean', batch_mat_reward1.mean(), t_eps)
     writer.add_scalar('Reward/sum', batch_mat_reward1.sum(), t_eps)
+
     writer.add_scalar('Progress/final_p1', progress_done1/batch_size, t_eps)
     writer.add_scalar('Progress/final_p2', progress_done2/batch_size, t_eps)
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
@@ -290,7 +291,7 @@ def simulate(device):
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
     return batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done
 
-def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device):
+def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device,t):
     val1 = q(torch.cat([batch_mat_state1,batch_mat_state2],dim=1).to(device))
     #NOTE should this be detached?
     #val1 = val1.detach().to('cpu')
@@ -403,12 +404,12 @@ for t_eps in range(last_checkpoint_eps,num_episode):
     t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
 
     t.s('sim')
-    retval = simulate(device)
+    retval = simulate(device,t)
     batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done = retval
     t.e('sim')
 
     t.s('update')
-    update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device)
+    update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device,t)
     t.e('update')
 
     t.s('test')
