@@ -11,15 +11,15 @@ if (len(sys.argv) == 2):
         actor_lr = param['actor_lr']
         num_episode = param['num_episode']
         experiment_name = param['experiment_name']
-        batch_size = param['batch_size']
+        original_batch_size = batch_size = param['batch_size']
         num_episode = param['num_episode']
         print(f'Loading config from {arg}')
     else:
         critic_lr = 1e-4 # default 0.008
-        actor_lr = 1e-4 # default 3e-5
+        actor_lr = 1e-5 # default 3e-5
         experiment_name = sys.argv[1]
-        batch_size = 8
-        num_episode = 5
+        original_batch_size = batch_size = 32
+        num_episode = 15000
         print(f'Using hard-coded params')
 else:
     print(f'usage1: python copg_rvip.py exp_name')
@@ -38,6 +38,7 @@ import torch
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..')
+sys.path.insert(0,'../..')
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
@@ -47,6 +48,7 @@ from copg_optim import RCoPG as CoPG
 from copg_optim.critic_functions import critic_update, get_advantage
 
 
+from common import *
 import rcvip_simulator.VehicleModel as VehicleModel
 import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
@@ -117,7 +119,7 @@ print(f'training for {num_episode} episodes')
 def simulate(device,t):
     t.s('prep')
 
-    batch_size = 8
+    batch_size = original_batch_size
     mat_state1 =  torch.empty(0,batch_size,5,device = device)
     mat_state2 =  torch.empty(0,batch_size,5,device = device)
     mat_action1 = torch.empty(0,batch_size,2,device = device)
@@ -207,66 +209,66 @@ def simulate(device,t):
         t.e('reward')
 
         
-        done = (done_c1) * (done_c2)  # ~((~done_c1) * (~done_c2))
+        # both done
+        done = (done_c1) * (done_c2)
+        # any done
         # done =  ~((~done_c1) * (~done_c2))
-        mask_ele = ~done
 
 
         mat_reward1 = torch.cat([mat_reward1.view(-1,batch_size,1),reward1.view(-1,batch_size,1)],dim=0)
-        mat_done = torch.cat([mat_done.view(-1, batch_size, 1), mask_ele.view(-1, batch_size, 1)], dim=0)
+        mat_done = torch.cat([mat_done.view(-1, batch_size, 1), ~done.view(-1, batch_size, 1)], dim=0)
 
-        remaining_xo = ~done
+        state_c1 = state_c1[~done]
+        state_c2 = state_c2[~done]
+        prev_coll_c1 = coll_c1[~done]#removing elements that died
+        prev_coll_c2 = coll_c2[~done]#removing elements that died
+        counter1 = counter1[~done]
+        counter2 = counter2[~done]
 
-        state_c1 = state_c1[remaining_xo]
-        state_c2 = state_c2[remaining_xo]
-        prev_coll_c1 = coll_c1[remaining_xo]#removing elements that died
-        prev_coll_c2 = coll_c2[remaining_xo]#removing elements that died
-        counter1 = counter1[remaining_xo]
-        counter2 = counter2[remaining_xo]
-
+        # TODO FIXME
         batch_size = state_c1.size(0)
 
-        if batch_size<remaining_xo.size(0):
+        if batch_size<done.size(0):
             if batch_mat_action1.nelement() == 0:
-                batch_mat_state1 = mat_state1.transpose(0, 1)[~remaining_xo].view(-1, 5)
-                batch_mat_state2 = mat_state2.transpose(0, 1)[~remaining_xo].view(-1, 5)
-                batch_mat_action1 = mat_action1.transpose(0, 1)[~remaining_xo].view(-1, 2)
-                batch_mat_action2 = mat_action2.transpose(0, 1)[~remaining_xo].view(-1, 2)
-                batch_mat_reward1 = mat_reward1.transpose(0, 1)[~remaining_xo].view(-1, 1)
-                batch_mat_done = mat_done.transpose(0, 1)[~remaining_xo].view(-1, 1)
+                batch_mat_state1 = mat_state1.transpose(0, 1)[done].view(-1, 5)
+                batch_mat_state2 = mat_state2.transpose(0, 1)[done].view(-1, 5)
+                batch_mat_action1 = mat_action1.transpose(0, 1)[done].view(-1, 2)
+                batch_mat_action2 = mat_action2.transpose(0, 1)[done].view(-1, 2)
+                batch_mat_reward1 = mat_reward1.transpose(0, 1)[done].view(-1, 1)
+                batch_mat_done = mat_done.transpose(0, 1)[done].view(-1, 1)
                 # progress_done1 = batch_mat_state1[batch_mat_state1.size(0) - 1, 0] - batch_mat_state1[0, 0]
                 # progress_done2 = batch_mat_state2[batch_mat_state2.size(0) - 1, 0] - batch_mat_state2[0, 0]
-                progress_done1 = torch.sum(mat_state1.transpose(0, 1)[~remaining_xo][:,mat_state1.size(0)-1,0] - mat_state1.transpose(0, 1)[~remaining_xo][:,0,0])
-                progress_done2 = torch.sum(mat_state2.transpose(0, 1)[~remaining_xo][:,mat_state2.size(0)-1,0] - mat_state2.transpose(0, 1)[~remaining_xo][:,0,0])
+                progress_done1 = torch.sum(mat_state1.transpose(0, 1)[done][:,mat_state1.size(0)-1,0] - mat_state1.transpose(0, 1)[done][:,0,0])
+                progress_done2 = torch.sum(mat_state2.transpose(0, 1)[done][:,mat_state2.size(0)-1,0] - mat_state2.transpose(0, 1)[done][:,0,0])
                 element_deducted = ~(done_c1*done_c2)
                 done_c1 = done_c1[element_deducted]
                 done_c2 = done_c2[element_deducted]
             else:
                 prev_size = batch_mat_state1.size(0)
-                batch_mat_state1 = torch.cat([batch_mat_state1,mat_state1.transpose(0, 1)[~remaining_xo].view(-1,5)],dim=0)
-                batch_mat_state2 = torch.cat([batch_mat_state2, mat_state2.transpose(0, 1)[~remaining_xo].view(-1, 5)],dim=0)
-                batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1)[~remaining_xo].view(-1, 2)],dim=0)
-                batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1)[~remaining_xo].view(-1, 2)],dim=0)
-                batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1)[~remaining_xo].view(-1, 1)],dim=0)
-                batch_mat_done = torch.cat([batch_mat_done, mat_done.transpose(0, 1)[~remaining_xo].view(-1, 1)],dim=0)
-                progress_done1 = progress_done1 + torch.sum(mat_state1.transpose(0, 1)[~remaining_xo][:, mat_state1.size(0) - 1, 0] -
-                                           mat_state1.transpose(0, 1)[~remaining_xo][:, 0, 0])
-                progress_done2 = progress_done2 + torch.sum(mat_state2.transpose(0, 1)[~remaining_xo][:, mat_state2.size(0) - 1, 0] -
-                                           mat_state2.transpose(0, 1)[~remaining_xo][:, 0, 0])
+                batch_mat_state1 = torch.cat([batch_mat_state1,mat_state1.transpose(0, 1)[done].view(-1,5)],dim=0)
+                batch_mat_state2 = torch.cat([batch_mat_state2, mat_state2.transpose(0, 1)[done].view(-1, 5)],dim=0)
+                batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1)[done].view(-1, 2)],dim=0)
+                batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1)[done].view(-1, 2)],dim=0)
+                batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1)[done].view(-1, 1)],dim=0)
+                batch_mat_done = torch.cat([batch_mat_done, mat_done.transpose(0, 1)[done].view(-1, 1)],dim=0)
+                progress_done1 = progress_done1 + torch.sum(mat_state1.transpose(0, 1)[done][:, mat_state1.size(0) - 1, 0] -
+                                           mat_state1.transpose(0, 1)[done][:, 0, 0])
+                progress_done2 = progress_done2 + torch.sum(mat_state2.transpose(0, 1)[done][:, mat_state2.size(0) - 1, 0] -
+                                           mat_state2.transpose(0, 1)[done][:, 0, 0])
                 # progress_done1 = progress_done1 + batch_mat_state1[batch_mat_state1.size(0) - 1, 0] - batch_mat_state1[prev_size, 0]
                 # progress_done2 = progress_done2 + batch_mat_state2[batch_mat_state2.size(0) - 1, 0] - batch_mat_state2[prev_size, 0]
                 element_deducted = ~(done_c1*done_c2)
                 done_c1 = done_c1[element_deducted]
                 done_c2 = done_c2[element_deducted]
 
-            mat_state1 = mat_state1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_state2 = mat_state2.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_action1 = mat_action1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_action2 = mat_action2.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_reward1 = mat_reward1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_done = mat_done.transpose(0, 1)[remaining_xo].transpose(0, 1)
+            mat_state1 = mat_state1.transpose(0, 1)[~done].transpose(0, 1)
+            mat_state2 = mat_state2.transpose(0, 1)[~done].transpose(0, 1)
+            mat_action1 = mat_action1.transpose(0, 1)[~done].transpose(0, 1)
+            mat_action2 = mat_action2.transpose(0, 1)[~done].transpose(0, 1)
+            mat_reward1 = mat_reward1.transpose(0, 1)[~done].transpose(0, 1)
+            mat_done = mat_done.transpose(0, 1)[~done].transpose(0, 1)
 
-        # print(avg_itr,remaining_xo.size(0))
+        # print(avg_itr,~done.size(0))
 
         # writer.add_scalar('Reward/agent1', reward1, t_eps)
         itr = itr + 1
@@ -284,7 +286,7 @@ def simulate(device,t):
             if batch_mat_done.nelement() == 0:
                 batch_mat_done = mat_done.transpose(0, 1).reshape(-1, 1)
                 progress_done1 = 0
-                progress_done2 =0
+                progress_done2 = 0
             else:
                 batch_mat_done = torch.cat([batch_mat_done, mat_done.transpose(0, 1).reshape(-1, 1)], dim=0)
             if prev_size == batch_mat_state1.size(0):
@@ -301,17 +303,19 @@ def simulate(device,t):
 
     # print(avg_itr)
 
-
     dist = {'variance_throttle_p1':dist1.variance[0,0],
             'variance_steer_p1': dist1.variance[0,1],
             'variance_throttle_p2': dist2.variance[0,0],
             'variance_steer_p2': dist2.variance[0,1]}
-    writer.add_scalars('Dist/control_var', dist, t_eps)
+    writer.add_scalars('control_var', dist, t_eps)
 
 
     writer.add_scalar('Reward/mean', batch_mat_reward1.mean(), t_eps)
     writer.add_scalar('Reward/sum', batch_mat_reward1.sum(), t_eps)
 
+    print(f'batch size {batch_size}')
+    print(f'progress_done1 {progress_done1}')
+    print(f'final_p1 {progress_done1/batch_size}')
     writer.add_scalar('Progress/final_p1', progress_done1/batch_size, t_eps)
     writer.add_scalar('Progress/final_p2', progress_done2/batch_size, t_eps)
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
