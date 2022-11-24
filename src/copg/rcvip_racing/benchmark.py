@@ -1,3 +1,4 @@
+# compare two models
 # generate a simulation log to be replayed later
 import torch
 import sys
@@ -8,29 +9,52 @@ import numpy as np
 import json
 import pickle
 
-from car_racing.network import Actor as Actor
-from car_racing.orca_env_function import getNFcollosionreward
-import car_racing_simulator.VehicleModel as VehicleModel
-import car_racing_simulator.Track as Track
+
+
+# rcp or orca
+track = 'orca'
+
+# player name, doesn't mean anything
+player1 = 'CoPG'
+player2 = 'CoPG'
+# number of experiments to run
+init_size  = 10000
+# time steps for an experiment, dt = 0.03
+duration = 3000
+
+# models to use
+# pretrained model: CoPG,GDA, TRCoPO, TRGDA 
+# pretrained: 'pretrained_models/CoPG.pth'
+i = 9980
+p1_policy_pth = f"trained_model/rcvip_half_lr/copg/model/agent1_{i}.pth"
+p2_policy_pth = f"trained_model/rcvip_half_lr/copg/model/agent1_{i}.pth"
+
+#i = 2160
+#p1_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
+#p2_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
+
+# -----------------------
+
+
+print(f'running on {track} track')
+print(f'running {init_size} experiments')
+print(f'player 1 policy {p1_policy_pth}')
+print(f'player 2 policy {p2_policy_pth}')
+if track=='rcp':
+    from network import Actor as Actor
+    from rcvip_env_function import getNFcollosionreward
+    import rcvip_simulator.VehicleModel as VehicleModel
+    import rcvip_simulator.Track as Track
+elif track=='orca':
+    from car_racing.network import Actor as Actor
+    from car_racing.orca_env_function import getNFcollosionreward
+    import car_racing_simulator.VehicleModel as VehicleModel
+    import car_racing_simulator.Track as Track
+
 
 p1 = Actor(10, 2, std=0.1)
 p2 = Actor(10, 2, std=0.1)
 
-player1 = 'CoPG'
-player2 = 'CoPG'
-#player1 = 'CoPG'
-#player2 = 'GDA'
-
-#player1 = 'TRCoPO'
-#player2 = 'TRCoPO'
-
-#p1.load_state_dict(torch.load("pretrained_models/" + player1 + ".pth"))
-#p2.load_state_dict(torch.load("pretrained_models/" + player2 + ".pth"))
-
-init_size  = 10000
-i = 2160
-p1_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
-p2_policy_pth = f"../car_racing/trained_model/original/copg/model/agent1_{i}.pth"
 p1.load_state_dict(torch.load(p1_policy_pth))
 p2.load_state_dict(torch.load(p2_policy_pth))
 
@@ -38,8 +62,6 @@ config = json.load(open('config.json'))
 
 device = torch.device("cpu")
 
-track = 'orca'
-print(f'running on {track} track')
 vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track=track)
 
 mat_action1 = []
@@ -55,7 +77,6 @@ curvilinear_coordinates1 = []
 
 global_coordinates2 = []
 curvilinear_coordinates2 = []
-print(f'running {init_size} experiments')
 curr_batch_size = init_size
 
 state_c1_vec = []
@@ -91,7 +112,7 @@ a_win=0
 b_win=0
 overtakings_p1 = 0
 overtakings_p2 = 0
-for i in range(3000):
+for i in range(duration):
 
     #sample action from random policy
     dist1 = p1(torch.cat([state_c1[:, 0:5], state_c2[:, 0:5]], dim=1))
@@ -126,7 +147,6 @@ for i in range(3000):
                                                                       vehicle_model.getLocalBounds(state_c2[:, 0]),
                                                                       prev_state_c1, prev_state_c2)
 
-    # n_c1 : number of collision for c1
     done = ((done_c1) * (done_c2))
     remaining_xo = ~done
     # prev_coll_c1 = coll_c1[remaining_xo]  # removing elements that died
@@ -192,5 +212,5 @@ c2 = np.hstack([state_c2_vec, action_c2_vec])[:,np.newaxis,:]
 data = np.hstack([c1,c2])
 print(data.shape)
 
-with open('log_orca.p','wb') as f:
+with open('logs/log.p','wb') as f:
     pickle.dump(data,f)

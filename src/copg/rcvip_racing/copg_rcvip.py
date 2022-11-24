@@ -1,110 +1,148 @@
-# TODO use gpu in simulation
-# Game imports
-import torch
 import sys
+import json
+
+
+if (len(sys.argv) == 2):
+    arg = sys.argv[1]
+    if (".json" in arg):
+        with open(arg,'r') as f:
+            param = json.load(f)
+        critic_lr = param['critic_lr']
+        actor_lr = param['actor_lr']
+        num_episode = param['num_episode']
+        experiment_name = param['experiment_name']
+        batch_size = param['batch_size']
+        num_episode = param['num_episode']
+        print(f'Loading config from {arg}')
+    else:
+        critic_lr = 1e-4 # default 0.008
+        actor_lr = 1e-4 # default 3e-5
+        experiment_name = sys.argv[1]
+        batch_size = 8
+        num_episode = 5
+        print(f'Using hard-coded params')
+else:
+    print(f'usage1: python copg_rvip.py exp_name')
+    print(f'usage2: python copg_rvip.py param_json_name')
+    exit(1)
+
+print(f'experiment_name: {experiment_name}')
+print(f'critic_lr: {critic_lr}')
+print(f'actor_lr:{actor_lr}')
+print(f'batch_size: {batch_size}')
+print(f'num_episode: {num_episode}')
+
+import time
+import random
+import torch
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0,'..')
-from copg_optim import RCoPG as CoPG
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from car_racing.network import Actor
 from car_racing.network import Critic
-
+from copg_optim import RCoPG as CoPG
 from copg_optim.critic_functions import critic_update, get_advantage
-import time
-import random
 
-import json
-import sys
 
 import rcvip_simulator.VehicleModel as VehicleModel
 import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
-import gc
-
 from util.timeUtil import execution_timer
 t = execution_timer(True)
 
 
 folder_location = 'trained_model/'
-experiment_name = 'rcvip_half_lr/copg/'
-directory = './' + folder_location + experiment_name + 'model'
-
+directory = os.path.join(folder_location, experiment_name, 'model')
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-writer = SummaryWriter('./' + folder_location + experiment_name + 'data')
-config = json.load(open('config.json'))
+# save learning rate
+with open(os.path.join(folder_location, experiment_name, 'param.json'),'w') as f:
+        data = { 'critic_lr':critic_lr, 'actor_lr':actor_lr}
+        data['critic_lr'] = critic_lr
+        data['actor_lr'] = actor_lr
+        data['num_episode'] = num_episode
+        data['experiment_name'] = experiment_name
+        data['batch_size'] = batch_size
+        data['num_episode'] = num_episode
+        json.dump(data,f,indent=4)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+writer = SummaryWriter(os.path.join(folder_location, experiment_name, 'data'))
+
 #device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu') # cpu is faster
 print(f'using device: {device}')
 
-vehicle_model = VehicleModel.VehicleModel(config["n_batch"], device, config,track='rcp')
+n_control = 2
+n_batch = 2
+n_pred = 200
+n_state = 6
 
-x0 = torch.zeros(config["n_batch"], config["n_state"])
-# x0[:, 3] = 0
+vehicle_model = VehicleModel.VehicleModel(n_batch, device, track='rcp')
 
-u0 = torch.zeros(config["n_batch"], config["n_control"])
+x0 = torch.zeros(n_batch, n_state)
+u0 = torch.zeros(n_batch, n_control)
 
 p1 = Actor(10,2, std=0.1).to(device)
 p2 = Actor(10,2, std=0.1).to(device)
 q = Critic(10).to(device)
 
-##To load a pretrained model
-# p1.load_state_dict(
-#     torch.load("model.pth"))
-# p2.load_state_dict(
-#     torch.load("model.pth"))
-# q.load_state_dict(
-#     torch.load("model.pth"))
 
-#optim_q = torch.optim.Adam(q.parameters(), lr=0.008)
-optim_q = torch.optim.Adam(q.parameters(), lr=0.004)
+try:
+    last_checkpoint_eps = torch.load(os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
+    print(f'resuming training from {last_checkpoint_eps}, optimizer state not loaded')
+    t_eps = last_checkpoint_eps
+    p1_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'agent1_{t_eps}.pth'))
+    p2_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'agent2_{t_eps}.pth'))
+    q_state_dict = torch.load(os.path.join(folder_location,experiment_name,'model',f'val_{t_eps}.pth'))
+    p1.load_state_dict(p1_state_dict)
+    p2.load_state_dict(p2_state_dict)
+    q.load_state_dict(q_state_dict)
+except FileNotFoundError:
+    print('Starting new training')
+    last_checkpoint_eps = 0
 
-#optim = CoPG(p1.parameters(),p2.parameters(), lr=3e-5, device=device)
-optim = CoPG(p1.parameters(),p2.parameters(), lr=1.5e-5, device=device)
+optim_q = torch.optim.Adam(q.parameters(), lr=critic_lr)
+optim = CoPG(p1.parameters(),p2.parameters(), lr=actor_lr, device=device)
 
-batch_size = 8
-num_episode = 10000
 print(f'training for {num_episode} episodes')
 
-for t_eps in range(num_episode):
-    t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
+
+
+# -------------- funs ----------
+
+def simulate(device,t):
     t.s('prep')
-    mat_action1 = []
-    mat_action2 = []
 
-    mat_state1 = []
-    mat_reward1 = []
-    mat_done = []
+    batch_size = 8
+    mat_state1 =  torch.empty(0,batch_size,5,device = device)
+    mat_state2 =  torch.empty(0,batch_size,5,device = device)
+    mat_action1 = torch.empty(0,batch_size,2,device = device)
+    mat_action2 = torch.empty(0,batch_size,2,device = device)
+    mat_done =    torch.empty(0,batch_size,1,device = device)
+    mat_reward1 = torch.empty(0,batch_size,1,device = device)
+    mat_reward2 = torch.empty(0,batch_size,1,device = device)
+    print(f'episode {t_eps}')
 
-    mat_state2 = []
-    mat_reward2 = []
-    print(t_eps)
-
-    #data_collection
     avg_itr = 0
 
-    curr_batch_size = 8
-
-    #state = torch.zeros(config["n_batch"], config["n_state"])
-    state_c1 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:,0:6].view(6)
-    state_c2 = torch.zeros(curr_batch_size, config["n_state"]).to(device)#state[:, 6:12].view(6)
-    init_p1 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
-    init_p2 = torch.zeros((curr_batch_size)).to(device) #5*torch.rand((curr_batch_size))
+    #state = torch.zeros(n_batch, n_state)
+    state_c1 = torch.zeros(batch_size, n_state).to(device)#state[:,0:6].view(6)
+    state_c2 = torch.zeros(batch_size, n_state).to(device)#state[:, 6:12].view(6)
+    init_p1 = torch.zeros((batch_size)).to(device) #5*torch.rand((batch_size))
+    init_p2 = torch.zeros((batch_size)).to(device) #5*torch.rand((batch_size))
     state_c1[:,0] = init_p1
     state_c2[:,0] = init_p2
     # random initial state:  lateral_offset
     a = random.choice([-0.1,0.1])
     b = a*(-1)
-    state_c1[:, 1] = a*torch.ones((curr_batch_size))
-    state_c2[:, 1] = b*torch.ones((curr_batch_size))
-    batch_mat_state1 = torch.empty(0)
-    batch_mat_state2 = torch.empty(0)
+    state_c1[:, 1] = a*torch.ones((batch_size))
+    state_c2[:, 1] = b*torch.ones((batch_size))
+    batch_mat_state1 =  torch.empty(0)
+    batch_mat_state2 =  torch.empty(0)
     batch_mat_action1 = torch.empty(0)
     batch_mat_action2 = torch.empty(0)
     batch_mat_reward1 = torch.empty(0)
@@ -112,73 +150,70 @@ for t_eps in range(num_episode):
 
     itr = 0
     done = torch.tensor([False],device=device)
-    done_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    done_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    prev_coll_c1 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    prev_coll_c2 = torch.zeros((curr_batch_size),device=device) <= -0.1
-    counter1 = torch.zeros((curr_batch_size),device=device)
-    counter2 = torch.zeros((curr_batch_size),device=device)
+    done_c1 = torch.zeros((batch_size),device=device) <= -0.1
+    done_c2 = torch.zeros((batch_size),device=device) <= -0.1
+    prev_coll_c1 = torch.zeros((batch_size),device=device) <= -0.1
+    prev_coll_c2 = torch.zeros((batch_size),device=device) <= -0.1
+    counter1 = torch.zeros((batch_size),device=device)
+    counter2 = torch.zeros((batch_size),device=device)
     t.e('prep')
 
+
+
     #for itr in range(50):
-    t.s('sim')
     while np.all(done.cpu().numpy()) == False:
         avg_itr+=1
 
-        st1_gpu = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1).to(device)
-
-        dist1 = p1(st1_gpu)
-        #action1 = dist1.sample().to('cpu')
+        t.s('sample_policy')
+        # drop the last state state_c1[:,5] is angular rate
+        full_state1 = torch.cat([state_c1[:,0:5],state_c2[:,0:5]],dim=1)
+        dist1 = p1(full_state1)
         action1 = dist1.sample()
 
-        st2_gpu = torch.cat([state_c2[:, 0:5], state_c1[:, 0:5]], dim=1).to(device)
-
-        dist2 = p2(st2_gpu)
-        #action2 = dist2.sample().to('cpu')
+        full_state2 = torch.cat([state_c2[:, 0:5], state_c1[:, 0:5]], dim=1)
+        dist2 = p2(full_state2)
         action2 = dist2.sample()
+        t.e('sample_policy')
 
-        if itr>0:
-            mat_state1 = torch.cat([mat_state1.view(-1,curr_batch_size,5),state_c1[:,0:5].view(-1,curr_batch_size,5)],dim=0) # concate along dim = 0
-            mat_state2 = torch.cat([mat_state2.view(-1, curr_batch_size, 5), state_c2[:, 0:5].view(-1, curr_batch_size, 5)], dim=0)
-            mat_action1 = torch.cat([mat_action1.view(-1, curr_batch_size, 2), action1.view(-1, curr_batch_size, 2)], dim=0)
-            mat_action2 = torch.cat([mat_action2.view(-1, curr_batch_size, 2), action2.view(-1, curr_batch_size, 2)], dim=0)
-        else:
-            mat_state1 = state_c1[:,0:5]
-            mat_state2 = state_c2[:, 0:5]
-            mat_action1 = action1
-            mat_action2 = action2
-        #mat_state2.append(state_c2[:,0:5])
-        # mat_action1.append(action1)
-        # mat_action2.append(action2)
+        t.s('cat state')
+        mat_state1 = torch.cat([mat_state1,   state_c1[:,0:5].view(-1,batch_size,5)],dim=0) # concate along dim = 0
+        mat_state2 = torch.cat([mat_state2,   state_c2[:, 0:5].view(-1, batch_size, 5)], dim=0)
+        mat_action1 = torch.cat([mat_action1, action1.view(-1, batch_size, 2)], dim=0)
+        mat_action2 = torch.cat([mat_action2, action2.view(-1, batch_size, 2)], dim=0)
+        t.e('cat state')
+
 
         prev_state_c1 = state_c1
         prev_state_c2 = state_c2
 
 
-        state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1,6), action1.view(-1,2)).view(-1,6)
-        state_c2 = vehicle_model.dynModelBlendBatch(state_c2.view(-1,6), action2.view(-1,2)).view(-1,6)
+        t.s('dynamics')
+        state_c1 = vehicle_model.dynModelBlendBatch(state_c1, action1,t)
+        state_c2 = vehicle_model.dynModelBlendBatch(state_c2, action2,t)
+        t.e('dynamics')
 
 
-
+        t.s('reward')
+        # if a sim is done, then freeze its state
         state_c1 = (state_c1.transpose(0, 1) * (~done_c1) + prev_state_c1.transpose(0, 1) * (done_c1)).transpose(0, 1)
         state_c2 = (state_c2.transpose(0, 1) * (~done_c2) + prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
 
-        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(state_c1, state_c2,
+        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(
+                                                                     state_c1, state_c2,
                                                                      vehicle_model.getLocalBounds(state_c1[:, 0]),
                                                                      vehicle_model.getLocalBounds(state_c2[:, 0]),
                                                                      prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device=device)
 
+        t.e('reward')
+
+        
         done = (done_c1) * (done_c2)  # ~((~done_c1) * (~done_c2))
         # done =  ~((~done_c1) * (~done_c2))
         mask_ele = ~done
 
 
-        if itr>0:
-            mat_reward1 = torch.cat([mat_reward1.view(-1,curr_batch_size,1),reward1.view(-1,curr_batch_size,1)],dim=0) # concate along dim = 0
-            mat_done = torch.cat([mat_done.view(-1, curr_batch_size, 1), mask_ele.view(-1, curr_batch_size, 1)], dim=0)
-        else:
-            mat_reward1 = reward1
-            mat_done = mask_ele
+        mat_reward1 = torch.cat([mat_reward1.view(-1,batch_size,1),reward1.view(-1,batch_size,1)],dim=0)
+        mat_done = torch.cat([mat_done.view(-1, batch_size, 1), mask_ele.view(-1, batch_size, 1)], dim=0)
 
         remaining_xo = ~done
 
@@ -189,9 +224,9 @@ for t_eps in range(num_episode):
         counter1 = counter1[remaining_xo]
         counter2 = counter2[remaining_xo]
 
-        curr_batch_size = state_c1.size(0)
+        batch_size = state_c1.size(0)
 
-        if curr_batch_size<remaining_xo.size(0):
+        if batch_size<remaining_xo.size(0):
             if batch_mat_action1.nelement() == 0:
                 batch_mat_state1 = mat_state1.transpose(0, 1)[~remaining_xo].view(-1, 5)
                 batch_mat_state2 = mat_state2.transpose(0, 1)[~remaining_xo].view(-1, 5)
@@ -243,11 +278,9 @@ for t_eps in range(num_episode):
             batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_action2 = torch.cat([batch_mat_action2, mat_action2.transpose(0, 1).reshape(-1, 2)],dim=0)
             batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1).reshape(-1, 1)],dim=0) #should i create a false or true array?
-            # NOTE debug
-            print("done", itr)
-            print(mat_done.shape)
+            print(f"all episodes done at step {itr}")
             mat_done[mat_done.size(0)-1,:,:] = torch.ones((mat_done[mat_done.size(0)-1,:,:].shape))>=2 # creating a true array of that shape
-            print(mat_done.shape, batch_mat_done.shape)
+            #print(mat_done.shape, batch_mat_done.shape)
             if batch_mat_done.nelement() == 0:
                 batch_mat_done = mat_done.transpose(0, 1).reshape(-1, 1)
                 progress_done1 = 0
@@ -262,29 +295,31 @@ for t_eps in range(num_episode):
                                            mat_state1.transpose(0, 1)[:, 0, 0])
                 progress_done2 = progress_done2 + torch.sum(mat_state2.transpose(0, 1)[:, mat_state2.size(0) - 1, 0] -
                                            mat_state2.transpose(0, 1)[:, 0, 0])
-            print(batch_mat_done.shape)
+            #print(batch_mat_done.shape)
             # print("done", itr)
             break
 
     # print(avg_itr)
-    t.e('sim')
 
 
-    print(batch_mat_state1.shape,itr)
-    writer.add_scalar('Dist/variance_throttle_p1', dist1.variance[0,0], t_eps)
-    writer.add_scalar('Dist/variance_steer_p1', dist1.variance[0,1], t_eps)
-    writer.add_scalar('Dist/variance_throttle_p2', dist2.variance[0,0], t_eps)
-    writer.add_scalar('Dist/variance_steer_p2', dist2.variance[0,1], t_eps)
+    dist = {'variance_throttle_p1':dist1.variance[0,0],
+            'variance_steer_p1': dist1.variance[0,1],
+            'variance_throttle_p2': dist2.variance[0,0],
+            'variance_steer_p2': dist2.variance[0,1]}
+    writer.add_scalars('Dist/control_var', dist, t_eps)
+
+
     writer.add_scalar('Reward/mean', batch_mat_reward1.mean(), t_eps)
     writer.add_scalar('Reward/sum', batch_mat_reward1.sum(), t_eps)
+
     writer.add_scalar('Progress/final_p1', progress_done1/batch_size, t_eps)
     writer.add_scalar('Progress/final_p2', progress_done2/batch_size, t_eps)
     writer.add_scalar('Progress/trajectory_length', itr, t_eps)
     writer.add_scalar('Progress/agent1', batch_mat_state1[:,0].mean(), t_eps)
     writer.add_scalar('Progress/agent2', batch_mat_state2[:,0].mean(), t_eps)
+    return batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done
 
-
-    t.s('train')
+def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device,t):
     val1 = q(torch.cat([batch_mat_state1,batch_mat_state2],dim=1).to(device))
     #NOTE should this be detached?
     #val1 = val1.detach().to('cpu')
@@ -359,9 +394,6 @@ for t_eps in range(num_episode):
     lp2=lp2.mean()
     optim.zero_grad()
     optim.step(ob, ob+ob2+ob3, lp1,lp2)
-    t.e('train')
-
-
 
     # torch.autograd.grad(ob2.mean(), list(p1.parameters), create_graph=True, retain_graph=True)
     ed_time = time.time()
@@ -391,15 +423,31 @@ for t_eps in range(num_episode):
     writer.add_scalar('grad/norm_cgy_cal', norm_cgy_cal, t_eps)
     writer.flush()
 
+# TODO, test performance against benchmark
+def test():
+    pass
+
+# simulate episodes
+for t_eps in range(last_checkpoint_eps,num_episode):
+    t.s() # full cpu on laptop: 0.27Hz, sim and prep all take ~50%
+
+    t.s('sim')
+    retval = simulate(device,t)
+    batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done = retval
+    t.e('sim')
+
+    t.s('update')
+    update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_state2, batch_mat_action2, batch_mat_done, device,t)
+    t.e('update')
+
+    t.s('test')
+    test()
+    t.e('test')
+
     if t_eps%20==0:
-            torch.save(p1.state_dict(),
-                       './' + folder_location + experiment_name + 'model/agent1_' + str(
-                           t_eps) + ".pth")
-            torch.save(p2.state_dict(),
-                       './' + folder_location + experiment_name + 'model/agent2_' + str(
-                           t_eps) + ".pth")
-            torch.save(q.state_dict(),
-                       './' + folder_location + experiment_name + 'model/val_' + str(
-                           t_eps) + ".pth")
+        torch.save(p1.state_dict(),os.path.join(folder_location,experiment_name,'model',f'agent1_{t_eps}.pth'))
+        torch.save(p2.state_dict(),os.path.join(folder_location,experiment_name,'model',f'agent2_{t_eps}.pth'))
+        torch.save(q.state_dict(),os.path.join(folder_location,experiment_name,'model',f'val_{t_eps}.pth'))
+        torch.save(t_eps,os.path.join(folder_location,experiment_name,f'last_checkpoint_eps.pth'))
     t.e()
 t.summary()

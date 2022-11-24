@@ -1,0 +1,25 @@
+Loading config from exp_configs/exp1.json
+experiment_name: exp1
+critic_lr: 0.001
+actor_lr:0.0001
+batch_size: 8
+num_episode: 1
+using device: cpu
+[92m [RCPTrack]:  setting full attributes [0m
+[92m track and raceline loaded [0m
+Starting new training
+training for 1 episodes
+episode 0
+all episodes done at step 234
+-----Variables--------
+-------Time-----------
+prep		0.0 %
+sample_policy		2.6 %
+cat state		0.3 %
+dynamics		11.8 %
+reward		4.2 %
+sim		19.9 %
+update		80.1 %
+test		0.0 %
+avg frequency = 0.214Hz
+unaccounted time = -18.9 %

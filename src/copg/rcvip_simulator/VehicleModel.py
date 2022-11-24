@@ -5,14 +5,13 @@ import numpy as np
 import copy
 from math import radians
 
-
 class VehicleModel():
-    def __init__(self,n_batch,device,config,track='orca'):
+    def __init__(self,n_batch,device,track='orca'):
 
         self.device = device
         self.track = Track.Track()
         if (track == 'orca'):
-            self.track.loadOrcaTrack(config)
+            self.track.loadOrcaTrack()
         elif (track == 'rcp'):
             self.track.loadRcpTrack()
 
@@ -28,10 +27,10 @@ class VehicleModel():
         self.track_angle_lower = torch.from_numpy(self.track.border_angle_lower).type(torch.FloatTensor).to(self.device)
 
 
-        self.n_full_state = config['n_state']
-        self.n_control = config["n_control"]
-        self.n_batch = n_batch
+        self.n_state = 6
+        self.n_control = 2
 
+        self.n_batch = n_batch
         # Model Parameters
         #self.Cm1 = 0.287
         #self.Cm2 = 0.054527
@@ -70,7 +69,7 @@ class VehicleModel():
 
     # advance dynamics in cartesian frame
     def dx(self, x, u):
-        f = torch.empty(self.n_batch, self.n_full_state,device=self.device)
+        f = torch.empty(self.n_batch, self.n_state,device=self.device)
         # state x: X,Y,phi, v_x, v_y, omega
 
         phi = x[:, 2]
@@ -220,6 +219,12 @@ class VehicleModel():
         x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
 
         return x_next
+
+    def kinModel(self,x,u):
+        k1 = self.dxkin(x, u)
+        x_next = x + self.Ts * k1
+        return x_next
+
     def kinModelCurve(self,x,u):
 
         k1 = self.dxkin(x, u)
@@ -228,6 +233,14 @@ class VehicleModel():
         k4 = self.dxkin(x + self.Ts * k3, u)
 
         x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
+
+        return x_next
+
+    def dynModel(self, x, u):
+
+        k1 = self.dxCurve(x, u)
+
+        x_next = x + self.Ts * k1
 
         return x_next
 
@@ -244,7 +257,7 @@ class VehicleModel():
 
     # NOTE used
     # x: curvlinear states : (progress, lateral_err, orientation_err, vx,vy
-    def dynModelBlendBatch(self, x, u_unclipped):
+    def dynModelBlendBatch(self, x, u_unclipped,t):
         '''
         blend_ratio = (x[:,3] - 0.3)/(0.2)
         # lambda_blend = np.min([np.max([blend_ratio,0]),1])
@@ -253,6 +266,7 @@ class VehicleModel():
         lambda_blend = blend_min.values
         '''
 
+        #t.s('dyn prep')
         # TODO verify this is OK
         blend_ratio = (x[:,3]>0.05).float()
         lambda_blend = blend_ratio
@@ -266,8 +280,11 @@ class VehicleModel():
         v_x = x[:,3]
         v_y = x[:, 4]
         x_kin = torch.cat([x[:,0:3], torch.sqrt(v_x*v_x + v_y*v_y).reshape(-1,1)],dim =1)
+        #t.e('dyn prep')
 
-        x_kin_state = self.kinModelCurve(x_kin,u)
+        #t.s('kin model')
+        #x_kin_state = self.kinModelCurve(x_kin,u)
+        x_kin_state = self.kinModel(x_kin,u)
 
         delta = u[:, 1]
         beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
@@ -276,9 +293,13 @@ class VehicleModel():
         yawrate_state = v_x_state * torch.tan(delta)/(self.l_f + self.l_r)
 
         x_kin_full = torch.cat([x_kin_state[:,0:3],v_x_state.view(-1,1),v_y_state.view(-1,1), yawrate_state.view(-1,1)],dim =1)
+        #t.e('kin model')
 
         # Dynamic Model
-        x_dyn = self.dynModelCurve(x,u)
+        #t.s('dyn model')
+        #x_dyn = self.dynModelCurve(x,u)
+        x_dyn = self.dynModel(x,u)
+        #t.e('dyn model')
 
         return  (x_dyn.transpose(0,1)*lambda_blend + x_kin_full.transpose(0,1)*(1-lambda_blend)).transpose(0,1)
 
@@ -316,7 +337,7 @@ class VehicleModel():
 
     def dxCurve_blend(self, x, u):
 
-        f = torch.empty(self.n_batch, self.n_full_state,device=self.device)
+        f = torch.empty(self.n_batch, self.n_state,device=self.device)
 
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
@@ -335,7 +356,7 @@ class VehicleModel():
         kappa = self.getCurvature(s)
 
         if lambda_blend<1:
-            fkin = torch.empty(self.n_batch, self.n_full_state,device=self.device)
+            fkin = torch.empty(self.n_batch, self.n_state,device=self.device)
 
             v = np.sqrt(v_x*v_x + v_y*v_y)
             beta = torch.tan(self.l_r*torch.atan(delta/(self.l_f + self.lr)))
@@ -368,7 +389,7 @@ class VehicleModel():
 
     # advance dynamics in curvilinear frame
     def dxCurve(self, x, u):
-        f = torch.empty(x.size(0), self.n_full_state,device=self.device)
+        f = torch.empty(x.size(0), self.n_state,device=self.device)
 
         s = x[:,0] #progress
         d = x[:,1] #horizontal displacement
@@ -504,7 +525,7 @@ class VehicleModel():
         downwrap_index = ((phi_ref - heading) < -1.5 * np.pi).type(torch.FloatTensor)
         heading = heading - 2 * np.pi * downwrap_index + 2 * np.pi * upwrap_index
 
-        x_global = torch.empty(self.n_batch,self.n_full_state,device=self.device)
+        x_global = torch.empty(self.n_batch,self.n_state,device=self.device)
         x_global[:, 0] = pos_global[:, 0]
         x_global[:, 1] = pos_global[:, 1]
         x_global[:, 2] = heading

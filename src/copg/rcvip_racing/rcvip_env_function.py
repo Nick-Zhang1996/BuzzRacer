@@ -238,6 +238,7 @@ def getfreezecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll
 
 # NOTE used in copg_rcvip
+# reward: r1_progress - r2_progress + reached reward
 def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
@@ -254,6 +255,7 @@ def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_st
     collision_lat = torch.abs(lat_dist) < W
     collision = collision_lat*collision_long
 
+    # rear car responsible for collision
     c1_coll = collision * (long_dist<0)
     c2_coll = collision * (long_dist >= 0)
     counter1 = counter1 + prev_coll_c1*torch.ones(reward.shape,device=device) #increasing counter if collided
