@@ -56,9 +56,9 @@ class Laptimer(Extension):
         car_laptime_stddev = []
         for car in self.main.cars:
             if (car.enableLaptimer and len(car.laptime_vec) > 0):
-                mean = np.mean(car.laptime_vec)
-                stddev = np.std(car.laptime_vec)
-                laps = len(car.laptime_vec)
+                mean = np.mean(car.laptime_vec[1:])
+                stddev = np.std(car.laptime_vec[1:])
+                laps = len(car.laptime_vec[1:])
                 print_info("[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)"%(car.id,laps,mean,stddev))
                 car_laptime_mean.append(mean)
                 car_laptime_stddev.append(stddev)

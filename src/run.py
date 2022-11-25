@@ -14,6 +14,8 @@ import xml.etree.ElementTree as ET
 
 import sys
 import os.path
+import os
+os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
 
 class Main(PrintObject):
     def __init__(self,config_filename):
