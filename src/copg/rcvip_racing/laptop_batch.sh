@@ -1,2 +1,14 @@
-python copg_rcvip.py exp_configs/exp0.json 1>logs/exp0.log 2>logs/exp0.err
-python copg_rcvip.py exp_configs/exp1.json 1>logs/exp1.log 2>logs/exp1.err
+#python copg_rcvip.py exp_configs/exp0.json 1>logs/exp0.log 2>logs/exp0.err
+#python copg_rcvip.py exp_configs/exp1.json 1>logs/exp1.log 2>logs/exp1.err
+#python copg_rcvip.py exp_configs/exp2.json 1>logs/exp2.log 2>logs/exp2.err
+#python copg_rcvip.py exp_configs/exp3.json 1>logs/exp3.log 2>logs/exp3.err
+#python copg_rcvip.py exp_configs/exp4.json 1>logs/exp4.log 2>logs/exp4.err
+#python copg_rcvip.py exp_configs/exp5.json 1>logs/exp5.log 2>logs/exp5.err
+#python copg_rcvip.py exp_configs/exp6.json 1>logs/exp6.log 2>logs/exp6.err
+#python copg_rcvip.py exp_configs/exp7.json 1>logs/exp7.log 2>logs/exp7.err
+#python copg_rcvip.py exp_configs/exp8.json 1>logs/exp8.log 2>logs/exp8.err
+python copg_rcvip.py exp_configs/exp9.json 1>logs/exp9.log 2>logs/exp9.err
+python copg_rcvip.py exp1_configs/exp10.json 1>logs/exp10.log 2>logs/exp10.err
+python copg_rcvip.py exp1_configs/exp11.json 1>logs/exp11.log 2>logs/exp11.err
+python copg_rcvip.py exp1_configs/exp12.json 1>logs/exp12.log 2>logs/exp12.err
+python copg_rcvip.py exp1_configs/exp13.json 1>logs/exp13.log 2>logs/exp13.err

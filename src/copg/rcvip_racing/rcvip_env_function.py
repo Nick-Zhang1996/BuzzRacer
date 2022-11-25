@@ -6,8 +6,11 @@ import numpy as np
 l_f = 0.04824
 l_r = 0.09 - l_f
 
-L = 0.18
-W = 0.08
+#L = 0.18
+#W = 0.08
+
+L = 0.06
+W = 0.03
 
 def getreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]

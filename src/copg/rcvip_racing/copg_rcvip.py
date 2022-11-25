@@ -139,10 +139,21 @@ def simulate(device,t):
     state_c1[:,0] = init_p1
     state_c2[:,0] = init_p2
     # random initial state:  lateral_offset
-    a = random.choice([-0.1,0.1])
+    #a = random.choice([-0.1,0.1])
+    #b = a*(-1)
+
+    # random lateral position
+    a = random.choice([-0.2,0.2])
     b = a*(-1)
     state_c1[:, 1] = a*torch.ones((batch_size))
     state_c2[:, 1] = b*torch.ones((batch_size))
+
+    # random longitudinal position
+    a = random.choice([0.01,5.0])
+    b = random.choice([0.01,5.0])
+    state_c1[:, 0] = a*torch.ones((batch_size))
+    state_c2[:, 0] = b*torch.ones((batch_size))
+
     batch_mat_state1 =  torch.empty(0)
     batch_mat_state2 =  torch.empty(0)
     batch_mat_action1 = torch.empty(0)
