@@ -19,7 +19,7 @@ if (len(sys.argv) == 2):
         actor_lr = 1e-5 # default 3e-5
         experiment_name = sys.argv[1]
         original_batch_size = batch_size = 32
-        num_episode = 15000
+        num_episode = 3000
         print(f'Using hard-coded params')
 else:
     print(f'usage1: python copg_rvip.py exp_name')
@@ -153,6 +153,17 @@ def simulate(device,t):
     b = random.choice([0.01,5.0])
     state_c1[:, 0] = a*torch.ones((batch_size))
     state_c2[:, 0] = b*torch.ones((batch_size))
+
+    # random heading
+    a = random.choice([-0.05,0.05])
+    b = random.choice([-0.05,0.05])
+    state_c1[:, 2] = a*torch.ones((batch_size))
+    state_c2[:, 2] = b*torch.ones((batch_size))
+
+    # random velocity
+    a = random.choice([0.5,2.0])
+    state_c1[:, 3] = a*torch.ones((batch_size))
+    state_c2[:, 3] = a*torch.ones((batch_size))
 
     batch_mat_state1 =  torch.empty(0)
     batch_mat_state2 =  torch.empty(0)
