@@ -6,11 +6,9 @@ import numpy as np
 l_f = 0.04824
 l_r = 0.09 - l_f
 
-#L = 0.18
-#W = 0.08
+L = 0.18
+W = 0.08
 
-L = 0.06
-W = 0.03
 
 def getreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
@@ -297,6 +295,26 @@ def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_st
     reward = reward - reached_c2 * reached_reward
 
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll, counter1, counter2
+
+def getfreezeTimecollosionReachedrewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
+    reward = state_c1[:, 0] - prev_state_c1[:, 0]
+    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
+
+    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
+    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
+
+    c1_bounds = ~((~done1up)*(~done1lb))
+    done_c1 = c1_bounds
+
+    reached = state_c1[:, 0] > 20
+
+    done_c1 = ~((~reached) * (~done_c1))
+
+    reached_reward = 1 * torch.ones(reward.shape,device=device)
+    reward += reached_reward
+
+    return reward,  done_c1 
+
 
 
 def getfreezeprogressreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
