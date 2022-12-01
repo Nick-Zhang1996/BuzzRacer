@@ -257,7 +257,7 @@ class VehicleModel():
 
     # NOTE used
     # x: curvlinear states : (progress, lateral_err, orientation_err, vx,vy
-    def dynModelBlendBatch(self, x, u_unclipped,t):
+    def dynModelBlendBatch(self, x, u_unclipped):
         '''
         blend_ratio = (x[:,3] - 0.3)/(0.2)
         # lambda_blend = np.min([np.max([blend_ratio,0]),1])
