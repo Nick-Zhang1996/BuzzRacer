@@ -4,17 +4,17 @@ from itertools import product
 
 folder_location = 'trained_model/'
 
-critic_lr_vec = [1e-5,1e-7,1e-9]
-actor_lr_vec = [1e-5,1e-7,1e-9]
-offset = 15
+critic_lr_vec = [1e-7,1e-9,1e-11]
+actor_lr_vec = [1e-7,1e-9,1e-13]
+offset = 25
 
 for i,comb in enumerate(product(critic_lr_vec,actor_lr_vec)):
     no = offset + i
     critic_lr = comb[0]
     actor_lr = comb[1]
     experiment_name = f'exp{no}'
-    batch_size = 32
-    num_episode = 4000
+    batch_size = 128
+    num_episode = 10000
 
     with open(os.path.join('exp_configs',f'{experiment_name}.json'),'w') as f:
             data = { 'critic_lr':critic_lr, 'actor_lr':actor_lr}
