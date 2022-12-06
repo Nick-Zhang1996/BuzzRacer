@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/nick/rcvip/src/copg/rcvip_racing/copg_rcvip.py", line 8, in <module>
+    with open(arg,'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: 'exp_configs/exp13.json'
