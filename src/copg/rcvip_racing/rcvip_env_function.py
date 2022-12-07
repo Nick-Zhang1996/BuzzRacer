@@ -9,6 +9,171 @@ l_r = 0.09 - l_f
 L = 0.18
 W = 0.08
 
+# currently used reward
+
+# in training
+# reward: r1_progress - r2_progress + reached reward
+def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device):
+    r1 = state_c1[:, 0] - prev_state_c1[:, 0]
+    r2 = state_c2[:, 0] - prev_state_c2[:, 0]
+    #reward = state_c1[:,0] - state_c2[:,0]
+    reward = (r1-r2)
+    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
+    lb_c2_ten = torch.stack(lb_c2).transpose(0, 1)#.view(1,-1)
+
+    long_dist = state_c1[:,0] - state_c2[:,0]
+    lat_dist = state_c1[:, 1]- state_c2[:, 1]
+
+    #collision_long = torch.abs(long_dist) < (l_f +l_r)
+    collision_long = torch.abs(long_dist) < L
+    collision_lat = torch.abs(lat_dist) < W
+    collision = collision_lat*collision_long
+
+    # rear car responsible for collision
+    c1_coll = collision * (long_dist<0)
+    c2_coll = collision * (long_dist >= 0)
+    counter1 = counter1 + prev_coll_c1*torch.ones(reward.shape,device=device) #increasing counter if collided
+    prev_coll_c1 = (counter1<34) * prev_coll_c1 #if counter is above 34 then reseting
+    counter1 = counter1*(counter1<34) # this will reset the counter
+
+    counter2 = counter2 + prev_coll_c2*torch.ones(reward.shape,device=device) #increasing counter if collided
+    prev_coll_c2 = (counter2<34) * prev_coll_c2 #if counter is above 34 then reseting
+    counter2 = counter2*(counter2<34) # this will reset the counter
+
+    # print(counter1, counter2)
+    c1_coll = ~((~c1_coll) * (~prev_coll_c1)) #if it collided earlier it should freeze
+    c2_coll = ~((~c2_coll) * (~prev_coll_c2)) #if it collided earlier it should freeze
+
+    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
+    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
+
+    c1_bounds = ~((~done1up)*(~done1lb))
+    done_c1 = ~((~c1_bounds) * (~c1_coll))
+
+    done2up = lb_c2_ten[:, 0] <= state_c2[:, 1]
+    done2lb = lb_c2_ten[:, 1] >= state_c2[:, 1]
+
+    c2_bounds = ~((~done2up) * (~done2lb))
+    done_c2 = ~((~c2_bounds) * (~c2_coll))
+
+    reached_c1 = state_c1[:, 0] > 20
+    reached_c2 = state_c2[:, 0] > 20
+    reached = ~((~reached_c1)*(~reached_c2))
+
+    done_c1 = ~((~reached) * (~done_c1))
+    done_c2 = ~((~reached) * (~done_c2))
+
+    reached_reward = 1 * torch.ones(reward.shape,device=device)
+    reward = reward + reached_c1 * reached_reward
+    reward = reward - reached_c2 * reached_reward
+
+    return reward, -reward, done_c1, done_c2, c1_coll, c2_coll, counter1, counter2
+
+def getfreezeTimecollosionReachedrewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
+    reward = state_c1[:, 0] - prev_state_c1[:, 0]
+    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
+
+    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
+    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
+
+    c1_bounds = ~((~done1up)*(~done1lb))
+    done_c1 = c1_bounds
+
+    reached = state_c1[:, 0] > 20
+
+    done_c1 = ~((~reached) * (~done_c1))
+
+    reached_reward = 1 * torch.ones(reward.shape,device=device)
+    reward += reached_reward
+
+    return reward,  done_c1 
+
+# in testing 
+def getRewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
+    # reward: progress 
+    reward = state_c1[:, 0] - prev_state_c1[:, 0]
+
+    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
+    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
+    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
+
+    c1_bounds = ~((~done1up)*(~done1lb))
+
+    # done if out of bound
+    done_c1 = c1_bounds
+
+    return reward,  done_c1 
+
+def getNFcollosionreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
+    r1 = state_c1[:, 0] - prev_state_c1[:, 0]
+    r2 = state_c2[:, 0] - prev_state_c2[:, 0]
+    #reward = state_c1[:,0] - state_c2[:,0]
+    reward = (r1-r2)
+    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
+    lb_c2_ten = torch.stack(lb_c2).transpose(0, 1)#.view(1,-1)
+
+    long_dist = state_c1[:,0] - state_c2[:,0]
+    lat_dist = state_c1[:, 1]- state_c2[:, 1]
+
+    collision_long = torch.abs(long_dist) < (l_f +l_r)
+    collision_lat = torch.abs(lat_dist) < W
+    collision = collision_lat*collision_long
+
+    c1_coll = collision * (long_dist<0)
+    c2_coll = collision * (long_dist >= 0)
+
+    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
+    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
+
+    c1_bounds = ~((~done1up)*(~done1lb))
+    n_c1 =  torch.sum(torch.ones(state_c1.size(0))*c1_bounds)
+    p1 = state_c1[c1_bounds,0]
+    state_c1[c1_bounds,:] = torch.zeros(state_c1[c1_bounds,:].shape)
+    state_c1[c1_bounds, 0] =p1
+    # done_c1 = c1_bounds
+
+    done2up = lb_c2_ten[:, 0] <= state_c2[:, 1]
+    done2lb = lb_c2_ten[:, 1] >= state_c2[:, 1]
+
+    c2_bounds = ~((~done2up) * (~done2lb))
+    n_c2 =  torch.sum(torch.ones(state_c2.size(0))*c2_bounds)
+    p2 = state_c2[c2_bounds, 0]
+    state_c2[c2_bounds, :] = torch.zeros(state_c2[c2_bounds, :].shape)
+    state_c2[c2_bounds, 0] = p2
+    # done_c2 = c2_bounds
+
+    bound_reward = -1 * torch.ones(reward.shape)
+    reward = reward + c1_bounds * bound_reward
+    reward = reward - c2_bounds * bound_reward
+
+    collision_reward = -0.5 * torch.ones(reward.shape)
+    reward = reward + c1_coll * collision_reward
+    reward = reward - c2_coll * collision_reward
+
+    reached_c1 = state_c1[:, 0] > 16.5
+    reached_c2 = state_c2[:, 0] > 16.5
+    reached = ~((~reached_c1)*(~reached_c2))
+
+    done_c1 = reached
+    done_c2 = reached
+
+
+    # done_c1 = ~((~reached)*(~c1_bounds))
+    # done_c2 = ~((~reached)*(~c2_bounds))
+    temp=done_c1
+    done_c1 = ~((~done_c2)*(~done_c1))
+    done_c2 = ~((~done_c2) * (~temp))
+
+    reached_reward = 4 * torch.ones(reward.shape)
+    reward = reward + reached_c1 * reached_reward
+    reward = reward - reached_c2 * reached_reward
+
+    return reward, -reward, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2
+
+
+# unused --- worth checking
+
+
 
 def getreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
@@ -90,71 +255,6 @@ def getcollosionreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_stat
 
     return reward, -reward, done_c1, done_c2
 
-def getNFcollosionreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
-    r1 = state_c1[:, 0] - prev_state_c1[:, 0]
-    r2 = state_c2[:, 0] - prev_state_c2[:, 0]
-    #reward = state_c1[:,0] - state_c2[:,0]
-    reward = (r1-r2)
-    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
-    lb_c2_ten = torch.stack(lb_c2).transpose(0, 1)#.view(1,-1)
-
-    long_dist = state_c1[:,0] - state_c2[:,0]
-    lat_dist = state_c1[:, 1]- state_c2[:, 1]
-
-    collision_long = torch.abs(long_dist) < (l_f +l_r)
-    collision_lat = torch.abs(lat_dist) < W
-    collision = collision_lat*collision_long
-
-    c1_coll = collision * (long_dist<0)
-    c2_coll = collision * (long_dist >= 0)
-
-    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
-    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
-
-    c1_bounds = ~((~done1up)*(~done1lb))
-    n_c1 =  torch.sum(torch.ones(state_c1.size(0))*c1_bounds)
-    p1 = state_c1[c1_bounds,0]
-    state_c1[c1_bounds,:] = torch.zeros(state_c1[c1_bounds,:].shape)
-    state_c1[c1_bounds, 0] =p1
-    # done_c1 = c1_bounds
-
-    done2up = lb_c2_ten[:, 0] <= state_c2[:, 1]
-    done2lb = lb_c2_ten[:, 1] >= state_c2[:, 1]
-
-    c2_bounds = ~((~done2up) * (~done2lb))
-    n_c2 =  torch.sum(torch.ones(state_c2.size(0))*c2_bounds)
-    p2 = state_c2[c2_bounds, 0]
-    state_c2[c2_bounds, :] = torch.zeros(state_c2[c2_bounds, :].shape)
-    state_c2[c2_bounds, 0] = p2
-    # done_c2 = c2_bounds
-
-    bound_reward = -1 * torch.ones(reward.shape)
-    reward = reward + c1_bounds * bound_reward
-    reward = reward - c2_bounds * bound_reward
-
-    collision_reward = -0.5 * torch.ones(reward.shape)
-    reward = reward + c1_coll * collision_reward
-    reward = reward - c2_coll * collision_reward
-
-    reached_c1 = state_c1[:, 0] > 16.5
-    reached_c2 = state_c2[:, 0] > 16.5
-    reached = ~((~reached_c1)*(~reached_c2))
-
-    done_c1 = reached
-    done_c2 = reached
-
-
-    # done_c1 = ~((~reached)*(~c1_bounds))
-    # done_c2 = ~((~reached)*(~c2_bounds))
-    temp=done_c1
-    done_c1 = ~((~done_c2)*(~done_c1))
-    done_c2 = ~((~done_c2) * (~temp))
-
-    reached_reward = 4 * torch.ones(reward.shape)
-    reward = reward + reached_c1 * reached_reward
-    reward = reward - reached_c2 * reached_reward
-
-    return reward, -reward, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2
 
 
 def getfreezecollosionreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2):
@@ -237,83 +337,6 @@ def getfreezecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_
     reward = reward - reached_c2 * reached_reward
 
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll
-
-# NOTE used in copg_rcvip
-# reward: r1_progress - r2_progress + reached reward
-def getfreezeTimecollosionReachedreward(state_c1,state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device):
-    r1 = state_c1[:, 0] - prev_state_c1[:, 0]
-    r2 = state_c2[:, 0] - prev_state_c2[:, 0]
-    #reward = state_c1[:,0] - state_c2[:,0]
-    reward = (r1-r2)
-    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
-    lb_c2_ten = torch.stack(lb_c2).transpose(0, 1)#.view(1,-1)
-
-    long_dist = state_c1[:,0] - state_c2[:,0]
-    lat_dist = state_c1[:, 1]- state_c2[:, 1]
-
-    #collision_long = torch.abs(long_dist) < (l_f +l_r)
-    collision_long = torch.abs(long_dist) < L
-    collision_lat = torch.abs(lat_dist) < W
-    collision = collision_lat*collision_long
-
-    # rear car responsible for collision
-    c1_coll = collision * (long_dist<0)
-    c2_coll = collision * (long_dist >= 0)
-    counter1 = counter1 + prev_coll_c1*torch.ones(reward.shape,device=device) #increasing counter if collided
-    prev_coll_c1 = (counter1<34) * prev_coll_c1 #if counter is above 34 then reseting
-    counter1 = counter1*(counter1<34) # this will reset the counter
-
-    counter2 = counter2 + prev_coll_c2*torch.ones(reward.shape,device=device) #increasing counter if collided
-    prev_coll_c2 = (counter2<34) * prev_coll_c2 #if counter is above 34 then reseting
-    counter2 = counter2*(counter2<34) # this will reset the counter
-
-    # print(counter1, counter2)
-    c1_coll = ~((~c1_coll) * (~prev_coll_c1)) #if it collided earlier it should freeze
-    c2_coll = ~((~c2_coll) * (~prev_coll_c2)) #if it collided earlier it should freeze
-
-    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
-    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
-
-    c1_bounds = ~((~done1up)*(~done1lb))
-    done_c1 = ~((~c1_bounds) * (~c1_coll))
-
-    done2up = lb_c2_ten[:, 0] <= state_c2[:, 1]
-    done2lb = lb_c2_ten[:, 1] >= state_c2[:, 1]
-
-    c2_bounds = ~((~done2up) * (~done2lb))
-    done_c2 = ~((~c2_bounds) * (~c2_coll))
-
-    reached_c1 = state_c1[:, 0] > 20
-    reached_c2 = state_c2[:, 0] > 20
-    reached = ~((~reached_c1)*(~reached_c2))
-
-    done_c1 = ~((~reached) * (~done_c1))
-    done_c2 = ~((~reached) * (~done_c2))
-
-    reached_reward = 1 * torch.ones(reward.shape,device=device)
-    reward = reward + reached_c1 * reached_reward
-    reward = reward - reached_c2 * reached_reward
-
-    return reward, -reward, done_c1, done_c2, c1_coll, c2_coll, counter1, counter2
-
-def getfreezeTimecollosionReachedrewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
-    reward = state_c1[:, 0] - prev_state_c1[:, 0]
-    lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)#.view(1,-1)
-
-    done1up = lb_c1_ten[:,0] <= state_c1[:,1]
-    done1lb = lb_c1_ten[:, 1] >= state_c1[:, 1]
-
-    c1_bounds = ~((~done1up)*(~done1lb))
-    done_c1 = c1_bounds
-
-    reached = state_c1[:, 0] > 20
-
-    done_c1 = ~((~reached) * (~done_c1))
-
-    reached_reward = 1 * torch.ones(reward.shape,device=device)
-    reward += reached_reward
-
-    return reward,  done_c1 
 
 
 
