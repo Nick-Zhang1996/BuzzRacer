@@ -15,11 +15,15 @@ def plotTraj(track, filename, img, color, text):
     global offset
     with open(filename, 'rb') as f:
         data = pickle.load(f)
+    # time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle
     data = np.array(data).squeeze(1)
-
     x = data[:,1]
     y = data[:,2]
     points = np.vstack([x,y]).T
+    #plt.plot(x,y)
+    #plt.show()
+    #breakpoint()
+
     track.drawPolyline(points, img, lineColor=color,thickness=2)
     return img
 
@@ -40,28 +44,30 @@ def plotTraj(track, filename, img, color, text):
 
 
 # load blank canvas
-with open("track_img.p", 'rb') as f:
+with open("../track_img.p", 'rb') as f:
     track_img = pickle.load(f)
 
+'''
 with open("track_boundary_img.p", 'rb') as f:
     boundary_img = pickle.load(f)
     boundary_img[:,:,0] = boundary_img[:,:,1]
     boundary_img[:,:,2] = boundary_img[:,:,1]
+'''
 
 
 # load config cvar.xml
-config_filename = './configs/cvar.xml'
+config_filename = '../configs/cvar.xml'
 config = minidom.parse(config_filename)
 config_track= config.getElementsByTagName('track')[0]
-track = TrackFactory(config_track)
+track = TrackFactory(None,config_track)
 
 offset = 0
 
 #blank = np.zeros_like(track_img)
-filename = '../log/2022_8_30_sim/full_state2.p'
+filename = '../../log/feb25/full_state11.p'
 img2 = plotTraj(track,filename, track_img, (0,255,0), "Baseline")
 
-filename = '../log/2022_8_30_sim/full_state1.p'
+filename = '../../log/feb25/full_state12.p'
 img1 = plotTraj(track,filename, track_img, (0,0,255), "CVaR")
 
 
