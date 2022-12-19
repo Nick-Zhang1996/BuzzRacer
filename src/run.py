@@ -9,6 +9,8 @@ import extension
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
 from extension.simulator.CalebDynamicSimulator import CalebDynamicSimulator
+from extension.simulator.KinetoDynamicSimulator import KinetoDynamicSimulator
+from extension.ParticleFilter import ParticleFilter
 from extension import Gifsaver, Laptimer,Optitrack,Logger
 #from extension import Gifsaver, Laptimer,CrosstrackErrorTracker,Logger,LapCounter,CollisionChecker, Optitrack,Visualization, PerformanceTracker, Watchdog
 
@@ -18,8 +20,8 @@ from track import TrackFactory
 from Car import Car
 from controller import StanleyCarController
 # from controller.ccmppi import CcmppiCarController
-from controller.mppi.MppiCarController import MppiCarController
-from controller.mppi.MppiCarControllerCurvilinear import MppiCarControllerCurvilinear
+# from controller.mppi.MppiCarController import MppiCarController
+# from controller.mppi.MppiCarControllerCurvilinear import MppiCarControllerCurvilinear
 
 class Main():
     def __init__(self,params={}):
@@ -31,10 +33,21 @@ class Main():
 
         self.track = TrackFactory(name='full')
 
+        # --- Extensions ---
+        self.extensions = []
+        self.visualization = extension.Visualization(self)
+        #Optitrack(self)
+        # self.SimulatorType = SimulatorType.KinetoDynamicSimulator
+        # self.simulator = KinetoDynamicSimulator(self)
+        self.SimulatorType = SimulatorType.DynamicSimulator
+        self.simulator = DynamicSimulator(self)
+        self.simulator.match_time = False
+        self.ParticleFilter = ParticleFilter(self)
+
         Car.reset()
-        # car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
-        #car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
-        car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
+        car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
+        car1 = Car.Factory(self, "lambo", controller=StanleyCarController,init_states=(3.7*0.6,2.75*0.6, radians(-90), 1.0))
+        # car0 = Car.Factory(self, "porsche", controller=MppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),1.0))
 
         self.cars = Car.cars
         print_info("[main] total cars: %d"%(len(self.cars)))
@@ -48,19 +61,12 @@ class Main():
         self.slowdown = Event()
         self.slowdown_ts = 0
 
-        # --- Extensions ---
-        self.extensions = []
-        self.visualization = extension.Visualization(self)
-        Optitrack(self)
-        #self.simulator = CalebDynamicSimulator(self)
-        #self.simulator.match_time = False
-
-        #Gifsaver(self)
+        Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
         # save experiment as a gif, this provides an easy to use visualization for presentation
-        #Logger(self)
+        # Logger(self)
 
         # steering rack tracker
         #SteeringTracker(self)
@@ -78,7 +84,8 @@ class Main():
     def run(self):
         print_info("running ... press q to quit")
         i = 0
-        while not self.exit_request.is_set():
+        while not i > 100: #self.exit_request.is_set():
+            print(i)
             ts = time()
             self.update()
             if i % 4000 == 0:
@@ -116,8 +123,8 @@ class Main():
             item.preUpdate()
             t.e(item.name)
 
-        # self.new_state_update.wait()
-        # self.new_state_update.clear()
+        self.new_state_update.wait()
+        self.new_state_update.clear()
 
         t.s('control')
         for car in self.cars:
@@ -147,7 +154,7 @@ class Main():
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0, 'numberOfParticles': 512}
     experiment = Main(params)
     experiment.run()
     experiment.timer.summary()

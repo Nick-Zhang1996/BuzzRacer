@@ -34,7 +34,9 @@ class StanleyCarController(CarController):
             self.car.throttle = 0.0
             self.car.steering = 0.0
 
-        self.predict()
+        # todo remove after visualizing pf!!! Bad!
+        if not self.car.id == 1:
+            self.predict()
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output

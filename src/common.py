@@ -5,6 +5,12 @@ class ExperimentType(Enum):
     Simulation = auto()
     Realworld = auto()
 
+class SimulatorType(Enum):
+    KinetoDynamicSimulator = auto()
+    DynamicSimulator = auto()
+    CalebDynamicSimulator = auto()
+    KinematicSimulator = auto()
+
 def print_error(*message):
     print('\033[91m', 'ERROR ', *message, '\033[0m')
     raise RuntimeError

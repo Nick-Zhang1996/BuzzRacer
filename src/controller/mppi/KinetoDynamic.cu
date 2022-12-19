@@ -19,20 +19,27 @@
 #define PARAM_IZ 417757e-9
 #define PARAM_MASS 0.1667
 
-#define MOTOR_PARAM_A 6.17
-#define MOTOR_PARAM_B 15.2
-#define MOTOR_PARAM_C 0.2
+// old ax0 model
+//#define MOTOR_PARAM_A 6.17
+//#define MOTOR_PARAM_B 15.2
+//#define MOTOR_PARAM_C 0.2
+// new ax0 model
+# define MOTOR_PARAM_A 27.42298
 
 #define PARAM_B 2.3
 #define PARAM_C 1.6
 #define PARAM_D 1.1
 
-#define PARAM_K_US 0.04559      // understeer gradient
-#define PARAM_TAU_A 0.04        // accel time constant
-#define PARAM_TAU_DELTA 0.025   // steering time constant
-#define PARAM_TAU_OMEGA 0.228   // angular velocity time constant
-#define PARAM_K_D 0.0f          // drag coefficient
-#define PARAM_C_R 0.0f          // rolling resistance coefficient
+#define PARAM_K_US 0.028521         // understeer gradient
+//#define PARAM_TAU_A 0.04            // accel time constant, with old ax0 model
+#define PARAM_TAU_A 0.379826        // accel time constant
+#define PARAM_TAU_DELTA 0.0613      // steering time constant
+#define PARAM_TAU_OMEGA 0.125744    // angular velocity time constant
+//#define PARAM_K_D 0.0f              // drag coefficient, with old ax0 model
+//#define PARAM_C_R 0.0f              // rotational friction coefficient, with old ax0 model
+#define PARAM_K_D 0.0942299         // drag coefficient
+#define PARAM_C_R 4.49905           // rotational friction coefficient
+
 
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
@@ -278,7 +285,10 @@ void forward_dynamics(float *state, float *u, float curvature) {
 //    curvature = state[STATE_CURVATURE];
 
     throttle = u[CONTROL_THROTTLE];
-    ax0 = MOTOR_PARAM_A * (throttle - vx / MOTOR_PARAM_B - MOTOR_PARAM_C);
+    // old ax0 model from motor model
+//    ax0 = MOTOR_PARAM_A * (throttle - vx / MOTOR_PARAM_B - MOTOR_PARAM_C);
+    // new throttle -> ax0 model
+    ax0 = MOTOR_PARAM_A * throttle;
     delta0 = u[CONTROL_STEERING];
 
     d_Omega = 1 / PARAM_TAU_OMEGA * (vx / PARAM_L * (delta - PARAM_K_US) - Omega);

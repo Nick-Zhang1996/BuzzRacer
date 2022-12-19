@@ -21,7 +21,7 @@ class ParticleFilter(Extension):
 
     def init(self):
         self.particle_filter = particle_filter(self.numParticles, self.main.track, init_state=self.main.cars[0].states,
-                                               uniform=True)
+                                               uniform=False)
 
     def preUpdate(self):
         # move particles through dynamics model
@@ -46,6 +46,8 @@ class ParticleFilter(Extension):
         # this takes **forever**
         pf.findPosteriors(measurements, self.main.track)
         pf.resampleIfNeeded()
+
+        pf.calcBestEstimate(method='average') #'max'
 
 class DiscreteDistribution:
     def __init__(self, numParticles, array=None):
@@ -144,6 +146,9 @@ class particle_filter(DiscreteDistribution):
             # called reinitialize because you might need to do this if you diverge from the true state
             self.reinitializeDistribution()
 
+        self.bestEstimate = None
+        self.calcBestEstimate()
+
     def initializeGaussian(self):
         self.particles[:, 0:3] = np.random.multivariate_normal(self.startMean, self.startCov, self.numParticles)
         self.normalize()
@@ -235,6 +240,18 @@ class particle_filter(DiscreteDistribution):
     def addMeasurementNoise(self):
         measNoise = np.random.multivariate_normal(self.measNoiMean, self.measNoiCov, 1)
         return measNoise
+
+    def calcBestEstimate(self, method='max'):
+        bestEstimate = None
+        if method == 'average':
+            bestEstimate = np.average(self.particles[:, 0:3], axis=0, weights=self.particles[:, 3])
+        else:
+            maxWeight = -999999
+            for particle in self.particles:
+                if particle[3] > maxWeight:
+                    maxWeight = particle[3]
+                    bestEstimate = particle
+        self.bestEstimate = bestEstimate
 
 
 def advanceDynamics(state, control):

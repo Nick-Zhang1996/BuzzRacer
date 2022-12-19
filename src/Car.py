@@ -11,7 +11,10 @@ class Car:
         self.throttle = 0.0
         self.steering = 0.0
         #x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
-        self.states = (0,0,0,0,0,0)
+        if self.main.SimulatorType == SimulatorType.KinetoDynamicSimulator:
+            self.states = (0,0,0,0,0,0,0)
+        else:
+            self.states = (0,0,0,0,0,0)
         self.debug_dict = {}
         self.car_interface = None
 
@@ -74,7 +77,10 @@ class Car:
         car = cls(main)
         # (x,y,theta,vforward,vsideway=0,omega)
         x,y,heading,v_forward = init_states
-        car.states = (x,y,heading,v_forward,0,0)
+        if main.SimulatorType == SimulatorType.KinetoDynamicSimulator:
+            car.states = (0,0,v_forward,0,0,0,0) # start at zeta = n = accel = steer = Omega = 0
+        else:
+            car.states = (x,y,heading,v_forward,0,0)
 
         porsche_setting = {'wheelbase':90e-3,
                          'max_steer_angle_left':radians(27.1),

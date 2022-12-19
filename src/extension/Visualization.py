@@ -7,6 +7,7 @@ import pickle
 import matplotlib.pyplot as plt
 from math import degrees, radians
 from PIL import Image
+from Car import Car
 
 
 class Visualization(Extension):
@@ -82,8 +83,14 @@ class Visualization(Extension):
 
         if (self.update_visualization.is_set()):
             img = self.img_track.copy()
+            img = self.main.track.simulateSensors(self.main.cars[0], img)
+            # todo remove exclusion after done visualizing particle filter estimate / fix pf visualization
+            i = 0
             for car in self.main.cars:
-                img = self.drawCar(img, car)
+                if i == 0:
+                    img = self.drawCar(img, car)
+                i += 1
+            img = self.drawParticlesAndEstimate(img)
             img = self.drawControlForAllCars(img)
             self.visualization_img = img
 
@@ -115,10 +122,13 @@ class Visualization(Extension):
 
     def drawControlForAllCars(self, img):
         offset = -10
+        i = 0
         for car in self.main.cars:
             # img = self.drawAcceleration(img, car, (0,0))
-            img = self.drawControl(img, car, (-10, offset))
-            offset += 60
+            if i == 0:
+                img = self.drawControl(img, car, (-10, offset))
+                offset += 60
+                i += 1
         return img
 
     def drawControl(self, img, car, coord):
@@ -191,7 +201,7 @@ class Visualization(Extension):
             return img
         # overlay vehicle image, orientation as headed
         # significant performance impact
-        #img = self.overlayCarRendering(img, car)
+        img = self.overlayCarRendering(img,car)
 
         # draw vehicle, orientation as black arrow
         # img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
@@ -250,3 +260,24 @@ class Visualization(Extension):
         bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
 
         return bg_img
+
+    def drawParticlesAndEstimate(self, img):
+        car = self.main.cars[0]
+        particles = self.main.ParticleFilter.particle_filter.particles
+        track = self.main.track
+
+        maxWeight = -999999
+        maxParticle = None
+        for particle in particles:
+            # purple circles, sized by weight
+            if particle[3] > maxWeight:
+                maxWeight = particle[3]
+                maxParticle = particle
+            img = track.drawCircle(img, (particle[0], particle[1]), particle[3]*2, color=(100, 100, 100))  # (147, 112, 219) purple
+
+        # todo: this breaks if not visualizing particle filter localization
+        car = self.main.cars[1]
+        bestEstimate = self.main.ParticleFilter.particle_filter.bestEstimate
+        car.states = (bestEstimate[0], bestEstimate[1], bestEstimate[2], car.states[3], car.states[4], car.states[5])
+        img = self.overlayCarRendering(img, car)
+        return img

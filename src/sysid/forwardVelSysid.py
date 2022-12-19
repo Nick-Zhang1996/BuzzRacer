@@ -6,6 +6,7 @@ import numpy as np
 from math import radians,degrees
 from scipy.signal import savgol_filter
 from scipy.optimize import minimize
+from scipy.optimize import differential_evolution
 
 #filename = '../../log/2022_2_7_exp/debug_dict2.p'
 filename = '/home/caleb/RC-VIP/log/steeringSysid/debug_dict4.p'
@@ -18,17 +19,19 @@ filename = '/home/caleb/RC-VIP/log/steeringSysid/full_state4.p'
 with open(filename, 'rb') as f:
     data = pickle.load(f)
 data = np.array(data)
-commanded_steering = np.array(data[:,0,7])
-t = data[:,0,0] - data[0,0,0]
 
-xActual = data[:,0,1]
-yActual = data[:,0, 2]
-headingActual = data[:,0, 3]
-vxActual = data[:,0,4]
-vyActual = data[:,0, 5]
-omegaActual = data[:,0, 6]
-steering = data[:,0, 7]
-throttle = data[:,0, 8]
+skip = 50
+commanded_steering = np.array(data[skip:,0,7])
+t = data[skip:,0,0] - data[skip,0,0]
+
+xActual = data[skip:,0,1]
+yActual = data[skip:,0, 2]
+headingActual = data[skip:,0, 3]
+vxActual = data[skip:,0,4]
+vyActual = data[skip:,0, 5]
+omegaActual = data[skip:,0, 6]
+steering = data[skip:,0, 7]
+throttle = data[skip:,0, 8]
 
 L = 0.09
 
@@ -45,44 +48,65 @@ omegaActual = savgol_filter(omegaActual, 19, 2)
 def first_order(paramValues):
     # construct estimated steering with first order sys
     m = 0.1667
-
-    motor_A, motor_B, motor_C, k_D, c_r, tau_a = paramValues
+    # motor_A = 6.17
+    # motor_B = 15.2
+    # motor_C = 0.333
+    # k_D, c_r, tau_a = paramValues
+    # motor_A, motor_B, motor_C, k_D, c_r, tau_a = paramValues
+    motor_A, k_D, c_r, tau_a = paramValues
     # motor_A, motor_B, motor_C, tau_a = paramValues
     # k_D = c_r = 0
     # motor_A, motor_B, motor_C = paramValues
     guessV = np.zeros_like(vxActual)
-    # guessA = np.zeros_like(vxActual)
+    guessA = np.zeros_like(vxActual)
     for i in range(vxActual.shape[0]-1):
         dt = t[i+1] - t[i]
-        a_x0 = motor_A * (throttle[i] - guessV[i] / motor_B - motor_C)
+        # a_x0 = motor_A * (throttle[i] - guessV[i] / motor_B - motor_C)
+        a_x0 = motor_A * throttle[i]
         v_xdot = guessA[i] - k_D / m * guessV[i] ** 2 - c_r * guessV[i]
-        v_xdot = motor_A * (throttle[i] - guessV[i] / motor_B - motor_C)
+        # print("guessV:", guessV[i])
+        # print("guessA:", guessA[i])
+        # v_xdot = motor_A * (throttle[i] - guessV[i] / motor_B - motor_C)
         a_xdot = 1 / tau_a * (a_x0 - guessA[i])
         guessV[i+1] = guessV[i] + v_xdot * dt
         guessA[i+1] = guessA[i] + a_xdot * dt
+    # plt.plot(t, vxActual, label='actual')
+    # plt.plot(t, guessV, label='estimated')
+    # plt.plot(t, guessV - vxActual, label="error")
+    # plt.show()
     err = np.linalg.norm(guessV - vxActual)
+    print(err)
     return err
 
 
 if __name__ == "__main__":
     m = 0.1667
+    motor_A = 6.17
+    motor_B = 15.2
+    motor_C = 0.333
     posBound = (0, None)
-    res = minimize(first_order, np.array([6.17, 15.2, 0.333]), method='Nelder-Mead',
-                   bounds=(posBound, posBound, posBound))
+    res = minimize(first_order, np.array([6, 0.2, 0.1, 0.05]), method='Nelder-Mead',
+                   bounds=(posBound, posBound, posBound, posBound),
+                   options={"maxiter": 10000})
+
+    # bounds = ((0,0.4), (0,0.1), (0,0.2))
+    # res = differential_evolution(first_order, bounds)
     print(res)
     # construct estimated steering with first order sys
-    motor_A, motor_B, motor_C = res.x
-    k_D = c_r = 0
+    # motor_A, motor_B, motor_C, k_D, c_r, tau_a = res.x
+    motor_A, k_D, c_r, tau_a = res.x
+    # k_D = c_r = 0
     guessV = np.zeros_like(vxActual)
-    guessA = guessV
+    guessA = np.zeros_like(vxActual)
     for i in range(vxActual.shape[0] - 1):
         dt = t[i + 1] - t[i]
         # a_x0 = motor_A * (throttle[i] - guessV[i] / motor_B - motor_C)
-        # v_xdot = guessA[i] - k_D / m * guessV[i] ** 2 - c_r * guessV[i]
-        v_xdot = motor_A * (throttle[i] - vxActual[i] / motor_B - motor_C)
-        # a_xdot = 1 / tau_a * (a_x0 - guessA[i])
+        a_x0 = motor_A * throttle[i]
+        v_xdot = guessA[i] - k_D / m * guessV[i] ** 2 - c_r * guessV[i]
+        # v_xdot = motor_A * (throttle[i] - vxActual[i] / motor_B - motor_C)
+        a_xdot = 1 / tau_a * (a_x0 - guessA[i])
         guessV[i + 1] = guessV[i] + v_xdot * dt
-        # guessA[i + 1] = guessA[i] + a_xdot * dt
+        guessA[i + 1] = guessA[i] + a_xdot * dt
     err = np.linalg.norm(guessV - vxActual) / math.sqrt(t.shape[0])
 
 

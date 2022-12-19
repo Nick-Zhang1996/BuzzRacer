@@ -233,20 +233,27 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j=None, dt=0.0076, par
     lr = 0.09 - 0.036
     lf = 0.036
     L = lr + lf
-    m = 0.1667  # * 1.5
+    m = 0.1667
 
     # Hard to measure parameters
     # Assume constant K_us, + means understeer, - means oversteer
     # understeer gradient (see saved paper for analytic estimation?)
     K_us = 0.02852  # from new minimize #-0.02558 #from diff evol #0.04559  # 0.01079 from less extensive test  # -3 * pi / 180 initial guess
-    tau_a = 0.04  # 0.5447  # 0.00643796  # 0.05 initial guess
-    motor_A = 6.17
-    motor_B = 15.2
-    motor_C = 0.333
+    # tau_a = 0.04  # 0.5447  # 0.00643796  # 0.05 initial guess
+    # motor_A = 6.17
+    # motor_B = 15.2
+    # motor_C = 0.333
+
+    ## new model - only A
+    motor_A = 27.42298
+    tau_a = 0.379826
+    k_D = 0.0942299
+    c_r = 4.49905
+
     tau_delta = 0.0613  # from minimize  0.087413  # from diff_evo #  0.025
     tau_omega = 0.12574 # from new minimize # 0.1979 # from diff evol # 0.228  # 0.1339  # 0.1445 from less extensive test
-    k_D = 0#9.97594544e-01  # 0 #0.00650  # 0.01167  # 0.28067972  # 0.3  # drag coefficient
-    c_r = 0# 2.25905149e-02 #0 #0.2016  # 0.08387754  # 0.1 initial guess # frictional resistance
+    # k_D = 0#9.97594544e-01  # 0 #0.00650  # 0.01167  # 0.28067972  # 0.3  # drag coefficient
+    # c_r = 0# 2.25905149e-02 #0 #0.2016  # 0.08387754  # 0.1 initial guess # frictional resistance
     # paper includes road gradient but for RC-Car it is zero
 
     # enable parameter tuning process
@@ -276,7 +283,8 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j=None, dt=0.0076, par
 
     a_x, delta, v_x, Omega, zeta, n, xi = state
     throttle, delta_0 = control
-    a_x0 = motor_A * (throttle - v_x / motor_B - motor_C)
+    # a_x0 = motor_A * (throttle - v_x / motor_B - motor_C)
+    a_x0 = motor_A * throttle
 
     dr = splev(zeta % track.raceline_len_m, track.raceline_s, der=1)
     refHeading = np.arctan2(dr[1], dr[0])
@@ -287,13 +295,9 @@ def step_NonlinearKinetoDynamic(state, control, curvature,j=None, dt=0.0076, par
     # zeta = float(track.uToS(u))
 
     # v_x = vxActual[j-1]
-    if delta < 0:
-        # Omegadot = 1 / tau_omega * (v_x / L * (delta + K_us) - Omega)
-        Omegadot = 1 / tau_omega * (v_x / L * (delta + K_us) - Omega)
-    else:
-        # Omegadot = 1 / tau_omega * (v_x / L * (delta - K_us) - Omega)
-        Omegadot = 1 / tau_omega * (v_x/ L * (delta + K_us) - Omega)
-    v_xdot = motor_A * (throttle - v_x / motor_B - motor_C)#  a_x - k_D / m * v_x ** 2 - c_r * v_x
+    Omegadot = 1 / tau_omega * (v_x/ L * (delta + K_us) - Omega)
+    # v_xdot = motor_A * (throttle - v_x / motor_B - motor_C)#  a_x - k_D / m * v_x ** 2 - c_r * v_x
+    v_xdot = a_x - k_D / m * v_x ** 2 - c_r * v_x
     a_xdot = 1 / tau_a * (a_x0 - a_x)
     deltadot = 1 / tau_delta * (delta_0 - delta)
 
@@ -377,7 +381,7 @@ def test():
     plt.show()
 
 
-def run(model="step_NonlinearKinetoDynamic", lookahead_steps=100, run_steps=1000, paramNames=None, paramValues=None, visuals=True):
+def run(model="step_NonlinearKinetoDynamic", lookahead_steps=100, run_steps=1800, paramNames=None, paramValues=None, visuals=True):
     global state
     # step_fun = step_ukf_linear
     # step_fun2 = step_ukf

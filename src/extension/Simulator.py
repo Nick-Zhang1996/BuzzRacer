@@ -27,6 +27,7 @@ class Simulator(Extension):
             print_error(self.prefix() + "another state update source has been initialized")
 
         self.main.experiment_type = ExperimentType.Simulation
+        # self.main.experiment_type = ExperimentType.Realworld
         self.main.sim_t = 0
         print_ok(self.prefix() + "match_time: " + str(self.match_time))
 

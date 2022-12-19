@@ -16,21 +16,21 @@ import os
 
 sys.path.append(os.path.abspath('../../src/'))
 from common import *
-from kalmanFilter import KalmanFilter
+from util.kalmanFilter import KalmanFilter
 from math import pi, degrees, radians, sin, cos, tan, atan
 from scipy.signal import savgol_filter
 
-from RCPTrack import RCPtrack
+from track.RCPTrack import RCPTrack
 
 from time import sleep
 
-from tire import tireCurve, newTireCurve, oldTireCurve
+# from sysid.tire import tireCurve, newTireCurve, oldTireCurve
 
 saveGif = True
 gifs = []
 
 if (len(sys.argv) != 2):
-    filename = "/home/caleb/Documents/GitHub/RC-VIP/log/feb25/full_state1.p"  # "../log/feb25/full_state3.p"
+    filename = "/home/caleb/RC-VIP/log/ref_traj/dynamic.p"  # "../log/feb25/full_state3.p"
     # filename = "/home/caleb/Documents/GitHub/RC-VIP/log/sep28full_state1.p"
     print_info("using %s" % (filename))
     # print_error("Specify a log to load")
@@ -53,7 +53,7 @@ throttle = data[skip:, 5]  # this name aligns with my convention
 dt = 0.01
 vxGlobal = np.hstack([0, np.diff(xActual)]) / dt  # changed from just 'vx'
 vyGlobal = np.hstack([0, np.diff(yActual)]) / dt  # changed from just 'vy'
-# omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
+omegaActual = np.hstack([0,np.diff(headingActual)])/dt  # changed from just 'omega', gets overwritten below by ekf
 
 # local speed
 # forward
@@ -61,13 +61,13 @@ vxActual = vxGlobal * np.cos(headingActual) + vyGlobal * np.sin(headingActual)  
 # lateral, left +
 vyActual = -vxGlobal * np.sin(headingActual) + vyGlobal * np.cos(headingActual)  # changed from vy_car
 
-exp_kf_x = data[skip:, 6]
-exp_kf_y = data[skip:, 7]
-exp_kf_v = data[skip:, 8]
-exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
-exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
-exp_kf_theta = data[skip:, 9]
-exp_kf_omega = data[skip:, 10]
+# exp_kf_x = data[skip:, 6]
+# exp_kf_y = data[skip:, 7]
+# exp_kf_v = data[skip:, 8]
+# exp_kf_vx = exp_kf_v * np.cos(exp_kf_v)
+# exp_kf_vy = exp_kf_v * np.sin(exp_kf_v)
+# exp_kf_theta = data[skip:, 9]
+# exp_kf_omega = data[skip:, 10]
 
 '''
 # use kalman filter results
@@ -78,7 +78,7 @@ vy = exp_kf_vy
 heading = exp_kf_theta
 '''
 # NOTE using filtered omega
-omegaActual = exp_kf_omega  # changed from just 'omega'
+# omegaActual = exp_kf_omega  # changed from just 'omega'
 
 data_len = t.shape[0]
 
@@ -127,7 +127,7 @@ if not fullsim:
 
 full_state_vec = []
 
-track = RCPtrack()
+track = RCPTrack()
 track.load()
 
 
