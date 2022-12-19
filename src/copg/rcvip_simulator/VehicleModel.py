@@ -1,20 +1,26 @@
 # RC car dynamics
 import torch
-import car_racing_simulator.Track as Track
+try:
+    from Track import Track
+except ModuleNotFoundError:
+    from rcvip_simulator.Track import Track
 import numpy as np
 import copy
-from math import radians
+from math import radians,degrees
+import matplotlib.pyplot as plt
 
 class VehicleModel():
     def __init__(self,n_batch,device,track='orca'):
+        print('rcvip version of VehicleModel')
 
         self.device = device
-        self.track = Track.Track()
+        self.track = Track()
         if (track == 'orca'):
             self.track.loadOrcaTrack()
         elif (track == 'rcp'):
             self.track.loadRcpTrack()
 
+        self.track_n = self.track.s.shape[0]
         self.track_s = torch.from_numpy(self.track.s).type(torch.FloatTensor).to(self.device)
         self.track_kappa = torch.from_numpy(self.track.kappa).type(torch.FloatTensor).to(self.device)
         self.track_phi = torch.from_numpy(self.track.phi).type(torch.FloatTensor).to(self.device)
@@ -128,85 +134,6 @@ class VehicleModel():
         D = 1.1
         retval = D * torch.sin( C * torch.atan(B *alpha)) 
         return retval
-
-    def compLocalCoordinates(self, x):
-
-        x_local = torch.zeros(self.n_batch,7)
-
-        dist = torch.zeros(self.n_batch,self.track.N)
-
-        for i in range(self.track.N):
-            dist[:,i] = (x[:,0] - self.track_X[i])**2 + (x[:,1] - self.track_Y[i])**2
-
-        min_index = torch.argmin(dist, dim=1)
-        # min_dist = torch.sqrt(dist[:,min_index])
-
-        # if min_dist > 0.4:
-        # print(min_index)
-        for i in range(self.n_batch):
-            # print(min_index[i])
-            if dist[i,min_index[i]] <= 1e-13:
-                s = self.track_s[min_index[i]]
-                d = 0
-                mu = x[2] - self.track_phi[min_index[i]]
-                kappa = self.track_kappa[min_index[i]]
-
-                x_local[i, :] = torch.tensor([s, d, mu, x[i, 3], x[i, 4], x[i, 5], kappa])
-            else:
-                a = torch.zeros(2)
-                b = torch.zeros(2)
-                a[0] = x[i, 0] - self.track_X[min_index[i]]
-                a[1] = x[i, 1] - self.track_Y[min_index[i]]
-                b[0] = self.track_X[min_index[i]+1] - self.track_X[min_index[i]]
-                b[1] = self.track_Y[min_index[i]+1] - self.track_Y[min_index[i]]
-                # a = self.vecToPoint(min_index, x)
-                # b = self.vecTrack(min_index)a
-
-                cos_theta = (torch.dot(a, b) / (torch.norm(a) * torch.norm(b)))
-                # print("cos(theta): ",cos_theta)
-
-                if cos_theta < 0:
-                    min_index[i] = min_index[i] - 1
-                    if min_index[i] < 0:
-                        min_index[i] = self.track.N - 1
-
-                    a[0] = x[i, 0] - self.track_X[min_index[i]]
-                    a[1] = x[i, 1] - self.track_Y[min_index[i]]
-                    b[0] = self.track_X[min_index[i] + 1] - self.track_X[min_index[i]]
-                    b[1] = self.track_Y[min_index[i] + 1] - self.track_Y[min_index[i]]
-
-                    cos_theta = (torch.dot(a, b) / (torch.norm(a) * torch.norm(b)))
-                    # print("cos(theta): ",cos_theta)
-
-                if cos_theta >= 1:
-                    cos_theta = torch.tensor(0.9999999)
-
-                rela_proj = torch.norm(a) * cos_theta / torch.norm(b)
-                # print("realtive projection: ",rela_proj)
-                rela_proj = max(min(rela_proj, 1), 0)
-                # print("realtive projection: ",rela_proj)
-                theta = torch.acos(cos_theta)
-
-                error_sign = -torch.sign(a[0] * b[1] - a[1] * b[0])
-                error = error_sign * torch.norm(a) * torch.sin(theta)
-                if error != error:
-                    error = 0.0
-
-                # print(min_index[i])
-                next_min_index = min_index[i] + 1
-                if next_min_index > self.track.N:
-                    next_min_index = 0
-
-                s = self.track_s[min_index[i]] + (rela_proj * (-self.track_s[min_index[i]] + self.track_s[next_min_index]))
-                d = error
-                mu = self.wrapMu(x[i,2] - (self.track_phi[min_index[i]] + (rela_proj * (-self.track_phi[min_index[i]] + self.track_phi[next_min_index]))))
-                kappa = self.track_kappa[min_index[i]] + (rela_proj * (-self.track_kappa[min_index[i]] + self.track_kappa[next_min_index]))
-                if s!=s:
-                    print(s)
-
-                x_local[i,:] = torch.tensor([s, d, mu, x[i,3], x[i,4], x[i,5], kappa])
-
-        return x_local
 
     # refine discretization
     def dynModel(self, x, u):
@@ -485,8 +412,84 @@ class VehicleModel():
         return d_upper, d_lower,angle_upper,angle_lower
 
 
+    def fromGlobalToLocal(self,state_global):
+        track_ref_pos = np.vstack([self.track_X, self.track_Y]).T
+        track_s = self.track_s.numpy()
+        ds = track_s[1]-track_s[0]
+        # first index and last are same
+        track_n = self.track_n - 1
 
-    def fromLocalToGlobal(self,state_local,phi_ref):
+        state_global = np.array(state_global).flatten()
+        assert(state_global.shape == (6,))
+        x = state_global[0]
+        y = state_global[1]
+        car_pos = np.hstack([x,y])
+
+        abs_heading = state_global[2]
+        v_x = state_global[3]
+        v_y = state_global[4]
+        omega = state_global[5]
+
+        # find closest index
+        dist = ((x-track_ref_pos[:,0])**2 + (y-track_ref_pos[:,1])**2)**0.5
+        index = np.argmin(dist)
+        track_tangent = track_ref_pos[(index+1)%track_n] - track_ref_pos[(index-1)%track_n]
+        track_tangent = track_tangent/np.linalg.norm(track_tangent)
+        # vector track_ref -> car
+        ref = track_ref_pos[index]
+        r_ref_car = car_pos - ref
+
+        mid_ref = np.dot(track_tangent, r_ref_car) * track_tangent + ref
+        progress = self.track_s[index] + np.dot(track_tangent, r_ref_car)
+        progress = (progress + track_s[-1]) % track_s[-1]
+        lateral = np.cross(track_tangent, r_ref_car)
+        # (-1,1)
+        ratio = np.dot(track_tangent, r_ref_car) / ds
+        
+        forward_diff  =  self.wrap(self.track_phi[(index+1)%track_n] - self.track_phi[index])
+        backward_diff =  self.wrap(self.track_phi[index] - self.track_phi[(index-1)%track_n])
+        ref_heading = self.track_phi[index] + (ratio > 0) * ratio * forward_diff + (ratio < 0) * ratio*backward_diff
+
+        rel_heading = (abs_heading - ref_heading + np.pi) % (2*np.pi) - np.pi
+        retval = np.hstack([progress,lateral,rel_heading, v_x,v_y,omega])
+        return retval
+
+    def fromLocalToGlobal(self, state_local):
+        track_ref_pos = np.vstack([self.track_X, self.track_Y]).T
+        track_s = self.track_s.numpy()
+        ds = track_s[1]-track_s[0]
+        # first index and last are same
+        track_n = self.track_n - 1
+
+        state_local = np.array(state_local).reshape(6)
+        s = (state_local[0] + track_s[-1]) % track_s[-1]
+        d = state_local[1]
+        rel_heading = state_local[2]
+        v_x = state_local[3]
+        v_y = state_local[4]
+        omega = state_local[5]
+        index = np.searchsorted(track_s,s) - 1
+        
+        ratio = (s-track_s[index])/ds
+        assert (ratio>=0)
+        assert (ratio<=1)
+        track_tangent = track_ref_pos[(index+1)%track_n] - track_ref_pos[(index-1)%track_n]
+        track_tangent = track_tangent/np.linalg.norm(track_tangent)
+        mid_ref_pos = track_ref_pos[index] + track_tangent*ds*ratio
+        d_phi = (self.track_phi[(index+1)%track_n] - self.track_phi[index] + np.pi ) % (2*np.pi) -np.pi
+        ref_heading = self.track_phi[index] + ratio* d_phi
+        normal_dir = np.array((-np.sin(ref_heading), np.cos(ref_heading)))
+        car_pos = mid_ref_pos + d* normal_dir
+        abs_heading = (ref_heading + rel_heading + np.pi)%(2*np.pi) - np.pi
+        state_global = [car_pos[0], car_pos[1], abs_heading, v_x, v_y, omega]
+        return np.array(state_global)
+
+
+    # state_local: s,d,mu, v_x,v_y,r (progress, lateral_err, rel_heading, vx,vy,omega)
+    # return: state_global (x,y,abs_heading,vx,vy,omega)
+    # TODO redo this function
+    def fromLocalToGlobalOld(self,state_local):
+        state_local = torch.from_numpy(state_local.reshape(1,-1))
         s = state_local[:,0]
         d = state_local[:,1]
         mu = state_local[:,2]
@@ -506,8 +509,9 @@ class VehicleModel():
 
         phi_0 = self.track_phi[index]
         # phi_1 = self.track_phi[next_index]
-        phi = phi_0
-        # phi = self.getTrackHeading(s)#self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
+        #phi = phi_0
+        phi = self.getTrackHeading(s)
+        #self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
 
         pos_global = torch.empty(self.n_batch,2,device=self.device)
         pos_global[:, 0] = pos_center[:, 0] - d * torch.sin(phi)
@@ -517,6 +521,7 @@ class VehicleModel():
 
         # heading = torch.fmod(heading,2*np.pi)
 
+        phi_ref = self.track_phi[index]
         upwrap_index = ((phi_ref - heading)>1.5*np.pi).type(torch.FloatTensor)
         downwrap_index = ((phi_ref - heading)<-1.5*np.pi).type(torch.FloatTensor)
         heading = heading - 2*np.pi*downwrap_index + 2*np.pi*upwrap_index
@@ -535,24 +540,81 @@ class VehicleModel():
 
         return x_global
 
-    def fromStoIndex(self, s):
+    def wrap(self,angle):
+        return (angle + np.pi)%(2*np.pi)-np.pi
 
-        s = torch.fmod(s,self.track_s[-1])
-        # if s > self.track_kappa[-1]:
-        #     s = s - self.track_kappa[-1]
-        if s < 0:
-            s = s + self.track_s[-1]
-        elif s != s:
-            s = torch.tensor(0.0)
 
-        index = (torch.floor(s / self.track.diff_s)).to(torch.long)
-        rela_proj = (s - self.track_s[index]) / self.track.diff_s
-        return [index, rela_proj]
+from track.TrackFactory import TrackFactory
+if __name__=='__main__':
+    vehicle_model = VehicleModel(1,'cpu','rcp')
+    # single test
+    local_state = np.array([11.40600837,-0.07746057, 0.36203362,0,0,0])
+    global_state = vehicle_model.fromLocalToGlobal(local_state).flatten()
+    print('')
 
-    def wrapMu(self, mu):
-        if mu < -np.pi:
-            mu = mu + 2 * np.pi
-        elif mu > np.pi:
-            mu = mu - 2 * np.pi
-        return mu
+    new_local_state = vehicle_model.fromGlobalToLocal(global_state)
+    print('')
+    new_global_state = vehicle_model.fromLocalToGlobal(new_local_state).flatten()
+    print('')
+
+
+    # test position error
+    pos_err = np.linalg.norm(new_global_state[:2] - global_state[:2])
+    heading_err = np.linalg.norm(new_global_state[2] - global_state[2])
+    track_len = vehicle_model.track_s[-1]
+    progress_err = (new_local_state[0] - local_state[0] + track_len/2) % track_len - track_len/2
+    print(f'pos_err {pos_err}')
+    print(f'heading {heading_err}')
+    print(f'progress err {progress_err}')
+
+    print(f'local_state: {local_state}')
+    print(f'local_state: {new_local_state}')
+    print(f'global_state: {global_state}')
+    print(f'global_state: {new_global_state}')
+
+    print(f'diff local_state: {new_local_state-local_state}')
+    print(f'diff global_state: {new_global_state-global_state}')
+
+    # batch test
+    pos_err_vec = []
+    heading_err_vec = []
+    track_len_vec = []
+    progress_err_vec = []
+    for i in range(10000):
+        s = np.random.uniform(0,vehicle_model.track_s[-1])
+        d = np.random.uniform(-0.1,0.1)
+        mu = np.random.uniform(-radians(60),radians(60))
+        local_state = np.array((s,d,mu,0,0,0))
+        global_state = vehicle_model.fromLocalToGlobal(local_state).flatten()
+        new_local_state = vehicle_model.fromGlobalToLocal(global_state)
+        new_global_state = vehicle_model.fromLocalToGlobal(new_local_state).flatten()
+
+
+        # test position error
+        pos_err = np.linalg.norm(new_global_state[:2] - global_state[:2])
+        heading_err = np.linalg.norm(new_global_state[2] - global_state[2])
+        track_len = vehicle_model.track_s[-1]
+        progress_err = (new_local_state[0] - local_state[0] + track_len/2) % track_len - track_len/2
+
+        if (pos_err > 1e-2 or heading_err>1e-2):
+            print(f'local_state: {local_state}')
+            print(f'local_state: {new_local_state}')
+            print(f'diff local_state: {new_local_state-local_state}')
+            print('\n')
+
+            print(f'global_state: {global_state}')
+            print(f'global_state: {new_global_state}')
+
+            print(f'diff global_state: {new_global_state-global_state}')
+            breakpoint()
+
+        pos_err_vec.append(pos_err)
+        heading_err_vec.append(heading_err)
+        track_len_vec.append(track_len)
+        progress_err_vec.append(progress_err)
+
+    print(f'pos_err {np.max(pos_err_vec)}')
+    print(f'heading {np.max(heading_err_vec)}')
+    print(f'progress err {np.max(progress_err_vec)}')
+
 
