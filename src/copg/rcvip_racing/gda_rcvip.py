@@ -71,7 +71,7 @@ writer = SummaryWriter(os.path.join(folder_location, experiment_name, 'data'))
 device = torch.device('cpu') # cpu is faster
 print(f'using device: {device}')
 
-n_control = 2
+n_action = 2
 n_batch = 2
 n_pred = 200
 n_state = 6
@@ -79,7 +79,7 @@ n_state = 6
 vehicle_model = VehicleModel.VehicleModel(n_batch, device, track='rcp')
 
 x0 = torch.zeros(n_batch, n_state)
-u0 = torch.zeros(n_batch, n_control)
+u0 = torch.zeros(n_batch, n_action)
 
 p1 = Actor(5,2, std=0.1)
 q = Critic(5)
@@ -103,133 +103,88 @@ except FileNotFoundError:
     last_checkpoint_eps = 0
 
 def simulate(device):
-    mat_action1 = []
-
-    mat_state1 = []
-    mat_reward1 = []
-    mat_done = []
-
-    avg_itr = 0
-
     curr_batch_size = batch_size
 
-    state_c1 = torch.zeros(curr_batch_size, n_state)#state[:,0:6].view(6)
-    init_p1 = torch.zeros((curr_batch_size)) #5*torch.rand((curr_batch_size))
-    state_c1[:,0] = init_p1
-    a = random.choice([-0.1,0.1])
-    b = a*(-1)
-    state_c1[:, 1] = a*torch.ones((curr_batch_size))
-    batch_mat_state1 = torch.empty(0)
-    batch_mat_action1 = torch.empty(0)
-    batch_mat_reward1 = torch.empty(0)
-    batch_mat_done = torch.empty(0)
+    #  dim: batch, time, dimension
+    mat_state = torch.empty(curr_batch_size,0,n_state)
+    mat_action = torch.empty(curr_batch_size,0,n_action)
+    mat_reward = torch.empty(curr_batch_size,0,1)
+    mat_done = torch.empty(curr_batch_size,0,1)
 
-    itr = 0
-    done = torch.tensor([False])
-    done_c1 = torch.zeros((curr_batch_size)) <= -0.1
+    # dim: concatenated_time, dimension
+    state_vec = torch.empty(0,n_state)
+    action_vec = torch.empty(0,n_action)
+    reward_vec = torch.empty(0,1)
+    # torch.bool
+    done_vec = torch.empty(0,1)
 
-    while np.all(done.numpy()) == False:
-        avg_itr+=1
+    # initial state
+    state = torch.zeros(curr_batch_size, n_state)
+    state[:,1] = (torch.rand(curr_batch_size) - 0.5) /0.5 * 0.1
 
-        dist1 = p1(state_c1[:,0:5])
-        action1 = dist1.sample().to('cpu')
+    # max episode length
+    for i in range(2000):
+
+        #sample action from random policy
+        dist = p1(state[:,0:5])
+        action = dist.sample().to('cpu')
+
+        prev_state = state
+
+        # advance state
+        state = vehicle_model.dynModelBlendBatch(state, action)
+
+        bounds = vehicle_model.getLocalBounds(state[:, 0])
+        reward,  done = getRewardSingleAgent(state, bounds ,prev_state,  device)
+
+        # dim: batch,time,dim
+        mat_state = torch.cat([mat_state, state.view(-1,1,n_state)], dim=1)
+        mat_action = torch.cat([mat_action, action.view(-1,1,n_action)], dim=1)
+        mat_reward = torch.cat([mat_reward,reward.view(-1,1,1)],dim=1)
+        mat_done = torch.cat([mat_done, done.view(-1,1,1)], dim=1)
 
 
-        if itr>0:
-            mat_state1 = torch.cat([mat_state1.view(-1,curr_batch_size,5),state_c1[:,0:5].view(-1,curr_batch_size,5)],dim=0) # concate along dim = 0
-            mat_action1 = torch.cat([mat_action1.view(-1, curr_batch_size, 2), action1.view(-1, curr_batch_size, 2)], dim=0)
-        else:
-            mat_state1 = state_c1[:,0:5]
-            mat_action1 = action1
+        if (np.any(done.numpy())):
+            done_vec = torch.cat([done_vec, mat_done[done].view(-1,1)])
+            reward_vec = torch.cat([reward_vec, mat_reward[done].view(-1,1)])
+            state_vec = torch.cat([state_vec, mat_state[done].view(-1,n_state)])
+            action_vec = torch.cat([action_vec, mat_action[done].view(-1,n_action)])
 
-        prev_state_c1 = state_c1
 
-        state_c1 = vehicle_model.dynModelBlendBatch(state_c1.view(-1,6), action1.view(-1,2)).view(-1,6)
+        # reduce state matrix
+        state = state[~done]
+        mat_done = mat_done[~done]
+        mat_state = mat_state[~done]
+        mat_reward = mat_reward[~done]
+        mat_action = mat_action[~done]
+        curr_batch_size = state.size(0)
 
-        state_c1 = (state_c1.transpose(0, 1) * (~done_c1) + prev_state_c1.transpose(0, 1) * (done_c1)).transpose(0, 1)
-
-        '''
-        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(state_c1, state_c2,
-                                                                     vehicle_model.getLocalBounds(state_c1[:, 0]),
-                                                                     vehicle_model.getLocalBounds(state_c2[:, 0]),
-                                                                     prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2,device)
-        '''
-        bounds = vehicle_model.getLocalBounds(state_c1[:, 0])
-        reward1,  done_c1 = getfreezeTimecollosionReachedrewardSingleAgent(state_c1, bounds ,prev_state_c1,  device)
-        done = done_c1
-        mask_ele = ~done
-
-        if itr>0:
-            mat_reward1 = torch.cat([mat_reward1.view(-1,curr_batch_size,1),reward1.view(-1,curr_batch_size,1)],dim=0) # concate along dim = 0
-            mat_done = torch.cat([mat_done.view(-1, curr_batch_size, 1), mask_ele.view(-1, curr_batch_size, 1)], dim=0)
-        else:
-            mat_reward1 = reward1
-            mat_done = mask_ele
-
-        remaining_xo = ~done
-
-        state_c1 = state_c1[remaining_xo]
-
-        curr_batch_size = state_c1.size(0)
-
-        if curr_batch_size<remaining_xo.size(0):
-            if batch_mat_action1.nelement() == 0:
-                batch_mat_state1 = mat_state1.transpose(0, 1)[~remaining_xo].view(-1, 5)
-                batch_mat_action1 = mat_action1.transpose(0, 1)[~remaining_xo].view(-1, 2)
-                batch_mat_reward1 = mat_reward1.transpose(0, 1)[~remaining_xo].view(-1, 1)
-                batch_mat_done = mat_done.transpose(0, 1)[~remaining_xo].view(-1, 1)
-                progress_done1 = torch.sum(mat_state1.transpose(0, 1)[~remaining_xo][:,mat_state1.size(0)-1,0] - mat_state1.transpose(0, 1)[~remaining_xo][:,0,0])
-                element_deducted = ~done_c1
-                done_c1 = done_c1[element_deducted]
-            else:
-                prev_size = batch_mat_state1.size(0)
-                batch_mat_state1 = torch.cat([batch_mat_state1,mat_state1.transpose(0, 1)[~remaining_xo].view(-1,5)],dim=0)
-                batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1)[~remaining_xo].view(-1, 2)],dim=0)
-                batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1)[~remaining_xo].view(-1, 1)],dim=0)
-                batch_mat_done = torch.cat([batch_mat_done, mat_done.transpose(0, 1)[~remaining_xo].view(-1, 1)],dim=0)
-                progress_done1 = progress_done1 + torch.sum(mat_state1.transpose(0, 1)[~remaining_xo][:, mat_state1.size(0) - 1, 0] -
-                                           mat_state1.transpose(0, 1)[~remaining_xo][:, 0, 0])
-                element_deducted = ~done_c1
-                done_c1 = done_c1[element_deducted]
-
-            mat_state1 = mat_state1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_action1 = mat_action1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_reward1 = mat_reward1.transpose(0, 1)[remaining_xo].transpose(0, 1)
-            mat_done = mat_done.transpose(0, 1)[remaining_xo].transpose(0, 1)
-
-        itr = itr + 1
-
-        if np.all(done.numpy()) == True or batch_mat_state1.size(0)>900 or itr>400:# or itr>900: #brak only if all elements in the array are true
-            prev_size = batch_mat_state1.size(0)
-            batch_mat_state1 = torch.cat([batch_mat_state1, mat_state1.transpose(0, 1).reshape(-1, 5)],dim=0)
-            batch_mat_action1 = torch.cat([batch_mat_action1, mat_action1.transpose(0, 1).reshape(-1, 2)],dim=0)
-            batch_mat_reward1 = torch.cat([batch_mat_reward1, mat_reward1.transpose(0, 1).reshape(-1, 1)],dim=0) #should i create a false or true array?
-
-            print(f"episode: {t_eps} all episodes done at step {itr}")
-            mat_done[mat_done.size(0)-1,:,:] = torch.ones((mat_done[mat_done.size(0)-1,:,:].shape))>=2 # creating a true array of that shape
-            if batch_mat_done.nelement() == 0:
-                batch_mat_done = mat_done.transpose(0, 1).reshape(-1, 1)
-                progress_done1 = 0
-            else:
-                batch_mat_done = torch.cat([batch_mat_done, mat_done.transpose(0, 1).reshape(-1, 1)], dim=0)
-            if prev_size == batch_mat_state1.size(0):
-                progress_done1 = progress_done1
-            else:
-                progress_done1 = progress_done1 + torch.sum(mat_state1.transpose(0, 1)[:, mat_state1.size(0) - 1, 0] -
-                                           mat_state1.transpose(0, 1)[:, 0, 0])
+        # TODO if an episode lasts longer than 2000
+        if state.size(0)==0 or i==1999:
             break
 
-    # print(avg_itr)
+    # total reward
+    total_reward = torch.sum(reward_vec).numpy()
+    total_episode = torch.sum(done_vec).numpy()
+    episode_reward_mean = total_reward/total_episode
 
-    writer.add_scalar('Dist/variance_throttle_p1', dist1.variance[0,0], t_eps)
-    writer.add_scalar('Dist/variance_steer_p1', dist1.variance[0,1], t_eps)
-    writer.add_scalar('Reward/mean', batch_mat_reward1.mean(), t_eps)
-    writer.add_scalar('Reward/sum', batch_mat_reward1.sum(), t_eps)
-    writer.add_scalar('Progress/final_p1', progress_done1/batch_size, t_eps)
-    writer.add_scalar('Progress/trajectory_length', itr, t_eps)
-    writer.add_scalar('Progress/agent1', batch_mat_state1[:,0].mean(), t_eps)
-    breakpoint()
-    return batch_mat_state1, batch_mat_action1, batch_mat_reward1,  batch_mat_done
+    # mean steps
+    total_steps = state_vec.size(0)
+    episode_steps_mean = total_steps / total_episode
+
+    # mean reward
+    step_reward_mean = total_reward / total_steps
+    print(f' episode reward mean: {episode_reward_mean}')
+    print(f' step reward mean: {step_reward_mean}')
+    print(f' steps mean: {episode_steps_mean}')
+
+    writer.add_scalar('Dist/variance_throttle_p1', dist.variance[0,0], t_eps)
+    writer.add_scalar('Dist/variance_steer_p1', dist.variance[0,1], t_eps)
+    writer.add_scalar('Reward/episode_reward_mean', episode_reward_mean, t_eps)
+    writer.add_scalar('Reward/steps_reward_mean', step_reward_mean, t_eps)
+    writer.add_scalar('Progress/mean_progress', episode_steps_mean, t_eps)
+
+    return state_vec, action_vec, reward_vec, done_vec
 
 def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_done, device):
     val1 = q(batch_mat_state1)

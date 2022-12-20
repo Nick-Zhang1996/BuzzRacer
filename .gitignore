@@ -9,5 +9,7 @@ __pycache__/
 *.gif
 *.py.swp
 *.swp
+*.pth
+*.0
 tags
 nohup.out

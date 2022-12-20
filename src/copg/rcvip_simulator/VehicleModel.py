@@ -3,14 +3,14 @@ import torch
 try:
     from Track import Track
 except ModuleNotFoundError:
-    from rcvip_simulator.Track import Track
+    from copg.rcvip_simulator.Track import Track
 import numpy as np
 import copy
 from math import radians,degrees
 import matplotlib.pyplot as plt
 
 class VehicleModel():
-    def __init__(self,n_batch,device,track='orca'):
+    def __init__(self,n_batch,device,track='orca',dt=0.03):
         print('rcvip version of VehicleModel')
 
         self.device = device
@@ -68,7 +68,7 @@ class VehicleModel():
         self.I_z = 417757e-9
         self.mass = 0.1667
 
-        self.Ts = 0.03
+        self.Ts = dt
         self.max_steering = radians(26.5)
 
 
@@ -195,6 +195,8 @@ class VehicleModel():
 
         #t.s('dyn prep')
         # TODO verify this is OK
+        x = torch.tensor(x).reshape(-1,6)
+        u_unclipped = torch.tensor(u_unclipped).reshape(-1,2)
         blend_ratio = (x[:,3]>0.05).float()
         lambda_blend = blend_ratio
 

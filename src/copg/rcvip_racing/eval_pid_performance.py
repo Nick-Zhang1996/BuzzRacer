@@ -18,12 +18,9 @@ n_batch = 2
 n_pred = 200
 n_state = 6
 
-def getPerformanceMetric(p1_policy_pth):
-    batch_size  = 10000
+def getPerformanceMetric():
+    batch_size  = 100
     curr_batch_size = batch_size
-
-    p1 = Actor(5, 2, std=0.1)
-    p1.load_state_dict(torch.load(p1_policy_pth))
 
     device = torch.device("cpu")
 
@@ -46,11 +43,12 @@ def getPerformanceMetric(p1_policy_pth):
     state = torch.zeros(curr_batch_size, n_state)
     state[:,1] = (torch.rand(curr_batch_size) - 0.5) /0.5 * 0.1
 
-    for i in range(2000):
-
-        #sample action from random policy
-        dist = p1(state[:,0:5])
-        action = dist.sample().to('cpu')
+    max_steps = 400
+    for i in range(max_steps):
+        #print(f'step {i}, remaining {state.size(0)}')
+        action = torch.zeros(curr_batch_size,n_action)
+        action[:,0] = 0.35
+        action[:,1] = -state[:,1]*5
 
         prev_state = state
 
@@ -59,6 +57,10 @@ def getPerformanceMetric(p1_policy_pth):
 
         bounds = vehicle_model.getLocalBounds(state[:, 0])
         reward,  done = getRewardSingleAgent(state, bounds ,prev_state,  device)
+
+        # force terminate all episodes
+        if (i==max_steps-1):
+            done[:] = True
 
         # dim: batch,time,dim
         mat_state = torch.cat([mat_state, state.view(-1,1,n_state)], dim=1)
@@ -82,9 +84,11 @@ def getPerformanceMetric(p1_policy_pth):
         mat_action = mat_action[~done]
         curr_batch_size = state.size(0)
 
-        # TODO if an episode lasts longer than 2000
-        if state.size(0)==0 or i==1999:
+        # all episodes finished
+        if state.size(0)==0:
             break
+
+
 
     # total reward
     total_reward = torch.sum(reward_vec).numpy()
@@ -103,7 +107,4 @@ def getPerformanceMetric(p1_policy_pth):
 
     return 
 
-i = 3460
-p1_policy_pth = f"./trained_model/gda_sample/model/agent1_{i}.pth"
-print(f' evaluating policy pair {i}')
-getPerformanceMetric(p1_policy_pth)
+getPerformanceMetric()
