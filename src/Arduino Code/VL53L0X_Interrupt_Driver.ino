@@ -1,7 +1,13 @@
-//Code for driving four VL53L0X sensors and storing measurements in two types of structures
-// The first structure is an array (length 4) of custom structures with extra information about the measurement
-// The second is a simple int array with four entries, one for each sensor
-// *******To do: Both are provided but one should be chosen!!**********
+// This is standalone code that prints out measurements from each of the four sensors and could be useful for 
+// debugging.
+// Two measurements are printed for each sensor. The first is from a custom measurement data structure and the 
+// second is a simple int array. They should be equal.
+
+// Debugging note: this code is written on top of the Adafruit_VL53L0X library, which in turn is written on top
+// of a library from ST Electronics. If things (especially initilization) aren't working, Serial.print() 
+// statements can be inserted into those libraries' code to figure out what's going on. There were sometimes
+// function calls to the Adafruit library that never returned during initialization and digging into the ST
+// library provided hints as to what was going on.
 
 #include "Adafruit_VL53L0X.h"
 #include <Wire.h>
@@ -24,6 +30,7 @@ const byte XShutPin4 = 11;
 // ************LIMITS HOW LONG THE CODE WILL RUN****************
 const float timeout = 60000; // allowed run time for code in ms
 
+// Instantiate sensors and holding structure
 Adafruit_VL53L0X sensor1;
 Adafruit_VL53L0X sensor2;
 Adafruit_VL53L0X sensor3;
@@ -40,6 +47,8 @@ typedef struct {
   uint8_t sensor_status; // status from last ranging in continuous.
 } sensorList_t;
 
+// Desired addresses (aka id) (e.g. 0x2A) specified here
+// Could switch some or all sensors to fast, long range, or high accuracy mode instead of default
 sensorList_t sensors[] = {
     {&sensor1, &SENSOR1_WIRE, 0x2A, XShutPin1, InterruptPin1,
      Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
@@ -64,10 +73,13 @@ const int sensorNums[] = {1, 2, 3, 4};
 float startTime;
 
 void initializeSensors() {
+//  Serial.println(COUNT_SENSORS);
   bool found_any_sensors = false;
   // Set all shutdown pins low to shutdown sensors
   for (int i = 0; i < COUNT_SENSORS; i++) {
     digitalWrite(sensors[i].shutdown_pin, LOW);
+    Serial.print("Shutting down: ");
+    Serial.println(i);
   }
   delay(10);
 
@@ -79,25 +91,17 @@ void initializeSensors() {
                                   sensors[i].sensor_config)) {
       found_any_sensors = true;
     } else {
-      // could do something with LED here in the future?
-//      Serial.println("false");
-//      Serial.print(i, DEC);
-//      Serial.print(F(": failed to start\n"));
+      Serial.println("false");
+      Serial.print(i, DEC);
+      Serial.print(F(": failed to start\n"));
     }
   }
-  //*************************NOTE*************************************
-  // A infinite while loop preventing code from running if no sensors available is commented out here
-  // could be uncommented if this is desired
-  // Decide what should be done if no sensors can be started!
-  //*************************NOTE*************************************
   if (!found_any_sensors) {
-    // could do something with LED here in the future?
-//    Serial.println("No valid sensors found");
-//    while (1)
-//      ;
+    Serial.println("No valid sensors found");
+    while (1)
+      ;
   }
 
-  // set interrupt pins and corresponding functions
   pinMode(InterruptPin1, INPUT_PULLUP);
   pinMode(InterruptPin2, INPUT_PULLUP);
   pinMode(InterruptPin3, INPUT_PULLUP);
@@ -110,11 +114,8 @@ void initializeSensors() {
 }
 
 void setSensorPrefs() {
-  //***********************NOTE******************************
-  // Interrupts are thrown whenever the measurement is below the low threshold
-  // We want interrupts for all measurements, so the low threshold is made higher than all possible measurements
-  // The high threshold is essentially unused but I believe it is required for 'setInterruptThresholds()'
-  //*********************************************************
+  Serial.println("Setting GPIO Config of each sensor so if range is lower the LowThreshold "
+                 "trigger Gpio Pin ");
   FixPoint1616_t LowThreshold = (2000 * 65536.0);
   FixPoint1616_t HighThreshold = (3000 * 65536.0);
   for (int i = 0; i < COUNT_SENSORS; i++) {
@@ -123,6 +124,7 @@ void setSensorPrefs() {
                     VL53L0X_INTERRUPTPOLARITY_LOW); // this VL53L0X_DEVICEMODE_CONTINUOUS_RANGING is just ignored bc it's not valid
     // Set Interrupt Tresholds
     // Low reading set to 2000mm  High Set to 3000mm
+    Serial.println("Set Interrupt Thresholds... ");
     sensors[i].psensor->setInterruptThresholds(LowThreshold, HighThreshold, false);
   }
 }
@@ -131,10 +133,13 @@ void startSensors() {
   noInterrupts();
   for (int i = 0; i < COUNT_SENSORS; i++) {
     // Enable Continous Measurement Mode
+//    Serial.println("Set Mode VL53L0X_DEVICEMODE_CONTINUOUS_RANGING... ");
     sensors[i].psensor->setDeviceMode(VL53L0X_DEVICEMODE_CONTINUOUS_RANGING, false);
-    // Start continuous measurement
+  
+//    Serial.println("StartMeasurement... ");
+//    Serial.println(sensors[i].psensor->startMeasurement()); //If uncommenting this line, comment out line below
     sensors[i].psensor->startMeasurement(); 
-    // wait for measurement to start
+//    Serial.println(i);
     delay(10);
   }
   interrupts();
@@ -157,15 +162,45 @@ void sensor4Interrupt() {
 }
 
 void updateMeasurement(Adafruit_VL53L0X sensor, int senseNum, VL53L0X_RangingMeasurementData_t *measureDataP) {
-  sensor.getRangingMeasurement(
+  if (measureDataP->RangeStatus != 4) {
+    sensor.getRangingMeasurement(
         measureDataP, false); // pass in 'true' to get debug data printout!
-  allMeasuresData[senseNum-1] = *measureDataP;
-  allMeasures[senseNum-1] = measureDataP->RangeMilliMeter; // == allMeasuresData[senseNum-1].RangeMilliMeter;
-  sensor.clearInterruptMask(false);
-  update = true;
+    allMeasuresData[senseNum-1] = *measureDataP;
+    allMeasures[senseNum-1] = measureDataP->RangeMilliMeter; // == allMeasuresData[senseNum-1].RangeMilliMeter;
+    sensor.clearInterruptMask(false);
+    update = true;
+  }
+}
+
+void printMeasurement() {//int sensorNums[], VL53L0X_RangingMeasurementData_t measures[]) {
+  Serial.print("<Sens #");
+  Serial.print(" (mm): dist>\t");
+  for (int i = 0; i < COUNT_SENSORS; i++) {
+    if (allMeasuresData[i].RangeStatus != 4) { // phase failures have incorrect data
+      Serial.print(sensorNums[i]);
+      Serial.print(" (mm): ");
+//      Serial.print(allMeasuresData[i].RangeMilliMeter);
+      Serial.print(allMeasuresData[i].RangeStatus);
+      Serial.print("  ");
+      Serial.print(allMeasures[i]);
+      Serial.print("\t");
+    } else {
+      Serial.print(" out of range ");
+    }
+  }
+  Serial.println("");
 }
 
 void sensorSetup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  // wait until serial port opens for native USB devices
+  while (!Serial) {
+    delay(1);
+  }
+  
+  Serial.println(F("VL53L0X Multiple Sensor Demo\n\n"));
 
   // initialize all pins
   for (int i = 0; i < COUNT_SENSORS; i++) {
@@ -177,9 +212,13 @@ void sensorSetup() {
     if (sensors[i].interrupt_pin >= 0)
       pinMode(sensors[i].interrupt_pin, INPUT_PULLUP);
   }
+  Serial.println(F("Starting..."));
   initializeSensors();
+  Serial.println("initialized");
   setSensorPrefs();
+  Serial.println("prefs set");
   startSensors();
+  Serial.println("started");
 
   startTime = millis();
 }
@@ -189,5 +228,23 @@ void setup() {
 }
 
 void loop() {
-  // nothing required here
+  if (update) {
+    // If interrupts are allowed, the measurement data can be changed/corrupted while the printMeasurements
+    // function runs or while 'update' is changed to false, causing strange results
+    noInterrupts();
+    printMeasurement(); //(sensorNums, allMeasuresData);
+    update = false;
+    interrupts();
+  }
+  //**********************************************************
+  //STOPS CODE AFTER PRESET TIME
+  //**********************************************************
+  if (millis()-startTime > timeout) {
+    for (int i = 0; i < COUNT_SENSORS; i++) {
+      digitalWrite(sensors[i].shutdown_pin, LOW);
+      Serial.print("Timed out: shutting down: ");
+      Serial.println(i);
+    }
+    exit(0);
+  }
 }
