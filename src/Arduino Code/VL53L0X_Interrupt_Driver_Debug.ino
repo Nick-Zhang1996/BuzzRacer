@@ -48,6 +48,7 @@ typedef struct {
 } sensorList_t;
 
 // Desired addresses (aka id) (e.g. 0x2A) specified here
+// Could switch some or all sensors to fast, long range, or high accuracy mode instead of default
 sensorList_t sensors[] = {
     {&sensor1, &SENSOR1_WIRE, 0x2A, XShutPin1, InterruptPin1,
      Adafruit_VL53L0X::VL53L0X_SENSE_DEFAULT, 0, 0},
@@ -161,12 +162,14 @@ void sensor4Interrupt() {
 }
 
 void updateMeasurement(Adafruit_VL53L0X sensor, int senseNum, VL53L0X_RangingMeasurementData_t *measureDataP) {
-  sensor.getRangingMeasurement(
+  if (measureDataP->RangeStatus != 4) {
+    sensor.getRangingMeasurement(
         measureDataP, false); // pass in 'true' to get debug data printout!
-  allMeasuresData[senseNum-1] = *measureDataP;
-  allMeasures[senseNum-1] = measureDataP->RangeMilliMeter; // == allMeasuresData[senseNum-1].RangeMilliMeter;
-  sensor.clearInterruptMask(false);
-  update = true;
+    allMeasuresData[senseNum-1] = *measureDataP;
+    allMeasures[senseNum-1] = measureDataP->RangeMilliMeter; // == allMeasuresData[senseNum-1].RangeMilliMeter;
+    sensor.clearInterruptMask(false);
+    update = true;
+  }
 }
 
 void printMeasurement() {//int sensorNums[], VL53L0X_RangingMeasurementData_t measures[]) {
@@ -176,7 +179,8 @@ void printMeasurement() {//int sensorNums[], VL53L0X_RangingMeasurementData_t me
     if (allMeasuresData[i].RangeStatus != 4) { // phase failures have incorrect data
       Serial.print(sensorNums[i]);
       Serial.print(" (mm): ");
-      Serial.print(allMeasuresData[i].RangeMilliMeter);
+//      Serial.print(allMeasuresData[i].RangeMilliMeter);
+      Serial.print(allMeasuresData[i].RangeStatus);
       Serial.print("  ");
       Serial.print(allMeasures[i]);
       Serial.print("\t");
