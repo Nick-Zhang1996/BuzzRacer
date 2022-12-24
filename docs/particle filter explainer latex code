@@ -1,0 +1,196 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[utf8, total={6.5in,9in}]{geometry}
+\usepackage{graphicx}
+\usepackage{biblatex}
+\usepackage{wrapfig}
+\usepackage[export]{adjustbox}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue
+    }
+\usepackage{biblatex}
+\addbibresource{particle filter tutorial citation.bib}
+
+\title{Particle Filter Implementation}
+\author{Caleb Sparks}
+\date{December 2022}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+The RC subteam wants to implement an on board localization system. To do this, a "poor man's lidar" system will be created out of four time of flight distance sensors placed on each side of the car. The sensors will report distance to the track walls in each of the 4 directions, as shown in Figure \ref{fig:LidarSetup}. "Particle Filters: A Hands-On Tutorial" ("the paper") provides an overview of particle filters a practical guide for implementing them and is the paper I followed when creating this one \cite{partFiltTutorial}.
+ \begin{figure}[htp]
+ \centering
+ \includegraphics[width=0.4\textwidth]{Images/lidar setup.png}
+ \caption{Poor Man's Lidar Setup}
+ \label{fig:LidarSetup}
+ \end{figure}
+ \section{Generic Algorithm}
+ The particle filter I created for the RC car is based on Algorithm 3 in the paper, shown in Figure \ref{fig:Alg3}. The (13) is a reference to the paper's Equation 13, shown here:
+ \[w^i_k \propto w^i_{k-1}\frac{p(z_k|x^i_k)p(x^i_k|x^i_{k-1})}{q(x^i_k|x^i_{k-1},z_k)},\]
+ where $i$ the particle, $k$ represents the time step, $x$ represents the state, $z$ represents the measurement, and $w$ represents the weight. As indicated in the paper, the importance function $q(x^i_k|x^i_{k-1},z_k)$ is most commonly chose to be $p(x^i_k|x^i_{k-1})$, meaning Equation 13 simplifies to Equation 16,
+ \[w^i_k \propto w^i_{k-1}p(z_k|x^i_k),\]
+ which, in the context of the RC car, says that the current particle weight is proportional to the weight at the previous time step multiplied by the probability that the distance measurements reported by the sensors would be observed given the particle's position. 
+
+  \begin{figure}[htp]
+ \centering
+ \includegraphics[width=1\textwidth]{Images/Alg3.png}
+ \caption{Algorithm 3: Particle Filter with Resampling Threshold}
+ \label{fig:Alg3}
+ \end{figure}
+
+ 
+ Algorithm 3 addresses two potential challenges associated with particle filters: particle degeneracy and sample impoverishment. Both issues are explained in the paper. Resampling addresses particle degeneracy and reducing resampling frequency by using a threshold addresses sample impoverishment. Additionally, resampling is computationally expensive, so doing so less frequently can increase the code's frequency. For these reasons, I selected this algorithm.
+
+\section{Implementation}
+My particle filter is a particular implantation of the more general Algorithm 3. The steps below detail the specifics of my implementation. I have provided descriptions of the steps, in most cases followed by an equation showing what the code does.
+\begin{itemize}
+    \item Initialize (particle\_filter class \_\_init\_\_ method)
+    \begin{enumerate}
+        \item Set translation process standard error, $q_{trans}$
+        \item Set rotation process standard error, $q_{rot}$
+        \item Set the process noise covariance matrix
+        \item[] \textbf{Q} = \(\begin{bmatrix} 
+            q_{trans}^2 & 0 & 0 \\
+            0 & q_{trans}^2 & 0 \\
+            0 & 0 & q_{rot}^2
+        \end{bmatrix}\)
+        \item Set sensor standard error, $r$. (Assume all sensors are equivalent)
+        \item Set the sensor noise covariance matrix
+        \item[] \textbf{R} = \(\begin{bmatrix} 
+            r^2 & 0 & 0 & 0\\
+            0 & r^2 & 0 & 0\\
+            0 & 0 & r^2 & 0\\
+            0 & 0 & 0 & r^2
+        \end{bmatrix}\)
+        \item Set threshold for effective number of particles, $N_{eff}$
+        \item[] $N_{eff} = \frac{1}{4}N_s$
+        \item Initialize particles, P, from either (by taking $N_s$ samples):
+        \begin{enumerate}
+            \item A 2D uniform distribution over the whole track (no initial information), or
+            \item A 2D normal distribution at the car's starting position.
+            \item[Note:] A covariance matrix for error in placing the car at the starting position is needed for the normal distribution. It takes the same form as \textbf{Q}.
+            \item[] \textbf{P_0}= \(\begin{bmatrix}
+                x^1_0 & y^1_0 & \theta^1_0 \\
+                \vdots & \vdots & \vdots \\
+                x^{N_s}_0 & y^{N_s}_0 & \theta^{N_s}_0 \\
+            \end{bmatrix}\)
+        \end{enumerate}
+        \item Set weights to $\frac{1}{N_s}$
+        \item[] \(\mathbf{W_0}=\begin{bmatrix}
+                w^1_0=\frac{1}{N_s}\\
+                \vdots\\
+                w^{N_s}_0=\frac{1}{N_s}\\
+            \end{bmatrix}\)
+    \end{enumerate}
+    \item Propagate all particles through dynamics model and add process noise
+    \begin{enumerate}
+        \item Get control inputs, $\mathbf{u_{k-1}}$
+        \item Use dynamics to calculate the new state for the actual car
+        \item[] $\mathbf{x_k} \leftarrow$ DynamicsModel($\mathbf{x_{k-1}}, \mathbf{u_{k-1}}$)
+        \item[Note:] In the real implementation, the car's state would not be available, but the choice to advance this state and use its as the "master state" was arbitrary. Any position and heading could be used as input; what matters is the change between the states. 
+        \item Calculate the change between the states, $\Delta \mathbf{x_k}$
+        \item Apply a transform to calculate the change between states for each particle, $\Delta \mathbf{X_k}$ (shape is $3N_s \times 1$)
+        \item[] \(\Delta \mathbf{X_k}=T\Delta \mathbf{x},T=\begin{bmatrix}
+            \cos{(\theta^1_{k-1} - \theta_{k-1})} & -\sin{(\theta^1_{k-1} - \theta_{k-1})} & 0\\
+            \sin{(\theta^1_{k-1} - \theta_{k-1})} & \cos{(\theta^1_{k-1} - \theta_{k-1})} & 0\\
+            0 & 0 & 1 \\
+            \vdots & \vdots & \vdots\\
+            \cos{(\theta^{N_s}_{k-1} - \theta_{k-1})} & -\sin{(\theta^{N_s}_{k-1} - \theta_{k-1})} & 0\\
+            \sin{(\theta^{N_s}_{k-1} - \theta_{k-1})} & \cos{(\theta^{N_s}_{k-1} - \theta_{k-1})} & 0\\
+            0 & 0 & 1 \\
+        \end{bmatrix}_{3N_s \times 3},
+        \Delta \mathbf{x_k} =\begin{bmatrix}
+            \Delta x\\
+            \Delta y\\
+            \Delta \theta
+        \end{bmatrix}\)
+        \item[Note:] All can be advanced at once because all are assumed to have the same velocity and angular velocity; only the direction of translation must be adjusted according to each particle's heading relative to the "master" heading, $\theta_{k-1}$.
+        \item Reshape \(\Delta \mathbf{X_k} to N_s \times 3
+        \Delta \mathbf{X_k}= \begin{bmatrix}
+        \Delta x^1_k & \Delta y^1_k & \Delta \theta^1_k \\
+        \vdots & \vdots & \vdots \\
+        \Delta x^{N_s}_k & \Delta y^{N_s}_k & \Delta \theta^{N_s}_k \\
+        \end{bmatrix}\)
+        \item Add each change to the corresponding particle
+        \item[] $\mathbf{P_k}=\mathbf{P_{k-1}}+\Delta \mathbf{X_{k}}$
+        \item Add process noise
+        \item[] $\mathbf{P_k}\leftarrow \mathbf{P_k}+\mathbf{q}, \mathbf{q}=\begin{bmatrix}
+            [q^1_x & q^1_y & q^1_{\theta}] \sim \mathcal{N}(\mathbf{0}, \mathbf{Q})\\
+            \vdots & \vdots & \vdots \\
+            [q^{N_s}_x & q^{N_s}_y & q^{N_s}_{\theta}] \sim \mathcal{N}(\mathbf{0}, \mathbf{Q})\\
+        \end{bmatrix}$
+        \item[Note:] This is the end of the preUpdate method of the class ParticleFilter.
+    \end{enumerate}
+    \item Calculate weights
+    \begin{enumerate}
+        \item Get sensor measurements (simulated for now)
+        \item[] $\mathbf{M}_{1\times 4}\leftarrow SimulateSensorsOnlyNums(\mathbf{x_k})$
+        \item Add sensor noise
+        \item[] $\mathbf{M} \leftarrow \mathbf{M}+\mathbf{r}, \mathbf{r}=\begin{bmatrix}
+            r_1 & r_2 & r_3 & r_4
+        \end{bmatrix}\sim \mathcal{N}(\mathbf{0}, \mathbf{R})$
+        \item Simulate measurements expected by particles
+        \item[] $\mathbf{M}_{expected} = [\mathbf{0}]_{N_s \times 4}$
+        \item[] for $i=1,...,N_s$
+        \begin{itemize}
+            \item[] $\mathbf{M}_{expected}[i]=SimulateSensorsOnlyNums(\mathbf{P_k}[i])$
+        \end{itemize}
+        \item[Note:] This is currently done by inching forward by fractions of a centimeter until a wall is reached, which is very slow. Worse, it must be done as many times as there are particles. This process should be improved.
+        \item Calculate likelihood of each particle observing the measurements from the sensors given the location of the particle (i.e., given the expected measurement from the particle's location)
+        \item[] $\mathbf{L}_{N_s \times 4}=n(\mathbf{M}_{expected}-
+        \begin{bmatrix}
+            \mathbf{M}\\
+            \vdots\\
+            \mathbf{M}\\
+        \end{bmatrix}_{N_s \times 4})$, where n is the probability density function of a normal distribution with mean $\mu = 0$ and standard deviation $\sigma = r$.
+        \item[] $\mathbf{L}_{combined}=\prod_{j=1}^4\mathbf{L}[:][j]$ (element-wise multiplication of columns)
+        \item Calculate posterior weights using Equation 16
+        \item[] $\mathbf{W_k}=\mathbf{W_{k-1}}\cdot \mathbf{L}_{combined}$
+        \item Sum the weights and normalize
+        \item[] $\mathbf{W_k} \leftarrow \frac{1}{\sum_{i=1}^{N_s}\mathbf{W_k}[i]}\mathbf{W_{k}}$
+    \end{enumerate}
+    \item Calculate particle filter estimate as the weighted average of all particle states
+    \item[] $\mathbf{P_k}_{,best}=\begin{bmatrix}
+        \mathbf{P_k}_x\cdot \mathbf{W_k} & \mathbf{P_k}_y\cdot \mathbf{W_k} & \mathbf{P_k}_{\theta}\cdot \mathbf{W_k}
+    \end{bmatrix}$, where, for example, $\mathbf{P_k}_x$ is the first column of  $\mathbf{P_k}$, which holds the particle's x-axis locations.
+    \item[Note:] If particles are widely spread, like for a short time after a uniform initialization, the best estimate will likely be in an area far from clusters of particles. However, this greatly reduces the "jitter" associated with using the ever-changing highest weighted particle as the estimated state when the filter has converged, which is the exceedingly more common situation.
+    \item Resample if necessary
+    \begin{enumerate}
+        \item Calculate the effective number of particles: $N_{eff}=\frac{1}{\sum_{i=1}^{N_s}(w^i_k)^2}$, where $N_s$ is the number of particles
+        \item If $N_{eff}$ is less than the threshold, resample: set all weights $w_i=\frac{1}{N_s}$
+    \end{enumerate}
+\end{itemize}
+
+\section{Additional Comments and Next Steps}
+There are several important things not yet discussed. First, a few rapid-fire housekeeping items and points of clarification.
+\begin{itemize}
+    \item In the code, \textbf{P} and \textbf{W} are combined as [\textbf{P W}].
+    \item In the code, the differences between each particle's heading and the master heading are stored in a $N_s \times 1$ array. This array is input to the proper $\cos$ and $\sin$ functions and distributed to every third row of the T transform matrix, which is divided into 3 $\times$ 3 matrices corresponding to each particle.
+    \item The number of particles used is set in the main run.py file using 'numberOfParticles' in the 'params' dict variable.
+    \item The particle filter is an "Extension" in its own right, as the ParticleFilter class. This class serves primarily to wrap the actual particle filter (the class particle\_filter) in a class that extends Extension so that things play nice in the overall pipeline.
+    \item Although the ParticleFilter class improves the situation, there is still a snag with visualization. To visualize the best estimate of the particle filter with a car, I add an additional car to the simulation. I did this to have easy access to all the same methods that allow me to draw it, but a better method should probably be used. To prevent it from being rendered normally, I have prevented all cars other than the first from being visualized normally. I then use the second car in methods I wrote myself for visualizing the particle filter, which could also probably be improved.
+    \item I have comments in the code about needing to address if the car is facing the wrong way. I believe this should not actually be an issue. (I was concerned about the left sensor being switched with the right, and forward with backward, but simulating measurements based on heading should solve this issue.)
+    \item The sensors are not necessarily (and rather probably not) set up in the order indicated in Figure \ref{fig:LidarSetup}.
+\end{itemize}
+
+Second, note that this algorithm assumes that velocity and angular velocity are known. In the real implementation, the velocity would have to be determined. This is the first of the next steps. This could be done by  including these velocities in the state being estimated by the particle filter. A choice would then have to be made to either use the best estimate for velocity for all particles when advancing them through the dynamics model or to propagate each with their own velocity. The former would allow all particles to be updated at once through a transformation, saving computation, but loses some particle diversity by using the same velocity. The latter is closer to how particle filters are typical configured and could better resist sample impoverishment, but would require more computation. In either case, it is likely that more particles will be needed because a distribution with three additional degrees of freedom must be represented.
+
+Third, the particle filter is terribly slow. It can't finish a lap in under a minute, much less a few seconds. There are two things (that I know of) to improve. First, as mentioned before, simulation of particles' measurements must be faster. I believe this could be done using a simpler version of rasterization, which is used to render video games. It provides an efficient way to determine how far away an object is in 3D space and therefore which objects to display on your screen. For the RC car's localization purposes, we are only concerned with the walls of the track, which are normal to the sensors' emitted laser, which may mean only two dimensions are required. See this website, \href{https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/overview-rasterization-algorithm}{Scratchapixel}, for information on the rasterization algorithm \cite{rasterizationBlog}. I anticipate this would require a fair bit of work because the track walls would have to be rendered and stored as shapes that can be used by the rasterization algorithm. 
+
+However, it is also likely that the step sizes taken by the current algorithm could be optimized in real time, which may prove to be easier. Numerical root finding methods, particularly the Bisection method, come to mind as inspiration. Second, the particles and their movement are (for the most part) independent of each other. This means that parallel processing can be used to speed computation. This applies to both multiplication of matrices and (especially) the sensor simulation problem.
+
+The process and sensor noise matrices should be determined experimentally. What is the true ability of the dynamic model? I used a ballpark guess. How well do the sensors perform? Moreover, how well do they perform on a moving, vibrating vehicle while looking for small, short walls? (Do the wall heights need to be increased?) Again, I used my best guess, but accurate values will be needed.
+
+Finally, the sensors will not work exactly as the particle filter assumes. The sensors will be continuously running, updating the four directional measurements. The measurements, therefore, will not necessarily be from exactly the same moment for which the dynamics model calculated a position, and the four measurements will be taken at different times. This comes as a result of using interrupts, but the alternative is halting the code to wait for sensor measurements (polling), which is probably not acceptable. A method to determine how old the measurement is may be required. If it is, how will a newer measurement made more recently be compared an older one? Or with the dynamics model's process noise? My intuition is that the answer comes in the form of a sensor noise model that is dependent on how long ago the measurement was taken (noise could be increased with time, but should it be increased linearly, exponentially, or none of the above?). The methods that yield the best performance will likely come from a combination processing measurements on the Arduino and adapting the particle filter to incorporate more complicated sensors.
+
+The particle filter (and Kalman filter) are some pretty interesting projects for the RC car team going forward. As I've outlined, there are many open ended questions to be answered and great opportunity to learn about state estimation, Bayesian logic, parallel processing, graphics, and low-level coding in the process. This would be a great project to continue pursuing because future VIP students should be able to get a lot out of it.
+
+\pagebreak
+\printbibliography
+\end{document}
