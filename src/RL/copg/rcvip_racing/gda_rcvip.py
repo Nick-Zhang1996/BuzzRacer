@@ -46,7 +46,8 @@ import json
 import sys
 
 import rcvip_simulator.VehicleModel as VehicleModel
-from rcvip_env_function import getfreezeTimecollosionReachedrewardSingleAgent
+#from rcvip_env_function import getfreezeTimecollosionReachedrewardSingleAgent
+from rcvip_env_function import getRewardSingleAgent
 import random
 
 folder_location = 'trained_model/'
@@ -176,7 +177,7 @@ def simulate(device):
     step_reward_mean = total_reward / total_steps
     print(f' episode reward mean: {episode_reward_mean}')
     print(f' step reward mean: {step_reward_mean}')
-    print(f' steps mean: {episode_steps_mean}')
+    print(f' number of steps mean: {episode_steps_mean}')
 
     writer.add_scalar('Dist/variance_throttle_p1', dist.variance[0,0], t_eps)
     writer.add_scalar('Dist/variance_steer_p1', dist.variance[0,1], t_eps)
@@ -187,7 +188,7 @@ def simulate(device):
     return state_vec, action_vec, reward_vec, done_vec
 
 def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_done, device):
-    val1 = q(batch_mat_state1)
+    val1 = q(batch_mat_state1[:,:5])
     val1 = val1.detach().to('cpu')
     next_value = 0  # because currently we end ony when its done which is equivalent to no next state
     returns_np1 = get_advantage(next_value, batch_mat_reward1, val1, batch_mat_done, gamma=0.99, tau=0.95)
@@ -195,17 +196,14 @@ def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_don
     returns1 = torch.cat(returns_np1)
     advantage_mat1 = returns1.view(1,-1) - val1.transpose(0,1)
 
-    state_gpu_p1 = batch_mat_state1
-    returns1_gpu = returns1.view(-1, 1).to(device)
-
-    for loss_critic, gradient_norm in critic_update(state_gpu_p1,returns1_gpu, q, optim_q):
+    for loss_critic, gradient_norm in critic_update(batch_mat_state1[:,:5],returns1, q, optim_q):
         writer.add_scalar('Loss/critic', loss_critic, t_eps)
     ed_q_time = time.time()
 
     val1_p = advantage_mat1.to(device)
     writer.add_scalar('Advantage/agent1', advantage_mat1.mean(), t_eps)
     # calculate gradients
-    dist_batch1 = p1(state_gpu_p1)
+    dist_batch1 = p1(batch_mat_state1[:,:5])
     log_probs1 = dist_batch1.log_prob(batch_mat_action1)
 
     objective = -log_probs1 * val1_p.transpose(0,1) # ob.backward will maximise this
@@ -222,6 +220,7 @@ def update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_don
     writer.flush()
 
 for t_eps in range(last_checkpoint_eps,num_episode):
+    print(f'\n{t_eps} episode')
     retval = simulate(device)
     batch_mat_state1, batch_mat_action1, batch_mat_reward1,  batch_mat_done = retval
     update(batch_mat_state1, batch_mat_action1, batch_mat_reward1, batch_mat_done, device)

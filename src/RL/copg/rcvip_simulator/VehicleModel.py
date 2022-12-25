@@ -122,7 +122,8 @@ class VehicleModel():
         #F_fy = self.D_f * torch.sin(self.C_f * torch.atan(self.B_f * alpha_f))
 
         # rcvip
-        F_rx = 6.17*(D - v_x/15.2 -0.333) * self.mass
+        #F_rx = 6.17*(D - v_x/15.2 -0.333) * self.mass
+        F_rx = D*(3.0-v_x) * self.mass
         F_fy = self.tireCurve(alpha_f) * self.mass * 9.8 *self.l_r/(self.l_r+self.l_f)
         F_ry = 1.15*self.tireCurve(alpha_r) * self.mass * 9.8 *self.l_f/(self.l_r+self.l_f)
 
@@ -194,9 +195,9 @@ class VehicleModel():
         '''
 
         #t.s('dyn prep')
-        # TODO verify this is OK
-        x = torch.tensor(x).reshape(-1,6)
-        u_unclipped = torch.tensor(u_unclipped).reshape(-1,2)
+        if not torch.is_tensor(x):
+            x = torch.tensor(x).reshape(-1,6)
+            u_unclipped = torch.tensor(u_unclipped).reshape(-1,2)
         blend_ratio = (x[:,3]>0.05).float()
         lambda_blend = blend_ratio
 
@@ -259,7 +260,8 @@ class VehicleModel():
         D = D_slow*slow_ind + D_fast*(~slow_ind)
         '''
 
-        F_rx = 6.17*(throttle - v_x/15.2 -0.333) * self.mass
+        #F_rx = 6.17*(throttle - v_x/15.2 -0.333) * self.mass
+        F_rx = throttle*(3.0-v_x) * self.mass
         fkin[:, 3] = 1 / self.mass * F_rx
 
         return fkin
