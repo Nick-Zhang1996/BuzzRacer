@@ -5,6 +5,7 @@ import math
 import torch
 import sys
 sys.path.insert(0,'../..') # inorder to run within the folder
+sys.path.insert(0,'..') # inorder to run within the folder
 from track.TrackFactory import TrackFactory
 from math import radians
 import matplotlib.pyplot as plt
