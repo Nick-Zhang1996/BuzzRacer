@@ -1,3 +1,4 @@
+import os
 from xml.dom import minidom
 import numpy as np
 from numpy import linalg as LA
@@ -35,10 +36,14 @@ class Track:
         self.border_angle_lower = np.loadtxt(self.path + "con_angle_outer.txt")
 
     def loadRcpTrack(self):
+        config_xml_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'config.xml')
+        '''
         try:
             config = minidom.parse('config.xml')
         except FileNotFoundError:
             config = minidom.parse('copg/rcvip_simulator/config.xml')
+        '''
+        config = minidom.parse(config_xml_path)
 
         config_track= config.getElementsByTagName('track')[0]
         self.track = TrackFactory(None,config_track,'full')

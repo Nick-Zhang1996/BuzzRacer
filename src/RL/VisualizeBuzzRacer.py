@@ -21,7 +21,7 @@ episode_reward_vec = []
 device = 'cpu'
 dqn_policy = DQN(n_observations, n_actions).to(device)
 directory = os.path.join('models',  'buzzracer_dqn')
-policy_state_dict = torch.load(os.path.join(directory,'target_net_480.pth'))
+policy_state_dict = torch.load(os.path.join(directory,'target_net_4980.pth'))
 torch.no_grad()
 dqn_policy.load_state_dict(policy_state_dict)
 

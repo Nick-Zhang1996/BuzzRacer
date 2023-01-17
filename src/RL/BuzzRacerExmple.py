@@ -1,8 +1,8 @@
 import sys
 sys.path.insert(0,'..')
-import gym
+import gymnasium as gym
 from gym_envs.BuzzRacer.BuzzRacerEnv import BuzzRacerEnv
-from gym.wrappers import TimeLimit
+from gymnasium.wrappers import TimeLimit
 
 env = TimeLimit(BuzzRacerEnv(render_mode='human'),max_episode_steps=1000)
 

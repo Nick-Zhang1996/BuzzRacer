@@ -1,6 +1,6 @@
-import gym
+import gymnasium as gym
 from gym_envs.BuzzRacer.BuzzRacerEnvDiscrete import BuzzRacerEnvDiscrete
-from gym.wrappers import TimeLimit
+from gymnasium.wrappers import TimeLimit
 import math
 import random
 import numpy as np
@@ -23,7 +23,7 @@ Transition = namedtuple('Transition',
 env = TimeLimit(BuzzRacerEnvDiscrete(render_mode=None),max_episode_steps=1000)
 #env = BuzzRacerEnvDiscrete(render_mode=None)
 
-directory = os.path.join('models',  'buzzracer_dqn')
+directory = os.path.join('models',  'buzzracer_dqn_tau_1')
 if not os.path.exists(directory):
     os.makedirs(directory)
 
@@ -39,13 +39,16 @@ device = torch.device('cpu')
 # EPS_DECAY controls the rate of exponential decay of epsilon, higher means a slower decay
 # TAU is the update rate of the target network
 # LR is the learning rate of the AdamW optimizer
-BATCH_SIZE = 128
+#BATCH_SIZE = 128
+BATCH_SIZE = 512
 GAMMA = 0.99
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
-TAU = 0.005
-LR = 1e-4
+#TAU = 0.005
+TAU = 1.0
+#LR = 1e-4
+LR = 1e-6
 
 # Get number of actions from gym action space
 n_actions = env.action_space.n
@@ -149,7 +152,7 @@ def optimize_model():
     optimizer.step()
 
 if torch.cuda.is_available():
-    num_episodes = 600
+    num_episodes = 5000
 else:
     num_episodes = 50
 

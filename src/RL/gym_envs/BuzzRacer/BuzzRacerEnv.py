@@ -1,6 +1,11 @@
-import gym
+import gymnasium as gym
 import os
-from gym import spaces
+import sys
+
+rl_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(1,rl_dir)
+
+from gymnasium import spaces
 import numpy as np
 from math import radians,degrees
 from copg.rcvip_simulator.VehicleModel import VehicleModel
@@ -14,7 +19,7 @@ import pygame
 #from pygame.locals import *
 
 class BuzzRacerEnv(gym.Env):
-    metadata = {'render_modes':['human'],'render_fps':30}
+    metadata = {'render_modes':['human','rgb_array'],'render_fps':30}
 
     def __init__(self, render_mode=None):
         # s(progress), d(lateral), heading, v_x, v_y, omega
@@ -37,7 +42,8 @@ class BuzzRacerEnv(gym.Env):
 
         if self.render_mode == 'human':
             self.initVisualization()
-
+        elif self.render_mode == 'rgb_array':
+            self.initVisualization()
 
 
     def initVisualization(self):
@@ -130,9 +136,10 @@ class BuzzRacerEnv(gym.Env):
 
     def step(self, action):
         torch_action = torch.tensor(action,dtype=torch.float32).reshape(-1,2)
+        last_torch_states = self.torch_states
         self.torch_states = self.vehicle_model.dynModelBlendBatch(self.torch_states, torch_action)
         bounds = self.vehicle_model.getLocalBounds(self.torch_states[:,0])
-        reward, done = getRewardSingleAgent(self.torch_states, bounds ,self.torch_states,  self.device)
+        reward, done = getRewardSingleAgent(self.torch_states, bounds ,last_torch_states,  self.device)
 
         if self.render_mode == 'human':
             self._render_frame()
@@ -154,18 +161,22 @@ class BuzzRacerEnv(gym.Env):
         global_state = self.vehicle_model.fromLocalToGlobal(local_state).flatten()
         x,y,heading,v_forward,v_sideway,omega = global_state
 
-        self.screen.blit(self.background, (0,0))
         car_image = pygame.transform.rotate(self.car_image, degrees(heading))
         car_rect = self.car_image.get_rect()
         car_rect.center = self.track.m2canvas((x,y))
-        self.screen.blit(car_image,car_rect)
-        pygame.display.flip()
 
-        # We need to ensure that human-rendering occurs at the predefined framerate.
-        # The following line will automatically add a delay to keep the framerate stable.
-        self.clock.tick(self.metadata["render_fps"])
+        self.screen.blit(self.background, (0,0))
+        self.screen.blit(car_image,car_rect)
+        if (self.render_mode == 'human'):
+            pygame.display.flip()
+            # We need to ensure that human-rendering occurs at the predefined framerate.
+            # The following line will automatically add a delay to keep the framerate stable.
+            self.clock.tick(self.metadata["render_fps"])
+        elif (self.render_mode == 'rgb_array'):
+            return np.transpose( np.array(pygame.surfarray.pixels3d(self.screen)),axes=(1,0,2) )
+            
 
     def close(self):
-        if self.window is not none:
+        if self.window is not None:
             pygame.display.quit()
             pygame.quit()

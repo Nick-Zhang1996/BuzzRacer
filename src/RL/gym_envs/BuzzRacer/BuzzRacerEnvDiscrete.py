@@ -1,6 +1,11 @@
-import gym
+import gymnasium as gym
 import os
-from gym import spaces
+import sys
+
+rl_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(1,rl_dir)
+
+from gymnasium import spaces
 import numpy as np
 from math import radians,degrees
 from copg.rcvip_simulator.VehicleModel import VehicleModel
@@ -21,13 +26,10 @@ class BuzzRacerEnvDiscrete(gym.Env):
         self.observation_space = spaces.Box(low=np.array([0.0,-0.3,-radians(180),-0.05,-2.0,-np.pi*2]),high=np.array([11.5,0.3,radians(180),5.0,2.0,np.pi*2]), dtype=np.float32)
         # throttle, steering
         #self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
-        self.action_space = spaces.Discrete(4)
-        # throttle, left steering
-        # throttle, right steering
-        # braking, left steering
-        # braking, right steering
+        self.ds = 5
+        self.action_space = spaces.Discrete(self.ds*self.ds)
         self.observation_space.n = 6
-        self.action_space.n = 4
+        self.action_space.n = self.ds*self.ds
 
 
         assert render_mode is None or render_mode in self.metadata['render_modes']
@@ -138,14 +140,21 @@ class BuzzRacerEnvDiscrete(gym.Env):
         # throttle, right steering
         # braking, left steering
         # braking, right steering
-        d = radians(23)
-        lut = {0:(1.0,-d),1:(1.0,d),2:(-1.0,d),3:(01.0,-d)}
-        action = lut[int(discrete_action.item())]
+        #d = radians(23)
+        #lut = {0:(1.0,-d),1:(1.0,d),2:(-1.0,d),3:(01.0,-d)}
+        #action = lut[int(discrete_action.item())]
+        throttle = (int(discrete_action)//self.ds)/(self.ds-1)
+        steering = (int(discrete_action)%self.ds)/(self.ds-1)
+        throttle = (throttle*2)-1.0
+        steering = (steering*2)-1.0
+        action = (throttle,steering)
 
         torch_action = torch.tensor(action,dtype=torch.float32).reshape(-1,2)
+        last_torch_states = self.torch_states
+
         self.torch_states = self.vehicle_model.dynModelBlendBatch(self.torch_states, torch_action)
         bounds = self.vehicle_model.getLocalBounds(self.torch_states[:,0])
-        reward, done = getRewardSingleAgent(self.torch_states, bounds ,self.torch_states,  self.device)
+        reward, done = getRewardSingleAgent(self.torch_states, bounds ,last_torch_states, self.device)
 
         if self.render_mode == 'human':
             self._render_frame()
