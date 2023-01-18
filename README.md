@@ -38,7 +38,7 @@ or
 git clone git@github.gatech.edu:zzhang615/RC-VIP.git'
 ```
 
-depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your address will be different. 
+depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your URL will be different. 
 
 ### Install Dependencies
 
