@@ -13,7 +13,7 @@ from Simulator import Simulator
 from common import *
 from threading import Event,Lock
 from simulator.KinematicSimulator import KinematicSimulator
-from copg.rcvip_simulator.VehicleModel import VehicleModel
+from RL.copg.rcvip_simulator.VehicleModel import VehicleModel
 
 class CurvilinearSimulator(Simulator):
     def __init__(self,main):

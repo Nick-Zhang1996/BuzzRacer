@@ -4,7 +4,7 @@ import torch
 import os
 from common import *
 from controller.CarController import CarController
-from rl.copg.car_racing.network import Actor as Actor
+from RL.copg.car_racing.network import Actor as Actor
 from scipy.interpolate import splev as splev
 from scipy.optimize import minimize as minimize
 from time import time

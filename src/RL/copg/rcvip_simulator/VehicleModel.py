@@ -3,7 +3,7 @@ import torch
 try:
     from Track import Track
 except ModuleNotFoundError:
-    from copg.rcvip_simulator.Track import Track
+    from RL.copg.rcvip_simulator.Track import Track
 import numpy as np
 import copy
 from math import radians,degrees

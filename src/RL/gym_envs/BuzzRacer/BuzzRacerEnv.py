@@ -8,8 +8,8 @@ sys.path.insert(1,rl_dir)
 from gymnasium import spaces
 import numpy as np
 from math import radians,degrees
-from copg.rcvip_simulator.VehicleModel import VehicleModel
-from copg.rcvip_racing.rcvip_env_function import getRewardSingleAgent
+from RL.copg.rcvip_simulator.VehicleModel import VehicleModel
+from RL.copg.rcvip_racing.rcvip_env_function import getRewardSingleAgent
 import torch
 from xml.dom.minidom import parseString
 
