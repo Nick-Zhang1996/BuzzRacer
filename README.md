@@ -1,7 +1,7 @@
 # Buzzracer
 This repository contains various resources for the Buzzracer platform developed by DCSL at Georgia Tech. Buzzracer is a 1/24 scale autonomous vehicle platform for education and research. It allows easy portation between lsimulation and hardware, and supports multiple vehicles
 
-![Buzzracer][docs/topology.png]
+![Buzzracer](docs/topology.png)
 
 ## File Structure
 The file structure is organized as follows
@@ -28,11 +28,15 @@ This section will walk you through of getting the codebase running on your local
 
 First clone this repository
 
-`git clone https://github.gatech.edu/zzhang615/RC-VIP'
+```
+git clone https://github.gatech.edu/zzhang615/RC-VIP'
+```
 
 or
 
-`git clone git@github.gatech.edu:zzhang615/RC-VIP.git'
+```
+git clone git@github.gatech.edu:zzhang615/RC-VIP.git'
+```
 
 depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your address will be different. 
 
@@ -67,7 +71,7 @@ python run.py stanley
 ```
 
 You should see a simulation of a car running around on screen
-![Buzzracer][docs/sample_sim.gif]
+![Buzzracer](docs/sample_sim.gif)
 
 
 `run.py` is the primary entry point for all simulation and experiments, and `stanley` refers to config file`configs/stanley.xml`. The config file contains details of an experiment, for example,  whether to run the experiment in simulation or in real world, which race track to load, how many cars to generate, which controller each car uses, which extension to load etc. `run.py` loads this config file and prepares everything accordingly. 
@@ -79,7 +83,7 @@ You can run a different config file, for example, one with multiple vehicles
 python run.py planner_stanley
 ```
 
-![Buzzracer][docs/sample_sim_multi.gif]
+![Buzzracer](docs/sample_sim_multi.gif)
 
 When you're working on your project, you will likely create a new controller, extension, visualization etc. In order to test your module, you'll create your own config file and place it in `configs/`.
 
