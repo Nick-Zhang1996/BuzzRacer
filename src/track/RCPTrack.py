@@ -1061,7 +1061,7 @@ class RCPTrack(Track):
         min_fun_x = fit.x[0]
         self.last_u = min_fun_x%self.track_length_grid
 
-        min_fun_val = np.float(fit.fun)
+        min_fun_val = float(fit.fun)
         # find min val
         #x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
         #if (seq-0.6<x<seq+0.6):
