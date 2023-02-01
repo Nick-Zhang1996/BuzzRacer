@@ -18,6 +18,11 @@ from track import TrackFactory
 import pygame
 #from pygame.locals import *
 
+def fmap(val,a,b,c,d):
+    retval = (val-a)/(b-a)*(d-c)+c
+    retval = min(d,max(retval,c))
+    return retval
+
 class BuzzRacerEnv(gym.Env):
     metadata = {'render_modes':['human','rgb_array'],'render_fps':30}
 
@@ -28,6 +33,7 @@ class BuzzRacerEnv(gym.Env):
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self.observation_space.n = 6
         self.action_space.n = 2
+        self.action = (0,0)
 
 
         assert render_mode is None or render_mode in self.metadata['render_modes']
@@ -45,6 +51,72 @@ class BuzzRacerEnv(gym.Env):
         elif self.render_mode == 'rgb_array':
             self.initVisualization()
 
+    # draw control related static images
+    def drawControl(self,canvas, coord=(0,0)):
+
+        # Static component
+        font = pygame.font.SysFont(None,25,bold=False)
+        x1 = coord[0] + 65
+        y1 = coord[1] + 12
+        w = 100
+        h = 20
+        pygame.draw.rect(canvas,(0,0,0), (x1, y1, w,h),width=2)
+        text = font.render('Steering',False,(0,0,0))
+        canvas.blit(text,(0,y1))
+
+        x2 = x1
+        y2 = y1 + 30
+        pygame.draw.rect(canvas,(0,0,0), (x2, y2, w,h),width=2)
+        text = font.render('throttle',False,(0,0,0))
+        canvas.blit(text,(0,y2))
+
+        # active component
+        # throttle, control
+        print(self.action)
+        throttle,steering = self.action
+        if (steering > 0):
+            length = fmap(steering,0,radians(26.7),0,w/2)
+            pygame.draw.rect(canvas,(0,200,0), (x1+w/2, y1, length,h),width=0)
+            print(length)
+        else:
+            length = fmap(-steering,0,radians(26.7),0,w/2)
+            pygame.draw.rect(canvas,(0,200,0), (x1+w/2-length, y1, length,h),width=0)
+            print(length)
+
+        if (throttle > 0):
+            length = fmap(throttle,0,1,0,w/2)
+            pygame.draw.rect(canvas,(0,200,0), (x2+w/2, y2, length,h),width=0)
+            print(length)
+        else:
+            length = fmap(-throttle,0,1,0,w/2)
+            pygame.draw.rect(canvas,(0,200,0), (x2+w/2-length, y2, length,h),width=0)
+            print(length)
+
+        return
+
+        return 
+        #x1 and y1 are the origin values -- need to be changed if origin changes
+        x1 = coord[0] + 30
+        y1 = coord[1]
+        # Add steering bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
+        img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        #end_coordinate = int(50 - (steering * 100))              
+        #img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
+        
+        # Add Throttle bar
+        img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
+        #throttle_end = int(50+(72*throttle))
+        #img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
+
+        # car
+        x2 = coord[0] + 20
+        y2 = coord[1] + 50
+        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
+        
+        return img
 
     def initVisualization(self):
         pygame.init()
@@ -66,8 +138,9 @@ class BuzzRacerEnv(gym.Env):
         self.background = pygame.surfarray.make_surface(self.img_track_raceline[:,:,::-1])
         self.background = pygame.transform.flip(self.background, False, True)
         self.background = pygame.transform.rotate(self.background, -90)
-        self.screen = pygame.display.set_mode(self.background.get_size(), pygame.SCALED)
 
+        # (480,720)
+        self.screen = pygame.display.set_mode(self.background.get_size(), pygame.SCALED)
         self.background = self.background.convert()
 
         self.car_image = self.load_image('data/porsche_orange.png')
@@ -148,6 +221,7 @@ class BuzzRacerEnv(gym.Env):
         terminated = done.item()
         truncated = False
         info = None
+        self.action = tuple(action)
         return observation, reward, terminated, truncated, info
 
 
@@ -167,6 +241,8 @@ class BuzzRacerEnv(gym.Env):
 
         self.screen.blit(self.background, (0,0))
         self.screen.blit(car_image,car_rect)
+        self.drawControl(self.screen)
+
         if (self.render_mode == 'human'):
             pygame.display.flip()
             # We need to ensure that human-rendering occurs at the predefined framerate.
