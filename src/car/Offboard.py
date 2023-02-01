@@ -5,7 +5,8 @@ from common import *
 import socket
 from struct import pack, unpack
 import numpy as np
-from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
+#from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
+from time import  time,sleep,time_ns
 from math import degrees,radians
 
 from threading import Thread,Event,Lock
@@ -39,7 +40,7 @@ class OffboardPacket(PrintObject):
     # encode all fields into .packet
     def makePacket(self):
         self.seq_no = OffboardPacket.out_seq_no
-        self.ts = int(clock_gettime_ns(CLOCK_REALTIME) / 1000) % 4294967295
+        self.ts = int(time_ns() / 1000) % 4294967295
         # B: uint8_t
         # H: uint16_t
         # I: uint32_t
@@ -248,7 +249,7 @@ class Offboard(Car):
         packet = OffboardPacket()
         packet.packet = data
         packet_type = packet.parsePacket()
-        self.last_response_ts = int(clock_gettime_ns(CLOCK_REALTIME) / 1000) % 4294967295
+        self.last_response_ts = int(time_ns() / 1000) % 4294967295
 
         # sensor update
         if (packet_type == 2):
