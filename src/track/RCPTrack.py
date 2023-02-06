@@ -342,11 +342,14 @@ class RCPTrack(Track):
         self.n_steps = n_steps
 
         # friction factor
-        mu = 1.1
+        # unit: g
+        mu = 0.7
         # maximum longitudinial acceleration available from motor, given current longitudinal speed
         # actually around 3.3
-        acc_max_motor = lambda x:3.3
-        dec_max_motor = lambda x:4.5
+        #acc_max_motor = lambda x:3.3
+        #dec_max_motor = lambda x:4.5
+        acc_max_motor = lambda x:2
+        dec_max_motor = lambda x:2
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,self.track_length_grid,n_steps+1)
