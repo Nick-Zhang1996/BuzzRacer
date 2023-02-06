@@ -690,27 +690,6 @@ class RCPTrack(Track):
 
         return ((al,a,ar),(bl,b,br))
 
-    def createBoundary(self,ref_path=None,ref_heading=None):
-        # construct a (self.discretized_raceline_len * 2) vector
-        # to record the left and right track boundary as an offset to the discretized raceline
-        left_boundary = []
-        right_boundary = []
-
-        left_boundary_points = []
-        right_boundary_points = []
-
-        for i in range(self.discretized_raceline_len):
-            # find normal direction
-            coord = ref_path[i,:]
-            heading = ref_heading[i]
-
-            left, right = self.preciseTrackBoundary(coord,heading)
-            left_boundary.append(left)
-            right_boundary.append(right)
-
-        return left_boundary, right_boundary
-
-
     # constrain >= 0
     # given coord=(x,y) unit:m
     # calculate distance to left/right boundary
