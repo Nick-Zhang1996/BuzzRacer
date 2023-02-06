@@ -343,7 +343,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // velocity deviation from reference velocity profile
   float dv = sqrtf(state[STATE_VX]*state[STATE_VX]+state[STATE_VY]*state[STATE_VY]) - raceline[idx][RACELINE_V];
 
-  float cost = 5*(dist + 0.1*dv*dv);
+  float cost = 5*(dist + 0.05*dv*dv );
   // additional penalty on negative velocity 
   if (state[STATE_VX] < 0){
     cost += -state[STATE_VX]*10;

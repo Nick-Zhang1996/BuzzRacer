@@ -348,8 +348,8 @@ class RCPTrack(Track):
         # actually around 3.3
         #acc_max_motor = lambda x:3.3
         #dec_max_motor = lambda x:4.5
-        acc_max_motor = lambda x:2
-        dec_max_motor = lambda x:2
+        acc_max_motor = lambda x:1.5
+        dec_max_motor = lambda x:1.5
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,self.track_length_grid,n_steps+1)

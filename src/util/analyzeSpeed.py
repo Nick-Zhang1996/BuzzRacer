@@ -2,7 +2,7 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-index = 27
+index = 31
 filename = f'../../log/2023_2_6_exp/full_state{index}.p'
 with open(filename, 'rb') as f:
     data = pickle.load(f)
