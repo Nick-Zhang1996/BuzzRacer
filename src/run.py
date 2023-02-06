@@ -357,7 +357,7 @@ class Main():
                 if isnan(steering):
                     print("error steering nan")
                 #print("T = %.2f, S = %.2f"%(throttle,steering))
-                self.debug_dict[i] = self.debug_dict[i] | debug_dict
+                self.debug_dict[i].update(debug_dict)
 
             elif (car.controller == Controller.empty):
                 throttle = 0

@@ -745,9 +745,9 @@ class RCPtrack(Track):
     def checkTrackBoundary(self,coord):
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
-        nondim= np.array(np.array(coord)/self.scale//1,dtype=np.int)
-        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(np.int)
-        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(np.int)
+        nondim= np.array(np.array(coord)/self.scale//1,dtype=int)
+        nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(int)
+        nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(int)
 
         # e.g. 'WE','SE'
         grid_type = self.track[nondim[0]][nondim[1]]
@@ -955,7 +955,7 @@ class RCPtrack(Track):
         pts = np.vstack([x_new,y_new]).T
         # for polylines, pts = pts.reshape((-1,1,2))
         pts = pts.reshape((-1,2))
-        pts = pts.astype(np.int)
+        pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
@@ -1009,7 +1009,7 @@ class RCPtrack(Track):
         pts = np.vstack([x_new,y_new]).T
         # for polylines, pts = pts.reshape((-1,1,2))
         pts = pts.reshape((-1,2))
-        pts = pts.astype(np.int)
+        pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
@@ -1113,7 +1113,7 @@ class RCPtrack(Track):
         heading = state[2]
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
-        nondim= np.array((coord/self.scale)//1,dtype=np.int)
+        nondim= np.array((coord/self.scale)//1,dtype=int)
 
         # distance squared, not need to find distance here
         dist_2 = lambda a,b: (a[0]-b[0])**2+(a[1]-b[1])**2
