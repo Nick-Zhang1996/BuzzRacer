@@ -37,10 +37,11 @@ class CCMPPI:
         max_v = arg_list['max_v']
         self.model = arg_list['model_name']
         self.car = arg_list['car']
+        self.track = arg_list['track']
         if (self.model == KinematicSimulator):
-            self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov)
+            self.cc = CCMPPI_KINEMATIC(self.dt, self.T, self.noise_cov,self.track)
         elif (self.model == DynamicSimulator):
-            self.cc = CCMPPI_DYNAMIC(self.dt, self.T, self.noise_cov)
+            self.cc = CCMPPI_DYNAMIC(self.dt, self.T,  self.noise_cov,self.track)
 
         self.p = execution_timer(True)
         self.debug_dict = {}

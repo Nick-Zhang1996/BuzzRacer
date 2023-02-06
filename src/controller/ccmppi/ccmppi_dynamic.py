@@ -25,7 +25,7 @@ from track.RCPTrack import RCPTrack
 from extension.simulator.DynamicSimulator import DynamicSimulator
 
 class CCMPPI_DYNAMIC():
-    def __init__(self,dt, N, noise_cov, debug_info=None):
+    def __init__(self,dt, N, noise_cov, track, debug_info=None):
         # set time horizon
         self.N = N
         self.n = 6
@@ -35,6 +35,7 @@ class CCMPPI_DYNAMIC():
         self.debug_info = debug_info
         self.rand_vals = None
         self.v = None
+        self.track=track
 
         self.dt = dt
         #self.Sigma_epsilon = np.diag([0.2,radians(20)])

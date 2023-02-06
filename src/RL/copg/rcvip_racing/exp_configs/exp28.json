@@ -1,0 +1,7 @@
+{
+    "critic_lr": 1e-09,
+    "actor_lr": 1e-07,
+    "num_episode": 10000,
+    "experiment_name": "exp28",
+    "batch_size": 128
+}

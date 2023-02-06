@@ -5,7 +5,8 @@ from common import *
 import socket
 from struct import pack, unpack
 import numpy as np
-from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
+#from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
+from time import  time,sleep,time_ns
 from math import degrees,radians
 
 from threading import Thread,Event,Lock
@@ -39,7 +40,7 @@ class OffboardPacket(PrintObject):
     # encode all fields into .packet
     def makePacket(self):
         self.seq_no = OffboardPacket.out_seq_no
-        self.ts = int(clock_gettime_ns(CLOCK_REALTIME) / 1000) % 4294967295
+        self.ts = int(time_ns() / 1000) % 4294967295
         # B: uint8_t
         # H: uint16_t
         # I: uint32_t
@@ -88,15 +89,45 @@ class OffboardPacket(PrintObject):
                 self.steering_D = steering_D
         return self.type
 
-class Offboard(PrintObject,Car):
+class Offboard(Car):
     available_local_port = 58998
     def __init__(self,main):
         #self.print_debug_enable()
         Car.__init__(self,main)
 
+    # parameter initialization, this will run immediately after self.params is set
+    # put all parameters here. 
     def initParam(self):
         self.car_ip = self.params['ip']
-        Car.initParam(self)
+        # default physics properties
+        # used when a specific car subclass is not speciied
+        self.L = 0.09
+        self.lf = 0.04824
+        self.lr = self.L - self.lf
+
+        self.Iz = 417757e-9
+        self.m = 0.1667
+
+        # ethCarsim moved for ccmppi
+
+        # tire model
+        self.Df = 3.93731
+        self.Dr = 6.23597
+        self.C = 2.80646
+        self.B = 0.51943
+        # motor/longitudinal model
+        self.Cm1 = 6.03154
+        self.Cm2 = 0.96769
+        self.Cr = -0.20375
+        self.Cd = 0.00000
+
+        self.width = self.params['width']
+        self.wheelbase = self.params['wheelbase']
+        self.max_throttle = self.params['max_throttle']
+        self.max_steering_left = self.params['max_steer_angle_left']
+        self.max_steering_right = self.params['max_steer_angle_right']
+        self.max_throttle = self.params['max_throttle']
+        self.optitrack_id = self.params['optitrack_streaming_id']
 
     def initHardware(self):
         self.car_port = 2390
@@ -218,7 +249,7 @@ class Offboard(PrintObject,Car):
         packet = OffboardPacket()
         packet.packet = data
         packet_type = packet.parsePacket()
-        self.last_response_ts = int(clock_gettime_ns(CLOCK_REALTIME) / 1000) % 4294967295
+        self.last_response_ts = int(time_ns() / 1000) % 4294967295
 
         # sensor update
         if (packet_type == 2):

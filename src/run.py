@@ -13,10 +13,13 @@ from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 import sys
-from os.path import exists
+import os.path
+import os
+os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
 
 class Main(PrintObject):
     def __init__(self,config_filename):
+        self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
 
     def init(self):
@@ -34,7 +37,8 @@ class Main(PrintObject):
         # prepare track
         #config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
         config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(config_track)
+        self.track = TrackFactory(self,config_track)
+        self.track.init()
 
         # prepare cars
         Car.reset()
@@ -161,7 +165,7 @@ if __name__ == '__main__':
         name = 'default'
 
     config_filename = './configs/'+name+'.xml'
-    if (exists(config_filename)):
+    if (os.path.exists(config_filename)):
         print_ok('using config '+config_filename)
     else:
         print_error(config_filename + '  does not exist!')

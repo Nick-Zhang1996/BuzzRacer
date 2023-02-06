@@ -25,9 +25,27 @@ class OldOffboard(Car):
         self.Iz = 417757e-9
         self.m = 0.1667
 
+
+        # tire model
+        self.Df = 3.93731
+        self.Dr = 6.23597
+        self.C = 2.80646
+        self.B = 0.51943
+        # motor/longitudinal model
+        self.Cm1 = 6.03154
+        self.Cm2 = 0.96769
+        self.Cr = -0.20375
+        self.Cd = 0.00000
+
+        self.width = self.params['width']
+        self.wheelbase = self.params['wheelbase']
+        self.max_throttle = self.params['max_throttle']
+        self.max_steering_left = self.params['max_steer_angle_left']
+        self.max_steering_right = self.params['max_steer_angle_right']
+        self.max_throttle = self.params['max_throttle']
+        self.optitrack_id = self.params['optitrack_streaming_id']
         self.min_pwm_left = self.params['max_steer_pwm_left']
         self.max_pwm_right = self.params['max_steer_pwm_right']
-        Car.initParam(self)
 
     def initHardware(self):
         try:

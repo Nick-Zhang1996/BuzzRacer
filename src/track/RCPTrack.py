@@ -1,23 +1,5 @@
 #!/usr/bin/python
 
-# this file contains all data structure and algorithm to :
-# describe an RCP track
-# describe a raceline within the track
-# provide desired trajectory(raceline) given a car's location within thte track
-
-# TODO:
-# 2 Setup experiment to run the car at different speed in a circular path to find yaw setpoint
-# implement yaw damping
-# implement EKF to estimate velocity and yaw rate
-# 3 add velocity trajectory
-#  add velocity PI control
-# 1 enable real time tuning of parameters
-# runfile
-
-from common import *
-from calendar import c
-from os import O_EXCL
-from re import X
 import numpy as np
 import os.path
 from numpy import isclose
@@ -29,10 +11,11 @@ from scipy.integrate import solve_ivp
 from time import sleep,time
 import cv2
 from PIL import Image
-from track.Track import Track
 import pickle
-from common import *
 from bisect import bisect
+
+from common import *
+from track.Track import Track
 from util.timeUtil import execution_timer
 
 # debugging
@@ -58,13 +41,12 @@ class Node:
         self.entry = entry
         return
 
-class RCPTrack(Track,PrintObject):
-    def __init__(self,config=None):
-        Track.__init__(self)
-        self.config = config
+class RCPTrack(Track):
+    def __init__(self,main=None,config=None):
+        Track.__init__(self,main,config)
         self.t = execution_timer(True)
         # resolution : pixels per grid side length
-        self.resolution = 120
+        self.setResolution(200)
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -77,11 +59,8 @@ class RCPTrack(Track,PrintObject):
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
 
-        self.obstacle=False
-        self.obstacle_count=0
-        self.obstacle_filename='obstacles.p'
-        self.obstacle_radius=0.1
-
+    '''
+    # determine if an coordinate is outside of track boundary, used in watchdog
     def isOutside(self,coord):
         grace = 1.0
         x,y = coord
@@ -92,21 +71,8 @@ class RCPTrack(Track,PrintObject):
         res = self.resolution
 
         return x>cols*self.scale+grace or y>rows*self.scale+grace or x<-grace or y<-grace
+    '''
 
-    def resolveLogname(self,):
-
-        # setup log file
-        # log file will record state of the vehicle for later analysis
-        logFolder = "./optimization/"
-        logPrefix = "K"
-        logSuffix = ".p"
-        no = 1
-        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
-            no += 1
-
-        self.log_no = no
-        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
-        return
 
 
     def initTrack(self,description, gridsize, scale,savepath=None):
@@ -127,6 +93,9 @@ class RCPTrack(Track,PrintObject):
         self.gridsize = gridsize
         self.track_length_grid = len(description)
         self.grid_sequence = []
+
+        self.x_limit = self.gridsize[1]*self.scale
+        self.y_limit = self.gridsize[0]*self.scale
         
         grid = [[None for i in range(gridsize[0])] for j in range(gridsize[1])]
 
@@ -185,11 +154,12 @@ class RCPTrack(Track,PrintObject):
 
     def drawTrack(self, img=None,show=False):
         # show a picture of the track
-        # resolution : pixels per grid length
+        # resolution : pixels per peter
+        # scale: side length of a grid (meter)
         color_side = (255,0,0)
         # boundary width / grid width
         deadzone = 0.087
-        gs = self.resolution
+        gs = int(self.resolution * self.scale)
 
         # prepare straight section (WE)
         straight = 255*np.ones([gs,gs,3],dtype='uint8')
@@ -244,13 +214,7 @@ class RCPTrack(Track,PrintObject):
 
         return img
     
-    def loadTrackfromFile(self,filename,newtrack,gridsize):
-        # load a track 
-        self.track = newtrack
-        self.gridsize = gridsize
-
-        return
-
+    # create a heuristic raceline
     # this function stores result in self.raceline
     # seq_no: labeling the starting grid as 0, progressing through the raceline direction, the sequence number of (0,0) grid, i.e., bottom left. In other words, how many grids are between the starting grid and the origin? If starting gtid is origin grid, then seq_no is zero
     # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
@@ -475,114 +439,6 @@ class RCPTrack(Track,PrintObject):
         plt.legend(handles=[p1,p2,p3])
         plt.show()
 
-    def verifySpeedProfile(self,n_steps=1000):
-        # calculate theoretical lap time
-        mu = 10.0/9.81
-        g = 9.81
-        t_total = 0
-        path_len = 0
-        xx = np.linspace(0,self.track_length_grid,n_steps+1)
-        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-        v3 = self.v3(xx)
-        for i in range(n_steps):
-            (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
-            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
-            # distance between two steps
-            ds = dist((x_i, y_i),(x_i_1, y_i_1))
-            path_len += ds
-            t_total += ds/v3[i%n_steps]
-
-        print_info("Theoretical value:")
-        print_info("\t top speed = %.2fm/s"%max(v3))
-        print_info("\t total time = %.2fs"%t_total)
-        print_info("\t path len = %.2fm"%path_len)
-
-        # get direct distance from two u
-        distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
-
-        vel_vec = []
-        ds_vec = []
-        xx = np.linspace(0,self.track_length_grid,n_steps+1)
-
-        # get velocity at each point
-        for i in range(n_steps):
-            # tangential direction
-            tan_dir = splev(xx[i], self.raceline, der=1)
-            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
-            vel_now = self.v3(xx[i]%len(self.ctrl_pts)) * tan_dir
-            vel_vec.append(vel_now)
-
-        vel_vec = np.array(vel_vec)
-
-        lat_acc_vec = []
-        lon_acc_vec = []
-        dtheta_vec = []
-        theta_vec = []
-        v_vec = []
-        dt_vec = []
-
-        # get lateral and longitudinal acceleration
-        for i in range(n_steps-1):
-
-            theta = np.arctan2(vel_vec[i,1],vel_vec[i,0])
-            theta_vec.append(theta)
-
-            dtheta = np.arctan2(vel_vec[i+1,1],vel_vec[i+1,0]) - theta
-            dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
-            dtheta_vec.append(dtheta)
-
-            speed = np.linalg.norm(vel_vec[i])
-            next_speed = np.linalg.norm(vel_vec[i+1])
-            v_vec.append(speed)
-
-            dt = distuu(xx[i],xx[i+1])/speed
-            dt_vec.append(dt)
-
-            lat_acc_vec.append(speed*dtheta/dt)
-            lon_acc_vec.append((next_speed-speed)/dt)
-
-        dt_vec = np.array(dt_vec)
-        lon_acc_vec = np.array(lon_acc_vec)
-        lat_acc_vec = np.array(lat_acc_vec)
-
-        # get acc_vector, track frame
-        dt_vec2 = np.vstack([dt_vec,dt_vec]).T
-        acc_vec = np.diff(vel_vec,axis=0)
-        acc_vec = acc_vec / dt_vec2
-
-        # plot acceleration vector cloud
-        # with x,y axis being vehicle frame, x lateral
-        '''
-        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
-
-        # draw the traction circle
-        cc = np.linspace(0,2*np.pi)
-        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
-        plt.gcf().gca().set_aspect('equal','box')
-        plt.xlim(-12,12)
-        plt.ylim(-12,12)
-        plt.xlabel('Lateral Acceleration')
-        plt.ylabel('Longitudinal Acceleration')
-        plt.legend(handles=[p0,p1])
-        plt.show()
-
-        p0, = plt.plot(theta_vec,label='theta')
-        p1, = plt.plot(v_vec,label='v')
-        p2, = plt.plot(dtheta_vec,label='dtheta')
-        acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
-        p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
-        p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
-
-        p2, = plt.plot(lon_acc_vec,label='longitudinal')
-        p3, = plt.plot(lat_acc_vec,label='lateral')
-        plt.legend(handles=[p0,p1])
-        plt.show()
-        '''
-        print("theoretical laptime %.2f"%t_total)
-
-        self.reconstructRaceline()
-        return t_total
 
     # ---------- for curvature norm minimization -----
     def prepareTrack(self,):
@@ -646,6 +502,7 @@ class RCPTrack(Track,PrintObject):
             pickle.dump(save,f)
         print_ok("track and raceline saved")
 
+    # load quadratically smoothed raceline
     def load(self,filename=None):
         # get data folder abs path
         thisdir = os.path.dirname(os.path.abspath(__file__))
@@ -670,6 +527,8 @@ class RCPTrack(Track,PrintObject):
         self.track = save['track']
         self.min_v = save['min_v']
         self.max_v = save['max_v']
+        self.x_limit = self.gridsize[1]*self.scale
+        self.y_limit = self.gridsize[0]*self.scale
 
         print_ok("track and raceline loaded")
         self.reconstructRaceline()
@@ -729,38 +588,107 @@ class RCPTrack(Track,PrintObject):
         plt.show()
         '''
 
-    # verify that we can restore x,y coordinate from K(s)/curvature path distance space
-    def verify(self,K=None):
-        # convert from K(s) space to X,Y(s) space using Fresnel integral
-        # state variable X,Y,Heading
-        if K is None:
-            K = self.K
-        K = interp1d(self.S,self.K)
-        def kensel(s,x):
-            return [ cos(x[2]), sin(x[2]), K(s)]
+    def getOrcaStyleTrack(self):
+        # ORCA compatible representation
+        N = self.discretized_raceline_len = 1024
+        s = self.s_vec = s_vec = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        # resample to fixed interval s_vec
+        self.r = ref_path = np.array(splev(s_vec%self.raceline_len_m,self.raceline_s,der=0)).T
+        X = self.r[:,0].flatten()
+        Y = self.r[:,1].flatten()
 
-        s_span = [0,self.S[-1]]
-        x0 = (self.x0,self.y0,self.phi0)
-        # error 0.02, lateral error
-        #sol = solve_ivp(kensel,s_span, x0, method='DOP853',t_eval = self.S )
-        # error 0.02, longitudinal error
-        sol = solve_ivp(kensel,s_span, x0, method='LSODA',t_eval = self.S )
 
-        # plot results
-        # original path
-        steps = 1000
-        u = np.linspace(0,self.u[-1],steps)
-        x,y = splev(u,self.raceline,der=0)
-        # quantify error
-        error = ((x[-1]-sol.y[0,-1])**2 + (y[-1]-sol.y[1,-1])**2)**0.5
-        print("error %.2f"%error)
+        diff_s = s_vec[1]-s_vec[0]
+        dr, ddr = self.calcDerivative(ref_path,ds=diff_s)
+        self.dr = dr
+        self.ddr = ddr
+        # TODO verify sign
+        kappa = self.calcCurvature(dr,ddr)
 
-        plt.plot(x,y)
-        # regenerated path
-        plt.plot(sol.y[0],sol.y[1])
-        plt.show()
-                
-        return
+        # raceline heading
+        #dr = splev(s_vec%self.raceline_len_m,self.raceline_s,der=1)
+        phi = np.arctan2(dr[:,1],dr[:,0])
+        old_phi = phi.copy()
+        # wrap angle
+        d_phi = np.diff(phi)
+        d_phi = (d_phi + np.pi) % (2*np.pi) - np.pi
+        phi = phi[0] + np.hstack([0,np.cumsum(d_phi)]) + 2*np.pi
+
+        # describe track boundary as offset from raceline
+        left_limit, right_limit = self.createBoundary(ref_path,phi)
+        # TODO: verify sign and upper/lower ordering
+        d_upper = np.array(left_limit)
+        d_lower = -np.array(right_limit)
+
+        border_angle_upper = phi + 40/180*np.pi
+        border_angle_lower = phi - 40/180*np.pi
+
+        # ccw 90 deg
+        #R = np.array([[0,-1],[1,0]])
+        #tangent_dir = (R @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
+        #self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
+        #self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
+        return (N,X,Y,s,phi,kappa,diff_s,d_upper,d_lower,border_angle_upper,border_angle_lower)
+
+
+    def calcDerivative(self,curve,ds):
+        # find first and second derivative
+        dr = []
+        ddr = []
+        n = curve.shape[0]
+        for i in range(1,n-1):
+            rl = curve[i-1,:]
+            r = curve[i,:]
+            rr = curve[i+1,:]
+            points = [rl, r, rr]
+            ((al,a,ar),(bl,b,br)) = self.lagrangeDer(points,ds=[ds,ds])
+            dr.append(al*rl+a*r+ar*rr)
+            ddr.append(bl*rl+b*r+br*rr)
+        dr = np.array(dr)
+        ddr = np.array(ddr)
+        dr = np.vstack([dr[0],dr,dr[-1]])
+        ddr = np.vstack([ddr[0],ddr,ddr[-1]])
+        return (dr,ddr)
+
+    # right turn negative curvature
+    def calcCurvature(self,dr_vec,ddr_vec):
+        # ccw 90 deg
+        A = np.array([[0,-1],[1,0]])
+        a = (A @ dr_vec.T).T
+        b = ddr_vec
+        curvature = np.sum(a*b,axis=1).flatten()
+        return curvature
+
+    # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
+    # return: 2*3, tuple
+    #       ((al, a, ar),
+    #        (bl, b, br))
+    # where f'@r = al*rl + a*r + ar*rr
+    # where f''@r = bl*rl + b*r + br*rr
+    # ds, arc length between rl,r and r, rr 
+    # if not specified, |r-rl|_2 will be used as approximation
+    def lagrangeDer(self,points,ds=None):
+        rl,r,rr = points
+        dist = lambda x,y:((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
+        if ds is None:
+            sl = -dist(rl,r)
+            sr = dist(r,rr)
+        else:
+            sl = -ds[0]
+            sr = ds[1]
+
+        try:
+            al = - sr/sl/(sl-sr)
+            a = -(sl+sr)/sl/sr
+            ar = -sl/sr/(sr-sl)
+
+            bl = 2/sl/(sl-sr)
+            b = 2/sl/sr
+            br = 2/sr/(sr-sl)
+        except Warning as e:
+            print(e)
+
+        return ((al,a,ar),(bl,b,br))
 
     # constrain >= 0
     # given coord=(x,y) unit:m
@@ -963,101 +891,6 @@ class RCPTrack(Track,PrintObject):
         '''
         return retval
         
-    # calculate cost, among other things
-    def cost(self,k):
-        self.cost_count += 1
-        if (False and self.cost_count % 100 == 0):
-            self.K = k
-            self.verify()
-            bdy = self.boundaryClearanceVector(k)
-            plt.plot(bdy)
-            plt.show()
-
-        # save a checkpoint
-        if (False and self.cost_count % 1000 == 0):
-            self.resolveLogname()
-            output = open(self.logFilename,'wb')
-            pickle.dump(k,output)
-            output.close()
-            print("checkpoint %d saved"%self.log_no)
-
-        # part 1: curvature norm
-        k = np.array(k)
-        p1_cost = np.sum(k**2)
-        # part 2: smoothness
-        # relative importance of smoothness w.r.t curvature
-        alfa = 1.0
-        p2_cost = np.sum(np.abs(np.diff(k)))
-        total_cost = p1_cost + alfa*p2_cost
-
-        #print("call %d, cost = %.5f"%(self.cost_count,total_cost))
-        #print("p1/p2 = %.2f"%(p1_cost/p2_cost))
-        return total_cost
-
-    def minimizeCurvatureRoutine(self,):
-        steps = 100
-        self.steps=steps
-        # initialize an initial raceline for reference
-        print("base raceline")
-        self.prepareTrack()
-        # discretize the initial raceline
-        self.discretizePath(steps)
-
-        # NOTE the reconstructed path's end deviate from original by around 5cm
-        self.verify()
-        # let's use it as a starting point for now
-        K0 = self.K
-
-        # DEBUG sensitivity analysis
-        '''
-        eps = 1e-5
-        k = self.K
-        k -= 3*eps
-        self.verify(k)
-        tmp = self.boundaryClearanceVector(k)
-        plt.plot(tmp)
-        plt.show()
-        '''
-
-
-        # steps = 1000
-        # optimize on curvature norm
-        # var: 
-        # K(s), (steps,) vector of curvature along path
-        # the parameterization variable is defined such that
-        # s[0] = path start, s[steps-1] = path end
-        # TODO uniform ds is enforced in each optimization iteration but the magnitude may change if the path length shrinks/expands
-        # NOTE for now ds is fixed at self.ds
-
-        # cost:
-        # curvature norm, sum(|K|)
-        # constrains:
-        # must not cross track boundary (inequality)
-        # curvature at start and finish must agree (loop) (equality)
-
-        # assemble constrains
-        wheelbase = 102e-3
-        max_steering = radians(25)
-        R_min = wheelbase / tan(max_steering)
-        K_max = 1.0/R_min
-        # track boundary
-        cons = [{'type': 'ineq', 'fun': self.boundaryClearanceVector}]
-        cons.append({'type': 'eq', 'fun': lambda x: x[-1]-x[0]})
-
-        cons = tuple(cons)
-
-        # bounds
-        # part 1: hard on Ki < C, no super tight curves
-        # how tight depends on vehicle wheelbase and steering angle
-        bnds = tuple([(-K_max,K_max) for i in range(steps)])
-
-        self.cost_count = 0
-        res = minimize(self.cost,K0,method='SLSQP', jac='2-point',constraints=cons,bounds=bnds,options={'maxiter':1000,'eps':1e-10} )
-        print(res)
-        # verify again
-        self.K = res.x
-        print(self.K)
-        self.verify(steps)
 
     # ---------- for curvature norm minimization -----
 
@@ -1075,7 +908,7 @@ class RCPTrack(Track,PrintObject):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
-        res = self.resolution
+        res = int(self.resolution*self.scale)
 
         # this gives smoother result, but difficult to relate u to actual grid
         #u_new = np.linspace(self.u.min(),self.u.max(),1000)
@@ -1085,11 +918,9 @@ class RCPTrack(Track,PrintObject):
         u_new = np.linspace(0,self.track_length_grid,1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        y_new /= self.scale
+        x_new *= self.resolution 
         y_new *= self.resolution
-        y_new = self.resolution*rows - y_new
+        y_new = self.resolution*self.scale*rows - y_new
 
         if img is None:
             img = np.zeros([res*rows,res*cols,3],dtype='uint8')
@@ -1111,133 +942,14 @@ class RCPTrack(Track,PrintObject):
             for point in points:
                 x = point[0]
                 y = point[1]
-                x /= self.scale
                 x *= self.resolution
-                y /= self.scale
                 y *= self.resolution
-                y = self.resolution*rows - y
+                y = self.resolution*self.scale*rows - y
                 
                 img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         return img
 
-    # draw a polynomial line defined in track space
-    # points: a list of coordinates in format (x,y)
-    def drawPolyline(self,points,img=None,lineColor=(0,0,255),thickness=3 ):
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        # this gives smoother result, but difficult to relate u to actual grid
-        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
-
-        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
-        # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0,self.track_length_grid,1000)
-        points = np.array(points)
-        x_new = points[:,0]
-        y_new = points[:,1]
-        # convert to visualization coordinate
-        x_new /= self.scale
-        x_new *= self.resolution
-        y_new /= self.scale
-        y_new *= self.resolution
-        y_new = self.resolution*rows - y_new
-
-        if img is None:
-            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
-
-        pts = np.vstack([x_new,y_new]).T
-        # for polylines, pts = pts.reshape((-1,1,2))
-        pts = pts.reshape((-1,2))
-        pts = pts.astype(int)
-        # render different color based on speed
-        # slow - red, fast - green (BGR)
-        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        getColor = lambda v:(0,v2c(v),255-v2c(v))
-        gs = self.resolution
-        pts[:,0] = np.clip(pts[:,0],0,gs*cols)
-        pts[:,1] = np.clip(pts[:,1],0,gs*rows)
-        for i in range(len(points)-1):
-            p1 = np.array(pts[i])
-            p2 = np.array(pts[i+1])
-            img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
-
-        # plot reference points
-        #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        '''
-        if not (points is None):
-            for point in points:
-                x = point[0]
-                y = point[1]
-                x /= self.scale
-                x *= self.resolution
-                y /= self.scale
-                y *= self.resolution
-                y = self.resolution*rows - y
-                
-                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
-        '''
-
-        return img
-
-    # draw ONE arrow, unit: meter, coord sys: dimensioned
-    # source: source of arrow, in meter
-    # orientation, radians from x axis, ccw positive
-    # length: in pixels, though this is only qualitative
-    def drawArrow(self,source, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
-
-        if (length>1):
-            length = int(length)
-        else:
-            pass
-            '''
-            if show:
-                plt.imshow(img)
-                plt.show()
-            '''
-            return img
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        src = self.m2canvas(source)
-        if (src is None):
-            print("drawArrow err -- point outside canvas")
-            return img
-        #test_pnt = self.m2canvas(test_pnt)
-
-        if img is None:
-            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
-
-    
-        # y-axis positive direction in real world and cv plotting is reversed
-        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
-
-        #img = cv2.circle(img,test_pnt , 3, color,-1)
-
-        img = cv2.circle(img, src, 3, (0,0,0),-1)
-        img = cv2.line(img, src, dest, color, thickness) 
-            
-
-        '''
-        if show:
-            plt.imshow(img)
-            plt.show()
-        '''
-
-        return img
-
-    def loadRaceline(self,filename=None):
-        pass
-
-    def saveRaceline(self,filename):
-        pass
-
-    def optimizeRaceline(self):
-        pass
     # given state of robot
     # find the closest point on raceline to center of FRONT axle
     # calculate the lateral offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
@@ -1328,7 +1040,7 @@ class RCPTrack(Track,PrintObject):
         min_fun_x = fit.x[0]
         self.last_u = min_fun_x%self.track_length_grid
 
-        min_fun_val = np.float(fit.fun)
+        min_fun_val = float(fit.fun)
         # find min val
         #x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
         #if (seq-0.6<x<seq+0.6):
@@ -1729,37 +1441,9 @@ class RCPTrack(Track,PrintObject):
 
         return coord_vec
 
-
-# conver a world coordinate in meters to canvas coordinate
-    def m2canvas(self,coord):
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        x_new, y_new = coord[0], coord[1]
-        # x_new and y_new are converted to non-dimensional grid unit
-        x_new /= self.scale
-        y_new /= self.scale
-        if (x_new>cols or y_new>rows or x_new<0 or y_new<0):
-            return None
-
-        # convert to visualization coordinate
-        x_new *= self.resolution
-        x_new = int(x_new)
-        y_new *= self.resolution
-        # y-axis positive direction in real world and cv plotting is reversed
-        y_new = int(self.resolution*rows - y_new)
-        return (x_new, y_new)
-
-    
-
     # draw a point on canvas at coord
     def drawPoint(self, img, coord, color = (0,0,0)):
         src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw point -- outside track")
-            return img
         img = cv2.circle(img, src, 3, color,-1)
 
         return img
@@ -1767,84 +1451,9 @@ class RCPTrack(Track,PrintObject):
     def drawPoints(self, img, coord_vec, color = (0,0,0)):
         for coord in coord_vec:
             src = self.m2canvas(coord)
-            if src is None:
-                #print("Can't draw point -- outside track")
-                return img
             img = cv2.circle(img, src, 3, color,-1)
 
         return img
-
-    # draw a circle on canvas at coord
-    def drawCircle(self, img, coord, radius_m, color = (0,0,0)):
-        src = self.m2canvas(coord)
-        if src is None:
-            #print("Can't draw point -- outside track")
-            return img
-        radius_pix = int(radius_m / self.scale * self.resolution)
-        img = cv2.circle(img, src, radius_pix, color,-1)
-
-        return img
-
-
-# draw traction circle, a circle representing 1g (or as specified), and a red dot representing current acceleration in vehicle frame
-    def drawAcc(self,acc,img):
-        pass
-
-    def setUpObstacles(self):
-        if (not self.obstacle):
-            self.obstacle_count = 0
-            return
-
-        if (os.path.isfile(self.obstacle_filename)):
-            with open(self.obstacle_filename, 'rb') as f:
-                obstacles = pickle.load(f)
-            self.print_ok(" loading obstacles at " + self.obstacle_filename)
-            self.print_ok(" reuse obstacles, count = %d"%(obstacles.shape[0]))
-            self.print_ok(" if you wish to create new obstacles, remove current obstacle file or change parameter obstacle_filename")
-
-            # NOTE remove cluttered obstacles
-            '''
-            mask = np.invert(np.bitwise_and(obstacles[:,0]>0.8, obstacles[:,1]>0.6))
-            obstacles = obstacles[mask,:]
-            '''
-
-        else:
-            self.print_ok(" generating new obstacles, count = %d"%(self.obstacle_count))
-            obstacles = np.random.random((self.obstacle_count,2))
-            obstacles[:,0] *= self.gridsize[1]*self.scale
-            obstacles[:,1] *= self.gridsize[0]*self.scale
-            # save obstacles
-            with open(self.obstacle_filename, 'wb') as f:
-                pickle.dump(obstacles,f)
-            print_ok("[ccmppi]: saved obstacles at " + self.obstacle_filename)
-
-        #self.opponent_prediction = np.repeat(obstacles[:,np.newaxis,:], self.horizon_steps + 1, axis=1)
-        self.obstacles = obstacles
-
-    # check if vehicle is currently in collision with obstacle
-    def isInObstacle(self, state, get_obstacle_id=False):
-        if (not self.obstacle):
-            if (get_obstacle_id):
-                return (False,0)
-            else:
-                return False
-        dist = self.obstacle_radius
-        x,y,heading,vf,vs,omega = state
-        min_dist = 100.0
-        for i in range(self.obstacles.shape[0]):
-            obs = self.obstacles[i]
-            dist = ((x-obs[0])**2+(y-obs[1])**2)**0.5 
-            if (dist<min_dist):
-                min_dist = dist
-            if (dist < self.obstacle_radius):
-                if (get_obstacle_id):
-                    return (True,i)
-                else:
-                    return True
-        if (get_obstacle_id):
-            return (False,0)
-        else:
-            return False
     
 if __name__ == "__main__":
     fulltrack = RCPTrack()

@@ -9,7 +9,7 @@
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
   </extensions>
 

@@ -9,15 +9,11 @@ class EmptyCarController(CarController):
 
     def control(self):
         valid = True
+        # may be needed to keep car steady
         throttle = self.calcThrottle(0)
         steering = 0
-        if valid:
-            self.car.throttle = throttle
-            self.car.steering = steering
-        else:
-            print_warning("[StanleyCarController]: car %d invalid results from ctrlCar", self.car.id)
-            self.car.throttle = 0.0
-            self.car.steering = 0.0
+        self.car.throttle = throttle
+        self.car.steering = steering
 
         return valid
     def calcThrottle(self,ax):

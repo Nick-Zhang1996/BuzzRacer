@@ -1,0 +1,8 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>full</track>
+
+</config>

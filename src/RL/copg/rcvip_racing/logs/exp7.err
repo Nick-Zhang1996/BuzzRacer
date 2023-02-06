@@ -1,0 +1,5 @@
+Unable to init server: Could not connect: Connection refused
+Unable to init server: Could not connect: Connection refused
+
+(copg_rcvip.py:972208): Gdk-CRITICAL **: 07:39:41.916: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
+2022-11-25 07:39:42.253943: I tensorflow/stream_executor/platform/default/dso_loader.cc:49] Successfully opened dynamic library libcudart.so.11.0

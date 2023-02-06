@@ -13,11 +13,11 @@ class CollisionChecker(Extension):
     def update(self):
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
-            if (self.main.track.isInObstacle(car.states)):
-                #self.print_info('collision with obstacle')
+            if (self.main.track.isInObstacle(car.states)[0]):
+                self.print_info('collision with obstacle')
                 self.collision_count[i] += 1
                 car.in_collision = True
-                #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
+                #print_ok(self.prefix(), "collision = %d"%(self.collision_count[i]))
             else:
                 car.in_collision = False
             try:
@@ -31,10 +31,11 @@ class CollisionChecker(Extension):
         total_vec = []
         mean_vec = []
         for i in range(len(self.main.cars)):
-            total = np.sum(self.collision_by_lap_vec[i])
-            mean = np.mean(self.collision_by_lap_vec[i])
+            total = np.sum(self.collision_by_lap_vec[i][1:])
+            mean = np.mean(self.collision_by_lap_vec[i][1:])
             total_vec.append(total)
             mean_vec.append(mean)
             self.print_info("car %d, total obstacle collision = %d, mean = %.2f"%(i,total, mean))
         self.main.car_total_collisions = total_vec
+
 

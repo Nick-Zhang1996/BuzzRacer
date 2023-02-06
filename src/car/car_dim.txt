@@ -1,0 +1,2 @@
+dnano: 1/43 wb: 0.033+0.029, width:0.03, length:0.06
+miniz: 1/28 wb: 0.086 width(calculated) 0.0461

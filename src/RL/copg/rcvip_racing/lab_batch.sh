@@ -1,0 +1,9 @@
+python gda_rcvip.py exp_configs/exp25.json 1>logs/exp25.log 2>logs/exp25.err
+python gda_rcvip.py exp_configs/exp26.json 1>logs/exp26.log 2>logs/exp26.err
+python gda_rcvip.py exp_configs/exp27.json 1>logs/exp27.log 2>logs/exp27.err
+python gda_rcvip.py exp_configs/exp28.json 1>logs/exp28.log 2>logs/exp28.err
+python gda_rcvip.py exp_configs/exp29.json 1>logs/exp29.log 2>logs/exp29.err
+python gda_rcvip.py exp_configs/exp30.json 1>logs/exp30.log 2>logs/exp30.err
+python gda_rcvip.py exp_configs/exp31.json 1>logs/exp31.log 2>logs/exp31.err
+python gda_rcvip.py exp_configs/exp32.json 1>logs/exp32.log 2>logs/exp32.err
+python gda_rcvip.py exp_configs/exp33.json 1>logs/exp33.log 2>logs/exp33.err

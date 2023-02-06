@@ -1,7 +1,7 @@
 from common import *
 import serial
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
-class Car:
+class Car(PrintObject):
     car_count = 0
     cars = []
     # initialization for variables common to all subclass
@@ -36,15 +36,6 @@ class Car:
         val = val if val > -self.max_steering_right else -self.max_steering_right
         self._steering = val
 
-    # parameter initialization, this will run immediately after self.params is set
-    # put all parameters here. 
-    def initParam(self):
-        self.wheelbase = self.params['wheelbase']
-        self.max_throttle = self.params['max_throttle']
-        self.max_steering_left = self.params['max_steer_angle_left']
-        self.max_steering_right = self.params['max_steer_angle_right']
-        self.max_throttle = self.params['max_throttle']
-        self.optitrack_id = self.params['optitrack_streaming_id']
 
     # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
     # have concluded
@@ -92,9 +83,15 @@ class Car:
 
         config_controller = config.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[0].firstChild.nodeValue
-        init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
+
+        try:
+            init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
+            init_states = eval(init_states_text)
+        except IndexError:
+            print_warning('Car: no initial state specified')
+            init_states = (0,0,0,0)
+
         config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
-        init_states = eval(init_states_text)
         exec('from controller import '+controller_class_text)
         controller = eval(controller_class_text)
         config_name = config_name
@@ -112,6 +109,7 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
+                         'width' : 0.0461,
                          #'optitrack_streaming_id' : 998,
                          'max_throttle' : 1.0,
                          'rendering' : 'data/porsche_orange.png'}
@@ -124,6 +122,7 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
+                         'width' : 0.0461,
                          'max_throttle' : 1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
@@ -134,7 +133,12 @@ class Car:
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
                          'optitrack_streaming_id' : 15,
+                         'width' : 0.0461,
                          'max_throttle' : 1.0,
+                         'rendering' : 'data/porsche_green.png'}
+
+        orca = {          'wheelbase':0.029+0.033,
+                         'width' : 0.03,
                          'rendering' : 'data/porsche_green.png'}
 
         # TODO render audi
@@ -144,6 +148,7 @@ class Car:
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
                          'max_throttle' : 1.0,
+                         'width' : 0.0461,
                          'rendering' : 'data/porsche_green.png'}
 
         audi_12 = {'wheelbase':98e-3,
@@ -152,6 +157,7 @@ class Car:
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
                          'max_throttle' : 1.0,
+                         'width' : 0.0461,
                          'rendering' : 'data/porsche_green.png'}
 
         car.params = eval(config_name)
@@ -159,28 +165,6 @@ class Car:
 
         if not controller is None:
             car.controller = controller(car,config_controller)
-
-        # default physics properties
-        # used when a specific car subclass is not speciied
-        car.L = 0.09
-        car.lf = 0.04824
-        car.lr = car.L - car.lf
-
-        car.Iz = 417757e-9
-        car.m = 0.1667
-
-        # ethCarsim moved for ccmppi
-
-        # tire model
-        car.Df = 3.93731
-        car.Dr = 6.23597
-        car.C = 2.80646
-        car.B = 0.51943
-        # motor/longitudinal model
-        car.Cm1 = 6.03154
-        car.Cm2 = 0.96769
-        car.Cr = -0.20375
-        car.Cd = 0.00000
 
         # ----
         car.initParam()
