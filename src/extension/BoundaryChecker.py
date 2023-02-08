@@ -59,6 +59,7 @@ class BoundaryChecker(Extension):
 
         raceline_to_point_angle = np.arctan2(dy,dx)
         heading_diff = np.mod(raceline_to_point_angle - ref_heading[idx] + np.pi, 2*np.pi) - np.pi
+        #margin = 0.05
         margin = 0.05
         if (heading_diff > 0):
             out = dist + margin > left_bdry[idx]

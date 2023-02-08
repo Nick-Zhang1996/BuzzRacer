@@ -6,31 +6,45 @@ from planner import Planner
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
-        super().__init__(car,config)
-        self.debug_dict = {}
+        # defaults for configurable parameters
+        # NOTE these will be overridden
         self.max_offset = 0.4
+        self.max_speed = 2.2
+        # load config etc
+        super().__init__(car,config)
+
+
+        self.debug_dict = {}
         p1 = (1.0,2.0)
         p2 = (4.0,0.5)
         self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
         self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
         self.Pfun = lambda v: max(min((self.Pfun_slope*v+self.Pfun_offset),4.0),0.5)/280*pi/0.01
 
-        #speed controller
-        P = 5 # to be more aggressive use 15
-        I = 0.0 #0.1
-        D = 0.4
-        dt = car.main.dt
-        self.throttle_pid = PidController(P,I,D,dt,1,2)
 
-        # to be overridden in config, if defined
-        self.max_speed = 2.2
+        #speed controller
+        #P = 5 # to be more aggressive use 15
+        #I = 0.0 #0.1
+        #D = 0.4
+
+        P = 1.5 # to be more aggressive use 15
+        I = 0.0 #0.1
+        D = 0.005
+        dt = car.main.dt
+        # integral limit, lpf curoff freq
+        #self.throttle_pid = PidController(P,I,D,dt,1,2)
+        self.throttle_pid = PidController(P,I,D,dt,1,1000)
+
+        '''
         self.print_ok("setting controller attributes")
         for key,value_text in config.attributes.items():
             setattr(self,key,eval(value_text))
             self.print_info(" controller.",key,'=',value_text)
+        '''
 
         # if there's planner set it up
         # TODO put this in a parent class constructor
+        self.no_planner_override = True
         try:
             config_planner = config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
@@ -52,11 +66,18 @@ class StanleyCarController(CarController):
     def control(self):
         # TODO do this more carefully
         if (self.planner is not None):
-            self.planner.plan()
+            retval = self.planner.plan()
+            if (retval):
+                self.planner.plotAllSolutions()
+                self.no_planner_override = False
+            else:
+                self.no_planner_override = True
+                self.print_info('planner failed, override')
+
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -100,7 +121,7 @@ class StanleyCarController(CarController):
         ret = (0,0,False,{'offset':0})
 
         # inquire information about desired trajectory close to the vehicle
-        if self.planner is None:
+        if self.planner is None or self.no_planner_override:
             retval = track.localTrajectory(state)
         else:
             retval = self.planner.localTrajectory(state)
@@ -147,12 +168,26 @@ class StanleyCarController(CarController):
 
         return ret
 
+    # get ss throttle, given ss velocity, linearfit
+    def steadyStateThrottle(self,velocity_ss):
+        # 0.25 -> 0.94
+        # 0.28 -> 1.4
+        # 0.31 -> 1.9
+        p = np.array([0.06246385,0.19171776])
+        if (velocity_ss > 0):
+            return velocity_ss * p[0] + p[1]
+        else:
+            return 0
+
+
     # PID controller for forward velocity
     def calcThrottle(self,state,v_target):
         vf = state[3]
-        # PI control for throttle
-        acc_target = self.throttle_pid.control(v_target,vf)
-        throttle = (acc_target + 1.01294228)/4.95445214 
+        # forgot how we got this
+        #throttle = (acc_target + 1.01294228)/4.95445214 
+
+        # PID control for throttle
+        throttle = self.throttle_pid.control(v_target,vf) + self.steadyStateThrottle(v_target)
 
         return max(min(throttle,self.car.max_throttle),-1)
 

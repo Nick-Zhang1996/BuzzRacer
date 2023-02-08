@@ -343,7 +343,8 @@ class QpSmooth(RCPTrack):
     # return:
     # F,R such that r+F*n and r-R*n are boundaries of the track
     # F,R will be bounded by delta_max
-    def checkTrackBoundary(self,coord,n,delta_max):
+    # margin: leave a safety margin and report track boundary early, in mm
+    def checkTrackBoundary(self,coord,n,delta_max,margin=-30):
         # since we use 1/sin and 1/cos
         # if n[0]or n[1] = 0, then there's numerical instability
         # we use a dirty workaround that when they're too small we force them to be radians(0.1)
@@ -369,7 +370,8 @@ class QpSmooth(RCPTrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        deadzone = 0.087 * 3.5
+        #deadzone = 0.087 * 3.5
+        deadzone = 0.087 * 3.5 + margin*1e-3
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:
