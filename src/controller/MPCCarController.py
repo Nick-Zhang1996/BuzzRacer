@@ -104,7 +104,7 @@ class MPCCarController(CarController):
 
         sol=cvxopt.solvers.qp(P_qp, Q_qp)
 
-        print(sol)
+        print(sol["x"])
 
         raise Exception("error")
 

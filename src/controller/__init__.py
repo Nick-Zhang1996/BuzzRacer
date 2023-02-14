@@ -12,3 +12,4 @@ from controller.mppi.MppiCarController import MppiCarController
 from controller.cvar.CvarCarController import CvarCarController
 from controller.CopgCarController import CopgCarController
 from controller.PidCarController import PidCarController
+from controller.MPCCarController import MPCCarController
