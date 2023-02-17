@@ -380,7 +380,8 @@ class QpSmooth(RCPTrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        deadzone = 0.087 * 3.5
+        #deadzone = 0.087 * 3.5
+        deadzone = 0.087 * 2
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
         if grid_type in straights:
@@ -436,6 +437,7 @@ class QpSmooth(RCPTrack):
         return min(F*self.scale,delta_max), min(R*self.scale,delta_max)
 
     # convert raceline to a B spline to reuse old code for velocity generation and localTrajectory, since they expect a spline object
+    # result save at self.raceline
     def convertToSpline(self):
         # sample entire path
         steps = 100
@@ -457,7 +459,8 @@ class QpSmooth(RCPTrack):
         #img_track = super().drawRaceline(img=img_track, points=self.break_pts)
         # do not show break points
         img_track = super().drawRaceline(img=img_track, points=[])
-        plt.imshow(img_track)
+        img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+        plt.imshow(img_track_rgb)
         plt.show()
         return
 
@@ -706,11 +709,7 @@ class QpSmooth(RCPTrack):
         '''
 
     # optimize path and save to pickle file
-    def optimizePath(self):
-        # initialize
-        # prepare the full racetrack
-        self.prepareTrack()
-
+    def optimizePath(self,visualize=False,save_gif=False,max_iter=20,save_steps=False):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
@@ -720,17 +719,13 @@ class QpSmooth(RCPTrack):
         print_info("Had %d break points, resample to %d"%(len(self.break_pts),new_N))
         self.resamplePath(new_N)
 
-        # save a gif of the optimization process
-        self.saveGif = False
-
-        if self.saveGif:
+        if save_gif:
             self.gifimages = []
             #self.gifimages.append(Image.fromarray(cv2.cvtColor(self.img_track.copy(),cv2.COLOR_BGR2RGB)))
 
-        max_iter = 20
         for iter_count in range(max_iter):
 
-            # TODO re-sample break points before every iteration
+            # re-sample reference points before every iteration
             self.resamplePath(new_N)
 
             # generate bezier spline
@@ -740,13 +735,20 @@ class QpSmooth(RCPTrack):
 
             self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
-            # show raceline
             print_ok("iter: %d"%(iter_count,))
-            if self.saveGif:
-                img_track = self.drawTrack()
-                img_track = self.drawRaceline(img=img_track)
-                #plt.imshow(img_track)
-                #plt.show()
+            img_track = self.drawTrack()
+            img_track = self.drawRaceline(img=img_track)
+            if (save_steps):
+                filename = os.path.join(self.save_dir,f'iter{iter_count}.png')
+                cv2.imwrite(filename)
+                print(f'iteration image saved at {filename}')
+
+
+            if (visualize):
+                img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+                plt.imshow(img_track_rgb)
+                plt.show()
+            if (save_gif):
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)))
 
             K, C, Ds = self.curvatureJac()
@@ -800,11 +802,6 @@ class QpSmooth(RCPTrack):
             cvxopt.solvers.options['show_progress'] = False
             sol = cvxopt.solvers.qp(P_qp, q_qp, G, h)
 
-            # DEBUG
-            # verify Gx <= h is not violated
-            #print(sol)
-            #print(sol['x'])
-
             variance = sol['x']
             # verify Gx <= h
             #print("h-GX, should be positive")
@@ -831,7 +828,7 @@ class QpSmooth(RCPTrack):
 
             self.break_pts = perturbed_break_pts
 
-        if self.saveGif:
+        if save_gif:
             print_info("saving gif.. This may take a while")
             self.log_no = 0
             gif_filename = "./qpOpt"+str(self.log_no)+".gif"
@@ -840,21 +837,28 @@ class QpSmooth(RCPTrack):
 
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
-        plt.imshow(img_track)
+        if (self.img_filename is not None):
+            filename = os.path.join(self.save_dir,self.img_filename)
+            cv2.imwrite(filename,img_track)
+            print(f'saved at {filename}')
+
+        img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+        # save 
+        plt.imshow(img_track_rgb)
         plt.show()
 
         self.convertToSpline()
-        self.save()
-
-        file = open('raceline.p', 'wb')
-        pickle.dump(img_track, file)
-        file.close()
-
 
 if __name__ == "__main__":
     # optimize and save
     qp = QpSmooth()
-    val = qp.optimizePath()
+    # prepare the full track
+    #qp.prepareTrack()
+    track_size = (6,4)
+    qp.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
+    qp.initRaceline((3,3),'d',10,offset=None)
+    qp.optimizePath()
+    qp.save()
 
     # verify results: load and show
     fulltrack = RCPTrack()
@@ -863,5 +867,6 @@ if __name__ == "__main__":
     fulltrack.load()
     img_track = fulltrack.drawTrack()
     img_track = fulltrack.drawRaceline(img=img_track,points=[])
+    img_track = cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB)
     plt.imshow(img_track)
     plt.show()

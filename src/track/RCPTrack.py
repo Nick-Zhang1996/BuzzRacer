@@ -24,6 +24,7 @@ steering_vec = []
 sim_omega_vec = []
 sim_log_vec = {}
 
+# one tile in RCPTrack
 class Node:
     def __init__(self, previous=None,entrydir=None):
         # entry direction
@@ -58,22 +59,6 @@ class RCPTrack(Track):
 
         # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline 
         self.last_u = None
-
-    '''
-    # determine if an coordinate is outside of track boundary, used in watchdog
-    def isOutside(self,coord):
-        grace = 1.0
-        x,y = coord
-
-        # vertical, in y direction
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = self.resolution
-
-        return x>cols*self.scale+grace or y>rows*self.scale+grace or x<-grace or y<-grace
-    '''
-
-
 
     def initTrack(self,description, gridsize, scale,savepath=None):
         # build a track and save it
@@ -180,7 +165,10 @@ class RCPTrack(Track):
         rows = self.gridsize[0]
         cols = self.gridsize[1]
         if img is None:
-            img = 255*np.ones([gs*rows,gs*cols,3],dtype='uint8')
+            # white background
+            #img = 255*np.ones([gs*rows,gs*cols,3],dtype='uint8')
+            img = np.zeros([gs*rows,gs*cols,3],dtype='uint8')
+            img[:,:,0] = 255
         lookup_table = {'SE':0,'SW':270,'NE':90,'NW':180}
         for i in range(cols):
             for j in range(rows):
@@ -448,38 +436,11 @@ class RCPTrack(Track):
         # prepare full track
         track_size = (6,4)
         self.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
-        # add manual offset for each control points
-        adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-
-        adjustment[0] = -0.2
-        adjustment[1] = -0.2
-        #bottom right turn
-        adjustment[2] = -0.2
-        adjustment[3] = 0.5
-        adjustment[4] = -0.2
-
-        #bottom middle turn
-        adjustment[6] = -0.2
-
-        #bottom left turn
-        adjustment[9] = -0.2
-
-        # left L turn
-        adjustment[12] = 0.5
-        adjustment[13] = 0.5
-
-        adjustment[15] = -0.5
-        adjustment[16] = 0.5
-        adjustment[18] = 0.5
-
-        adjustment[21] = 0.35
-        adjustment[22] = 0.35
 
         # start coord, direction, sequence number of origin
         # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
         # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-        #self.initRaceline((3,3),'d',10,offset=adjustment)
-        self.initRaceline((3,3),'d',10)
+        self.initRaceline((3,3),'d',10,offset=None)
         return
 
     # save raceline to pickle file
