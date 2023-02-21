@@ -4,6 +4,7 @@ from PidController import PidController
 import numpy as np
 from time import time
 import cvxopt
+import math
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
@@ -17,11 +18,11 @@ class MPCCarController(CarController):
         self.dt = self.look_ahead / self.N
         
         # dim of state
-        self.n = 3
-        # dim of action
-        self.m = 1
+        # distance along track, perpendicular distance from track, heading error from track (backwards - so positive value means its pointed to the right), v_x, v_y (velocities relative to current heading), r (rate of rotation), current steering (rad), current throttle [-1,1]
+        self.n = 9 #also have the last state just be one
+
         # dim of output y
-        self.l = 1 #throttle , steering
+        self.l = 1 #derivative of steering, derivative of throttle
         # prediction horizon
         self.p = self.N
         # last applied control command, used for smoothing constrain
@@ -29,7 +30,84 @@ class MPCCarController(CarController):
 
         self.generate_system_matrices()
 
-    def generate_system_matrices(self):
+        self.MPC_STATE_INDICES = {
+            "s": 0,
+            "n": 1,
+            "u": 2,
+            "vx": 3,
+            "vy": 4,
+            "r": 5,
+            "ds": 6,
+            "dt": 7,
+            "one": 8
+        }
+
+        self.mass = 1
+        self.moment_of_inertia = 5
+
+        self.lf = 5
+        self.lr = 5.5
+
+    # TODO: give curvature (kappa) of track given distance from start (s)
+    def track_curvature(self, s):
+        return 0
+    
+    # simplified pacejka
+    def tire_func(self, a):
+        B = 1.1
+        C = 1.6
+        D = 2.3
+
+        return D * math.sin(C * math.atan(B * a))
+
+
+    def getA(self, ref_state):
+        i = self.MPC_STATE_INDICES
+
+        A = np.eye(self.n, self.n)
+
+        dt = self.dt
+        mass = self.mass
+        i_z = self.moment_of_inertia
+        g = 9.81
+
+        # NOTE: If I have A[i.x][i.y] = c, this means that every step, x = ... + cy
+
+        A[i.s][i.vx] = dt * math.cos(ref_state[i.u]) / (1 - ref_state[i.n] * self.track_curvature(ref_state[i.s]))
+        A[i.s][i.vy] = -dt * math.sin(ref_state[i.u]) / (1 - ref_state[i.n] * self.track_curvature(ref_state[i.s]))
+
+        A[i.n][i.vx] = dt * math.sin(ref_state[i.u])
+        A[i.n][i.vy] = dt * math.cos(ref_state[i.u])
+
+        v = np.array([ref_state[i.vx], ref_state[i.vy]])
+        steering_forward = np.array([math.cos(ref_state[i.ds]), math.sin(ref_state[i.ds])])
+
+        alpha_f = math.acos(np.dot(v, steering_forward) / math.sqrt(np.dot(v, v)))
+        alpha_r = math.atan2(ref_state(i.vy), ref_state(i.vx))
+
+        F_fy = self.tire_func(alpha_f) * mass * g * (self.lr / (self.lr + self.lf))
+        F_ry = 1.15 * self.tire_func(alpha_r) * mass * g * (self.lr / (self.lr + self.lf))
+
+        w = 0 #TODO: figure out what w (omega) is
+
+        A[i.u][i.dt] = dt * 6.17 / mass
+        A[i.u][i.vy] = dt * -6.17 / (15.2 * mass) + dt * w
+        A[i.u][i.one] = (dt / mass) * (-6.17/3 - F_fy * math.sin(ref_state[i.ds]))
+        
+        A[i.vy][i.one] = (dt / mass) * (F_ry + F_fy * math.cos(ref_state[i.ds]))
+        A[i.vy][i.vx] = -dt * w
+
+        A[i.r][i.one] = (dt / i_z) * (F_fy * self.lf * math.cos(ref_state[i.ds]) - F_fy * self.lr)
+
+        A[i.vx][i.dt] = (dt / mass) * 6.17
+        A[i.vx][i.vx] = -(dt / mass) * 6.17 / 15.2
+        A[i.vx][i.one] = (dt / mass) * 6.17 / 3
+        
+
+        return A
+
+
+    def generate_system_matrices(self, x0):
         dt = self.dt
                 
         # state transition matrix
@@ -37,7 +115,7 @@ class MPCCarController(CarController):
         self.A[0,2] = dt
 
         # control transition matrix
-        self.B = np.array([[0,1,0]]).T*dt
+        self.B = np.array([[0,1,0], [0,0,0]]).T*dt
 
         self.E = np.block([[np.linalg.matrix_power(self.A, k+1)] for k in range(self.N)])
 
@@ -75,6 +153,8 @@ class MPCCarController(CarController):
 
         # initial state
         x0 = np.atleast_2d(np.array([0, heading - orientation, v_forward])).T
+
+        self.generate_system_matrices(x0)
 
         #print("x0", x0)
         #print("A", self.A)
