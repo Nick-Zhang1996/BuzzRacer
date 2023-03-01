@@ -1,6 +1,4 @@
-# import cv2
-import pygame
-from pygame.locals import *
+import cv2
 from time import sleep,time
 from common import *
 from extension.Extension import Extension
@@ -9,10 +7,6 @@ import pickle
 import matplotlib.pyplot as plt
 from math import degrees,radians
 from PIL import Image
-from xml.dom.minidom import parseString
-
-from track import TrackFactory
-
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
@@ -27,7 +21,7 @@ class Visualization(Extension):
         self.track = self.main.track
 
     def final(self):
-        pygame.quit()
+        cv2.destroyAllWindows()
 
     def init(self,):
         self.visualization_ts = time()
@@ -35,48 +29,24 @@ class Visualization(Extension):
         self.img_blank_track = self.img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plotObstacles(self.img_track.copy())
         self.img_track = self.main.track.drawRaceline(img=self.img_track)
-        
-        pygame.init()
 
-        config = parseString('<track>full</track>')
-        config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(self,config_track)
-        self.img_track = self.track.drawTrack()
-        self.img_blank_track = self.img_track.copy()
-        self.img_track_raceline = self.track.drawRaceline(img=self.img_track)
-        self.background = pygame.surfarray.make_surface(self.img_track_raceline[:,:,::-1])
-        self.background = pygame.transform.flip(self.background, False, True)
-        self.background = pygame.transform.rotate(self.background, -90)
-        self.screen = pygame.display.set_mode(self.background.get_size(), pygame.SCALED)
-        self.screen.blit(self.background, (0,0))
-
-        self.background = self.background.convert()
 
         img = self.img_track.copy()
         for car in self.main.cars:
-
-            
-            self.drawCar(img, car)
-            pygame.display.flip()
+            car.image = cv2.imread(car.params['rendering'],-1)
+            img = self.drawCar(img, car)
 
         # draw static components onto background
-        
-#        # FIXME
-#        self.visualization_img = img
-##        cv2.imshow('experiment',img)
-##        cv2.waitKey(200)
-#        pygame.display.set_caption('experiment')
-#        screen = pygame.display.set_mode((img.shape[1], img.shape[0]))
-#        surface = pygame.surfarray.make_surface(img)
-#        screen.blit(surface, (0,0))
-#        pygame.display.flip()
-#        pygame.time.wait(200)
-
-
+        self.img_track = self.drawControlStaticForAllCars(self.img_track)
+        # FIXME
+        self.visualization_img = img
+        cv2.imshow('experiment',img)
+        cv2.waitKey(200)
 
 
     def postInit(self,):
         self.saveBlankImg()
+
 
     def saveBlankImg(self):
         #img = self.img_blank_track.copy()
@@ -99,29 +69,27 @@ class Visualization(Extension):
         if (self.update_visualization.is_set()):
             self.update_visualization.clear()
             self.visualization_ts = time()
+            cv2.imshow('experiment',self.visualization_img)
 
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    # q for quit
-                    if event.key == pygame.K_q:
-                        # first time q is pressed, slow down
-                        if not self.main.slowdown.isSet():
-                            print_ok("slowing down, press q again to shutdown")
-                            self.main.slowdown.set()
-                            self.main.slowdown_ts = time()
-                        else:
-                            # second time, shut down
-                            self.main.exit_request.set()
-                    # p for pause
-                    elif event.key == pygame.K_p:
-                        self.print_info("Paused")
-                        input("press Enter to continue")
-                    # s for snapshot
-                    elif event.key == pygame.K_s:
-                        self.print_info("Requesting snapshot")
-                        self.main.snapshot.takeSnapshot()
+            k = cv2.waitKey(1) & 0xFF
+            # q for quit
+            if k == ord('q'):
+                # first time q is presed, slow down
+                if not self.main.slowdown.isSet():
+                    print_ok("slowing down, press q again to shutdown")
+                    self.main.slowdown.set()
+                    self.main.slowdown_ts = time()
+                else:
+                    # second time, shut down
+                    self.main.exit_request.set()
+            # p for pause
+            elif k == ord('p'):
+                self.print_info("Paused")
+                input("press Enter to continue")
+            # s for snapshot
+            elif k == ord('s'):
+                self.print_info("Requesting snapshot")
+                self.main.snapshot.takeSnapshot()
 
 
     def preUpdate(self,):
@@ -129,18 +97,14 @@ class Visualization(Extension):
         #print_info(self.prefix(), "preupdate %.1f"%(time()-self.visualization_ts))
         if (time()-self.visualization_ts > self.frame_dt):
             self.update_visualization.set()
-        
+
         if (self.update_visualization.is_set()):
             img = self.img_track.copy()
             for car in self.main.cars:
-                self.drawCar(img, car)
-                
-            self.drawControlStaticForAllCars(self.img_track)
-            self.drawControlForAllCars(img)
-            self.track.plotObstacles(img)
-            
-            pygame.display.flip()
-            
+                img = self.drawCar(img, car)
+            img = self.drawControlForAllCars(img)
+            img = self.track.plotObstacles(img)
+            self.visualization_img = img
 
 
     def final(self):
@@ -159,36 +123,23 @@ class Visualization(Extension):
         for car in self.main.cars:
             img = self.drawControlStatic(img, car, (-10,offset))
             offset += 60
-
+        self.img_track = img
+        return img
 
     def drawControlStatic(self,img,car,coord):
         # draw car illustration
-        x2 = coord[0] + 3.5
-        y2 = coord[1] + 20
-        #self.overlayCarRenderingRaw(img,car, (x2,y2))
-        
-        
-        image = pygame.image.load(car.params['rendering']).convert_alpha()
-            
-        size = image.get_size()
-        scale = 40.0/size[1]/200.0*self.track.resolution/0.0461*size[0]
-        scale /= 10000
-        scale *= 0.65
-        size = (size[0] * scale, size[1] * scale)
-        image = pygame.transform.scale(image, size)
-        
-        image = pygame.transform.rotate(image, degrees(np.pi/2))
-   
-        self.screen.blit(image, (x2,y2))
-       
+        x2 = coord[0] + 20
+        y2 = coord[1] + 50
+        img = self.overlayCarRenderingRaw(img,car, (x2,y2))
+        return img
 
     def drawControlForAllCars(self,img):
         offset = -10
         for car in self.main.cars:
             #img = self.drawAcceleration(img, car, (0,0))
-            self.drawControl(img, car, (-10,offset))
+            img = self.drawControl(img, car, (-10,offset))
             offset += 60
-        
+        return img
 
     def drawControl(self,img,car,coord):
         # FIXME move static stuff to background since it doesn't change
@@ -199,27 +150,20 @@ class Visualization(Extension):
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
         steering = car.steering
         throttle = car.throttle
-        pygame.font.init()
         # Add steering bar
-
-        pygame.draw.rect(self.screen, (0, 0, 255), pygame.Rect(x1 + 4, y1 + 25, 96, 15), 1)
-        end_coordinate = int(50 - (steering * 100))
-        pygame.draw.rect(self.screen, (0, 255, 0), pygame.Rect(x1 + 4, y1 + 25, end_coordinate, 15))
-        font = pygame.font.SysFont(None, 20)
-        text = font.render('Steering', True, (0, 0, 0))
-        self.screen.blit(text, (x1 + 104, y1 + 25))
+        img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
+        end_coordinate = int(50 - (steering * 100))              
+        img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
+        img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         
         # Add Throttle bar
-
-        pygame.draw.rect(self.screen, (0, 0, 255), pygame.Rect(x1 + 4, y1 + 45, 96, 15), 1)
-        font = pygame.font.SysFont(None, 20)
-        text = font.render('Throttle', True, (0, 0, 0))
-        self.screen.blit(text, (x1 + 104, y1 + 45))
-        throttle_end = int(50 + (72 * throttle))
-        pygame.draw.rect(self.screen, (0, 255, 0), pygame.Rect(x1 + 4, y1 + 45, throttle_end, 15))
+        img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        throttle_end = int(50+(72*throttle))
+        img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
 
         
-        
+        return img
 
     def drawAcceleration(self,img,car,coord):
         #x1 and y1 are the origin values -- need to be changed if origin changes
@@ -230,9 +174,9 @@ class Visualization(Extension):
         throttle = car.throttle
 
         # Add acceleration bar
-        pygame.draw.circle(self.screen, (0, 0, 255), (x1 + 50, y1 + 80), 18, 1)
-        pygame.draw.rect(self.screen, (255, 0, 0), (x1 + 104, y1 + 80, 80, 20))
-        
+        img = cv2.circle(img, (x1 + 50, y1 + 80), 18, (0, 0, 255), 1)
+        img = cv2.putText(img, 'Acceleration', (x1 + 104, y1 + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        #img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
         acc_x = ((np.square(vf_lf) - np.square(vs_lf)/(2*x)))
         acc_y = ((np.square(vf_lf) - np.square(vs_lf)/(2*y)))
         acc_x_scale = int(acc_x/3)
@@ -249,9 +193,8 @@ class Visualization(Extension):
             direction_x = (x1 + (50 - (6 * acc_x_scale)))
             direction_y = (y1 + (80 + (6 * acc_y_scale))) 
 
-
-        pygame.draw.circle(self.screen, (0, 255, 0), (direction_x, direction_y), 3, -1)
-        
+        img = cv2.circle(img, (direction_x, direction_y), 3, (0, 255, 0), -1)
+        return img
 
 # draw the vehicle (one dot with two lines) onto a canvas
 # coord: location of the dor, in meter (x,y)
@@ -266,18 +209,17 @@ class Visualization(Extension):
         src = self.main.track.m2canvas(coord)
         if src is None:
             #print("Can't draw car -- outside track")
-            return
-
+            return img
         # overlay vehicle image, orientation as headed
         # significant performance impact
         if (self.car_graphics):
-            self.overlayCarRendering(img,car)
+            img =  self.overlayCarRendering(img,car)
         else:
             # draw vehicle, orientation as black arrow
             img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
             # draw steering angle, orientation as red arrow
             img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
-
+        return img
     
     def overlayCarRendering(self,img, car):
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
@@ -285,8 +227,8 @@ class Visualization(Extension):
         src = self.main.track.m2canvas(coord)
         if (src is None):
             print("overlayCarRendering err -- coordinate outside canvas")
-            
-        self.overlayCarRenderingRaw(img,car,src,heading)
+            return img
+        return self.overlayCarRenderingRaw(img,car,src,heading)
 
     # TODO optimize this
     # overlay Car rendering at specified location in pixel coord, for plotting controls
@@ -300,26 +242,21 @@ class Visualization(Extension):
 
         # image rotation according to heading and steering angles
         #heading = np.pi/2
+        height, width = car.image.shape[:2]
+        center = (width/2, height/2)
+        # dynamic scale
+        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.width 
+        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=degrees(angle), scale=scale)
+        rotated_car = cv2.warpAffine(src=car.image, M=rotate_matrix, dsize=(width, height)) 
+        overlay_t = Image.fromarray(cv2.cvtColor(rotated_car, cv2.COLOR_BGRA2RGBA))
+        bg_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        bg_img = Image.alpha_composite(Image.new("RGBA", bg_img.size),bg_img.convert('RGBA'))
+        x, y = (src[0]-width//2), (src[1]-height//2)
 
-        x,y,heading, vf_lf, vs_lf, omega_lf = car.states
-        coord = (x,y)
-        image = pygame.image.load(car.params['rendering']).convert_alpha()
-            
-        size = image.get_size()
-        scale = 40.0/size[1]/200.0*self.track.resolution/0.0461*size[0]
-        scale /= 10000
-        size = (size[0] * scale, size[1] * scale)
-        image = pygame.transform.scale(image, size)
-            
-        image = pygame.transform.rotate(image, degrees(angle))
-        car_rect = image.get_rect()
-        car_rect.center = self.track.m2canvas(coord)
+        bg_img.paste(overlay_t,(x,y),overlay_t)
+        bg_img = np.array(bg_img,dtype=np.uint8)
+        bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
         
-        self.screen.blit(self.background, (0,0))
-        self.screen.blit(image, car_rect)
-        
-        
-        
-    
+        return bg_img
 
 
