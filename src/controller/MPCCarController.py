@@ -12,8 +12,8 @@ class MPCCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
 
-        self.N = 10 #30 #horizon
-        self.look_ahead = .1
+        self.N = 20 #30 #horizon
+        self.look_ahead = .5
 
         self.dt = self.look_ahead / self.N
         
@@ -46,6 +46,20 @@ class MPCCarController(CarController):
         
         self.steering = 0
         self.throttle = 0
+
+        p = np.zeros((self.n, self.n))
+
+        p[self.MPC_STATE_INDICES["one"]][self.MPC_STATE_INDICES["one"]] = 0
+        p[self.MPC_STATE_INDICES["ds"]][self.MPC_STATE_INDICES["ds"]] = 0
+        p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
+        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
+        p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
+        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 2
+        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 1 #0.2
+        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 2
+        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 8
+
+        self.p = p
 
         self.u_max = [1, 1]
 
@@ -179,7 +193,8 @@ class MPCCarController(CarController):
 
         #print("E", self.E)#
 
-        #TODO: just make this an array since j always equals zero and cache it so this whole thing isn't O(n^3)
+        B_0k = []
+
         def B_jk(j, k):
             result = np.eye(self.n)
             
@@ -187,27 +202,18 @@ class MPCCarController(CarController):
                 result = result @ A_matrices[i]
             
             return result @ self.B
+        
+        #TODO: compute this more efficiently
+        for i in range(0, self.N):
+            B_0k.append(B_jk(0, i))
                 
 
-        self.F = np.block([[(np.zeros(self.B.shape) if i-j < 0 else B_jk(0, i - j)) for j in range(self.N)] for i in range(self.N)])
+        self.F = np.block([[(np.zeros(self.B.shape) if i-j < 0 else B_0k[i - j]) for j in range(self.N)] for i in range(self.N)])
 
         #print("F", self.F)
 
         # State penalty Matrix
-        p = np.zeros((self.n, self.n))
-
-        p[self.MPC_STATE_INDICES["one"]][self.MPC_STATE_INDICES["one"]] = 0
-
-        # Don't penalize for steering and throttling
-        
-        p[self.MPC_STATE_INDICES["ds"]][self.MPC_STATE_INDICES["ds"]] = 0
-        p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
-        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
-        p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
-        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 0
-        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 1 #0.2
-        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 0
-        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 0.1
+        p = self.p
 
         self.P = np.block([[np.zeros(p.shape) if i != j else p for j in range(self.N)] for i in range(self.N)])
 
@@ -244,7 +250,7 @@ class MPCCarController(CarController):
 
             (x,y,theta,vforward,vsideway,omega) = currState
 
-            v_target *= 1/2
+            v_target *= 0.6
 
             x += - math.cos(orientation + math.pi/2) * offset
             y += - math.sin(orientation + math.pi/2) * offset
@@ -302,7 +308,7 @@ class MPCCarController(CarController):
         elif heading_error < -math.pi:
             heading_error = heading_error + 2 * math.pi
 
-        print("heading error", heading_error)
+        #print("heading error", heading_error)
 
         vx = v_forward * math.cos(heading_error) + v_sideways * math.sin(heading_error)
         vy = v_forward * math.sin(heading_error) + v_sideways * math.cos(heading_error)
