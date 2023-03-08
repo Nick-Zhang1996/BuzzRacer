@@ -22,7 +22,7 @@ class MPCCarController(CarController):
         self.n = 9 #also have the last state just be one
 
         # dim of output y
-        self.l = 1 #derivative of steering, derivative of throttle
+        self.l = 2 #derivative of steering, derivative of throttle
         # prediction horizon
         self.p = self.N
 
@@ -65,6 +65,33 @@ class MPCCarController(CarController):
                       [0,   1e-9]])  #throttle
 
         self.u_max = [1, 1]
+
+        constraint_count = 2
+
+        self.G = np.zeros((constraint_count, self.l)) #Gx <= h (element-wise). x is n x 1, G needs to be q x n, h needs to be q x 1, where q is the number of constraints
+        self.H = np.zeros((constraint_count, 1))
+
+        maxDs = self.dt * 30
+
+        # ds/dt < 1
+        self.G[0][0] = 1
+        self.H[0][0] = maxDs
+
+        # -ds/dt < 1
+        self.G[1][0] = -1
+        self.H[1][0] = maxDs
+
+        # repeat constraint for every timestep
+
+        self.G = np.block([[(self.G if i == j else np.zeros(self.G.shape)) for j in range(0, self.N)] for i in range(0, self.N)])
+        self.H = np.block([[self.H] for i in range(0, self.N)])
+
+        print("G", self.G)
+        print("H", self.H)
+        
+        print("G size", self.G.shape)
+        print("H size", self.H.shape)
+
 
         np.set_printoptions(linewidth=400)
 
@@ -147,10 +174,10 @@ class MPCCarController(CarController):
         #A[i["r"]][i["one"]] = (dt / i_z) * (F_fy * self.lf * math.cos(ref_state[i["ds"]]) - F_ry * self.lr)
         #linearize, assume that sin(x) = x
         
-        #A[i["r"]][i["ds"]] = (dt / i_z) * F_fy * self.lf
+        #A[i["r"]][i["ds"]] = -(dt / i_z) * F_fy * self.lf
         #A[i["r"]][i["one"]] = (dt / i_z) * (F_fy * self.lf * (3 * math.pi / 2) - F_ry * self.lr)
         A[i["r"]][i["ds"]] = 0.01 * dt / i_z
-
+#
         A[i["vx"]][i["dt"]] = (dt / mass) * 6.17
         A[i["vx"]][i["vx"]] = -(dt / mass) * 6.17 / 15.2        
         A[i["vx"]][i["one"]] = -(dt) * 6.17 / 3
@@ -388,13 +415,16 @@ class MPCCarController(CarController):
         P_qp = cvxopt.matrix(2 * p)
         Q_qp = cvxopt.matrix(q.T)
 
+        G_qp = cvxopt.matrix(self.G)
+        H_qp = cvxopt.matrix(self.H)
+
         u_max = np.atleast_2d(np.array(self.u_max * self.N)).T
 
         #print(u_max)
 
         #raise Exception("lol")
 
-        sol=cvxopt.solvers.qp(P_qp, Q_qp)
+        sol=cvxopt.solvers.qp(P_qp, Q_qp, G_qp, H_qp)
 
         sol_x = np.array(sol["x"])
 
@@ -413,7 +443,7 @@ class MPCCarController(CarController):
         self.steering += solved_ds * self.dt
         self.throttle += solved_dt * self.dt
 
-        print("S", self.steering)
+        #print("S", self.steering)
 
         #print(self.steering, self.throttle)
 
