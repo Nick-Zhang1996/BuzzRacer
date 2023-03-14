@@ -52,12 +52,12 @@ class MPCCarController(CarController):
         p[self.MPC_STATE_INDICES["one"]][self.MPC_STATE_INDICES["one"]] = 0
         p[self.MPC_STATE_INDICES["ds"]][self.MPC_STATE_INDICES["ds"]] = 0
         p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
-        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
+        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0.001
         p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
         p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 0
-        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 1
-        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 3
-        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 5
+        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = .5
+        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 10
+        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 10
 
         self.p = p
 
@@ -227,7 +227,7 @@ class MPCCarController(CarController):
 
         newState[i["s"]] += s_dot * dt
         newState[i["n"]] += (vx * math.sin(u) + vy * math.cos(u)) * dt
-        newState[i["u"]] += (r - curvature * s_dot * vx_dot) * dt
+        newState[i["u"]] += -(r - curvature * s_dot * vx_dot) * dt
         newState[i["vx"]] += vx_dot * dt
         newState[i["vy"]] += (1 / m) * (F_ry + F_fy * math.cos(ds) - m * vx * w) * dt
         newState[i["r"]] += (1 / self.moment_of_inertia) * (F_fy * self.lf * math.cos(ds) - F_ry * self.lr) * dt
@@ -334,8 +334,13 @@ class MPCCarController(CarController):
         ds = 0
         dt = 0
 
+        first_v_target = None
+
         for i in range(0, self.N):
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
+
+            if first_v_target is None:
+                first_v_target = v_target
 
             solved_dds = 0
             solved_ddt = 0
@@ -358,22 +363,17 @@ class MPCCarController(CarController):
             oldX = x
             oldY = y
         
-            correction = 1
+            correction = .5
             
             x += - math.cos(orientation + math.pi/2) * offset * correction
             y += - math.sin(orientation + math.pi/2) * offset * correction
             
 
-            x += math.cos(theta) * v_target * self.dt
-            y += math.sin(theta) * v_target * self.dt
+            #x += math.cos(theta) * v_target * self.dt
+            #y += math.sin(theta) * v_target * self.dt
             
             #print("ref pos", x, y)
-
-            dp = math.sqrt((oldX - x) * (oldX - x) + (oldY - y) * (oldY - y))
-
-            distance_along += dp
-            goal_distance_along += dp
-
+            
             # ["s", "n", "u", "vx", "vy", "r", "ds", "dt", "one"]
 
             ref_state = np.array([
@@ -381,16 +381,27 @@ class MPCCarController(CarController):
                 distance_along, offset, self.heading_error(theta, orientation), vforward, vsideway, omega, ds, dt, 1
             ])
 
+            dp = math.sqrt((oldX - x) * (oldX - x) + (oldY - y) * (oldY - y))
+
+            distance_along += dp
+            goal_distance_along += dp
+
             ref_trajectory.append(ref_state)
             ref_trajectory_curvature.append(curvature)
 
-            goal_state = np.array([
-                goal_distance_along, 0, 0, v_target, 0, 0, 0, 0, 1
-            ])
+            new_curvilinear_state = self.nonlinear_curv_dynamics(ref_state, curvature)
 
-            goal_trajectory.append(goal_state)
+            theta = orientation - new_curvilinear_state[self.MPC_STATE_INDICES["u"]]
+
+            x += math.cos(theta) * new_curvilinear_state[self.MPC_STATE_INDICES["vx"]] * self.dt
+            y += math.sin(theta) * new_curvilinear_state[self.MPC_STATE_INDICES["vx"]] * self.dt
 
             currState = (x,y,theta,v_target,vsideway,omega)
+
+        for i in range(0, self.N):
+            goal_trajectory.append(np.array([
+                (i + 1) * first_v_target * self.dt, 0, 0, first_v_target, 0, 0, 0, 0, 1
+            ]))
 
         #ref_trajectory = np.atleast_2d(np.block(ref_trajectory)).T
         #goal_trajectory = np.atleast_2d(np.block(goal_trajectory)).T
@@ -398,12 +409,7 @@ class MPCCarController(CarController):
         return (ref_trajectory, goal_trajectory, ref_trajectory_curvature)
     
     def heading_error(self, heading, orientation):
-        heading_error = heading - orientation
-
-        if (heading_error > math.pi):
-            heading_error = heading_error - 2 * math.pi
-        elif heading_error < -math.pi:
-            heading_error = heading_error + 2 * math.pi
+        heading_error = (heading - orientation + math.pi) % (2 * math.pi) - math.pi
 
         return heading_error
 
