@@ -12,8 +12,8 @@ class MPCCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
 
-        self.N = 3 #30 #horizon
-        self.look_ahead = 0.2
+        self.N = 5 #30 #horizon
+        self.look_ahead = 0.5
 
         self.dt = self.look_ahead / self.N
         
@@ -52,12 +52,12 @@ class MPCCarController(CarController):
         p[self.MPC_STATE_INDICES["one"]][self.MPC_STATE_INDICES["one"]] = 0
         p[self.MPC_STATE_INDICES["ds"]][self.MPC_STATE_INDICES["ds"]] = 0
         p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
-        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0.001
+        p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
         p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
         p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 0
-        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = .5
+        p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = .25
         p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 10
-        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 10
+        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 7
 
         self.p = p
 
@@ -71,23 +71,24 @@ class MPCCarController(CarController):
         self.G = np.zeros((constraint_count, self.l)) #Gx <= h (element-wise). x is n x 1, G needs to be q x n, h needs to be q x 1, where q is the number of constraints
         self.H = np.zeros((constraint_count, 1))
 
-        maxInput = self.dt * 10
+        maxSteeringInput = self.dt * 10
+        maxThrottleInput = self.dt * 20
 
         # ds/dt < 1
-        self.G[0][1] = 1
-        self.H[0][0] = maxInput
+        self.G[0][0] = 1
+        self.H[0][0] = maxSteeringInput
 
         # -ds/dt < 1
-        self.G[1][1] = -1
-        self.H[1][0] = maxInput
+        self.G[1][0] = -1
+        self.H[1][0] = maxSteeringInput
 
         #dT/dt < 1
-        self.G[2][0] = 1
-        self.H[2][0] = maxInput
+        self.G[2][1] = 1
+        self.H[2][0] = maxThrottleInput
 
         # -dT/dt < 1
-        self.G[3][0] = -1
-        self.H[3][0] = maxInput
+        self.G[3][1] = -1
+        self.H[3][0] = maxThrottleInput
 
         # repeat constraint for every timestep
 
@@ -398,10 +399,35 @@ class MPCCarController(CarController):
 
             currState = (x,y,theta,v_target,vsideway,omega)
 
+        currState = self.car.states
+
+        goal_distance_along = 0
+
         for i in range(0, self.N):
+            (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
+
+            (x,y,theta,vforward,vsideway,omega) = currState
+
+            v_target *= 1
+            
+            oldX = x
+            oldY = y
+        
+            correction = 1
+            
+            x += - math.cos(orientation + math.pi/2) * offset * correction
+            y += - math.sin(orientation + math.pi/2) * offset * correction
+            
+            x += math.cos(theta) * v_target * self.dt
+            y += math.sin(theta) * v_target * self.dt
+
+            goal_distance_along += v_target * self.dt
+            
             goal_trajectory.append(np.array([
-                (i + 1) * first_v_target * self.dt, 0, 0, first_v_target, 0, 0, 0, 0, 1
+                goal_distance_along, 0, 0, v_target, 0, 0, 0, 0, 1
             ]))
+
+            currState = (x,y, orientation, v_target, 0, 0)
 
         #ref_trajectory = np.atleast_2d(np.block(ref_trajectory)).T
         #goal_trajectory = np.atleast_2d(np.block(goal_trajectory)).T
