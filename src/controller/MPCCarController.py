@@ -54,10 +54,10 @@ class MPCCarController(CarController):
         p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
         p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
         p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
-        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 0
+        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 1
         p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 0
-        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 3
-        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 4
+        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 1
+        p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 0
 
         self.p = p
 
@@ -144,24 +144,18 @@ class MPCCarController(CarController):
         # NOTE: If I have A[i["x"]][i["y"]] = c, this means that every step, x = ... + cy
         A[i["s"]][i["vx"]] = dt * math.cos(ref_state[i["u"]]) / (1 - ref_state[i["n"]] * curvature)
         A[i["s"]][i["vy"]] = -dt * math.sin(ref_state[i["u"]]) / (1 - ref_state[i["n"]] * curvature)
-
         if abs(ref_state[i["u"]]) < 0.7:
             # sin x ~ x
 
-            A[i["n"]][i["u"]] = dt *ref_state[i["vx"]]
-
+            A[i["n"]][i["u"]] = dt * ref_state[i["vx"]]
         else:
             A[i["n"]][i["vx"]] = dt * math.sin(ref_state[i["u"]])
+        
         A[i["n"]][i["vy"]] = dt * math.cos(ref_state[i["u"]])
 
         v = np.array([ref_state[i["vx"]], ref_state[i["vy"]]])
         
         #print("ref v", v)
-
-        steering_forward = np.array([math.cos(ref_state[i["ds"]]), math.sin(ref_state[i["ds"]])])
-
-        v_mag = math.sqrt(np.dot(v, v))
-
         #-np.arctan((omega*lf + vy)/vx) + steering
 
         w = curvature * ref_state[i["vx"]] + ref_state[i["r"]]
@@ -193,7 +187,7 @@ class MPCCarController(CarController):
         A[i["r"]][i["ds"]] = dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
 
         A[i["vx"]][i["dt"]] = (dt) * 6.17
-        A[i["vx"]][i["vx"]] = -(dt) * 6.17 / 15.2        
+        #A[i["vx"]][i["vx"]] = -(dt) * 6.17 / 15.2        THIS SHOULD BE HERE BUT IT BREAKS IT
         A[i["vx"]][i["one"]] = -(dt) * 6.17 / 3
         
         return A
@@ -228,12 +222,14 @@ class MPCCarController(CarController):
         s_dot = (vx * math.cos(u) - vy * math.sin(u)) / (1 - n * curvature)
         vx_dot = (1 / m) * F_rx #(F_rx - F_fy * math.sin(ds) + m * vy * w)
 
-        newState[i["s"]] += s_dot * dt
-        newState[i["n"]] += (vx * math.sin(u) + vy * math.cos(u)) * dt
-        newState[i["u"]] += (r - curvature * s_dot * vx_dot) * dt
-        newState[i["vx"]] += vx_dot * dt
-        newState[i["vy"]] += (1 / m) * (F_ry + F_fy * math.cos(ds) - m * vx * w) * dt
-        newState[i["r"]] += (1 / self.moment_of_inertia) * (F_fy * self.lf * math.cos(ds) - F_ry * self.lr) * dt
+        newState[i["s"]] = s + s_dot * dt
+        newState[i["n"]] = n + (vx * math.sin(u) + vy * math.cos(u)) * dt
+        newState[i["u"]] = u + (r - curvature * s_dot * vx_dot) * dt
+        newState[i["vx"]] = vx + vx_dot * dt
+        newState[i["vy"]] = vy + (1 / m) * (F_ry + F_fy * math.cos(ds) - m * vx * w) * dt
+        newState[i["r"]] = r + (1 / self.moment_of_inertia) * (F_fy * self.lf * math.cos(ds) - F_ry * self.lr) * dt
+        newState[i["ds"]] = ds
+        newState[i["dt"]] = throttle
 
         newState[i["one"]] = 1
 
@@ -360,12 +356,13 @@ class MPCCarController(CarController):
                 solved_dds = self.last_sol[solved_index][0]
                 solved_ddt = self.last_sol[solved_index + 1][0]
             else:
-                solved_dds = curvature
+                pass
+                #solved_dds = curvature
 
             ds += solved_dds * self.dt
             dt += solved_ddt * self.dt
 
-            #print("ds, dt = ", ds, dt)
+            print("ds, dt = ", ds, dt)
 
             #v_target = 0
             #distance_along = 0
@@ -404,8 +401,8 @@ class MPCCarController(CarController):
 
             #print("orientation", math.degrees(orientation))
             #print("err", heading_error)
-            print("ds", delta_s)
-            print("dn", delta_n)
+            #print("ds", delta_s)
+            #print("dn", delta_n)
             
             x += math.cos(orientation) * delta_s# - math.sin(orientation) * delta_n #double check this w delta_n
             y += math.sin(orientation) * delta_s# + math.cos(orientation) * delta_n #double check this w delta_n
@@ -420,18 +417,13 @@ class MPCCarController(CarController):
 
         currState = self.car.states
 
-        goal_distance_along = 0
+        goal_distance_along = -self.dt
 
         for i in range(0, self.N):
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
 
             (x,y,theta,vforward,vsideway,omega) = currState
-
-            v_target = 1
             
-            oldX = x
-            oldY = y
-        
             correction = 1
             
             x += - math.cos(orientation + math.pi/2) * offset * correction
@@ -575,7 +567,7 @@ class MPCCarController(CarController):
         self.steering += solved_ds * self.dt
         self.throttle += solved_dt * self.dt
 
-        max_throttle = .35
+        max_throttle = 1
 
         self.throttle = min(max(self.throttle, -max_throttle), max_throttle)
 
