@@ -102,6 +102,7 @@ class Visualization(Extension):
             img = self.img_track.copy()
             for car in self.main.cars:
                 img = self.drawCar(img, car)
+
             img = self.drawControlForAllCars(img)
             img = self.track.plotObstacles(img)
             self.visualization_img = img
@@ -219,6 +220,10 @@ class Visualization(Extension):
             img =  self.main.track.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
             # draw steering angle, orientation as red arrow
             img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+
+        if hasattr(car.controller, "draw"):
+            img = car.controller.draw(img)
+        
         return img
     
     def overlayCarRendering(self,img, car):

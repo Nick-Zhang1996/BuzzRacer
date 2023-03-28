@@ -5,6 +5,7 @@ import numpy as np
 from time import time
 import cvxopt
 import math
+import cv2
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
@@ -103,6 +104,8 @@ class MPCCarController(CarController):
 
         self.last_sol = None
         self.last_goal = None
+
+        self.draw_points = []
 
         np.set_printoptions(linewidth=400)
 
@@ -419,6 +422,8 @@ class MPCCarController(CarController):
 
         goal_distance_along = -self.dt
 
+        self.draw_points.clear()
+
         for i in range(0, self.N):
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
 
@@ -440,12 +445,21 @@ class MPCCarController(CarController):
                 goal_distance_along, 0, 0, v_target, 0, 0, 0, 0, 1
             ]))
 
+            self.draw_points.append((x, y))
+
             currState = (x,y, orientation, v_target, 0, 0)
 
         #ref_trajectory = np.atleast_2d(np.block(ref_trajectory)).T
         #goal_trajectory = np.atleast_2d(np.block(goal_trajectory)).T
 
         return (ref_trajectory, goal_trajectory, ref_trajectory_curvature)
+    
+    def draw(self, img):
+        for pt in self.draw_points:
+            pt_adjusted = self.track.m2canvas(pt)            
+            img = cv2.circle(img, pt_adjusted, 5, (255, 0, 0), -1)
+
+        return img
     
     def heading_error(self, heading, orientation):
         heading_error = (heading - orientation + math.pi) % (2 * math.pi) - math.pi
