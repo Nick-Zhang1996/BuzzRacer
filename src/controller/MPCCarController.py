@@ -17,7 +17,7 @@ class MPCCarController(CarController):
 
         self.N = 8 #horizon
         self.look_ahead = 0.2
-        self.v_target_multiplier = 0.9 #0.95 = safe, 1 = aggresive, >1 = spin out
+        self.v_target_multiplier = 0.95 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
         
@@ -614,7 +614,7 @@ class MPCCarController(CarController):
         self.steering += solved_ds * self.dt
         self.throttle += solved_dt * self.dt
 
-        max_throttle = 1
+        max_throttle = 2
 
         self.throttle = min(max(self.throttle, -max_throttle), max_throttle)
 
