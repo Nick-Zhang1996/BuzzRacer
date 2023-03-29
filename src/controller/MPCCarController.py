@@ -428,7 +428,7 @@ class MPCCarController(CarController):
             currState = (x,y,theta + new_curvilinear_state[self.MPC_STATE_INDICES["r"]] * self.dt,
                          new_curvilinear_state[self.MPC_STATE_INDICES["vx"]],0,omega)
             
-        print("reference part of generate_ref_tractory took", time() - start_time)
+        #print("reference part of generate_ref_tractory took", time() - start_time)
         start_time = time()
 
         currState = self.car.states
@@ -467,9 +467,9 @@ class MPCCarController(CarController):
 
         self.draw_points.reverse()
 
-        print("total_localTrajectory_time", total_localTrajectory_time)
+        #print("total_localTrajectory_time", total_localTrajectory_time)
 
-        print("goal part of generate_ref_tractory took", time() - start_time)
+        #print("goal part of generate_ref_tractory took", time() - start_time)
 
         return (ref_trajectory, goal_trajectory, ref_trajectory_curvature)
     
@@ -500,7 +500,7 @@ class MPCCarController(CarController):
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = trajectory
         (x, y, heading, v_forward, v_sideways, omega) = self.car.states
 
-        print("got states took", time() - start_control_time, 1/(time() - start_control_time))
+        #print("got states took", time() - start_control_time, 1/(time() - start_control_time))
 
 
         dt = self.dt
@@ -543,7 +543,7 @@ class MPCCarController(CarController):
 
         start_ref_traj_time = time()
         (ref_trajectory, goal_trajectory, ref_trajectory_curvature) = self.generate_ref_trajectory()  
-        print("generate reference trajectory took", time() - start_ref_traj_time, 1 / (time() - start_ref_traj_time))
+        #print("generate reference trajectory took", time() - start_ref_traj_time, 1 / (time() - start_ref_traj_time))
         
         #self.print_array_header()
 
@@ -603,8 +603,8 @@ class MPCCarController(CarController):
         solved_dt = sol_x[1][0]
 
         #print("Cost", sol["primal objective"])
-        #print("DS", solved_ds)
-        #print("DT", solved_dt)
+        print("DS", solved_ds)
+        print("DT", solved_dt)
 
         #raise Exception("lol")
 
