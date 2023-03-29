@@ -13,8 +13,11 @@ class MPCCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
 
-        self.N = 15#5 #30 #horizon
-        self.look_ahead = 1
+        cvxopt.solvers.options['show_progress'] = False
+
+        self.N = 5 #horizon
+        self.look_ahead = 0.2
+        self.v_target_multiplier = 0.925 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
         
@@ -341,9 +344,14 @@ class MPCCarController(CarController):
         #print("state pos", currState[0], currState[1])
         #print("state vf", currState[3])
 
+        start_time = time()
+        total_localTrajectory_time = 0
+
         for i in range(0, self.N):
             #rint("getting local trajectory...")
+            #total_localTrajectory_time -= time()
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
+            #total_localTrajectory_time += time()
 
             #print("offset", offset)
 
@@ -365,7 +373,7 @@ class MPCCarController(CarController):
             ds += solved_dds * self.dt
             dt += solved_ddt * self.dt
 
-            print("ds, dt = ", ds, dt)
+            #print("ds, dt = ", ds, dt)
 
             #v_target = 0
             #distance_along = 0
@@ -397,7 +405,7 @@ class MPCCarController(CarController):
 
             new_curvilinear_state = self.nonlinear_curv_dynamics(ref_state, curvature)
 
-            print(ref_state, "->", new_curvilinear_state)
+            #print(ref_state, "->", new_curvilinear_state)
 
             delta_s = new_curvilinear_state[self.MPC_STATE_INDICES["s"]] - ref_state[self.MPC_STATE_INDICES["s"]]
             delta_n = new_curvilinear_state[self.MPC_STATE_INDICES["n"]] - ref_state[self.MPC_STATE_INDICES["n"]]
@@ -419,17 +427,22 @@ class MPCCarController(CarController):
             # (x,y,theta,vforward,vsideway=0,omega)
             currState = (x,y,theta + new_curvilinear_state[self.MPC_STATE_INDICES["r"]] * self.dt,
                          new_curvilinear_state[self.MPC_STATE_INDICES["vx"]],0,omega)
+            
+        print("reference part of generate_ref_tractory took", time() - start_time)
+        start_time = time()
 
         currState = self.car.states
 
         goal_distance_along = -self.dt
 
         for i in range(0, self.N):
+            total_localTrajectory_time -= time()
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
+            total_localTrajectory_time += time()
 
             (x,y,theta,vforward,vsideway,omega) = currState
 
-            v_target *= 0.85
+            v_target *= self.v_target_multiplier
             
             correction = 1
             
@@ -452,9 +465,15 @@ class MPCCarController(CarController):
         #ref_trajectory = np.atleast_2d(np.block(ref_trajectory)).T
         #goal_trajectory = np.atleast_2d(np.block(goal_trajectory)).T
 
+        self.draw_points.reverse()
+
+        print("total_localTrajectory_time", total_localTrajectory_time)
+
+        print("goal part of generate_ref_tractory took", time() - start_time)
+
         return (ref_trajectory, goal_trajectory, ref_trajectory_curvature)
     
-    def draw(self, img):
+    def draw(self, img):    
         for pt in self.draw_points:
             pt_adjusted = self.track.m2canvas(pt[0])
             img = cv2.circle(img, pt_adjusted, 5, pt[1], -1)
@@ -470,6 +489,8 @@ class MPCCarController(CarController):
     def control(self):        
         print("----------------------")
 
+        start_control_time = time()
+
         trajectory = self.track.localTrajectory(self.car.states)
         
         if trajectory is None:
@@ -479,6 +500,7 @@ class MPCCarController(CarController):
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = trajectory
         (x, y, heading, v_forward, v_sideways, omega) = self.car.states
 
+        print("got states took", time() - start_control_time, 1/(time() - start_control_time))
 
 
         dt = self.dt
@@ -519,10 +541,13 @@ class MPCCarController(CarController):
 
         #print("fTpf", self.F.T @ self.P @ self.F)
 
+        start_ref_traj_time = time()
         (ref_trajectory, goal_trajectory, ref_trajectory_curvature) = self.generate_ref_trajectory()  
+        print("generate reference trajectory took", time() - start_ref_traj_time, 1 / (time() - start_ref_traj_time))
         
-        self.print_array_header()
+        #self.print_array_header()
 
+        """
         print("refs:")
         for (ref, curv) in zip(ref_trajectory, ref_trajectory_curvature):
             print(ref, curv)
@@ -530,6 +555,7 @@ class MPCCarController(CarController):
         print("goals:")
         for goal in goal_trajectory:
             print(goal)
+        """
 
         # initial state
         x0 = np.atleast_2d(np.array([0, offset, heading_error, vx, vy, omega, self.steering, self.throttle, 1])).T
@@ -565,8 +591,9 @@ class MPCCarController(CarController):
         #print(u_max)
 
         #raise Exception("lol")
-
-        sol=cvxopt.solvers.qp(P_qp, Q_qp, G_qp, H_qp,)
+        time_before_sol = time()
+        sol=cvxopt.solvers.qp(P_qp, Q_qp, G_qp, H_qp)
+        print("solution took", time() - time_before_sol, 1 / (time() - time_before_sol))
 
         sol_x = np.array(sol["x"])
 
@@ -576,8 +603,8 @@ class MPCCarController(CarController):
         solved_dt = sol_x[1][0]
 
         #print("Cost", sol["primal objective"])
-        print("DS", solved_ds)
-        print("DT", solved_dt)
+        #print("DS", solved_ds)
+        #print("DT", solved_dt)
 
         #raise Exception("lol")
 
@@ -599,5 +626,7 @@ class MPCCarController(CarController):
         self.last_goal = goal_trajectory
 
         #raise Exception("lol")
+
+        print("control loop took", time() - start_control_time, 1 / (time() - start_control_time))
 
         return (self.throttle, self.steering) #throttle, steering

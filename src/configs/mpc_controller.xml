@@ -1,5 +1,5 @@
 <config>
-  <settings dt='0.01'>
+  <settings dt='0.02'>
     <experiment_type>Simulation</experiment_type>
   </settings>
 
