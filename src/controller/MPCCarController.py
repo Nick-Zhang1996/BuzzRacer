@@ -190,7 +190,7 @@ class MPCCarController(CarController):
         #A[i["r"]][i["one"]] = (dt / i_z) * (F_fy * self.lf * (3 * math.pi / 2) - F_ry * self.lr)
 
         #if self.last_sol is None:
-        #A[i["r"]][i["ds"]] = dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
+        A[i["r"]][i["ds"]] = 100 * dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
 
         A[i["vx"]][i["dt"]] = (dt) * 6.17
         #A[i["vx"]][i["vx"]] = -(dt) * 6.17 / 15.2        THIS SHOULD BE HERE BUT IT BREAKS IT
