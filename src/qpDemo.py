@@ -2,9 +2,9 @@
 from qpSmooth import QpSmooth
 
 qp = QpSmooth()
-qp.save_dir = '~/Buzzracer/'
+qp.save_dir = '/home/nick/Buzzracer/'
 
-track_id = 0
+track_id = 3
 
 if (track_id==0):
     # full track
@@ -32,6 +32,6 @@ elif (track_id==3):
     qp.initRaceline((0,0),'l',0,offset=None)
     qp.img_filename = 'track3.png'
 
-qp.optimizePath(visualize=False,save_steps=True)
+qp.optimizePath(visualize=False,save_steps=False)
 
 

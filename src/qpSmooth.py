@@ -6,6 +6,7 @@ import cvxopt
 import warnings
 import pickle
 import numpy as np
+import os.path
 from scipy.interpolate import interp1d
 from math import pi,isclose,radians,cos,sin,atan2,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
@@ -459,6 +460,10 @@ class QpSmooth(RCPTrack):
         #img_track = super().drawRaceline(img=img_track, points=self.break_pts)
         # do not show break points
         img_track = super().drawRaceline(img=img_track, points=[])
+        if (self.img_filename is not None):
+            filename = os.path.join(self.save_dir,self.img_filename)
+            cv2.imwrite(filename,img_track)
+            print(f'saved at {filename}')
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
         plt.imshow(img_track_rgb)
         plt.show()
@@ -740,7 +745,7 @@ class QpSmooth(RCPTrack):
             img_track = self.drawRaceline(img=img_track)
             if (save_steps):
                 filename = os.path.join(self.save_dir,f'iter{iter_count}.png')
-                cv2.imwrite(filename)
+                cv2.imwrite(filename,img_track)
                 print(f'iteration image saved at {filename}')
 
 
@@ -837,10 +842,6 @@ class QpSmooth(RCPTrack):
 
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
-        if (self.img_filename is not None):
-            filename = os.path.join(self.save_dir,self.img_filename)
-            cv2.imwrite(filename,img_track)
-            print(f'saved at {filename}')
 
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
         # save 
