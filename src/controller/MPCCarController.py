@@ -15,9 +15,9 @@ class MPCCarController(CarController):
 
         cvxopt.solvers.options['show_progress'] = False
 
-        self.N = 15 #horizon
-        self.look_ahead = 0.4
-        self.v_target_multiplier = 0.75 #0.95 = safe, 1 = aggresive, >1 = spin out
+        self.N = 8 #horizon
+        self.look_ahead = 0.2
+        self.v_target_multiplier = 0.85 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
         
@@ -60,7 +60,7 @@ class MPCCarController(CarController):
         p[self.MPC_STATE_INDICES["dt"]][self.MPC_STATE_INDICES["dt"]] = 0
         p[self.MPC_STATE_INDICES["r"]][self.MPC_STATE_INDICES["r"]] = 0
         p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
-        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 1
+        p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 0.5
         p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 0
         p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 3
         p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 0
