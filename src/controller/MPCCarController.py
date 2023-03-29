@@ -77,8 +77,8 @@ class MPCCarController(CarController):
         self.G = np.zeros((constraint_count, self.l)) #Gx <= h (element-wise). x is n x 1, G needs to be q x n, h needs to be q x 1, where q is the number of constraints
         self.H = np.zeros((constraint_count, 1))
 
-        maxSteeringInput = 30 / 3
-        maxThrottleInput = 20 / 3
+        maxSteeringInput = 30
+        maxThrottleInput = 20
 
         # ds/dt < 1
         self.G[0][0] = 1
