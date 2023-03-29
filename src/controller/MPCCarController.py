@@ -17,7 +17,7 @@ class MPCCarController(CarController):
 
         self.N = 8 #horizon
         self.look_ahead = 0.2
-        self.v_target_multiplier = 0.85 #0.95 = safe, 1 = aggresive, >1 = spin out
+        self.v_target_multiplier = 0.95 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
         
