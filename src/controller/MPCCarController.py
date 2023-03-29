@@ -62,7 +62,7 @@ class MPCCarController(CarController):
         p[self.MPC_STATE_INDICES["vy"]][self.MPC_STATE_INDICES["vy"]] = 0
         p[self.MPC_STATE_INDICES["vx"]][self.MPC_STATE_INDICES["vx"]] = 1
         p[self.MPC_STATE_INDICES["u"]][self.MPC_STATE_INDICES["u"]] = 0
-        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 3
+        p[self.MPC_STATE_INDICES["n"]][self.MPC_STATE_INDICES["n"]] = 1.5 #3
         p[self.MPC_STATE_INDICES["s"]][self.MPC_STATE_INDICES["s"]] = 0
 
         self.p = p
