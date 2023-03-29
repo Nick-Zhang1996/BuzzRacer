@@ -190,6 +190,7 @@ class MPCCarController(CarController):
         #A[i["r"]][i["one"]] = (dt / i_z) * (F_fy * self.lf * (3 * math.pi / 2) - F_ry * self.lr)
 
         #if self.last_sol is None:
+        #NOTE: in simulation, this should be 1. Physical is different for some reason? Need to remove this anyways
         A[i["r"]][i["ds"]] = 10 * dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
 
         A[i["vx"]][i["dt"]] = (dt) * 6.17
