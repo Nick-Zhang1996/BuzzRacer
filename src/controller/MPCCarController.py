@@ -193,7 +193,7 @@ class MPCCarController(CarController):
 
         #if self.last_sol is None:
         #NOTE: in simulation, this should be 1. Physical is different for some reason? Need to remove this anyways
-        A[i["r"]][i["ds"]] = (1 if self.simulation else 9) * dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
+        A[i["r"]][i["ds"]] = (1 if self.simulation else 16) * dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
 
         A[i["vx"]][i["dt"]] = (dt) * 6.17 * (1 if self.simulation else 4)
         #A[i["vx"]][i["vx"]] = -(dt) * 6.17 / 15.2        THIS SHOULD BE HERE BUT IT BREAKS IT
