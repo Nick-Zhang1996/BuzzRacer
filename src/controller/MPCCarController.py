@@ -13,8 +13,8 @@ class MPCCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
 
-        self.N = 5 #30 #horizon
-        self.look_ahead = 0.25
+        self.N = 10#5 #30 #horizon
+        self.look_ahead = 0.5
 
         self.dt = self.look_ahead / self.N
         
