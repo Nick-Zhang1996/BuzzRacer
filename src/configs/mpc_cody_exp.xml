@@ -1,0 +1,29 @@
+<config>
+  <settings dt='0.02'>
+      <experiment_type>Realworld</experiment_type>
+  </settings>
+
+  <track>full</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization' car_graphics='True'>Visualization</extension>
+      <extension handle='vi'>Optitrack</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>OldOffboard</hardware>
+      <config_name>porsche</config_name>
+      <config_name>porsche</config_name>
+      <controller max_speed='2.0' horizon='30'>
+        <type>MPCCarController</type>
+        <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+  </cars>
+</config>
