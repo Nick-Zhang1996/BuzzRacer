@@ -13,8 +13,8 @@ class MPCCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
 
-        self.N = 10#5 #30 #horizon
-        self.look_ahead = 0.5
+        self.N = 15#5 #30 #horizon
+        self.look_ahead = 1
 
         self.dt = self.look_ahead / self.N
         
@@ -284,19 +284,17 @@ class MPCCarController(CarController):
 
         #print("E", self.E)#
 
+
+        #For each i, stores A_matrices[0] @ A_matrices[1] @ ... A_matrices[i]
+        A_matrices_cumulative = [A_matrices[0]]
+
+        for i in range(1, self.N):
+            A_matrices_cumulative.append(A_matrices_cumulative[i - 1] @ A_matrices[i])
+        
         B_0k = []
 
-        def B_jk(j, k):
-            result = np.eye(self.n)
-            
-            for i in range(j, k + 1):
-                result = result @ A_matrices[i]
-            
-            return result @ self.B
-        
-        #TODO: compute this more efficiently
         for i in range(0, self.N):
-            B_0k.append(B_jk(0, i))
+            B_0k.append(A_matrices_cumulative[i] @ self.B)
                 
 
         self.F = np.block([[(np.zeros(self.B.shape) if i-j < 0 else B_0k[i - j]) for j in range(self.N)] for i in range(self.N)])
@@ -338,6 +336,8 @@ class MPCCarController(CarController):
 
         first_v_target = None
 
+        self.draw_points.clear()
+        
         #print("state pos", currState[0], currState[1])
         #print("state vf", currState[3])
 
@@ -410,6 +410,8 @@ class MPCCarController(CarController):
             x += math.cos(orientation) * delta_s# - math.sin(orientation) * delta_n #double check this w delta_n
             y += math.sin(orientation) * delta_s# + math.cos(orientation) * delta_n #double check this w delta_n
 
+            self.draw_points.append([(x, y), (255, 0, 255)])
+
             #print("refpos2", x, y)
 
             #print("newv", new_curvilinear_state[self.MPC_STATE_INDICES["vx"]])
@@ -421,8 +423,6 @@ class MPCCarController(CarController):
         currState = self.car.states
 
         goal_distance_along = -self.dt
-
-        self.draw_points.clear()
 
         for i in range(0, self.N):
             (local_ctrl_pnt,offset,orientation,curvature,v_target) = self.track.localTrajectory(currState)
@@ -445,7 +445,7 @@ class MPCCarController(CarController):
                 goal_distance_along, 0, 0, v_target, 0, 0, 0, 0, 1
             ]))
 
-            self.draw_points.append([(x, y), (255, 0, 0)])
+            self.draw_points.append([(x, y), (0, 255, 255)])
 
             currState = (x,y, orientation, v_target, 0, 0)
 
@@ -458,6 +458,7 @@ class MPCCarController(CarController):
         for pt in self.draw_points:
             pt_adjusted = self.track.m2canvas(pt[0])
             img = cv2.circle(img, pt_adjusted, 5, pt[1], -1)
+            img = cv2.circle(img, pt_adjusted, 5, (0,0,0), 2)
 
         return img
     
