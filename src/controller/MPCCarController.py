@@ -17,7 +17,7 @@ class MPCCarController(CarController):
 
         self.N = 8 #horizon
         self.look_ahead = 0.2
-        self.v_target_multiplier = 0.95 #0.95 = safe, 1 = aggresive, >1 = spin out
+        self.v_target_multiplier = 0.65 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
         
@@ -195,7 +195,7 @@ class MPCCarController(CarController):
         #NOTE: in simulation, this should be 1. Physical is different for some reason? Need to remove this anyways
         A[i["r"]][i["ds"]] = (1 if self.simulation else 2) * dt / i_z #NOT ACCURATE TO THE MODEL, BUT IT COMMUNICATES A LINEAR RELATIONSHIP BETWEEN STEERING AND ROTATIONAL SPEED. having a little bit of this makes it work better!
 
-        A[i["vx"]][i["dt"]] = (dt) * 6.17 * (1 if self.simulation else 2)
+        A[i["vx"]][i["dt"]] = (dt) * 6.17 * (1 if self.simulation else 4)
         #A[i["vx"]][i["vx"]] = -(dt) * 6.17 / 15.2        THIS SHOULD BE HERE BUT IT BREAKS IT
         A[i["vx"]][i["one"]] = -(dt) * 6.17 / 3
         
