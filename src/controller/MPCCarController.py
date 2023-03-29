@@ -619,6 +619,11 @@ class MPCCarController(CarController):
 
         #print(self.steering, self.throttle)
 
+        self.throttle = 0.2
+        self.steering = 0
+        
+        
+
         self.car.throttle = self.throttle
         self.car.steering = self.steering
 
@@ -629,4 +634,4 @@ class MPCCarController(CarController):
 
         print("control loop took", time() - start_control_time, 1 / (time() - start_control_time))
 
-        return (0.5, 0)#(self.throttle, self.steering) #throttle, steering
+        return (self.throttle, self.steering) #throttle, steering
