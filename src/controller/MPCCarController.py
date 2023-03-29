@@ -445,7 +445,7 @@ class MPCCarController(CarController):
                 goal_distance_along, 0, 0, v_target, 0, 0, 0, 0, 1
             ]))
 
-            self.draw_points.append((x, y))
+            self.draw_points.append([(x, y), (255, 0, 0)])
 
             currState = (x,y, orientation, v_target, 0, 0)
 
@@ -456,8 +456,8 @@ class MPCCarController(CarController):
     
     def draw(self, img):
         for pt in self.draw_points:
-            pt_adjusted = self.track.m2canvas(pt)            
-            img = cv2.circle(img, pt_adjusted, 5, (255, 0, 0), -1)
+            pt_adjusted = self.track.m2canvas(pt[0])
+            img = cv2.circle(img, pt_adjusted, 5, pt[1], -1)
 
         return img
     
