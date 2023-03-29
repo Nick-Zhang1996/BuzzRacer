@@ -15,8 +15,8 @@ class MPCCarController(CarController):
 
         cvxopt.solvers.options['show_progress'] = False
 
-        self.N = 8 #horizon
-        self.look_ahead = 0.2
+        self.N = 15 #horizon
+        self.look_ahead = 0.4
         self.v_target_multiplier = 0.75 #0.95 = safe, 1 = aggresive, >1 = spin out
 
         self.dt = self.look_ahead / self.N
