@@ -611,9 +611,9 @@ class MPCCarController(CarController):
         self.steering += solved_ds * self.dt
         self.throttle += solved_dt * self.dt
 
-        max_throttle = 0.4
+        max_throttle = 1
 
-        self.throttle = 0.3 #min(max(self.throttle, -max_throttle), max_throttle)
+        self.throttle = min(max(self.throttle, -max_throttle), max_throttle)
 
         #print("S", self.steering)
 
