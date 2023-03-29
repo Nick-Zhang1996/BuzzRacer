@@ -619,7 +619,7 @@ class MPCCarController(CarController):
 
         #print(self.steering, self.throttle)
 
-        self.throttle = 0.2
+        self.throttle = 0.6
         self.steering = 0
         
         
