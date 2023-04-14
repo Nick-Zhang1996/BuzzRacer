@@ -1,3 +1,4 @@
+# TODO figure out dimension/shape
 # read video frames
 import pickle
 import numpy as np
@@ -21,15 +22,21 @@ class Video:
 
         self.cap = cv.VideoCapture('resources/IMG_6754.MOV')
         fourcc = cv.VideoWriter_fourcc(*'XVID')
-        self.out = cv.VideoWriter('outputs/output.avi', fourcc, 20.0, (640,  480))
+        self.out = cv.VideoWriter('outputs/output.avi', fourcc, 30.0, (1920,1080))
+        if not self.cap.isOpened():
+            print('output error')
+            exit()
         if not self.cap.isOpened():
             print("Cannot open camera")
             exit()
 
     def getStateAtTime(self,t):
         # TODO add interpolation
-        index = np.searchsorted(self.log[:,0,0], t)
-        return self.log[index]
+        try:
+            index = np.searchsorted(self.log[:,0,0], t)
+            return self.log[index]
+        except IndexError:
+            return self.log[-1]
 
     def render(self,frame,t):
         # only for car 0
@@ -50,6 +57,7 @@ class Video:
             video_t += 1/self.fps
             if (video_t < 10):
                 continue
+            print(f'video_t: {video_t}')
             # if frame is read correctly ret is True
             if not ret:
                 print("Can't receive frame (stream end?). Exiting ...")
@@ -59,10 +67,11 @@ class Video:
 
             # Display the resulting frame
             cv.imshow('frame', frame)
-            if cv.waitKey(30) == ord('q'):
+            if cv.waitKey(1) == ord('q'):
                 break
         # When everything done, release the capture
         cap.release()
+        self.out.release()
         cv.destroyAllWindows()
 
 if __name__=='__main__':
