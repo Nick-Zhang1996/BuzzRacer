@@ -10,7 +10,7 @@ from extension.PerformanceTracker import PerformanceTracker
 from extension.Simulator import Simulator
 from extension.StepCounter import StepCounter
 from extension.TrajectoryPlotter import TrajectoryPlotter
-from extension.Visualization import Visualization
+from extension.Visualization_pygame import Visualization
 from extension.Watchdog import Watchdog
 from extension.SteeringTracker import SteeringTracker
 from extension.SnapshotSaver import SnapshotSaver
