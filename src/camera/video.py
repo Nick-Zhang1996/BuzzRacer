@@ -47,6 +47,17 @@ class Video:
         cv.circle(frame, dst, 55, (0,0,255), 3)
         return frame
 
+    def drawPolyline(self, points, frame):
+        # TODO aike
+        return
+
+    def drawCircle(self, center, radius, frame):
+        # TODO aike
+        return
+
+    def drawText(self, bottom_left, text, frame):
+        # TODO aike
+        return
 
     def main(self):
         cap = self.cap
