@@ -77,7 +77,7 @@ class Main(PrintObject):
                 else:
                     try:
                         value = eval(raw)
-                    except NameError:
+                    except (NameError,SyntaxError):
                         value = raw
                     # all other attributes will be set to extension
                     setattr(ext,key,value)
