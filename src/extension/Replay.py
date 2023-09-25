@@ -43,7 +43,15 @@ class Replay(Simulator):
         assert (len(self.main.cars) == self.car_count)
 
     def loadCartesianLog(self,log_name):
-        print_error('not implemented')
+        full_path = os.path.join(self.basedir,log_name) 
+        self.print_ok(f'opening file at {full_path}')
+        with open(full_path,'rb') as f:
+            self.data = np.array(pickle.load(f))
+        # create cars
+        # data dimension: timestep, cars, state
+        self.car_count = self.data.shape[1]
+        if (len(self.main.cars) != self.car_count):
+            self.print_error(f'number of cars in log does not match number of cars in config, please update config to include {self.car_count} cars')
 
     def loadRcpTrack(self):
         N,X,Y,s,phi,kappa,diff_s,d_upper,d_lower,border_angle_upper,border_angle_lower = self.track.getOrcaStyleTrack()
@@ -86,7 +94,7 @@ class Replay(Simulator):
                 car.states = self.CurvilinearToCartesian(self.data[self.timestep,i])
         else:
             for (i,car) in enumerate(self.main.cars):
-                car.states = tuple(self.data[self.timestep,i].flatten())
+                car.states = tuple(self.data[self.timestep,i,1:7].flatten())
 
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
