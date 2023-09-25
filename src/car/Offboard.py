@@ -152,7 +152,7 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.0.101"
+        self.local_ip = "192.168.10.3"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -170,8 +170,11 @@ class Offboard(Car):
     # one-time process
     def setup(self):
         # steering servo PID
-        #self.setParam(400.0,0,40)
-        self.setParam(300.0,0,30)
+        # old firmware
+        #self.setParam(300.0,0,30)
+        # new firmware
+        #self.car.setParam(1.5,0,0.05) 
+        pass
 
     def __commThreadFunction( self, arg ):
         self.print_debug('commThread started')
