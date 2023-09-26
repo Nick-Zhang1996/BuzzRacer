@@ -140,6 +140,10 @@ class Track(ConfigObject):
             img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
         return img
 
+    def drawTrajectory(self,traj_points,img=None,lineColor=(0,0,255),thickness=3 ):
+        return self.drawPolyline(traj_points[:,1:3],img,lineColor,thickness)
+
+
     # draw ONE arrow, unit: meter, coord sys: dimensioned
     # source: source of arrow, in meter
     # orientation, radians from x axis, ccw positive

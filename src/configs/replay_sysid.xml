@@ -6,7 +6,6 @@
   <extensions>
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='replay' match_time='True' log_name='log/2023_9_25_exp/full_state2.p'>Replay</extension>
-      <extension handle='gifsaver'>Gifsaver</extension>
   </extensions>
 
   <cars>

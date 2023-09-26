@@ -96,8 +96,26 @@ class Replay(Simulator):
             for (i,car) in enumerate(self.main.cars):
                 car.states = tuple(self.data[self.timestep,i,1:7].flatten())
 
+        self.drawFutureTrajectory()
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
         self.timestep += 1
+
+    def drawFutureTrajectory(self, horizon=2.0):
+        lineColor = (255,0,0)
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            if (self.curvilinear):
+                for (i,car) in enumerate(self.main.cars):
+                    curvi_states = self.data[self.timestep:self.timestep + int(horizon/self.main.dt),i,:]
+                    cart_states = []
+                    for state in curvi_states:
+                        cart_states.append(self.CurvilinearToCartesian(self.data[self.timestep,i]))
+                    img = self.main.track.drawTrajectory(cart_states,img,lineColor)
+            else:
+                for (i,car) in enumerate(self.main.cars):
+                    img = self.main.track.drawTrajectory(self.data[self.timestep:self.timestep + int(horizon/self.main.dt),i,:],img,lineColor)
+            self.main.visualization.visualization_img = img
+
 
