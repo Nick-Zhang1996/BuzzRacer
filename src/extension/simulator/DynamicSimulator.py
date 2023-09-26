@@ -52,6 +52,7 @@ class DynamicSimulator(Simulator):
         # not implemented: support for artificially added noise
         noise = False
         car.noise = noise
+        noise_cov = np.diag([0.01]*6)
         if noise:
             car.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6,6)
