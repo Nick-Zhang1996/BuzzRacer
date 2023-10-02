@@ -192,11 +192,15 @@ class particle_filter(DiscreteDistribution):
         facingRightWayInds = mask.nonzero()
 
         rawTheorMeas = np.zeros((self.numParticles, 4))
-        i = 0
-        for particle in self.particles:
+        
+        #i = 0
+        #for particle in self.particles:
             # todo: this is absolutely terrible efficiency wise. O(n^2)
-            rawTheorMeas[i, :] = track.simulateSensorsOnlyNums(particle)
-            i += 1
+        #    rawTheorMeas[i, :] = track.simulateSensorsOnlyNums(particle)
+        #    i += 1
+        
+        rawTheorMeas = track.simulateSensorsOnlyNums(self.particles)
+        
         theorMeass[facingRightWayInds, :] = rawTheorMeas[facingRightWayInds, :]
 
         mask = np.logical_not(mask)

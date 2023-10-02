@@ -61,7 +61,7 @@ class Main():
         self.slowdown = Event()
         self.slowdown_ts = 0
 
-        Gifsaver(self)
+        #Gifsaver(self)
 
         # Laptimer
         Laptimer(self)
@@ -84,8 +84,9 @@ class Main():
     def run(self):
         print_info("running ... press q to quit")
         i = 0
-        while not i > 100: #self.exit_request.is_set():
+        while not self.exit_request.is_set():
             print(i)
+            
             ts = time()
             self.update()
             if i % 4000 == 0:
@@ -154,7 +155,7 @@ class Main():
 if __name__ == '__main__':
     # alfa: progress
     #params = {'samples':4096, 'algorithm':'ccmppi','alfa':0.8,'beta':2.5}
-    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0, 'numberOfParticles': 512}
+    params = {'samples':4096, 'algorithm':'mppi-experiment','alfa':50.0,'beta':0.0, 'numberOfParticles': 2048}
     experiment = Main(params)
     experiment.run()
     experiment.timer.summary()

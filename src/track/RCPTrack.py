@@ -769,53 +769,53 @@ class RCPTrack(Track):
         y = states[1]
         i = delta
 
-        while self.checkTrackBoundary((x, y)) > 0:
-            x += i * np.cos(states[2])
-            y += i * np.sin(states[2])
-            i += delta
-        forward = i
-        img_track = self.drawPoint(track, (x, y))
+        result = self.simulateSensorsOnlyNums(states, verbose=True)
 
-        x = states[0]
-        y = states[1]
-        i = delta
-        # print(x, y)
+        img_track = self.drawPoint(track, (x + np.cos(states[2]) * result[0], y + np.sin(states[2]) * result[0]))
 
-        while self.checkTrackBoundary((x, y)) > 0:
-            x += i * np.cos(states[2] + np.pi / 2)
-            y += i * np.sin(states[2] + np.pi / 2)
-            i += delta
-        right2 = i
-        img_track = self.drawPoint(img_track, (x, y), (255, 0, 0))
+        img_track = self.drawPoint(img_track, (x + np.cos(states[2] + np.pi / 2) * result[1], y + np.sin(states[2] + np.pi / 2) * result[1]))
 
-        x = states[0]
-        y = states[1]
-        i = delta
-
-        while self.checkTrackBoundary((x, y)) > 0:
-            x += i * np.cos(states[2] - np.pi / 2)
-            y += i * np.sin(states[2] - np.pi / 2)
-            i += delta
-        left2 = i
-        img_track = self.drawPoint(img_track, (x, y), (0, 255, 0))
+        img_track = self.drawPoint(img_track, (x + np.cos(states[2] - np.pi / 2) * result[2], y + np.sin(states[2] - np.pi / 2) * result[2]))
 
         # print(x, y)
-
-        x = states[0]
-        y = states[1]
-        i = delta
-        while self.checkTrackBoundary((x, y)) > 0:
-            x += i * np.cos(states[2] - np.pi)
-            y += i * np.sin(states[2] - np.pi)
-            i += delta
-        behind = i
-
-        img_track = self.drawPoint(img_track, (x, y), (0, 0, 255))
+        img_track = self.drawPoint(img_track, (x + np.cos(states[2] - np.pi) * result[3], y + np.sin(states[2] - np.pi) * result[3]))
         # print(forward, right2, behind, left2)
         # return forward, right2, behind, left2
         return img_track
 
-    def simulateSensorsOnlyNums(self, state, delta=.001, ):
+    def simulateSensorsOnlyNums(self, state, delta=.001, verbose=False):
+        if type(state) is tuple:
+            state = np.array(list(state))
+
+        ndim = state.ndim
+        
+        state = np.atleast_2d(state)
+        #Front, Left, Right, Back
+        x = np.atleast_2d(state[:, 0]).T
+        y = np.atleast_2d(state[:, 1]).T
+        theta = np.atleast_2d(state[:, 2]).T
+
+        w = self.gridsize[1] * self.scale
+        h = self.gridsize[0] * self.scale
+
+        sensors = np.array([0, np.pi/2, -np.pi/2, np.pi]) + theta
+
+        d_left = -x / np.cos(sensors)
+        d_right = (w - x) / np.cos(sensors)
+
+        d_top = -y / np.sin(sensors)
+        d_bottom = (h - y) / np.sin(sensors)
+        
+        stacked = np.stack((d_left, d_right, d_top, d_bottom, np.ones(d_left.shape)*5)) #5 is max depth
+
+        stacked = np.where(stacked > 0, stacked, 1000)
+
+        result = np.min(stacked, axis=0)
+
+        if (ndim == 1):
+            result = result[0]
+
+        return np.array(result, dtype="float64")
         # left, right = self.preciseTrackBoundary((states[0], states[1]), states[2])
         x = state[0]
         y = state[1]
