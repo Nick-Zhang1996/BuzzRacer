@@ -98,3 +98,17 @@ if __name__=='__main__':
     model = MultitaskDeepGP(train_x.shape, train_y.size(-1))
     train(model, train_x, train_y)
 
+    ## SAVE MODEL
+    output = open('model.p','wb')
+    pickle.dump(model,output)
+    output.close()
+
+    ## LOAD MODEL
+    output = open('model.p','rb')
+    load_model = pickle.load(output)
+    output.close()
+
+    input = train_x[0].unsqueeze(0)
+    breakpoint()
+    print(load_model.predict(input))
+

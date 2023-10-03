@@ -8,6 +8,12 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,a
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
 from sysid.tire import tireCurve
+from sysid.gaussian_process.gpModel import MultitaskDeepGP
+# sketchy
+import sys
+import torch
+sys.path.append('/home/zzhang615/rcvip/src/sysid/gaussian_process')
+from time import time
 
 class Replay(Simulator):
     def __init__(self,main):
@@ -16,12 +22,15 @@ class Replay(Simulator):
         self.timestep = 0
         self.curvilinear = None
         self.log_name = None
+        # FIXME
+        self.skip = 1000
         # rcvip
         self.basedir = self.main.basedir
         self.track = self.main.track
         # TODO move this to setting
-        self.prediction_model = DynamicBicycleModel()
+        #self.prediction_model = DynamicBicycleModel()
         #self.prediction_model = KinematicBicycleModel()
+        self.prediction_model = GpModel()
 
     def init(self):
         super().init()
@@ -42,6 +51,7 @@ class Replay(Simulator):
         self.print_ok(f'opening file at {full_path}')
         with open(full_path,'rb') as f:
             self.data = pickle.load(f)
+        self.data = self.data[self.skip:]
         # create cars
         self.car_count = self.data.shape[1]
         assert (len(self.main.cars) == self.car_count)
@@ -51,6 +61,7 @@ class Replay(Simulator):
         self.print_ok(f'opening file at {full_path}')
         with open(full_path,'rb') as f:
             self.data = np.array(pickle.load(f))
+        self.data = self.data[self.skip:]
         # create cars
         # data dimension: timestep, cars, state
         self.car_count = self.data.shape[1]
@@ -106,7 +117,7 @@ class Replay(Simulator):
         self.matchRealTime()
         self.timestep += 1
 
-    def drawFutureTrajectory(self, horizon=2.0):
+    def drawFutureTrajectory(self, horizon=1.0):
         lineColor = (255,0,0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -122,7 +133,7 @@ class Replay(Simulator):
                     img = self.main.track.drawTrajectory(self.data[self.timestep:self.timestep + int(horizon/self.main.dt),i,:],img,lineColor)
             self.main.visualization.visualization_img = img
 
-    def drawPredictedTrajectory(self, horizon=2.0):
+    def drawPredictedTrajectory(self, horizon=1.0):
         lineColor = (0,255,0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -288,3 +299,87 @@ class KinematicBicycleModel(VehicleDynamics):
         car_states = x,y,heading,v_forward,v_sideway,omega
         return np.array(car_states)
 
+class GpModel(VehicleDynamics):
+    def __init__(self):
+        # either cartesian(False) or curvilinear (true)
+        # curvilinear:
+        # progress, lateral_err, rel_heading, v_forward, v_sideways, omega,throttle,steering = state
+        # cartesian:
+        # x,y,heading,v_forward,v_sideway,omega = car.states
+        self.curvilinear = False
+
+        model_filename = '/home/zzhang615/rcvip/src/sysid/gaussian_process/model.p'
+        output = open(model_filename,'rb')
+        self.model = pickle.load(output)
+        output.close()
+    
+    def coreDynamics(self, core_states, control, car, dt):
+        '''
+        input: core_states = (vx,vy,omega) control = (steering,throttle)
+        output: (d_vx, d_vy, omega)
+        '''
+        lf = car.lf
+        lr = car.lr
+        L = car.L
+
+        Iz = car.Iz
+        m = car.m
+        vx,vy,omega = core_states
+        steering, throttle = control
+
+        # for small longitudinal velocity use kinematic model
+        if (vx<0.05):
+            beta = atan(lr/L*tan(steering))
+            norm = lambda a,b:(a**2+b**2)**0.5
+            # motor model
+            d_vx = 6.17*(throttle - vx/15.2 -0.333)
+            d_vy = (norm(vx,vy)*sin(beta) - vy)/dt
+            #d_omega = 
+            omega = vx/L*tan(steering)
+
+        else:
+            model_input = torch.Tensor(core_states+tuple(control)).unsqueeze(0)
+            t = time()
+            mean, var = self.model.predict(model_input)
+            print(time()-t)
+            output = mean.numpy()
+            d_vx = output[0,0]
+            d_vy = output[0,1]
+            omega = output[0,2]
+        return (d_vx,d_vy,omega)
+
+    def advanceDynamics(self,car_states, control, car, dt):
+        '''
+        advance vehicle dynamics
+        NOTE using car frame origined at CG with x pointing forward, y leftward
+        this method does NOT update car.sim_states, only returns a sim_state
+        this is to make itself useful for when update is not necessary
+        '''
+        x,y,psi,v_forward,v_sideway,d_psi = car_states
+        lf = car.lf
+        lr = car.lr
+        L = car.L
+
+        Iz = car.Iz
+        m = car.m
+
+        # NOTE here vx = vf, vy = vs, different convention
+        x,y,heading,vx,vy,omega = car_states
+        steering, throttle = control
+        d_vx, d_vy, omega = self.coreDynamics( (vx,vy,omega), control, car, dt)
+
+        # discretization
+        vx = vx + d_vx * dt
+        vy = vy + d_vy * dt
+
+        # back to global frame
+        vxg = vx*cos(heading)-vy*sin(heading)
+        vyg = vx*sin(heading)+vy*cos(heading)
+
+        # update x,y, heading
+        x += vxg*dt
+        y += vyg*dt
+        heading += omega*dt 
+
+        car_states = x,y,heading,vx,vy,omega
+        return np.array(car_states)
