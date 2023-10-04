@@ -144,8 +144,12 @@ class Replay(Simulator):
                     init_state = self.data[self.timestep,i,1:-2]
                     predicted_traj = [init_state]
                     for t in range(int(horizon/self.main.dt)):
-                        new_state = self.prediction_model.advanceDynamics(predicted_traj[-1], self.data[self.timestep+len(predicted_traj)-1,i,-2:],car, self.main.dt)
+                        states = predicted_traj[-1]
+                        control = self.data[self.timestep+len(predicted_traj)-1,i,-2:]
+                        new_state = self.prediction_model.advanceDynamics(states, control ,car, self.main.dt)
                         predicted_traj.append(new_state)
+                        print(states,control)
+                    breakpoint()
                     predicted_traj = np.array(predicted_traj)
                     predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
                     img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
@@ -339,9 +343,7 @@ class GpModel(VehicleDynamics):
 
         else:
             model_input = torch.Tensor(core_states+tuple(control)).unsqueeze(0)
-            t = time()
             mean, var = self.model.predict(model_input)
-            print(time()-t)
             output = mean.numpy()
             d_vx = output[0,0]
             d_vy = output[0,1]
