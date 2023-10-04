@@ -28,9 +28,9 @@ class Replay(Simulator):
         self.basedir = self.main.basedir
         self.track = self.main.track
         # TODO move this to setting
-        #self.prediction_model = DynamicBicycleModel()
+        self.prediction_model = DynamicBicycleModel()
         #self.prediction_model = KinematicBicycleModel()
-        self.prediction_model = GpModel()
+        #self.prediction_model = GpModel()
 
     def init(self):
         super().init()
@@ -148,8 +148,6 @@ class Replay(Simulator):
                         control = self.data[self.timestep+len(predicted_traj)-1,i,-2:]
                         new_state = self.prediction_model.advanceDynamics(states, control ,car, self.main.dt)
                         predicted_traj.append(new_state)
-                        print(states,control)
-                    breakpoint()
                     predicted_traj = np.array(predicted_traj)
                     predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
                     img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
