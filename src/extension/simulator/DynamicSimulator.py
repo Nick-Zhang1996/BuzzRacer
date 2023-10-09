@@ -78,7 +78,7 @@ class DynamicSimulator(Simulator):
 
         # NOTE here vx = vf, vy = vs, different convention
         x,y,heading,vx,vy,omega = car_states
-        throttle, steering = control
+        steering, throttle = control
 
         # for small longitudinal velocity use kinematic model
         if (vx<0.05):
@@ -132,7 +132,7 @@ class DynamicSimulator(Simulator):
     def update(self): 
         #print_ok(self.prefix() + "update")
         for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
+            car.states = self.advanceDynamics(car.states, (car.steering,car.throttle), car)
             #print(self.prefix()+str(car.states))
             #print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
         if (self.state_noise_enabled):

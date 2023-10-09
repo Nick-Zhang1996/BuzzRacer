@@ -514,7 +514,8 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
+                # steering, control
+                x_i = KinematicSimulator.advanceDynamics(x_i, (control[1], control[0]),self.car)
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
 
                 cc_states_vec[j].append(x_i.flatten())
@@ -543,7 +544,7 @@ class CCMPPI_KINEMATIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advanceDynamics(x_i, control,self.car)
+                x_i = KinematicSimulator.advanceDynamics(x_i, (control[1], control[0]),self.car)
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)

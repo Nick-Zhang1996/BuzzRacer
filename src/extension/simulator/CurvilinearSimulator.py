@@ -62,24 +62,26 @@ class CurvilinearSimulator(Simulator):
         car.local_states_hist = []
         car.norm = []
 
-    # advance vehicle dynamics
-    # NOTE using car frame origined at CG with x pointing forward, y leftward
-    # this method does NOT update car.sim_states, only returns a sim_state
-    # this is to make itself useful for when update is not necessary
-    #    x,y,psi,v_forward,v_sideway,d_psi = car_states
     @staticmethod
     def advanceDynamics(car_states, control, car):
-        #x,y,psi,v_forward,v_sideway,d_psi = car_states
+        '''
+        # advance vehicle dynamics
+        # NOTE using car frame origined at CG with x pointing forward, y leftward
+        # this method does NOT update car.sim_states, only returns a sim_state
+        # this is to make itself useful for when update is not necessary
+        #    x,y,psi,v_forward,v_sideway,d_psi = car_states
+        # x,y,psi,v_forward,v_sideway,d_psi = car_states
+        # control = steering,throttle
+        '''
         local_state = CurvilinearSimulator.vehicle_model.fromGlobalToLocal(car_states)
-        # control = throttle, steering
-        new_local_state = CurvilinearSimulator.vehicle_model.dynModelBlendBatch(local_state, control)
+        new_local_state = CurvilinearSimulator.vehicle_model.dynModelBlendBatch(local_state, (control[1],control[0]))
         global_state = CurvilinearSimulator.vehicle_model.fromLocalToGlobal(new_local_state).flatten()
         return global_state.flatten()
 
     def update(self): 
         #print_ok(self.prefix() + "update")
         for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
+            car.states = self.advanceDynamics(car.states, ( car.steering,car.throttle), car)
             #print(self.prefix()+str(car.states))
             #print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
         if (self.state_noise_enabled):

@@ -40,13 +40,14 @@ class KinematicSimulator(Simulator):
     def update(self): 
         #print_ok("[KinematicSimulator]: update")
         for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
+            car.states = self.advanceDynamics(car.states, (car.steering,car.throttle), car)
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
 
     @staticmethod
     def advanceDynamics(car_states,control, car):
+        ''' advance dynamics using kinematics model '''
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
@@ -62,8 +63,8 @@ class KinematicSimulator(Simulator):
         if (car.in_collision):
             v *= 0.9
         '''
-        throttle = control[0]
-        steering = control[1]
+        throttle = control[1]
+        steering = control[0]
 
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )

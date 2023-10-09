@@ -25,6 +25,7 @@ class QpSmooth(RCPTrack):
     def __init__(self):
         RCPTrack.__init__(self)
         warnings.simplefilter("error")
+        self.img_filename = None
         return
 
     # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)

@@ -34,7 +34,7 @@ class CarController(ConfigObject):
     # update predicted_traj vector
     def predict(self):
         # DEBUG plotting
-        control = np.array((self.car.throttle, self.car.steering))
+        control = np.array((self.car.steering, self.car.throttle))
         control = np.repeat(np.reshape(control,(1,-1)),self.horizon,0)
         # kinematic
         expected_trajectory = self.getKinematicTrajectory( self.car.states, control )

@@ -14,6 +14,7 @@ import sys
 import torch
 sys.path.append('/home/zzhang615/rcvip/src/sysid/gaussian_process')
 from time import time
+from extension.simulator.DynamicSimulator import DynamicSimulator
 
 class Replay(Simulator):
     def __init__(self,main):
@@ -22,8 +23,7 @@ class Replay(Simulator):
         self.timestep = 0
         self.curvilinear = None
         self.log_name = None
-        # FIXME
-        self.skip = 1000
+        self.skip = 0
         # rcvip
         self.basedir = self.main.basedir
         self.track = self.main.track
@@ -31,6 +31,10 @@ class Replay(Simulator):
         self.prediction_model = DynamicBicycleModel()
         #self.prediction_model = KinematicBicycleModel()
         #self.prediction_model = GpModel()
+
+        # DEBUG
+        DynamicSimulator.dt = main.dt
+
 
     def init(self):
         super().init()
@@ -109,6 +113,8 @@ class Replay(Simulator):
         else:
             for (i,car) in enumerate(self.main.cars):
                 car.states = tuple(self.data[self.timestep,i,1:7].flatten())
+        car.throttle = self.data[self.timestep,i,8]
+        car.steering = self.data[self.timestep,i,7]
 
         self.drawFutureTrajectory()
         self.drawPredictedTrajectory()
@@ -148,6 +154,7 @@ class Replay(Simulator):
                         control = self.data[self.timestep+len(predicted_traj)-1,i,-2:]
                         new_state = self.prediction_model.advanceDynamics(states, control ,car, self.main.dt)
                         predicted_traj.append(new_state)
+
                     predicted_traj = np.array(predicted_traj)
                     predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
                     img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
@@ -166,7 +173,8 @@ class VehicleDynamics:
     def advanceDynamics(car_states, control, car, dt):
         '''
         return states at next timestep
-        car_states: differs depending on self.cartesian, control:steering,throttle
+        car_states: differs depending on self.cartesian, 
+        control:steering,throttle
         '''
         return car_states
 
