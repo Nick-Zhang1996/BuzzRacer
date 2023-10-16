@@ -12,13 +12,15 @@ from sysid.gaussian_process.gpModel import MultitaskDeepGP
 # sketchy
 import sys
 import torch
-sys.path.append('/home/zzhang615/rcvip/src/sysid/gaussian_process')
+sys.path.append('/home/nickzhang/rcvip/src/sysid/gaussian_process')
 from time import time
 from extension.simulator.DynamicSimulator import DynamicSimulator
+from util.timeUtil import execution_timer
 
 class Replay(Simulator):
     def __init__(self,main):
         super().__init__(main)
+        self.t = execution_timer(True)
         self.car_count = 0
         self.timestep = 0
         self.curvilinear = None
@@ -28,9 +30,9 @@ class Replay(Simulator):
         self.basedir = self.main.basedir
         self.track = self.main.track
         # TODO move this to setting
-        self.prediction_model = DynamicBicycleModel()
+        #self.prediction_model = DynamicBicycleModel()
         #self.prediction_model = KinematicBicycleModel()
-        #self.prediction_model = GpModel()
+        self.prediction_model = GpModel()
 
         # DEBUG
         DynamicSimulator.dt = main.dt
@@ -117,11 +119,18 @@ class Replay(Simulator):
         car.steering = self.data[self.timestep,i,7]
 
         self.drawFutureTrajectory()
+        self.t.s()
+        self.t.s('drawPredictedTrajectory')
         self.drawPredictedTrajectory()
+        self.t.e('drawPredictedTrajectory')
+        self.t.e()
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
         self.timestep += 1
+
+    def final(self):
+        self.t.summary()
 
     def drawFutureTrajectory(self, horizon=1.0):
         lineColor = (255,0,0)
@@ -318,10 +327,11 @@ class GpModel(VehicleDynamics):
         # x,y,heading,v_forward,v_sideway,omega = car.states
         self.curvilinear = False
 
-        model_filename = '/home/zzhang615/rcvip/src/sysid/gaussian_process/model.p'
-        output = open(model_filename,'rb')
-        self.model = pickle.load(output)
-        output.close()
+        model_filename = '/home/nickzhang/rcvip/src/sysid/gaussian_process/model.p'
+        input_dim = 5
+        output_dim = 3
+        self.model = MultitaskDeepGP((100,input_dim), output_dim)
+        self.model.load_state_dict(torch.load(model_filename))
     
     def coreDynamics(self, core_states, control, car, dt):
         '''

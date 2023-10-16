@@ -35,8 +35,8 @@ def loadData(filename, visualize=False):
     # time, x,y,heading,v_forward,v_sideway,omega, steering, throttle
     #start = 920
     #end = 2200
-    start = 100
-    end = 1700
+    start = 10
+    end = data.shape[0]-10
     data[:,:,0] -= data[0,0,0]
 
     output_data_x = torch.from_numpy(data[start:end,0,4:])
@@ -46,7 +46,6 @@ def loadData(filename, visualize=False):
     d_vy = np.diff(data[:,0,5])[start:end]/0.01
     omega = data[start+1:end+1,0,6]
     output_data_y = torch.from_numpy(np.stack([d_vx,d_vy,omega],-1))
-    breakpoint()
 
 
     if (visualize):
@@ -99,9 +98,9 @@ if __name__=='__main__':
     # actual car
     #filename='log/2023_9_25_exp/full_state2.p'
     # dynamic model simulator
-    filename='log/2023_10_4_exp/full_state1.p'
+    filename='log/2023_10_9_exp/full_state1.p'
 
-    train_x,train_y = loadData(filename, visualize=True)
+    train_x,train_y = loadData(filename, visualize=False)
     print(train_x.shape, train_y.shape)
 
     ## TRAINING MODEL
@@ -109,16 +108,19 @@ if __name__=='__main__':
     train(model, train_x, train_y)
 
     ## SAVE MODEL
-    output = open('model.p','wb')
-    pickle.dump(model,output)
-    output.close()
+    torch.save(model.state_dict(), 'model.p')
 
     ## LOAD MODEL
-    output = open('model.p','rb')
-    load_model = pickle.load(output)
-    output.close()
+    print(train_x.shape)
+    print(train_y.size(-1))
+    input_dim = 5
+    output_dim = 3
+    load_model = MultitaskDeepGP((100,input_dim), output_dim)
+    load_model.load_state_dict(torch.load('model.p'))
+    load_model.eval()
 
     input = train_x[0].unsqueeze(0)
-    breakpoint()
     print(load_model.predict(input))
+    print(model.predict(input))
+
 
