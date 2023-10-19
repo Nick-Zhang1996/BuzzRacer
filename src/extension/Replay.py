@@ -132,7 +132,7 @@ class Replay(Simulator):
     def final(self):
         self.t.summary()
 
-    def drawFutureTrajectory(self, horizon=1.0):
+    def drawFutureTrajectory(self, horizon=0.5):
         lineColor = (255,0,0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -148,7 +148,7 @@ class Replay(Simulator):
                     img = self.main.track.drawTrajectory(self.data[self.timestep:self.timestep + int(horizon/self.main.dt),i,:],img,lineColor)
             self.main.visualization.visualization_img = img
 
-    def drawPredictedTrajectory(self, horizon=1.0):
+    def drawPredictedTrajectory(self, horizon=0.5):
         lineColor = (0,255,0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
