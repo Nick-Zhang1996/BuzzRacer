@@ -165,41 +165,39 @@ class RCPTrackDebug(RCPTrack):
                 
         return
 
-    def verifySpeedProfile(self,n_steps=1000):
+    def verifySpeedProfile(self,*,speed_profile_fun, mu = 0.7,show_traction_circle=False, n_steps=1000):
         # calculate theoretical lap time
-        mu = 10.0/9.81
         g = 9.81
         t_total = 0
         path_len = 0
         xx = np.linspace(0,self.track_length_grid,n_steps+1)
         dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-        v3 = self.v3(xx)
+        vv = speed_profile_fun(xx)
         for i in range(n_steps):
             (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
             (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             path_len += ds
-            t_total += ds/v3[i%n_steps]
+            t_total += ds/(vv[i%n_steps]+vv[(i+1)%n_steps])*2
 
         print_info("Theoretical value:")
-        print_info("\t top speed = %.2fm/s"%max(v3))
+        print_info("\t top speed = %.2fm/s"%max(vv))
         print_info("\t total time = %.2fs"%t_total)
         print_info("\t path len = %.2fm"%path_len)
 
-        # get direct distance from two u
+        # cartesian distance from two u(parameter)
         distuu = lambda u1,u2: dist(splev(u1, self.raceline, der=0),splev(u2, self.raceline, der=0))
 
         vel_vec = []
         ds_vec = []
-        xx = np.linspace(0,self.track_length_grid,n_steps+1)
 
         # get velocity at each point
         for i in range(n_steps):
             # tangential direction
             tan_dir = splev(xx[i], self.raceline, der=1)
             tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
-            vel_now = self.v3(xx[i]%len(self.ctrl_pts)) * tan_dir
+            vel_now = vv[i] * tan_dir
             vel_vec.append(vel_now)
 
         vel_vec = np.array(vel_vec)
@@ -242,33 +240,32 @@ class RCPTrackDebug(RCPTrack):
 
         # plot acceleration vector cloud
         # with x,y axis being vehicle frame, x lateral
-        '''
-        p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+        if (show_traction_circle):
+            p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
 
-        # draw the traction circle
-        cc = np.linspace(0,2*np.pi)
-        circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
-        p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
-        plt.gcf().gca().set_aspect('equal','box')
-        plt.xlim(-12,12)
-        plt.ylim(-12,12)
-        plt.xlabel('Lateral Acceleration')
-        plt.ylabel('Longitudinal Acceleration')
-        plt.legend(handles=[p0,p1])
-        plt.show()
+            # draw the traction circle
+            cc = np.linspace(0,2*np.pi)
+            circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+            p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+            plt.gcf().gca().set_aspect('equal','box')
+            plt.xlim(-12,12)
+            plt.ylim(-12,12)
+            plt.xlabel('Lateral Acceleration')
+            plt.ylabel('Longitudinal Acceleration')
+            plt.legend(handles=[p0,p1])
+            plt.show()
 
-        p0, = plt.plot(theta_vec,label='theta')
-        p1, = plt.plot(v_vec,label='v')
-        p2, = plt.plot(dtheta_vec,label='dtheta')
-        acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
-        p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
-        p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+            p0, = plt.plot(theta_vec,label='theta')
+            p1, = plt.plot(v_vec,label='v')
+            p2, = plt.plot(dtheta_vec,label='dtheta')
+            acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+            p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+            p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
 
-        p2, = plt.plot(lon_acc_vec,label='longitudinal')
-        p3, = plt.plot(lat_acc_vec,label='lateral')
-        plt.legend(handles=[p0,p1])
-        plt.show()
-        '''
+            p2, = plt.plot(lon_acc_vec,label='longitudinal')
+            p3, = plt.plot(lat_acc_vec,label='lateral')
+            plt.legend(handles=[p0,p1])
+            plt.show()
         print("theoretical laptime %.2f"%t_total)
 
         self.reconstructRaceline()

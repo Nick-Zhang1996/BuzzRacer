@@ -305,44 +305,20 @@ class RCPTrack(Track):
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
         self.u = u
         self.raceline = tck
-        '''
-        u_new = np.linspace(0,self.track_length_grid,100)
-        x_new, y_new = splev(u_new, tck)
-        plt.plot(x_new,y_new,'*')
-        plt.show()
-        '''
-
-
-        # generate speed profile
-        '''
-        print_ok("initial trajectory")
-        self.generateSpeedProfile()
-        self.verifySpeedProfile()
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track,points=[])
-        plt.imshow(img_track)
-        plt.show()
-        '''
         
 
-    def generateSpeedProfile(self, n_steps=1000):
+    def generateSpeedProfile(self, *, mu=0.7, acc_max_fun=lambda x:1.5, dec_max_fun=lambda x:1.5, n_steps=1000, show=False):
+        '''
+        generate speed profile given traction constraints, braking/acceleration limit
+        [mu]: coefficient of friction for the radius of traction circle. maximum traction = mu*g
+        [acc_max_fun]: function (velocity) => maximum acceleration available from motor. Given velocity, provide maximum acceleration available, for miniz ~3.3m/s2
+        [dec_max_fun]: same as acc_max_fun, for deceleration ~4.5
+        '''
         g = 9.81
-        self.n_steps = n_steps
 
-        # friction factor
-        # unit: g
-        mu = 0.7
-        # maximum longitudinial acceleration available from motor, given current longitudinal speed
-        # actually around 3.3
-        #acc_max_motor = lambda x:3.3
-        #dec_max_motor = lambda x:4.5
-        acc_max_motor = lambda x:1.5
-        dec_max_motor = lambda x:1.5
         # generate velocity profile
         # u values for control points
         xx = np.linspace(0,self.track_length_grid,n_steps+1)
-        #curvature = splev(xx,self.raceline,der=2)
-        #curvature = np.linalg.norm(curvature,axis=0)
 
         # let raceline curve be r(u)
         # dr = r'(u), parameterized with xx/u
@@ -370,7 +346,7 @@ class RCPTrack(Track):
             if ((mu*g)**2-a_lat**2)>0:
                 a_lon_available_traction = ((mu*g)**2-a_lat**2)**0.5
                 # constrain with motor capacity
-                a_lon = min(acc_max_motor(v2[i%n_steps]),a_lon_available_traction)
+                a_lon = min(acc_max_fun(v2[i%n_steps]),a_lon_available_traction)
 
                 (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
                 (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline, der=0)
@@ -390,7 +366,7 @@ class RCPTrack(Track):
             i = int(i)
             a_lat = v3[i%n_steps]**2*curvature[(i-1+n_steps)%n_steps]
             a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
-            a_lon = min(dec_max_motor(v3[i%n_steps]),a_lon_available_traction)
+            a_lon = min(dec_max_fun(v3[i%n_steps]),a_lon_available_traction)
             #print(a_lon)
 
             (x_i, y_i) = splev(xx[i%n_steps], self.raceline, der=0)
@@ -404,14 +380,14 @@ class RCPTrack(Track):
 
         v3[-1]=v3[0]
 
-        # call with self.targetVfromU(u) alwayos u is in range [0,len(self.ctrl_pts)]
-        self.targetVfromU = interp1d(xx,v3,kind='cubic')
-        self.v1 = interp1d(xx,v1,kind='cubic')
-        self.v2 = interp1d(xx,v2,kind='cubic')
-        self.v3 = interp1d(xx,v3,kind='cubic')
+        # when callingmake sure u is in range [0,len(self.ctrl_pts)]
+        speed_profile_fun = interp1d(xx,v3,kind='cubic')
+        #self.v1 = interp1d(xx,v1,kind='cubic')
+        #self.v2 = interp1d(xx,v2,kind='cubic')
+        #self.v3 = interp1d(xx,v3,kind='cubic')
 
-        self.max_v = max(v3)
-        self.min_v = min(v3)
+        max_v = max(v3)
+        min_v = min(v3)
 
         # debug target v curve fitting
         #p0, = plt.plot(xx,v3,'*',label='original')
@@ -421,14 +397,15 @@ class RCPTrack(Track):
         #plt.legend(handles=[p0,p1])
         #plt.show()
 
-
         # three pass of velocity profile
-        p0, = plt.plot(curvature, label='curvature')
-        p1, = plt.plot(v1,label='1st pass')
-        p2, = plt.plot(v2,label='2nd pass')
-        p3, = plt.plot(v3,label='3rd pass')
-        plt.legend(handles=[p1,p2,p3])
-        plt.show()
+        if (show):
+            p0, = plt.plot(curvature, label='curvature')
+            p1, = plt.plot(v1,label='1st pass')
+            p2, = plt.plot(v2,label='2nd pass')
+            p3, = plt.plot(v3,label='3rd pass')
+            plt.legend(handles=[p1,p2,p3])
+            plt.show()
+        return {'speed_profile_fun':speed_profile_fun, 'min_v': min_v, 'max_v':max_v}
 
 
     # ---------- for curvature norm minimization -----

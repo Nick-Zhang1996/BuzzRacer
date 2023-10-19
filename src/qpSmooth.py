@@ -455,8 +455,12 @@ class QpSmooth(RCPTrack):
         u_new = np.linspace(0,self.track_length_grid,steps)
         x_new, y_new = splev(u_new, self.raceline)
 
-        self.generateSpeedProfile()
-        self.verifySpeedProfile()
+        retval = self.generateSpeedProfile()
+        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
+        self.max_v = retval['max_v']
+        self.min_v = retval['min_v']
+
+        self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
         img_track = self.drawTrack()
         #img_track = super().drawRaceline(img=img_track, points=self.break_pts)
         # do not show break points
