@@ -843,7 +843,7 @@ class RCPTrack(Track):
         for x,y in zip(x_new,y_new):
             img = self.drawPoint(img,(x,y))
         return img
-    
+
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None,points=None):
 
@@ -889,6 +889,45 @@ class RCPTrack(Track):
                 
                 img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
+        return img
+    
+
+    def drawRacelineWithColor(self,lineColor=(0,0,255), img=None, thickness = 3,s_to_color=lambda s:0):
+        '''
+        draw the raceline with specified color scheme
+        s_to_color: lambda: s: color (0-1)
+        '''
+
+        rows = self.gridsize[0]
+        cols = self.gridsize[1]
+        res = int(self.resolution*self.scale)
+
+        # this gives smoother result, but difficult to relate u to actual grid
+        #u_new = np.linspace(self.u.min(),self.u.max(),1000)
+
+        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
+        # x_new and y_new are in non-dimensional grid unit
+        u_new = np.linspace(0,self.track_length_grid,1000)
+        x_new, y_new = splev(u_new, self.raceline, der=0)
+        # convert to visualization coordinate
+        x_new *= self.resolution 
+        y_new *= self.resolution
+        y_new = self.resolution*self.scale*rows - y_new
+
+        if img is None:
+            img = np.zeros([res*rows,res*cols,3],dtype='uint8')
+
+        pts = np.vstack([x_new,y_new]).T
+        # for polylines, pts = pts.reshape((-1,1,2))
+        pts = pts.reshape((-1,2))
+        pts = pts.astype(int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        getColor = lambda s:(0,int(s_to_color(s)*255),int(255-255*s_to_color(s)))
+        for i in range(len(u_new)-1):
+            s = self.uToS(u_new[i]%self.track_length_grid)
+            color = getColor(s)
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=color, thickness=thickness) 
         return img
 
     # given state of robot

@@ -26,6 +26,8 @@ class Replay(Simulator):
         self.curvilinear = None
         self.log_name = None
         self.skip = 0
+        self.draw_future_traj = False
+        self.draw_predicted_traj = False
         # rcvip
         self.basedir = self.main.basedir
         self.track = self.main.track
@@ -109,6 +111,10 @@ class Replay(Simulator):
         return (x,y,heading,v_forward,v_sideways,omega)
 
     def update(self):
+        if (self.timestep >= self.data.shape[0]):
+            self.main.exit_request.set()
+            return
+
         if (self.curvilinear):
             for (i,car) in enumerate(self.main.cars):
                 car.states = self.CurvilinearToCartesian(self.data[self.timestep,i])
@@ -118,10 +124,12 @@ class Replay(Simulator):
         car.throttle = self.data[self.timestep,i,8]
         car.steering = self.data[self.timestep,i,7]
 
-        self.drawFutureTrajectory()
+        if (self.draw_future_traj):
+            self.drawFutureTrajectory()
         self.t.s()
         self.t.s('drawPredictedTrajectory')
-        self.drawPredictedTrajectory()
+        if (self.draw_predicted_traj):
+            self.drawPredictedTrajectory()
         self.t.e('drawPredictedTrajectory')
         self.t.e()
         self.main.new_state_update.set()

@@ -32,8 +32,10 @@ def buildLeadFun(tt_i, ss_i, vv_i ,tt_j, ss_j, vv_j,dt=0.01):
             dt += step_size
         L_ij.append(max_lead)
 
+    plt.plot(ss_i,L_ij)
+    plt.show()
     # check ss_i[-1] and ss_j[-1]
-    return interp1d(ss_i,L_ij,kind='cubic')
+    return interp1d(ss_i,L_ij,kind='cubic'), np.min(L_ij), np.max(L_ij)
 
 def buildStatefromSpeedProfile(fulltrack, speed_profile_fun,dt=0.01):
     tt = []
@@ -106,7 +108,15 @@ if __name__ == "__main__":
     pos_j,phi_j,tt_j, ss_j, vv_j  = buildStatefromSpeedProfile(fulltrack, speed_profile_fun_j,dt=dt)
 
     # calculate relative lead
-    buildLeadFun(tt_i, ss_i, vv_i ,tt_j, ss_j, vv_j)
+    s0_to_Lij, Lij_min, Lij_max = buildLeadFun(tt_i, ss_i, vv_i ,tt_j, ss_j, vv_j)
+
+    # visualize L_ij
+
+    img_track = fulltrack.drawTrack()
+    img_track = fulltrack.drawRacelineWithColor(img=img_track,thickness = 10,s_to_color=lambda s:s0_to_Lij(s%ss_i[-1])/Lij_max)
+    plt.imshow(img_track[:,:,::-1])
+    plt.show()
+    
 
     # create mock log for visualization
     # t*car*states
