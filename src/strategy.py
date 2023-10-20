@@ -1,32 +1,46 @@
 # code for validating strategy controller
+import pickle
 import numpy as np
 from qpSmooth import QpSmooth
 from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
-if __name__ == "__main__":
-    fulltrack = QpSmooth()
-    fulltrack.load()
+# TODO thoroughly check this
+def buildLeadFun(tt_i, ss_i, vv_i ,tt_j, ss_j, vv_j,dt=0.01):
+    s2t_i = interp1d(ss_i,tt_i,kind='cubic')
+    t2s_i = interp1d(tt_i,ss_i,kind='cubic')
+    t0_dt_2_ds_i = lambda t0,dt:  t2s_i((t0+dt)%tt_i[-1])-t2s_i(t0%tt_i[-1]) if t2s_i((t0+dt)%tt_i[-1])-t2s_i(t0%tt_i[-1]) > 0 else (t2s_i((t0+dt)%tt_i[-1])-t2s_i(t0%tt_i[-1]) + ss_i[-1])
 
-    # create 2 speed profile with similar laptime
+    s2t_j = interp1d(ss_j,tt_j,kind='cubic')
+    t2s_j = interp1d(tt_j,ss_j,kind='cubic')
+    t0_dt_2_ds_j = lambda t0,dt:  t2s_j((t0+dt)%tt_j[-1])-t2s_j(t0%tt_j[-1]) if t2s_j((t0+dt)%tt_j[-1])-t2s_j(t0%tt_j[-1]) > 0 else (t2s_j((t0+dt)%tt_j[-1])-t2s_j(t0%tt_j[-1]) + ss_j[-1])
 
-    # agent i, faster in straights
-    retval = fulltrack.generateSpeedProfile(
-            mu=0.7, 
-            acc_max_fun = lambda x:3.5,
-            dec_max_fun = lambda x:3.5,
-            )
-    fulltrack.targetVfromU = speed_profile_fun_i = retval['speed_profile_fun']
-    retval['max_v']
-    retval['min_v']
-    fulltrack.verifySpeedProfile(speed_profile_fun=speed_profile_fun_i)
+    # Lij : max_lead(ss_i)
+    L_ij = []
+    for s0 in ss_i:
+        max_lead = 0
+        dt = 0.01
+        step_size = 0.01
+
+        t0_i = s2t_i(s0)
+        t0_j = s2t_j(s0)
+
+        # TODO: optimize this
+        while (t0_dt_2_ds_i(t0_i,dt) - t0_dt_2_ds_j(t0_j,dt) > max_lead):
+            max_lead = t0_dt_2_ds_i(t0_i,dt) - t0_dt_2_ds_j(t0_j,dt)
+            dt += step_size
+        L_ij.append(max_lead)
+
+    # check ss_i[-1] and ss_j[-1]
+    return interp1d(ss_i,L_ij,kind='cubic')
+
+def buildStatefromSpeedProfile(fulltrack, speed_profile_fun,dt=0.01):
     tt = []
     ss = []
     vv = []
     s = 0
     t = 0
-    dt = 0.01
 
     # progress in time domain
     while (s<fulltrack.raceline_len_m):
@@ -37,7 +51,7 @@ if __name__ == "__main__":
         s += v*dt
         t += dt
     print(f'total t = {tt[-1]}')
-    plt.plot(ss,vv)
+    '''
     # progress in s domain
     tt = []
     ss = []
@@ -48,48 +62,72 @@ if __name__ == "__main__":
     while (s<fulltrack.raceline_len_m):
         tt.append(t)
         ss.append(s)
-        vv.append(v)
         v = fulltrack.sToV(s)
+        vv.append(v)
         t += ds/v
         s += ds
-    print(f'total t = {tt[-1]}')
-    plt.plot(ss,vv)
+    '''
+    # 2*N
+    pos =   np.array(splev(ss, fulltrack.raceline_s, der=0))
+    d_pos = np.array(splev(ss,fulltrack.raceline_s,der=1))
+    phi = np.arctan2(d_pos[1,:],d_pos[0,:])
+    tt = np.array(tt)
+    ss = np.array(ss)
+    vv = np.array(vv)
+    return (pos.T,phi.T, tt, ss, vv)
 
-    # progress in u domain
-    tt = []
-    ss = []
-    s = 0
-    t = 0
-    n_steps = 1000
-    xx = np.linspace(0,fulltrack.track_length_grid,n_steps+1)
-    dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-    #vv = speed_profile_fun_i(xx)
-    vv = fulltrack.sToV(fulltrack.uToS(xx))
-    for i in range(n_steps+1):
-        tt.append(t)
-        ss.append(s)
-        (x_i, y_i) = splev(xx[i%n_steps], fulltrack.raceline, der=0)
-        (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], fulltrack.raceline, der=0)
-        # distance between two steps
-        ds = dist((x_i, y_i),(x_i_1, y_i_1))
-        s += ds
-        t += ds/(vv[i%n_steps]+vv[(i+1)%n_steps])*2
-    print(f'total t = {tt[-1]}')
-    plt.plot(ss,vv,'*')
+if __name__ == "__main__":
+    fulltrack = QpSmooth()
+    fulltrack.load()
+    dt = 0.01
 
-    plt.show()
+    # create 2 speed profile with similar laptime
 
+    # agent i, faster in straights
+    retval = fulltrack.generateSpeedProfile(
+            mu=0.6, 
+            acc_max_fun = lambda x:5.0,
+            dec_max_fun = lambda x:5.0,
+            )
+    fulltrack.targetVfromU = speed_profile_fun_i = retval['speed_profile_fun']
+    # this calls reconstruct Raceline, which updates sToV
+    fulltrack.verifySpeedProfile(speed_profile_fun=speed_profile_fun_i)
+    pos_i,phi_i,tt_i, ss_i, vv_i = buildStatefromSpeedProfile(fulltrack, speed_profile_fun_i,dt=dt)
 
 
     # agent j, faster in corners
     retval = fulltrack.generateSpeedProfile(
             mu=0.9, 
-            acc_max_fun = lambda x:1.5,
-            dec_max_fun = lambda x:1.5,
+            acc_max_fun = lambda x:1,
+            dec_max_fun = lambda x:1,
             )
-    fulltrack.targetVfromU = speed_profile_fun_i = retval['speed_profile_fun']
-    retval['max_v']
-    retval['min_v']
+    fulltrack.targetVfromU = speed_profile_fun_j = retval['speed_profile_fun']
     fulltrack.verifySpeedProfile(speed_profile_fun=speed_profile_fun_j)
+    pos_j,phi_j,tt_j, ss_j, vv_j  = buildStatefromSpeedProfile(fulltrack, speed_profile_fun_j,dt=dt)
 
-    # visualize both cars
+    # calculate relative lead
+    buildLeadFun(tt_i, ss_i, vv_i ,tt_j, ss_j, vv_j)
+
+    # create mock log for visualization
+    # t*car*states
+    T = pos_i.shape[0]
+    tt = np.linspace(0,T-1,T)*dt
+    state_i = np.vstack([tt,pos_i.T,phi_i,np.zeros((5,T))]).T.reshape(-1,1,9)
+    # record two laps
+    state_i = np.vstack([state_i]*2)
+    T = pos_j.shape[0]
+    tt = np.linspace(0,T-1,T)*dt
+    state_j = np.vstack([tt,pos_j.T,phi_j,np.zeros((5,T))]).T.reshape(-1,1,9)
+    state_j = np.vstack([state_j]*2)
+
+    T = min(state_i.shape[0],state_j.shape[0])
+    log = np.hstack([state_i[:T],state_j[:T]])
+
+    print(log.shape)
+    output = open('../log/strategy/strategy_car_demo.p','wb')
+    pickle.dump(log,output)
+    output.close()
+
+    #
+
+

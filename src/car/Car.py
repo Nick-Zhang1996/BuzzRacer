@@ -158,7 +158,7 @@ class Car(PrintObject):
                          'max_steer_angle_right':radians(26.1),
                          'max_throttle' : 1.0,
                          'width' : 0.0461,
-                         'rendering' : 'data/porsche_green.png'}
+                         'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)
         #print_error("Unrecognized car config")
