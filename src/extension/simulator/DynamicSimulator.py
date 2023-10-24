@@ -129,6 +129,7 @@ class DynamicSimulator(Simulator):
         return np.array(car_states)
 
 
+    '''
     def update(self): 
         #print_ok(self.prefix() + "update")
         for car in self.cars:
@@ -140,4 +141,5 @@ class DynamicSimulator(Simulator):
         self.main.new_state_update.set()
         self.main.sim_t += self.main.dt
         self.matchRealTime()
+    '''
 

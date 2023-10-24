@@ -78,6 +78,7 @@ class CurvilinearSimulator(Simulator):
         global_state = CurvilinearSimulator.vehicle_model.fromLocalToGlobal(new_local_state).flatten()
         return global_state.flatten()
 
+    '''
     def update(self): 
         #print_ok(self.prefix() + "update")
         for car in self.cars:
@@ -90,3 +91,4 @@ class CurvilinearSimulator(Simulator):
         self.main.sim_t += self.main.dt
         self.matchRealTime()
 
+    '''

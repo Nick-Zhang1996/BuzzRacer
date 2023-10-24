@@ -1,16 +1,21 @@
+# base class for all simulators
 from common import *
 from extension import Extension
 from time import time,sleep
 import numpy as np
-# base class for all simulators
 # contains code for aligning simulator time with real time
 
-# it is required that:
-# car.states = x,y,heading,v_forward,v_sideway,omega
-# however simulator can establish a property car.sim_states
-# that use different state representation
 class Simulator(Extension,PrintObject):
+    '''
+    it is required that:
+    car.states = x,y,heading,v_forward,v_sideway,omega
+    however simulator can establish a property car.sim_states
+    that use different state representation for simulation
+    '''
     def __init__(self,main):
+        '''
+            subclass may override this, call super().__init__(main) in the begiing
+        '''
         super().__init__(main)
         self.match_time = None
         self.state_noise_enabled = None
@@ -23,6 +28,9 @@ class Simulator(Extension,PrintObject):
         self.print_info("real/sim time ratio = %.1f "%(self.real_sim_time_ratio))
 
     def init(self):
+        '''
+            subclass can override this for initialization. call super().init() at the beginning.
+        '''
         if (self.main.experiment_type != ExperimentType.Simulation):
             self.print_error("Experiment type is not Simulation but a Simulator is loaded")
         self.main.sim_t = 0
@@ -42,8 +50,34 @@ class Simulator(Extension,PrintObject):
             else:
                 self.print_error('unknown noise type ',self.state_noise_type)
 
+    def addCar(self,car):
+        '''
+            register a car to use this simulation
+        '''
+        #x,y,heading,v_forward,v_sideways,omega = car.states
+        print_error('unimplemented')
+        return
+
+    @staticmethod
+    def advanceDynamics(car_states,control, car):
+        print_error('unimplemented')
+        return
+
+    def update(self): 
+        for car in self.cars:
+            car.states = self.advanceDynamics(car.states, (car.steering,car.throttle), car)
+        if (self.state_noise_enabled):
+            self.addStateNoise()
+        self.main.new_state_update.set()
+        self.main.sim_t += self.main.dt
+        self.matchRealTime()
+
 
     def matchRealTime(self):
+        '''
+            sleep to match simulation time to clock time
+            only works when then entire simulation loop runs faster than realtime
+        '''
         if (not self.match_time):
             return
         if (self.t0 is None):
