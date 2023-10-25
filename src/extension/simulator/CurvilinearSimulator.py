@@ -72,7 +72,10 @@ class CurvilinearSimulator(Simulator):
         '''
         x,y,heading,v_forward,v_sideway,omega = cart
 
-        dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
+        #dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
+        def dist(s):
+            val = np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)).flatten() - np.array([x,y]))
+            return val
 
         if (guess_s is None):
             fit = minimize(dist, x0=0, method='L-BFGS-B', bounds=((0,self.main.track.raceline_len_m),))
@@ -80,6 +83,7 @@ class CurvilinearSimulator(Simulator):
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-0.2,guess_s+0.2),))
 
         s = fit.x[0]
+
         r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
         dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
@@ -131,14 +135,21 @@ class CurvilinearSimulator(Simulator):
         ignore car_states, update car.sim_states with control and optional [dt]
         [return] cartesian states corresponding to updated car.sim_states
         '''
-        # FIXME sanity check, expect car_states =
-        # self.curv2Cart(car.sim_states)
-        #assert (np.linalg.norm(self.cart2Curv(car_states) - car.sim_states) < 0.001)
-        #print(np.linalg.norm(self.cart2Curv(car_states) - car.sim_states))
-        # ~6mm error
-        #assert (np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states)) -
-        #    car_states) < 0.06)
-        print(np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states)) -  car_states))
+
+        # DEBUG
+        check1 = np.linalg.norm(self.cart2Curv(car_states,guess_s = car.sim_states[0]) - car.sim_states)
+        check2 = np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states,guess_s = car.sim_states[0])) - car_states)
+        if (check1 > 0.001 or check2 > 0.001):
+            print('inconsistency in coord frame transformation')
+            print(np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states,guess_s = car.sim_states[0])) -  car_states))
+            print(np.linalg.norm(self.cart2Curv(self.curv2Cart(car.sim_states),guess_s = car.sim_states[0]) -  car.sim_states))
+            print('card_states: ', car_states)
+            print('curv_states: ', car.sim_states)
+            print('card -> curv: ', self.cart2Curv(car_states))
+            print('card -> curv -> card: ', self.curv2Cart(self.cart2Curv(car_states)))
+            print('curv -> card: ', self.curv2Cart(car.sim_states))
+            print('curv -> card -> curv ', self.cart2Curv(self.curv2Cart(car.sim_states)))
+            breakpoint()
 
         k = lambda x:self.curvature(x)
 

@@ -12,3 +12,4 @@ from controller.StanleyCarController import StanleyCarController
 from controller.PurePursuitCarController import PurePursuitCarController
 from controller.EmptyCarController import EmptyCarController
 from controller.CopgCarController import CopgCarController
+from controller.PointMassCarController import PointMassCarController
