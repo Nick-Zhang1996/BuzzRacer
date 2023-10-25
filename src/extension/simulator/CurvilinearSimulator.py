@@ -10,12 +10,8 @@ from threading import Event,Lock
 from scipy.optimize import minimize_scalar,minimize,brentq
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
-# FIXME
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from extension import Simulator
-from Simulator import Simulator
-
 from common import *
+from extension import Simulator
 
 def wrap(val):
     '''
@@ -62,10 +58,6 @@ class CurvilinearSimulator(Simulator):
         x,y,heading,v_forward,v_sideway,omega = car.states
         curv = self.cart2Curv(car.states)
         car.sim_states = curv
-        cart = self.curv2Cart(curv)
-        print(cart)
-        print(car.states)
-        breakpoint()
 
         car.state_dim = 4
         car.control_dim = 2
@@ -112,15 +104,55 @@ class CurvilinearSimulator(Simulator):
         A = np.array([[0,-1],[1,0]])
         x,y = r + (A @ dr)*n
         ref_heading = np.arctan2(dr[1],dr[0])
-        # TODO wrap
         heading = wrap(phi + ref_heading)
         v_forward = v
         v_sideway = 0
         omega = 0
         return np.array([x,y,heading, v_forward, v_sideway, omega])
 
-        return
+    def curvature(self,s):
+        '''
+        get signed curvature of raceline at s, ccw positive
+        '''
+        # TODO if this is a bottleneck, fit curvature(s) as a cubic fun
+        # curvature = interp1d(ss,curvature(ss),kind='cubic')
 
-    @staticmethod
-    def advanceDynamics(car_states, control, car):
-        return car_states
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
+        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
+        ddr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=2))
+        _norm = lambda x:np.linalg.norm(x)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+        sign = np.dot(dr,ddr)
+        return np.copysign(curvature, sign)
+
+    def advanceDynamics(self, car_states, control, car, dt=None):
+        '''
+        ignore car_states, update car.sim_states with control and optional [dt]
+        [return] cartesian states corresponding to updated car.sim_states
+        '''
+        # FIXME sanity check, expect car_states =
+        # self.curv2Cart(car.sim_states)
+        #assert (np.linalg.norm(self.cart2Curv(car_states) - car.sim_states) < 0.001)
+        #print(np.linalg.norm(self.cart2Curv(car_states) - car.sim_states))
+        # ~6mm error
+        #assert (np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states)) -
+        #    car_states) < 0.06)
+        print(np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states)) -  car_states))
+
+        k = lambda x:self.curvature(x)
+
+        s,v,n,phi = car.sim_states
+        ay,ax = control
+        dsdt = v*cos(phi)/(1-n*k(s))
+        dvdt = ax
+        dndt = v*sin(phi)
+        dphidt = ay/v - k(s)*dsdt
+
+        if (dt is None):
+            dt = CurvilinearSimulator.dt
+
+        dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
+        car.sim_states = car.sim_states + dx
+
+        return self.curv2Cart(car.sim_states)
