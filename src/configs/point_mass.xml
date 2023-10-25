@@ -20,7 +20,7 @@
       <config_name>audi_11</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller>
-        <type>PointMassCarController</type>
+        <type>iLQGameCarController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>

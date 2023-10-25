@@ -130,6 +130,21 @@ class CurvilinearSimulator(Simulator):
         sign = np.dot(dr,ddr)
         return np.copysign(curvature, sign)
 
+    def advancePointMassDynamics(self, curv_states, control, dt):
+        k = lambda x:self.curvature(x)
+        s,v,n,phi = curv_states
+        ay,ax = control
+        dsdt = v*cos(phi)/(1-n*k(s))
+        dvdt = ax
+        dndt = v*sin(phi)
+        dphidt = ay/v - k(s)*dsdt
+
+        if (dt is None):
+            dt = CurvilinearSimulator.dt
+
+        dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
+        return curv_states + dx
+
     def advanceDynamics(self, car_states, control, car, dt=None):
         '''
         ignore car_states, update car.sim_states with control and optional [dt]
@@ -151,19 +166,6 @@ class CurvilinearSimulator(Simulator):
             print('curv -> card -> curv ', self.cart2Curv(self.curv2Cart(car.sim_states)))
             breakpoint()
 
-        k = lambda x:self.curvature(x)
-
-        s,v,n,phi = car.sim_states
-        ay,ax = control
-        dsdt = v*cos(phi)/(1-n*k(s))
-        dvdt = ax
-        dndt = v*sin(phi)
-        dphidt = ay/v - k(s)*dsdt
-
-        if (dt is None):
-            dt = CurvilinearSimulator.dt
-
-        dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
-        car.sim_states = car.sim_states + dx
+        car.sim_states = self.advancePointMassDynamics(car.sim_states, control, dt)
 
         return self.curv2Cart(car.sim_states)

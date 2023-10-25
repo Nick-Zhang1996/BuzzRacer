@@ -13,3 +13,4 @@ from controller.PurePursuitCarController import PurePursuitCarController
 from controller.EmptyCarController import EmptyCarController
 from controller.CopgCarController import CopgCarController
 from controller.PointMassCarController import PointMassCarController
+from controller.iLQGameCarController import iLQGameCarController
