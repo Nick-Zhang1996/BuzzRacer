@@ -60,6 +60,13 @@ class Simulator(Extension,PrintObject):
 
     @staticmethod
     def advanceDynamics(car_states,control, car):
+        '''
+            advance dynamics by self.dt
+            [car_states] states of the car, (x,y,heading,v_forward,v_sideway,omega)
+            [control] (steering,throttle) steering in rad, left positive, throttle in [-1,1], positive indicates acceleration
+            [car] Car object, contains information about the car's kinematics, also contains car.sim_states for simulators that do not use car.states for update
+            return: states at next time step. If using car.sim_states, update it in the car object
+        '''
         print_error('unimplemented')
         return
 

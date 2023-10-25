@@ -37,15 +37,6 @@ class KinematicSimulator(Simulator):
         x,y,heading,v_forward,v_sideways,omega = car.states
         return
 
-    '''
-    def update(self): 
-        #print_ok("[KinematicSimulator]: update")
-        for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.steering,car.throttle), car)
-        self.main.new_state_update.set()
-        self.main.sim_t += self.main.dt
-        self.matchRealTime()
-    '''
 
     @staticmethod
     def advanceDynamics(car_states,control, car):

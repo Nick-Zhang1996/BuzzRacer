@@ -23,5 +23,6 @@ from extension.SpeedTracker import SpeedTracker
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+from extension.simulator.CopgSimulator import CopgSimulator
 
 from extension.Replay import Replay
