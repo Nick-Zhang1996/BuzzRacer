@@ -152,12 +152,12 @@ class CurvilinearSimulator(Simulator):
         '''
 
         # DEBUG
+        '''
         check1 = np.linalg.norm(self.cart2Curv(car_states,guess_s = car.sim_states[0]) - car.sim_states)
         check2 = np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states,guess_s = car.sim_states[0])) - car_states)
         if (check1 > 0.001 or check2 > 0.001):
             print('inconsistency in coord frame transformation')
-            print(np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states,guess_s = car.sim_states[0])) -  car_states))
-            print(np.linalg.norm(self.cart2Curv(self.curv2Cart(car.sim_states),guess_s = car.sim_states[0]) -  car.sim_states))
+            print(check1,check2)
             print('card_states: ', car_states)
             print('curv_states: ', car.sim_states)
             print('card -> curv: ', self.cart2Curv(car_states))
@@ -165,6 +165,7 @@ class CurvilinearSimulator(Simulator):
             print('curv -> card: ', self.curv2Cart(car.sim_states))
             print('curv -> card -> curv ', self.cart2Curv(self.curv2Cart(car.sim_states)))
             breakpoint()
+        '''
 
         car.sim_states = self.advancePointMassDynamics(car.sim_states, control, dt)
 
