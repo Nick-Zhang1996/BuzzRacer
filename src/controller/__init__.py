@@ -15,3 +15,4 @@ from controller.CopgCarController import CopgCarController
 from controller.PointMassCarController import PointMassCarController
 from controller.iLQGameCarController import iLQGameCarController
 from controller.PointMassMpcCarController import PointMassMpcCarController
+from controller.DdpPointMassCarController import DdpPointMassCarController

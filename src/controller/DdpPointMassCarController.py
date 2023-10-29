@@ -2,10 +2,9 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from third_party.solve_lq_game import solve_lq_game
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 
-class DdpPointMaxxCarController(CarController):
+class DdpPointMassCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
         self.m = 2
@@ -31,13 +30,13 @@ class DdpPointMaxxCarController(CarController):
 
             car.throttle = throttle
             car.steering = steering
-
+        self.drawPredictedTrajectory()
         return
 
     def update_dynamics(self,states,controls,dt=None):
         if (dt is None):
             dt = self.dt
-        return self.simulator.advancePointMassDynamics(states,controls,dt)
+        return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
 
     def getLder(self,x_ref, u_ref):
         ''' 
@@ -55,7 +54,7 @@ class DdpPointMaxxCarController(CarController):
         R = np.diag([1.0,1.0])
         lx = x_ref.T @ Q + q
         lxx = Q
-        lu = u.T @ R
+        lu = u_ref.T @ R
         luu = R
         lux = 0
         return (lx,lxx,lu,luu,lux)
@@ -64,82 +63,67 @@ class DdpPointMaxxCarController(CarController):
     def ddpControl(self,x0):
         # get reference u_ref
         if (self.u_ref is None):
-            self.u_ref = np.zeros((self.horizon, self.m))
-        def newState():
-            return {'x':[x0]
-                'u' : [],
-                'fx' : [],
-                'fu' : [],
-                'lx' : [],
-                'lxx' : [],
-                'lu' : [],
-                'luu' : [],
-                'lux' : [],
-                'Qx' : [],
-                'Qu' : [],
-                'Qux' : [],
-                'Qxx' : [],
-                'Quu' : [],
-                'Vx' : [],
-                'Vxx' : []
-                }
-        def addState(state,x,u,fx,fu,lx,lxx,lu,luu,lux):
-            state['x'].append(x)
-            state['u'].append(u)
-            state['fx'].append(fx)
-            state['fu'].append(fu)
-            state['lx'].append(lx)
-            state['lxx'].append(lxx)
-            state['lu'].append(lu)
-            state['luu'].append(luu)
-            state['lux'].append(lux)
-            return
+            self.u_ref = np.zeros((self.horizon, self.m,1))
+            self.u_ref[:,1,:] = 1.0
+            self.x_ref = [x0.reshape(self.n,1)]
+            for t in range(self.horizon):
+                new_x = self.update_dynamics(self.x_ref[t],self.u_ref[t]).reshape(-1,1)
+                self.x_ref.append(new_x)
 
-                
+        u_ref = self.u_ref
+        x_ref = self.x_ref
+        u_forward_vec = [np.zeros((self.m,1))] * self.horizon
+        u_feedback_K_vec = [np.zeros((self.m, self.n))] * self.horizon
 
         num_iter = 3
         for iter in range(num_iter):
-            Vx = 0
-            Vxx = 0
-            xx =[x0]
+            xx = [x0.reshape(self.n,1)]
+            uu = []
 
-            # rollout u
+            # rollout u, forward propagate
             # calculate derivatives for l(x,u) and f(x,u)
             for t in range(self.horizon):
-                u = -np.linalg.inv(Quu_k[t]) @ (Qu_k[t].T + Qux_k[t] @ (xx[-1] - self.x_ref[t])) + self.u_ref[t]
+                u = u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t])
+                + u_ref[t]
                 new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
-                A,B,d = self.linearize(xx[-1], u)
-                lx,lxx,lu,luu,lux = self.getLder(xx[-1], u)
-                addState(state,x,u,fx,fu,lx,lxx,lu,luu,lux)
+                xx.append(new_x)
+                uu.append(u)
+            x_ref = xx
+            u_ref = uu
 
+            # V(self.horizon+1) = 0
+            Vx = np.zeros((1,self.n))
+            Vxx = np.zeros((self.n,self.n))
+            # backward propagate, get V, Q, feedforward and feedback control
+            # u = u_forward + u_feedback_K_vec @ (x-x_ref) + u_ref
             for k in range(self.horizion,0,-1):
-                print('step ', k)
-                # calculate dQ_?
-                # calculate dV_
+                fx,fu,d = self.linearize(xx[k], uu[k])
+                lx,lxx,lu,luu,lux = self.getLder(xx[k], uu[k])
+
+                Qx = lx + Vx @ fx
+                Qu = lu + Vx @ fu
+                Qxx = lxx + fx.T @ Vxx @ fx # dropping Vx fxx dx
+                Quu = luu + fu.T @ Vxx @ fu
+                Qux = lux + fu.T @ Vxx @ fx
+
+                u_forward = -np.linalg.inv(Quu) @ Qu.T
+                u_feedback_K = -np.linalg.inv(Quu) @ Qux
+                u_forward_vec.insert(0,u_forward)
+                u_feedback_K_vec.insert(0,u_feedback_K)
+
+                Vx = Qx - Qu @ np.linalg.inv(Quu) @ Qux
+                Vxx = Qxx - Qux.T @ np.linalg.inv(Quu) @ Qux
+
+        self.u_ref = u_ref
+        self.x_ref = x_ref
+        return u_ref[0].flatten()
 
 
-        # roll out u_ref, get x_ref
-        # linearize around _ref, get A,B,d
-        xx =[x0]
-        As = []
-        Bs = []
-        ds = []
-        for t in range(self.horizon):
-            # x+ = A x + B u + d, for x~x_ref
-            # ~x = x - x_ref
-            # ~x+ = A~x + B~u
-            new_x = self.update_dynamics(xx[-1],self.u_ref[t])
-            A,B,d = self.linearize(xx[-1], self.u_ref[t])
-
-            xx.append(new_x)
-            As.append(A)
-            Bs.append(B)
-            ds.append(d)
-        
-
-    # differentiate dynamics around nominal state and control
-    # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
     def linearize(self, nominal_state, nominal_ctrl):
+        '''
+        differentiate dynamics around nominal state and control
+        return: A, B, d, s.t. x_k+1 = Ax + Bu + d
+        '''
         nominal_state = np.array(nominal_state).copy()
         nominal_ctrl = np.array(nominal_ctrl).copy()
         epsilon = 1e-2
@@ -202,4 +186,22 @@ class DdpPointMaxxCarController(CarController):
         d = x_post.flatten() - A @ x0 - B @ u0
 
         return A,B,d
+
+    def drawPredictedTrajectory(self):
+        ''' draw self.x_ref '''
+        lineColor = (0,255,0)
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            for (i,car) in enumerate(self.main.cars):
+                predicted_traj = []
+                for t in range(self.horizon):
+                    curvi_states = self.x_ref[t]
+                    control = self.u_ref[t]
+                    cart_states = self.simulator.curv2Cart(curvi_states)
+                    predicted_traj.append(cart_states)
+
+                predicted_traj = np.array(predicted_traj)
+                predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
+                img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
+            self.main.visualization.visualization_img = img
 
