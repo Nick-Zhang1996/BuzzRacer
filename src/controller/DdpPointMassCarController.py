@@ -11,7 +11,8 @@ class DdpPointMassCarController(CarController):
         self.n = 4
 
         self.u_ref = None
-        self.horizon = 10
+        self.horizon = 30
+        self.num_iter = 4
         self.dt = self.main.dt
 
         Kn = 10.0
@@ -85,11 +86,11 @@ class DdpPointMassCarController(CarController):
         u_forward_vec = [np.zeros((self.m,1))] * self.horizon
         u_feedback_K_vec = [np.zeros((self.m, self.n))] * self.horizon
 
-        num_iter = 3
-        for iter in range(num_iter):
+        for iter in range(self.num_iter):
             cost = self.getL(x_ref, u_ref)
             print(f'iter {iter}, cost = {cost}')
             # DEBUG
+            '''
             zero_control_cost = self.getL(x_ref,np.array(u_ref)*0)
 
             no_deviation_x = np.array(x_ref).copy()
@@ -105,9 +106,8 @@ class DdpPointMassCarController(CarController):
             deviation_cost = cost - zero_deviation_cost
             control_cost = cost - zero_control_cost
 
-
-
             print(f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}')
+            '''
 
             xx = [x0.reshape(self.n,1)]
             uu = []
@@ -147,11 +147,12 @@ class DdpPointMassCarController(CarController):
                 Vx = Qx - Qu @ np.linalg.inv(Quu) @ Qux
                 Vxx = Qxx - Qux.T @ np.linalg.inv(Quu) @ Qux
 
-        self.u_ref = u_ref
+        self.u_ref = np.vstack([np.array(u_ref[1:]),np.zeros((1,self.m,1))])
+        # x_ref will be re-written next step
         self.x_ref = x_ref
 
         cost = self.getL(self.x_ref, self.u_ref)
-        print(f'final, cost = {cost}')
+        print(u_ref[0].flatten())
         return u_ref[0].flatten()
 
 
