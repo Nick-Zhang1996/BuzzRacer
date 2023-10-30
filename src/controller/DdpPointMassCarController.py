@@ -29,17 +29,18 @@ class DdpPointMassCarController(CarController):
         assert(isinstance(self.simulator,CurvilinearSimulator))
 
     def control(self):
-        for car in self.main.cars:
-            # s,v,n,phi
-            #throttle = 1.0 if car.sim_states[1] < 1.0 else -1.0
-            #steering = -car.sim_states[3] - car.sim_states[2]
-            #print(car.sim_states)
-            #print(f'T = {throttle} S = {steering}')
+        car = self.car
+        # s,v,n,phi
+        #throttle = 1.0 if car.sim_states[1] < 1.0 else -1.0
+        #steering = -car.sim_states[3] - car.sim_states[2]
+        #print(car.sim_states)
+        #print(f'T = {throttle} S = {steering}')
 
-            steering,throttle = self.ddpControl(car.sim_states)
+        print(car.id)
+        steering,throttle = self.ddpControl(car.sim_states)
 
-            car.throttle = throttle
-            car.steering = steering
+        car.throttle = throttle
+        car.steering = steering
         self.drawPredictedTrajectory()
         return
 
@@ -89,7 +90,6 @@ class DdpPointMassCarController(CarController):
         print('--------')
 
         for iter in range(self.num_iter):
-
             # evaluate u_ref
             xx = [x0.reshape(self.n,1)]
             for t in range(self.horizon):
@@ -262,16 +262,15 @@ class DdpPointMassCarController(CarController):
         lineColor = (0,255,0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
-            for (i,car) in enumerate(self.main.cars):
-                predicted_traj = []
-                for t in range(self.horizon):
-                    curvi_states = self.x_ref[t]
-                    control = self.u_ref[t]
-                    cart_states = self.simulator.curv2Cart(curvi_states)
-                    predicted_traj.append(cart_states)
+            predicted_traj = []
+            for t in range(self.horizon):
+                curvi_states = self.x_ref[t]
+                control = self.u_ref[t]
+                cart_states = self.simulator.curv2Cart(curvi_states)
+                predicted_traj.append(cart_states)
 
-                predicted_traj = np.array(predicted_traj)
-                predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
-                img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
+            predicted_traj = np.array(predicted_traj)
+            predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
+            img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
             self.main.visualization.visualization_img = img
 

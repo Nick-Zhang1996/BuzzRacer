@@ -78,7 +78,7 @@ class CurvilinearSimulator(Simulator):
             return val
 
         if (guess_s is None):
-            fit = minimize(dist, x0=0, method='L-BFGS-B', bounds=((0,self.main.track.raceline_len_m),))
+            fit = minimize(dist, x0=0, method='L-BFGS-B', bounds=((-1.0,self.main.track.raceline_len_m),))
         else:
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-0.2,guess_s+0.2),))
 
