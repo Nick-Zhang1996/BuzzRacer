@@ -11,8 +11,16 @@ class DdpPointMassCarController(CarController):
         self.n = 4
 
         self.u_ref = None
-        self.horizion = 10
+        self.horizon = 10
         self.dt = self.main.dt
+
+        Kn = 10.0
+        Kphi = 10.0 * 0
+        Ks = 1.0 * 0
+        Kv = 1.0 * 0
+        self.Q = np.diag([0,0,Kn,Kphi])
+        self.q = np.array([[-Ks, -Kv,0,0]])
+        self.R = np.diag([0.01,0.01])
 
     def init(self):
         self.simulator = self.main.simulator
@@ -45,19 +53,21 @@ class DdpPointMassCarController(CarController):
         [x_ref]: np array size n*1
         [u_ref]: np array size m*1
         '''
-        Kn = 1.0
-        Kphi = 1.0
-        Ks = 1.0
-        Kv = 1.0
-        Q = np.diag([0,0,Kn,Kphi])
-        q = np.array([[-Ks, -Kv,0,0]])
-        R = np.diag([1.0,1.0])
-        lx = x_ref.T @ Q + q
-        lxx = Q
-        lu = u_ref.T @ R
-        luu = R
+        lx = x_ref.T @ self.Q + self.q
+        lxx = self.Q
+        lu = u_ref.T @ self.R
+        luu = self.R
         lux = 0
         return (lx,lxx,lu,luu,lux)
+
+    def getL(self,xx,uu):
+        cost = 0
+        for t in range(self.horizon):
+            x = xx[t]
+            u = uu[t]
+            cost += x.T @ self.Q @ x + self.q @ x + u.T @ self.R @ u
+
+        return cost
 
 
     def ddpControl(self,x0):
@@ -77,14 +87,35 @@ class DdpPointMassCarController(CarController):
 
         num_iter = 3
         for iter in range(num_iter):
+            cost = self.getL(x_ref, u_ref)
+            print(f'iter {iter}, cost = {cost}')
+            # DEBUG
+            zero_control_cost = self.getL(x_ref,np.array(u_ref)*0)
+
+            no_deviation_x = np.array(x_ref).copy()
+            no_deviation_x[:,2:] = 0
+            zero_deviation_cost = self.getL(no_deviation_x, u_ref)
+
+            no_progress_x = np.array(x_ref).copy()
+            no_progress_x[:,0,:] = no_progress_x[0,0,:]
+            no_progress_x[:,1,:] = no_progress_x[0,1,:]
+            no_progress_cost = self.getL(no_progress_x, u_ref)
+
+            progress_cost = cost - no_progress_cost
+            deviation_cost = cost - zero_deviation_cost
+            control_cost = cost - zero_control_cost
+
+
+
+            print(f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}')
+
             xx = [x0.reshape(self.n,1)]
             uu = []
 
             # rollout u, forward propagate
             # calculate derivatives for l(x,u) and f(x,u)
             for t in range(self.horizon):
-                u = u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t])
-                + u_ref[t]
+                u = u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t]) + u_ref[t]
                 new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
                 xx.append(new_x)
                 uu.append(u)
@@ -96,7 +127,9 @@ class DdpPointMassCarController(CarController):
             Vxx = np.zeros((self.n,self.n))
             # backward propagate, get V, Q, feedforward and feedback control
             # u = u_forward + u_feedback_K_vec @ (x-x_ref) + u_ref
-            for k in range(self.horizion,0,-1):
+            u_forward_vec = []
+            u_feedback_K_vec = []
+            for k in range(self.horizon-1,-1,-1):
                 fx,fu,d = self.linearize(xx[k], uu[k])
                 lx,lxx,lu,luu,lux = self.getLder(xx[k], uu[k])
 
@@ -116,6 +149,9 @@ class DdpPointMassCarController(CarController):
 
         self.u_ref = u_ref
         self.x_ref = x_ref
+
+        cost = self.getL(self.x_ref, self.u_ref)
+        print(f'final, cost = {cost}')
         return u_ref[0].flatten()
 
 
@@ -126,7 +162,7 @@ class DdpPointMassCarController(CarController):
         '''
         nominal_state = np.array(nominal_state).copy()
         nominal_ctrl = np.array(nominal_ctrl).copy()
-        epsilon = 1e-2
+        epsilon = 1e-3
 
         # A = df/dx
         A = np.zeros((self.n,self.n),dtype=np.float)
@@ -143,12 +179,6 @@ class DdpPointMassCarController(CarController):
             x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
             A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
-            '''
-            print("perturbing x%d"%(i))
-            print(A[:,i])
-            breakpoint()
-            print("")
-            '''
 
 
         # B = df/du
