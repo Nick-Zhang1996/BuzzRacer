@@ -14,6 +14,7 @@ class DdpPointMassCarController(CarController):
         self.horizon = 30
         self.num_iter = 4
         self.dt = self.main.dt
+        self.line_search = True
 
         Kn = 10.0
         Kphi = 10.0 * 0
@@ -85,9 +86,18 @@ class DdpPointMassCarController(CarController):
         x_ref = self.x_ref
         u_forward_vec = [np.zeros((self.m,1))] * self.horizon
         u_feedback_K_vec = [np.zeros((self.m, self.n))] * self.horizon
+        print('--------')
 
         for iter in range(self.num_iter):
-            cost = self.getL(x_ref, u_ref)
+
+            # evaluate u_ref
+            xx = [x0.reshape(self.n,1)]
+            for t in range(self.horizon):
+                u =  u_ref[t]
+                new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
+                xx.append(new_x)
+            cost = self.getL(xx, u_ref)
+            x_ref = xx
             print(f'iter {iter}, cost = {cost}')
             # DEBUG
             '''
@@ -109,18 +119,47 @@ class DdpPointMassCarController(CarController):
             print(f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}')
             '''
 
-            xx = [x0.reshape(self.n,1)]
-            uu = []
 
-            # rollout u, forward propagate
-            # calculate derivatives for l(x,u) and f(x,u)
-            for t in range(self.horizon):
-                u = u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t]) + u_ref[t]
-                new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
-                xx.append(new_x)
-                uu.append(u)
-            x_ref = xx
-            u_ref = uu
+            if (self.line_search):
+                alpha = 1.0
+                line_search_limit = 4
+                flag_no_improvement = True
+                # line search
+                for i in range(line_search_limit):
+                    xx = [x0.reshape(self.n,1)]
+                    uu = []
+                    # rollout u, forward propagate
+                    # calculate derivatives for l(x,u) and f(x,u)
+                    for t in range(self.horizon):
+                        u =  ( u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t]) ) * alpha + u_ref[t]
+                        new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
+                        xx.append(new_x)
+                        uu.append(u)
+                    line_search_cost = self.getL(xx, uu)
+                    if (line_search_cost < cost):
+                        x_ref = xx
+                        u_ref = uu
+                        print(f'line search success on alpha = {alpha}')
+                        flag_no_improvement = False
+                        break
+                    alpha /= 2
+
+                if (flag_no_improvement and iter > 0):
+                    break
+            else:
+                # no line search
+                xx = [x0.reshape(self.n,1)]
+                uu = []
+                # rollout u, forward propagate
+                # calculate derivatives for l(x,u) and f(x,u)
+                for t in range(self.horizon):
+                    u =   u_forward_vec[t] + u_feedback_K_vec[t] @ (xx[-1]-x_ref[t]) + u_ref[t]
+                    new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
+                    xx.append(new_x)
+                    uu.append(u)
+                x_ref = xx
+                u_ref = uu
+
 
             # V(self.horizon+1) = 0
             Vx = np.zeros((1,self.n))
