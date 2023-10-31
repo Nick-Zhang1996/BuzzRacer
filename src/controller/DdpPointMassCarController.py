@@ -14,7 +14,8 @@ class DdpPointMassCarController(CarController):
         self.skip_every_n = 1
 
         self.u_ref = None
-        self.horizon = 30
+        self.x_ref = None
+        self.horizon = 40
         self.num_iter = 4
         self.dt = self.main.dt
         self.line_search = True
@@ -23,13 +24,17 @@ class DdpPointMassCarController(CarController):
         Kphi = 10.0 * 0
         Ks = 1.0 * 0
         Kv = 1.0 * 0
+        Kop = 0.05
         self.Q = np.diag([0,0,Kn,Kphi])
+        # opponent collision
+        self.Qop = np.diag([Kop,0,Kop,0])
         self.q = np.array([[-Ks, -Kv,0,0]])
         self.R = np.diag([0.01,0.01])
 
     def init(self):
         self.simulator = self.main.simulator
         assert(isinstance(self.simulator,CurvilinearSimulator))
+        self.predicted_traj = self.x_ref
 
     def control(self):
         car = self.car
@@ -45,6 +50,7 @@ class DdpPointMassCarController(CarController):
         car.throttle = throttle
         car.steering = steering
         self.drawPredictedTrajectory()
+        self.predicted_traj = self.x_ref
         return
 
     def update_dynamics(self,states,controls,dt=None):
@@ -52,31 +58,55 @@ class DdpPointMassCarController(CarController):
             dt = self.dt
         return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
 
-    def getLder(self,x_ref, u_ref):
+    def getLder(self,x_ref, u_ref, x_op=None):
         ''' 
         jacobian and hessian matrix for the step cost l(x,u) 
-        l(x,u) = xT Q x + q x + uT R u
+        l_path(x,u) = xT Q x + q x + uT R u
+        opponent collision cost
+        l_op(x,xop) = (x-xop)T Qop (x-xop) = (remove const) xT Qop x - 2xopT Qop x
         [x_ref]: np array size n*1
         [u_ref]: np array size m*1
         '''
-        lx = x_ref.T @ self.Q + self.q
-        lxx = self.Q
+        lx = x_ref.T @ self.Q + self.q 
+        lxx = self.Q 
         lu = u_ref.T @ self.R
         luu = self.R
         lux = 0
+        if (not x_op is None):
+            assert(x_op.shape == (self.n,1))
+            lx += x_ref.T @ self.Qop - 2*x_op.T @ self.Qop
+            lxx += self.Qop
         return (lx,lxx,lu,luu,lux)
 
-    def getL(self,xx,uu):
+    def getL(self,xx,uu,xx_op=None):
         cost = 0
         for t in range(self.horizon):
             x = xx[t]
             u = uu[t]
             cost += x.T @ self.Q @ x + self.q @ x + u.T @ self.R @ u
 
+        if (not xx_op is None):
+            assert(xx_op.shape[1:] == (self.n,1))
+            assert(xx_op.shape[0] >= self.horizon)
+            for t in range(self.horizon):
+                x = xx[t]
+                u = uu[t]
+                xop = xx_op[t]
+                cost += (x.T-xop.T) @ self.Qop @ (x-xop)
+
         return cost
 
 
     def ddpControl(self,x0):
+        # only select 1 opponent
+        xx_op = None
+        for car in self.main.cars:
+            if (car.id != self.car.id):
+                opponent = car
+                xx_op = car.controller.predicted_traj
+                if (not xx_op is None):
+                    xx_op = np.array(xx_op)
+                    break
 
         # get reference u_ref
         if (self.u_ref is None):
@@ -100,28 +130,27 @@ class DdpPointMassCarController(CarController):
                 u =  u_ref[t]
                 new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
                 xx.append(new_x)
-            cost = self.getL(xx, u_ref)
+            cost = self.getL(xx, u_ref, xx_op)
             x_ref = xx
             #print(f'iter {iter}, cost = {cost}')
             # DEBUG
-            '''
-            zero_control_cost = self.getL(x_ref,np.array(u_ref)*0)
+            zero_control_cost = self.getL(x_ref,np.array(u_ref)*0,xx_op)
 
             no_deviation_x = np.array(x_ref).copy()
             no_deviation_x[:,2:] = 0
-            zero_deviation_cost = self.getL(no_deviation_x, u_ref)
+            zero_deviation_cost = self.getL(no_deviation_x, u_ref,xx_op)
 
             no_progress_x = np.array(x_ref).copy()
             no_progress_x[:,0,:] = no_progress_x[0,0,:]
             no_progress_x[:,1,:] = no_progress_x[0,1,:]
-            no_progress_cost = self.getL(no_progress_x, u_ref)
+            no_progress_cost = self.getL(no_progress_x, u_ref,xx_op)
 
             progress_cost = cost - no_progress_cost
             deviation_cost = cost - zero_deviation_cost
             control_cost = cost - zero_control_cost
+            opponent_cost = cost - self.getL(xx, u_ref)
 
-            print(f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}')
-            '''
+            print(f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}, oppo: {opponent_cost}')
 
 
             if (self.line_search):
@@ -139,7 +168,7 @@ class DdpPointMassCarController(CarController):
                         new_x = self.update_dynamics(xx[-1],u).reshape(-1,1)
                         xx.append(new_x)
                         uu.append(u)
-                    line_search_cost = self.getL(xx, uu)
+                    line_search_cost = self.getL(xx, uu, xx_op)
                     if (line_search_cost < cost):
                         x_ref = xx
                         u_ref = uu
@@ -174,7 +203,7 @@ class DdpPointMassCarController(CarController):
             u_feedback_K_vec = []
             for k in range(self.horizon-1,-1,-1):
                 fx,fu,d = self.linearize(xx[k], uu[k])
-                lx,lxx,lu,luu,lux = self.getLder(xx[k], uu[k])
+                lx,lxx,lu,luu,lux = self.getLder(xx[k], uu[k],None if xx_op is None else xx_op[k])
 
                 Qx = lx + Vx @ fx
                 Qu = lu + Vx @ fu
