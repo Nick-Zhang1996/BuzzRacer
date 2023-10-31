@@ -142,7 +142,10 @@ class Visualization(Extension):
         return img
 
     def drawControl(self,img,car,coord):
+        ''' draw control, throttle/steering: [-1,1]'''
         # FIXME move static stuff to background since it doesn't change
+        def bound(a,l,h):
+            return (h if (l if a < l else a)>h else a)
 
         #x1 and y1 are the origin values -- need to be changed if origin changes
         x1 = coord[0] + 30
@@ -152,14 +155,15 @@ class Visualization(Extension):
         throttle = car.throttle
         # Add steering bar
         img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
-        end_coordinate = int(50 - (steering * 100))              
+        end_coordinate = int(bound(50 - (steering * 100),0,100))
         img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
         img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         
         # Add Throttle bar
         img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
         img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        throttle_end = int(50+(72*throttle))
+        # 72*throttle
+        throttle_end = int(bound(50+(50*throttle),0,100))
         img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
 
         

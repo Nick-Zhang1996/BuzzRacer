@@ -3,12 +3,15 @@ from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+import matplotlib.pyplot as plt
 
 class DdpPointMassCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
         self.m = 2
         self.n = 4
+        self.skip_count = 0
+        self.skip_every_n = 1
 
         self.u_ref = None
         self.horizon = 30
@@ -74,6 +77,7 @@ class DdpPointMassCarController(CarController):
 
 
     def ddpControl(self,x0):
+
         # get reference u_ref
         if (self.u_ref is None):
             self.u_ref = np.zeros((self.horizon, self.m,1))
@@ -98,7 +102,7 @@ class DdpPointMassCarController(CarController):
                 xx.append(new_x)
             cost = self.getL(xx, u_ref)
             x_ref = xx
-            print(f'iter {iter}, cost = {cost}')
+            #print(f'iter {iter}, cost = {cost}')
             # DEBUG
             '''
             zero_control_cost = self.getL(x_ref,np.array(u_ref)*0)
@@ -186,13 +190,29 @@ class DdpPointMassCarController(CarController):
                 Vx = Qx - Qu @ np.linalg.inv(Quu) @ Qux
                 Vxx = Qxx - Qux.T @ np.linalg.inv(Quu) @ Qux
 
-        self.u_ref = np.vstack([np.array(u_ref[1:]),np.zeros((1,self.m,1))])
-        # x_ref will be re-written next step
-        self.x_ref = x_ref
 
-        cost = self.getL(self.x_ref, self.u_ref)
-        print(u_ref[0].flatten())
-        return u_ref[0].flatten()
+        '''
+        p_u = np.array(u_ref)
+        plt.plot(p_u[:,0],'r',label='steering')
+        plt.plot(p_u[:,1],'g',label='throttle')
+        plt.show()
+        '''
+        self.skip_count += 1
+        if (self.skip_count % self.skip_every_n != 0 and self.skip_count>0):
+            self.u_ref = np.vstack([np.array(self.u_ref[1:]),np.zeros((1,self.m,1))])
+            print('reusing')
+            print(x0)
+            print('new',u_ref[0].flatten())
+            print('reusing',self.u_ref[0].flatten())
+            return self.u_ref[0].flatten()
+        else:
+            # normal
+            self.u_ref = np.vstack([np.array(u_ref[1:]),np.zeros((1,self.m,1))])
+            # x_ref will be re-written next step, it's used for visualizing planned traj
+            self.x_ref = x_ref
+            print(x0)
+            print(u_ref[0].flatten())
+            return u_ref[0].flatten()
 
 
     def linearize(self, nominal_state, nominal_ctrl):
@@ -259,7 +279,7 @@ class DdpPointMassCarController(CarController):
 
     def drawPredictedTrajectory(self):
         ''' draw self.x_ref '''
-        lineColor = (0,255,0)
+        lineColor = (0,100,100)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
             predicted_traj = []
