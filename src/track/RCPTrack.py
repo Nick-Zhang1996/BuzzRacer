@@ -438,6 +438,8 @@ class RCPTrack(Track):
         save['track'] = self.track
         save['min_v'] = self.min_v
         save['max_v'] = self.max_v
+        save['start_pos'] = self.start_pos
+        save['start_dir'] = self.start_dir
 
         with open('./data/'+filename, 'wb') as f:
             pickle.dump(save,f)

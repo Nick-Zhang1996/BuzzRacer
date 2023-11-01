@@ -441,10 +441,10 @@ class LinearizeDynamics():
 
         # search for log_no lap
         self.track = RCPtrack()
-        self.track.startPos = (0.6*3.5,0.6*1.75)
+        self.track.start_pos = (0.6*3.5,0.6*1.75)
         self.track.startDir = radians(90)
         self.track.load()
-        laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        laptimer = Laptimer(self.track.start_pos, self.track.startDir)
         current_lap = 0
         index = 0
         start_index = -1

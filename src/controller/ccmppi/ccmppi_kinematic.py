@@ -108,7 +108,7 @@ class CCMPPI_KINEMATIC():
         '''
 
         # search for log_no lap
-        laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        laptimer = Laptimer(self.track.start_pos, self.track.startDir)
         current_lap = 0
         index = 0
         start_index = -1

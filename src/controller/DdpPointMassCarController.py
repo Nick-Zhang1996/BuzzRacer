@@ -21,7 +21,7 @@ class DdpPointMassCarController(CarController):
         self.line_search = True
 
         Kn = 10.0
-        Kphi = 10.0 * 0
+        Kphi = 1.0
         Ks = 1.0 
         Kv = 1.0 * 0
         Kop = 0.002

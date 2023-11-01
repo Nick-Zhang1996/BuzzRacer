@@ -21,7 +21,7 @@ class Laptimer(Extension):
         for car in self.main.cars:
             car.enableLaptimer = True
             if car.enableLaptimer:
-                car.laptimer = _Laptimer(self.main.track.startPos, self.main.track.startDir)
+                car.laptimer = _Laptimer(self.main.track.start_pos, self.main.track.start_dir)
                 car.laptime_vec = []
 
     def update(self):

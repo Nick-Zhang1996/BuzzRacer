@@ -78,7 +78,7 @@ class CCMPPI_DYNAMIC():
         # NOTE load track instead of re-constructing
         fulltrack = RCPTrack()
         # for laptimer
-        fulltrack.startPos = (0.6*3.5,0.6*1.75)
+        fulltrack.start_pos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)
         fulltrack.load()
         self.track = fulltrack
@@ -122,10 +122,10 @@ class CCMPPI_DYNAMIC():
 
         # search for log_no lap
         self.track = RCPTrack()
-        self.track.startPos = (0.6*3.5,0.6*1.75)
+        self.track.start_pos = (0.6*3.5,0.6*1.75)
         self.track.startDir = radians(90)
         self.track.load()
-        laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        laptimer = Laptimer(self.track.start_pos, self.track.startDir)
         current_lap = 0
         index = 0
         start_index = -1
@@ -812,7 +812,7 @@ class CCMPPI_DYNAMIC():
 
         # prepare track map
         track = RCPTrack()
-        track.startPos = (0.6*3.5,0.6*1.75)
+        track.start_pos = (0.6*3.5,0.6*1.75)
         track.startDir = radians(90)
         track.load()
 
