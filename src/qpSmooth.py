@@ -860,9 +860,15 @@ if __name__ == "__main__":
     qp = QpSmooth()
     # prepare the full track
     #qp.prepareTrack()
+
     track_size = (6,4)
     qp.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
     qp.initRaceline((3,3),'d',10,offset=None)
+
+    #track_size = (6,6)
+    #qp.initTrack('uuuururrrdrdddldllll',track_size, scale=0.6)
+    #qp.initRaceline((0,2),'u',2,offset=None)
+
     qp.optimizePath()
     qp.save()
 

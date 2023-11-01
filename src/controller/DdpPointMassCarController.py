@@ -22,14 +22,14 @@ class DdpPointMassCarController(CarController):
 
         Kn = 10.0
         Kphi = 10.0 * 0
-        Ks = 1.0 * 0
+        Ks = 1.0 
         Kv = 1.0 * 0
-        Kop = 0.05
-        self.Q = np.diag([0,0,Kn,Kphi])
+        Kop = 0.002
+        self.Q = np.diag([0,0.03,Kn,Kphi])
         # opponent collision
-        self.Qop = np.diag([Kop,0,Kop,0])
+        self.Qop = -np.diag([Kop,0,Kop,0])
         self.q = np.array([[-Ks, -Kv,0,0]])
-        self.R = np.diag([0.01,0.01])
+        self.R = np.diag([0.1,0.1])
 
     def init(self):
         self.simulator = self.main.simulator
