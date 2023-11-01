@@ -25,25 +25,9 @@ def prepareEmptyTrack(main,config):
     return EmptyTrack()
 
 def prepareRcpTrack(main,config,track=None):
-
-    # drivable surface width 0.563, square tile side length 0.6
-
-    # full RCP track
-    # NOTE load track instead of re-constructing
-    if (track is None):
-        track = RCPTrack(main=main,config=config)
-    track.start_pos = (0.6*3.5,0.6*1.75)
-    track.start_dir = radians(90)
-    track.load()
-    '''
-    for key,value in config.attributes.items():
-        setattr(track,key,eval(value))
-    '''
-    return track
-
     # row, col
     track_size = (6,4)
-    #track.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.565)
+    # drivable surface width 0.563, square tile side length 0.6
     track.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
     # add manual offset for each control points
     adjustment = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -76,6 +60,8 @@ def prepareRcpTrack(main,config,track=None):
     # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
     # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
     track.initRaceline((3,3),'d',10,offset=adjustment)
+    track.start_pos = (0.6*3.5,0.6*1.75)
+    track.start_dir = radians(90)
     return track
 
 def prepareSkidpad(main,config,track=None):

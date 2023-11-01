@@ -247,6 +247,10 @@ class RCPTrack(Track):
         # the precedent grid for start grid is also the final grid
         final_coord = current_coord - lookup_table_dir[start_direction]
         last_signature = self.track[final_coord[0]][final_coord[1]]
+        self.start_pos = ((0.5+start[0])*self.scale,(0.5+start[1])*self.scale )
+
+        dire = lookup_table_dir[start_direction]
+        self.start_dir = np.atan2(dire[1],dire[0])
 
         # for referencing offset
         index = 0
