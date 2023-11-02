@@ -25,7 +25,6 @@ class Track(ConfigObject):
         # track dimension, in meters
         self.x_limit = None
         self.y_limit = None
-        
         ConfigObject.__init__(self,config)
 
     def init(self):

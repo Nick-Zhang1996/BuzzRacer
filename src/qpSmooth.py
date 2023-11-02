@@ -7,6 +7,7 @@ import warnings
 import pickle
 import numpy as np
 import os.path
+import argparse
 from scipy.interpolate import interp1d
 from math import pi,isclose,radians,cos,sin,atan2,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
@@ -18,6 +19,7 @@ from time import time
 from common import *
 #from track.RCPTrack import RCPTrack
 from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
+from track.TrackFactory import TrackFactory
 
 
 class QpSmooth(RCPTrack):
@@ -34,7 +36,7 @@ class QpSmooth(RCPTrack):
     #        (bl, b, br))
     # where f'@r = al*rl + a*r + ar*rr
     # where f''@r = bl*rl + b*r + br*rr
-    # ds, arc length between rl,r and r, rr 
+    # ds, arc length between rl,r and r, rr
     # if not specified, |r-rl|_2 will be used as approximation
     def lagrangeDer(self,points,ds=None):
         rl,r,rr = points
@@ -63,7 +65,7 @@ class QpSmooth(RCPTrack):
     # matching first and second derivative dr, ddr
     # r (2,2)
     # dr (2,2),  taken w.r.t. arc length s
-    # ddr (2,2), taken w.r.t. arc length s 
+    # ddr (2,2), taken w.r.t. arc length s
     # ds: arc length between the endpoints
     def bezierCurve(self,r,dr,ddr,ds=None):
         rl,rr = r
@@ -350,13 +352,16 @@ class QpSmooth(RCPTrack):
 
         return img
 
-    # input:
-    # coord=r=(x,y) unit:m
-    # normal direction vector n, NOTE |n|!=1
-    # return:
-    # F,R such that r+F*n and r-R*n are boundaries of the track
-    # F,R will be bounded by delta_max
-    def checkTrackBoundary(self,coord,n,delta_max):
+    def checkTrackBoundary(self,coord,n,delta_max,offset=0):
+        '''
+            # input:
+            # coord: r=(x,y) unit:m
+            # n: normal direction vector n, NOTE |n|!=1
+            # delta_max: upper bound for returned value
+            # offset: offset from positive boundary
+            # return:
+            # F,R such that r+F*n and r-R*n are boundaries of the track
+        '''
         # since we use 1/sin and 1/cos
         # if n[0]or n[1] = 0, then there's numerical instability
         # we use a dirty workaround that when they're too small we force them to be radians(0.1)
@@ -433,8 +438,8 @@ class QpSmooth(RCPTrack):
 
         # if the point given already violates constrain, then F, R may <0
         # NOTE maybe raise a warning?
-        F = max(F,0)
-        R = max(R,0)
+        F = max(F-offset,0)
+        R = max(R-offset,0)
 
         return min(F*self.scale,delta_max), min(R*self.scale,delta_max)
 
@@ -452,15 +457,9 @@ class QpSmooth(RCPTrack):
 
         self.u = u
         self.raceline = tck
-        u_new = np.linspace(0,self.track_length_grid,steps)
-        x_new, y_new = splev(u_new, self.raceline)
 
-        retval = self.generateSpeedProfile()
-        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
-        self.max_v = retval['max_v']
-        self.min_v = retval['min_v']
 
-        self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
+    def saveTrackImage(self):
         img_track = self.drawTrack()
         #img_track = super().drawRaceline(img=img_track, points=self.break_pts)
         # do not show break points
@@ -719,7 +718,7 @@ class QpSmooth(RCPTrack):
         '''
 
     # optimize path and save to pickle file
-    def optimizePath(self,visualize=False,save_gif=False,max_iter=20,save_steps=False):
+    def optimizePath(self,*,max_iter=20, offset=0, visualize=False,save_gif=False,save_steps=False,):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
@@ -778,7 +777,7 @@ class QpSmooth(RCPTrack):
             delta_max = 5e-2
             for i in range(N):
                 coord = self.break_pts[i]
-                F,R = self.checkTrackBoundary(coord,self.n[i],delta_max)
+                F,R = self.checkTrackBoundary(coord,self.n[i],delta_max,offset)
                 h1.append(F)
                 h2.append(R)
 
@@ -838,6 +837,13 @@ class QpSmooth(RCPTrack):
 
             self.break_pts = perturbed_break_pts
 
+        self.convertToSpline()
+        retval = self.generateSpeedProfile()
+        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
+        self.max_v = retval['max_v']
+        self.min_v = retval['min_v']
+
+        self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
         if save_gif:
             print_info("saving gif.. This may take a while")
             self.log_no = 0
@@ -847,38 +853,29 @@ class QpSmooth(RCPTrack):
 
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
-
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
-        # save 
         plt.imshow(img_track_rgb)
         plt.show()
 
-        self.convertToSpline()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('track_name', choices = TrackFactory.availableTrackNames())
+    args = parser.parse_args()
+
     # optimize and save
-    qp = QpSmooth()
-    # prepare the full track
-    #qp.prepareTrack()
-
-    track_size = (6,4)
-    qp.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
-    qp.initRaceline((3,3),'d',10,offset=None)
-
-    #track_size = (6,6)
-    #qp.initTrack('uuuururrrdrdddldllll',track_size, scale=0.6)
-    #qp.initRaceline((0,2),'u',2,offset=None)
-
-    qp.optimizePath()
-    qp.save()
+    track = QpSmooth()
+    track = TrackFactory.build(args.track_name,track=track)
+    track.optimizePath(offset=0.1)
+    track.save()
 
     # verify results: load and show
-    fulltrack = RCPTrack()
+    load_track = TrackFactory.build('saved', track=track)
     print("-----------------")
     print_info("testing loading")
-    fulltrack.load()
-    img_track = fulltrack.drawTrack()
-    img_track = fulltrack.drawRaceline(img=img_track,points=[])
+    load_track.load()
+    img_track = load_track.drawTrack()
+    img_track = load_track.drawRaceline(img=img_track)
     img_track = cv2.cvtColor(img_track,cv2.COLOR_BGR2RGB)
     plt.imshow(img_track)
     plt.show()

@@ -88,8 +88,8 @@ class Car(PrintObject):
             init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            print_warning('Car: no initial state specified')
-            init_states = (0,0,0,0)
+            print_warning('Car: no initial state specified, using track default')
+            init_states = (*main.track.start_pos, main.track.start_dir,0.1)
 
         config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
         exec('from controller import '+controller_class_text)

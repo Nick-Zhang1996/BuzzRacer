@@ -37,7 +37,7 @@ class Main(PrintObject):
         # prepare track
         #config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
         config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(self,config_track)
+        self.track = TrackFactory.build(main=self,config=config_track)
         self.track.init()
 
         # prepare cars

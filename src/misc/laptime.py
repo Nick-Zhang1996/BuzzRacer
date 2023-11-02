@@ -15,7 +15,7 @@ laptime_vec = []
 
 # given control offset, get laptime
 count = 0
-def getLaptime(ctrl_offset,track_obj,start_grid,start_dir,start_seqno):
+def getLaptime(ctrl_offset,track_obj,start_grid,start_dir):
     global saveGif,gifimages,img_track,count
     count += 1
     laptime = track_obj.initRaceline(start_grid,start_dir,start_seqno,offset=ctrl_offset)

@@ -13,23 +13,23 @@ if (track_id==0):
     # starting from bottom left corner
     qp.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
     # coordinate of the initial grid, and the entry direction to it
-    qp.initRaceline((3,3),'d',10,offset=None)
+    qp.initRaceline((3,3),'d',offset=None)
     qp.img_filename = 'track0.png'
 elif (track_id==1):
     # track 1
     track_size = (4,3)
     qp.initTrack('urulurrdddll',track_size, scale=0.6)
-    qp.initRaceline((0,0),'l',0,offset=None)
+    qp.initRaceline((0,0),'l',offset=None)
     qp.img_filename = 'track1.png'
 elif (track_id==2):
     track_size = (8,5)
     qp.initTrack('ururuuululurrdrddrddddllll',track_size, scale=0.6)
-    qp.initRaceline((0,0),'l',0,offset=None)
+    qp.initRaceline((0,0),'l',offset=None)
     qp.img_filename = 'track2.png'
 elif (track_id==3):
     track_size = (9,7)
     qp.initTrack('uuurrddrruuluulluulurrrrrrdldldrdrdddldlllll',track_size, scale=0.6)
-    qp.initRaceline((0,0),'l',0,offset=None)
+    qp.initRaceline((0,0),'l',offset=None)
     qp.img_filename = 'track3.png'
 
 qp.optimizePath(visualize=False,save_steps=False)

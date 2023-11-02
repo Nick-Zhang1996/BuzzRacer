@@ -201,15 +201,14 @@ class RCPTrack(Track):
         '''
 
         return img
-    
+
     # create a heuristic raceline
     # this function stores result in self.raceline
-    # seq_no: labeling the starting grid as 0, progressing through the raceline direction, the sequence number of (0,0) grid, i.e., bottom left. In other words, how many grids are between the starting grid and the origin? If starting gtid is origin grid, then seq_no is zero
     # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
     # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of the starting grid,
     # both 0 and len(self.ctrl_pts) pointing to the entry ctrl point for the starting grid
     # and gives a pair of coordinates in METER
-    def initRaceline(self,start, start_direction,seq_no,offset=None, filename=None):
+    def initRaceline(self,start, start_direction,offset=None, filename=None):
         #init a raceline from current track, save if specified 
         # start: which grid to start from, e.g. (3,3)
         # start_direction: which direction to go. 
@@ -218,7 +217,15 @@ class RCPTrack(Track):
         # NOTE you MUST start on a straight section
         self.ctrl_pts = []
         self.ctrl_pts_w = []
-        self.origin_seq_no = seq_no
+
+        for i in range(len(self.grid_sequence)):
+            if start[0]==self.grid_sequence[i][0] and start[1]==self.grid_sequence[i][1]:
+                start_seq = i
+            if 0==self.grid_sequence[i][0] and 0==self.grid_sequence[i][1]:
+                origin_seq = i
+        # starting from [start], the sequence number for origin (0,0)
+        self.origin_seq_no = (origin_seq - start_seq) %self.track_length_grid
+
         if offset is None:
             offset = np.zeros(self.track_length_grid)
 
@@ -250,7 +257,7 @@ class RCPTrack(Track):
         self.start_pos = ((0.5+start[0])*self.scale,(0.5+start[1])*self.scale )
 
         dire = lookup_table_dir[start_direction]
-        self.start_dir = np.atan2(dire[1],dire[0])
+        self.start_dir = np.arctan2(dire[1],dire[0])
 
         # for referencing offset
         index = 0
@@ -309,7 +316,10 @@ class RCPTrack(Track):
         #tck, u = splprep(pts.T, u=None, s=0.0, per=1) 
         self.u = u
         self.raceline = tck
-        
+        retval = self.generateSpeedProfile()
+        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
+        self.max_v = retval['max_v']
+        self.min_v = retval['min_v']
 
     def generateSpeedProfile(self, *, mu=0.7, acc_max_fun=lambda x:1.5, dec_max_fun=lambda x:1.5, n_steps=1000, show=False):
         '''
@@ -409,20 +419,8 @@ class RCPTrack(Track):
             p3, = plt.plot(v3,label='3rd pass')
             plt.legend(handles=[p1,p2,p3])
             plt.show()
+
         return {'speed_profile_fun':speed_profile_fun, 'min_v': min_v, 'max_v':max_v}
-
-
-    # ---------- for curvature norm minimization -----
-    def prepareTrack(self,):
-        # prepare full track
-        track_size = (6,4)
-        self.initTrack('uuurrullurrrdddddluulddl',track_size, scale=0.6)
-
-        # start coord, direction, sequence number of origin
-        # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
-        # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-        self.initRaceline((3,3),'d',10,offset=None)
-        return
 
     # save raceline to pickle file
     def save(self,filename=None):
@@ -474,6 +472,8 @@ class RCPTrack(Track):
         self.track = save['track']
         self.min_v = save['min_v']
         self.max_v = save['max_v']
+        self.start_pos = save['start_pos']
+        self.start_dir = save['start_dir']
         self.x_limit = self.gridsize[1]*self.scale
         self.y_limit = self.gridsize[0]*self.scale
 
@@ -837,9 +837,6 @@ class RCPTrack(Track):
                 break
         '''
         return retval
-        
-
-    # ---------- for curvature norm minimization -----
 
     # draw point corresponding to u
     def drawPointU(self,img,uu):
@@ -1438,10 +1435,5 @@ class RCPTrack(Track):
         for coord in coord_vec:
             src = self.m2canvas(coord)
             img = cv2.circle(img, src, 3, color,-1)
-
         return img
-    
-if __name__ == "__main__":
-    fulltrack = RCPTrack()
-    fulltrack.prepareTrack()
 
