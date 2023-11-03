@@ -8,7 +8,7 @@
     obstacle_count='10'
     obstacle_filename='"obstacles.p"'
     obstacle_radius='0.1'
-   >full</track>
+   >saved</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
