@@ -17,6 +17,7 @@ class TrackFactory:
                 'full':TrackFactory.prepareRcpTrack,
                 'small':TrackFactory.prepareRcpTrackSmall,
                 'easy':TrackFactory.prepareEasyTrack,
+                'big':TrackFactory.prepareRcpTrackBig,
                 # specialized tracks
                 'skidpad':TrackFactory.prepareSkidpad,
                 'empty':TrackFactory.prepareEmptyTrack,
@@ -122,6 +123,14 @@ class TrackFactory:
         adjustment[9] = 0
         adjustment[10] = -0.5
         track.initRaceline((2,2),'d',offset=adjustment)
+        return track
+
+    @staticmethod
+    def prepareRcpTrackBig(main,config,track=None):
+        if (track is None):
+            track = RCPTrack()
+        track.initTrack('urruulluururrdrdddlddlll',(7,5),scale=0.6)
+        track.initRaceline((2,0),'l')
         return track
 
     @staticmethod

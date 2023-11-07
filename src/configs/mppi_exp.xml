@@ -3,7 +3,7 @@
     <experiment_type>Realworld</experiment_type>
   </settings>
 
-  <track>full</track>
+  <track>saved</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>

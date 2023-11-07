@@ -38,7 +38,6 @@ class Visualization(Extension):
 
         # draw static components onto background
         self.img_track = self.drawControlStaticForAllCars(self.img_track)
-        # FIXME
         self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
