@@ -82,7 +82,7 @@ class SymbolicDynamics:
             self.luu.append(dl_du_du)
         return
 
-    def calcDer(self,x0,u0):
+    def calcDer(self,x0,u0,subs_dict={}):
         ''' calculate fx,fu,lx,lu,lxx,luu,lux numerically
         e.g. fx = dfdx = df(x,u) / dx 
         user should call symDer() before calling this function
@@ -94,7 +94,6 @@ class SymbolicDynamics:
         u0 = np.array(u0).flatten()
         assert(len(x0) == self.n)
         assert(len(u0) == self.m)
-        subs_dict = {}
         for i in range(self.n):
             subs_dict.update({self.x[i]:x0[i]})
         for i in range(self.m):
@@ -108,6 +107,31 @@ class SymbolicDynamics:
         dldudu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.luu])
         dldudx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.lux])
         return dfdx_val, dfdu_val, dldx_val, dldu_val, dldxdx_val, dldudu_val,dldudx_val
+
+    def xQx_diag(self,x,Q):
+        ''' calculate x.T @ Q @ x, with x being a vector of symbolic variables
+        x = [x0,x1,...] dim n
+        Q = np.array, dim n*n
+        only consider diagonal terms
+        '''
+        assert(len(x) == Q.shape[0])
+        assert(Q.shape[0] == Q.shape[1])
+        result = 0
+        for i in range(x):
+            result += x[i]*x[i]*Q[i,i]
+        return result
+
+    def product(self,a,b):
+        ''' calculate inner of two vectors '''
+        assert(len(a)==len(b))
+        result = 0
+        for i in range(len(a)):
+            result += a[i]*b[i]
+        return result
+
+    def minus(self,a,b):
+        assert(len(a)==len(b))
+        return [a[i]-b[i] for i in range(len(a))]
 
 
 if __name__=="__main__":

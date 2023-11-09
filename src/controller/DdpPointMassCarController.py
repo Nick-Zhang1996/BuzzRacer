@@ -20,9 +20,9 @@ class DdpPointMassCarController(CarController):
         self.dt = self.main.dt
         self.line_search = True
 
-        Kn = 10.0
+        Kn = 13.0
         Kphi = 1.0
-        Ks = 1.0 
+        Ks = 1.0
         Kv = 1.0 * 0
         Kop = 0.002
         self.Q = np.diag([0,0.03,Kn,Kphi])

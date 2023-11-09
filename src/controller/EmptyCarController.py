@@ -12,10 +12,11 @@ class EmptyCarController(CarController):
         # may be needed to keep car steady
         throttle = self.calcThrottle(0)
         steering = 0
-        self.car.throttle = throttle
+        self.car.throttle = throttle*0
         self.car.steering = steering
 
         return valid
+
     def calcThrottle(self,ax):
         vx = self.car.states[3]
         return ax/6.17+0.333 + vx/15.2

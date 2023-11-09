@@ -9,7 +9,7 @@
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-      <extension handle='visualization' car_graphics='False'>Visualization</extension>
+      <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='True'>CurvilinearSimulator</extension>
   </extensions>
 
@@ -21,7 +21,16 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller>
         <type>iLQGameCarController</type>
-        <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_12</config_name>
+      <init_states>(3.9*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
+      <controller>
+        <type>EmptyCarController</type>
       </controller>
     </car>
 
