@@ -21,7 +21,7 @@ class iLQGameCarController(CarController):
 
         self.u_j_ref = None
         self.x_j_ref = None
-        self.horizon = 10
+        self.horizon = 20
         self.dt = self.main.dt
         # symbolic dynamics
         #self.sym = self.buildSymbolicDynamics()
@@ -45,13 +45,17 @@ class iLQGameCarController(CarController):
     def control(self):
         assert(len(self.main.cars)==2)
         # s,v,n,phi
-        ctrl1, ctrl2 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
+        ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
+        print(f'car0: v={self.main.cars[0].sim_states[1]}, ctrl = {ctrl0}')
+        print(f'car1: v={self.main.cars[1].sim_states[1]}, ctrl = {ctrl1}')
 
-        self.main.cars[0].steering = ctrl1[0]
-        self.main.cars[0].throttle = ctrl1[1]
+        self.main.cars[0].steering = ctrl0[0]
+        self.main.cars[0].throttle = ctrl0[1]
 
-        self.main.cars[1].steering = ctrl2[0]
-        self.main.cars[1].throttle = ctrl2[1]
+        self.main.cars[1].steering = ctrl1[0]
+        self.main.cars[1].throttle = ctrl1[1]
+
+        self.drawPredictedTrajectory()
         return
 
     def buildSymbolicDynamics(self):
@@ -303,3 +307,37 @@ class iLQGameCarController(CarController):
         d = x_post.flatten() - A @ x0 - B @ u0
 
         return A,B,d
+
+    def drawPredictedTrajectory(self):
+        ''' draw self.x_ref '''
+        lineColor = (0,100,100)
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            predicted_traj = []
+            for t in range(self.horizon):
+                curvi_states = self.x_ref[t]
+                control = self.u_ref[t]
+                cart_states = self.simulator.curv2Cart(curvi_states)
+                predicted_traj.append(cart_states)
+
+            predicted_traj = np.array(predicted_traj)
+            predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
+            img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
+            self.main.visualization.visualization_img = img
+
+        ''' draw self.x_j_ref '''
+        lineColor = (0x22,0x6C,0xFF)
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            predicted_traj = []
+            for t in range(self.horizon):
+                curvi_states = self.x_j_ref[t]
+                control = self.u_j_ref[t]
+                cart_states = self.simulator.curv2Cart(curvi_states)
+                predicted_traj.append(cart_states)
+
+            predicted_traj = np.array(predicted_traj)
+            predicted_traj = np.hstack([np.zeros((predicted_traj.shape[0],1)), predicted_traj])
+            img = self.main.track.drawTrajectory(np.array(predicted_traj),img,lineColor)
+            self.main.visualization.visualization_img = img
+
