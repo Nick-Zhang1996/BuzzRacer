@@ -34,15 +34,19 @@ class iLQGameCarController(CarController):
         Kop = 0.002
         self.Q = np.diag([0,0.03,Kn,Kphi])
         self.q = np.array([[-Ks, -Kv,0,0]]).T
-        self.R = np.diag([0.1,0.1])
+        self.R = np.diag([1.0,3.0])
         # opponent collision
         self.Qop = -np.diag([Kop,0,Kop,0])
+        self.linearize_around_zero_control = True
 
     def init(self):
+        if (self.linearize_around_zero_control):
+            self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
         assert(isinstance(self.simulator,CurvilinearSimulator))
 
     def control(self):
+        self.debug_dict = {}
         assert(len(self.main.cars)==2)
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
@@ -111,7 +115,6 @@ class iLQGameCarController(CarController):
 
 
     def lqControl(self,x0_i,x0_j):
-
         # 1: use new open loop policy
         alpha = 0.5
         P1s = [np.zeros((self.m,self.n*2))]*self.horizon
@@ -144,7 +147,10 @@ class iLQGameCarController(CarController):
                 for t in range(self.horizon):
                     u = self.u_ref[t]
                     new_x = self.update_dynamics(xx_i[-1],u)
-                    A,B,d = self.linearize(xx_i[-1],u)
+                    if (self.linearize_around_zero_control):
+                        A,B,d = self.linearize(xx_i[-1],np.zeros(self.m))
+                    else:
+                        A,B,d = self.linearize(xx_i[-1],u)
                     # DEBUG test symbolic differentiation
 
                     xx_i.append(new_x.reshape(4,1))
@@ -155,7 +161,10 @@ class iLQGameCarController(CarController):
 
                     u = self.u_j_ref[t]
                     new_x = self.update_dynamics(xx_j[-1],u)
-                    A,B,d = self.linearize(xx_j[-1],u)
+                    if (self.linearize_around_zero_control):
+                        A,B,d = self.linearize(xx_j[-1],np.zeros(self.m))
+                    else:
+                        A,B,d = self.linearize(xx_j[-1],u)
                     # DEBUG test symbolic differentiation
 
                     xx_j.append(new_x.reshape(4,1))
@@ -177,7 +186,10 @@ class iLQGameCarController(CarController):
 
                     u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
                     new_x = self.update_dynamics(xx_i[-1],u)
-                    A,B,d = self.linearize(xx_i[-1], u)
+                    if (self.linearize_around_zero_control):
+                        A,B,d = self.linearize(xx_i[-1],np.zeros(self.m))
+                    else:
+                        A,B,d = self.linearize(xx_i[-1],u)
                     xx_i.append(new_x.reshape(4,1))
                     Ais.append(A)
                     Bis.append(B)
@@ -187,7 +199,10 @@ class iLQGameCarController(CarController):
                     #for ego agent j
                     u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
                     new_x = self.update_dynamics(xx_j[-1],u)
-                    A,B,d = self.linearize(xx_j[-1], u)
+                    if (self.linearize_around_zero_control):
+                        A,B,d = self.linearize(xx_j[-1],np.zeros(self.m))
+                    else:
+                        A,B,d = self.linearize(xx_j[-1],u)
                     xx_j.append(new_x.reshape(4,1))
                     Ajs.append(A)
                     Bjs.append(B)
@@ -240,6 +255,8 @@ class iLQGameCarController(CarController):
 
         ctrl1 = self.u_ref[0].flatten()
         ctrl2 = self.u_j_ref[0].flatten()
+
+        self.debug_dict.update({'u_ref':self.u_ref, 'x_ref':self.x_ref, 'x_j_ref':self.x_j_ref, 'u_j_ref':self.u_j_ref})
         return ctrl1,ctrl2
 
     # differentiate dynamics around nominal state and control
