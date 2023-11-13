@@ -3,8 +3,9 @@ from common import *
 import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
-class CarController(ConfigObject):
+class CarController(ConfigObject,LogObject):
     def __init__(self, car, config):
+        LogObject.__init__(self)
         self.config = config
         self.car = car
         self.main = car.main

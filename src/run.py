@@ -17,8 +17,9 @@ import os.path
 import os
 os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
 
-class Main(PrintObject):
+class Main(PrintObject,LogObject):
     def __init__(self,config_filename):
+        LogObject.__init__(self)
         self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
 

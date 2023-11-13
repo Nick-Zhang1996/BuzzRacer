@@ -1,11 +1,12 @@
 from common import *
 import serial
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
-class Car(PrintObject):
+class Car(PrintObject,LogObject):
     car_count = 0
     cars = []
     # initialization for variables common to all subclass
     def __init__(self,main):
+        LogObject.__init__(self)
         self.main = main
         self.controller = None
         self._throttle = 0.0
