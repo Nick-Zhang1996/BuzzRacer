@@ -82,68 +82,10 @@ class Skidpad(Track):
     def drawTrack(self):
         # resolution : pixels per meter
         res = self.resolution
-        canvas = 255*np.ones([int(res*self.radius*4),int(res*self.radius*4),3],dtype='uint8')
+        canvas = 255*np.ones([int(res*self.radius*3),int(res*self.radius*3),3],dtype='uint8')
         self.canvas_size = canvas.shape
         canvas = cv2.circle(canvas,self.m2canvas((0,0)),int(self.radius*res),(255,0,0),5)
         return canvas
-
-# draw car on a track image prepared by drawTrack()
-# draw the vehicle (one dot with two lines) onto a canvas
-# coord: location of the dor, in meter (x,y)
-# heading: heading of the vehicle, radians from x axis, ccw positive
-#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
-# NOTE: this function modifies img, if you want to recycle base img, sent img.copy()
-    def drawCar(self,img, state, steering):
-        x = state[0]
-        y = state[1]
-        heading = state[2]
-        # check if vehicle is outside canvas
-        coord = (x,y)
-        src = self.m2canvas(coord)
-        if src is None:
-            print("Can't draw car -- outside track")
-            return img
-        # draw vehicle, orientation as black arrow
-        img =  self.drawArrow(coord,heading,length=30,color=(0,0,0),thickness=5,img=img)
-        '''img = cv2.imread('src/image.png',-1)'''
-
-        # draw steering angle, orientation as red arrow
-        img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
-        # image rotation according to heading and steering angles
-        '''
-        height, width = img.shape[:2]
-        center = (width/2, height/2)
-        rotate_matrix = cv2.getRotationMatrix2D(center=center, angle=heading+steering, scale=1)
-        img = cv2.warpAffine(src=img, M=rotate_matrix, dsize=(width, height)) 
-        '''      
-
-        return img
-
-    # draw ONE arrow, unit: meter, coord sys: dimensioned
-    # coord: coordinate for source of arrow, in meter
-    # orientation, radians from x axis, ccw positive
-    # length: in pixels, though this is only qualitative
-    def drawArrow(self,coord, orientation, length, color=(0,0,0),thickness=2, img=None, show=False):
-
-        if (length>1):
-            length = int(length)
-        else:
-            return img
-
-        res = self.resolution
-
-        src = self.m2canvas(coord)
-        if (src is None):
-            print("drawArrow err -- point outside canvas")
-            return img
-
-        # y-axis positive direction in real world and cv plotting is reversed
-        dest = (int(src[0] + cos(orientation)*length),int(src[1] - sin(orientation)*length))
-
-        img = cv2.circle(img, src, 3, (0,0,0),-1)
-        img = cv2.line(img, src, dest, color, thickness) 
-            
-        return img
 
 # conver a world coordinate in meters to canvas coordinate
     def m2canvas(self,coord):

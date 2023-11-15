@@ -11,7 +11,7 @@
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='True'>CurvilinearSimulator</extension>
-      <extension handle='gifsaver'>Gifsaver</extension>
+        <!--<extension handle='gifsaver'>Gifsaver</extension>-->
   </extensions>
 
   <cars>
@@ -29,7 +29,7 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_12</config_name>
-      <init_states>(3.2,0.2, radians(90), 1.1)</init_states>
+      <init_states>(3.2,0.2, radians(90), 1.0)</init_states>
       <controller>
         <type>EmptyCarController</type>
       </controller>
