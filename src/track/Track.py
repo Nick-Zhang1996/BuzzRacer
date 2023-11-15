@@ -136,6 +136,8 @@ class Track(ConfigObject):
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
+            if (pts[i] is None or pts[i+1] is None):
+                continue
             img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
         return img
 

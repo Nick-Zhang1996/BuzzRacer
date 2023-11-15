@@ -99,7 +99,7 @@ class CurvilinearSimulator(Simulator):
             [curv]: (s,v,n,phi)
             [return]: (x,y,heading,v_forward,v_sideway,omega)
         '''
-        s,v,n,phi = curv
+        s,v,n,phi = curv.flatten()
         r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
         dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
@@ -110,8 +110,8 @@ class CurvilinearSimulator(Simulator):
         ref_heading = np.arctan2(dr[1],dr[0])
         heading = wrap(phi + ref_heading)
         v_forward = v
-        v_sideway = 0
-        omega = 0
+        v_sideway = 0.0
+        omega = 0.0
         return np.array([x,y,heading, v_forward, v_sideway, omega])
 
     def curvature(self,s):
@@ -143,8 +143,10 @@ class CurvilinearSimulator(Simulator):
             dt = CurvilinearSimulator.dt
 
         dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
+        '''
         if (np.linalg.norm(dx[:3]) > 1.0):
             breakpoint()
+        '''
         return curv_states + dx
 
     def advanceDynamics(self, car_states, control, car, dt=None):

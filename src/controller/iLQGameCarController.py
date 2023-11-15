@@ -27,15 +27,16 @@ class iLQGameCarController(CarController):
         #self.sym = self.buildSymbolicDynamics()
 
         # cost
-        Kn = 13.0
+        Kn = 20.0
         Kphi = 1.0
         Ks = 1.0
-        Kv = 1.0 * 0
-        Kop = 0.002
-        self.Q = np.diag([0,0.03,Kn,Kphi])
-        self.q = np.array([[-Ks, -Kv,0,0]]).T
-        self.R = np.diag([1.0,3.0])
+        Kv = 0.0
+        Kop = 0.0
+        self.Q = np.diag([0,0.3,Kn,Kphi])
+        self.q = np.array([[-Ks, -Kv,0,0]]).T*0
+        self.R = np.diag([0.1,0.1])
         # opponent collision
+        # this quadratic reward on opponent distance is unreasonable
         self.Qop = -np.diag([Kop,0,Kop,0])
         self.linearize_around_zero_control = True
 
@@ -50,8 +51,8 @@ class iLQGameCarController(CarController):
         assert(len(self.main.cars)==2)
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
-        print(f'car0: v={self.main.cars[0].sim_states[1]}, ctrl = {ctrl0}')
-        print(f'car1: v={self.main.cars[1].sim_states[1]}, ctrl = {ctrl1}')
+        print(f'car0: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
+        print(f'car1: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
 
         self.main.cars[0].steering = ctrl0[0]
         self.main.cars[0].throttle = ctrl0[1]

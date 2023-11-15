@@ -25,7 +25,7 @@ class DdpPointMassCarController(CarController):
         Ks = 1.0
         Kv = 1.0 * 0
         Kop = 0.002
-        self.Q = np.diag([0,0.03,Kn,Kphi])
+        self.Q = np.diag([0,0.3,Kn,Kphi])
         # opponent collision
         self.Qop = -np.diag([Kop,0,Kop,0])
         self.q = np.array([[-Ks, -Kv,0,0]])
