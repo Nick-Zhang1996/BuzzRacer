@@ -256,7 +256,7 @@ class iLQGameCarController(CarController):
         ctrl1 = self.u_ref[0].flatten()
         ctrl2 = self.u_j_ref[0].flatten()
 
-        self.debug_dict.update({'u_ref':self.u_ref, 'x_ref':self.x_ref, 'x_j_ref':self.x_j_ref, 'u_j_ref':self.u_j_ref})
+        self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         return ctrl1,ctrl2
 
     # differentiate dynamics around nominal state and control

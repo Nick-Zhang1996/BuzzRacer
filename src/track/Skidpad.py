@@ -1,24 +1,43 @@
 # a simulated skidpad
+from common import *
 import cv2
 import numpy as np
 from math import cos,sin,pi,atan2,radians,degrees,tan
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
 
 from track.Track import Track
 #from track.car import Car
 
 class Skidpad(Track):
-    def __init__(self):
+    def __init__(self,main,config):
         #super(Skidpad,self).__init__()
+        Track.__init__(self,main,config)
+
+
+        # default parameters, to be override
+        self.radius = 2.0
+        self.ccw = True
         self.resolution = 100
+        # reference velocity, obsolete
+        self.velocity = 1.0
+
+        ConfigObject.__init__(self,config)
+
+        # setup
+        theta_vec = np.linspace(0,2*np.pi,1000)
+        ss = theta_vec*self.radius
+        rr = [np.cos(theta_vec)*self.radius, np.sin(theta_vec)*self.radius]
+        tck, u = splprep(rr, u=ss,s=0,per=1) 
+        self.raceline_s = tck
+
+        self.raceline_len_m = 2*np.pi*self.radius
+        self.start_pos = (0, self.radius)
+        self.start_dir = np.pi/2
         return
 
-    # initialize a skidpad, centered at origin
-    def initSkidpad(self,radius, velocity, ccw=True):
-        self.radius = radius
-        self.velocity = velocity
-        self.ccw = ccw
-        return
+    def drawRaceline(self,img):
+        return img
 
     #state: x,y,theta,vf,vs,omega
     # x,y referenced from skidpad frame

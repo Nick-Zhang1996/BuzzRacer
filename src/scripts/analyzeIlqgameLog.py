@@ -36,5 +36,6 @@ if __name__=="__main__":
     # dim: time,car, state
     # (time, x,y,theta,vforward,vsideway=0,omega)
     #data = main.loadLog('2023_11_13_exp/full_state2.p')
-    data = main.loadDebugDict('2023_11_13_exp/debug_dict9.p')
+    data = main.loadDebugDict('2023_11_15_exp/debug_dict1.p')
     breakpoint()
+    print('done')

@@ -104,10 +104,8 @@ class TrackFactory:
 
     @staticmethod
     def prepareSkidpad(main,config,track=None):
-        target_velocity = 1.0
-        sp = Skidpad()
-        sp.initSkidpad(radius=2,velocity=target_velocity)
-        return sp
+        track = Skidpad(main=main,config=config)
+        return track
 
     @staticmethod
     def prepareRcpTrackSmall(main,config,track=None):

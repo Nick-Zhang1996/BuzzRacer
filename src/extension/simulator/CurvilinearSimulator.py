@@ -143,6 +143,8 @@ class CurvilinearSimulator(Simulator):
             dt = CurvilinearSimulator.dt
 
         dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
+        if (np.linalg.norm(dx[:3]) > 1.0):
+            breakpoint()
         return curv_states + dx
 
     def advanceDynamics(self, car_states, control, car, dt=None):
