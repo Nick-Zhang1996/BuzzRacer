@@ -135,7 +135,9 @@ class TrackFactory:
     def prepareEasyTrack(main,config,track=None):
         if (track is None):
             track = RCPTrack()
-        track.initTrack('uuruluurrrddddldll',(6,4),scale=0.6)
+        #track.initTrack('uuruluurrrddddldll',(6,4),scale=0.6)
+        #track.initRaceline((3,3),'d')
+        track.initTrack('uuuuurrrddddldll',(6,4),scale=0.6)
         track.initRaceline((3,3),'d')
         return track
 

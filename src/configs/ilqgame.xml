@@ -11,7 +11,7 @@
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='True'>CurvilinearSimulator</extension>
-          <!--<extension handle='gifsaver'>Gifsaver</extension>-->
+      <extension handle='gifsaver'>Gifsaver</extension>
   </extensions>
 
   <cars>

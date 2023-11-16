@@ -31,7 +31,7 @@ class iLQGameCarController(CarController):
 
         # cost to apply on state
         # state x: s,v,n,phi
-        self.Q1 = np.diag([0,1.0,15.0,3.0])
+        self.Q1 = np.diag([0,1.0,15.0,9.0])
         self.q1 = np.array([[-1.0, -3,0,0]]).T
         # cost on control u (ay,ax)
         self.R1 = np.diag([0.1,0.1])
@@ -42,7 +42,8 @@ class iLQGameCarController(CarController):
 
         # cost on opponent collision
         Kop = 30.0
-        self.opponent_min_distance = 0.2
+        self.opponent_min_distance_s = 0.25
+        self.opponent_min_distance_n = 0.17
         # this should be negative
         self.Qop = -np.diag([Kop,0,Kop,0])
         self.linearize_around_zero_control = True
@@ -289,8 +290,7 @@ class iLQGameCarController(CarController):
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
-            dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
-            if (dist < self.opponent_min_distance):
+            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 Q1_x += II.T @ self.Qop @ II
                 Q2_x += II.T @ self.Qop @ II
 
