@@ -32,9 +32,9 @@ class iLQGameCarController(CarController):
         # cost
         # x: s,v,n,phi
         # Qi, qi, Ri
-        self.Q = np.diag([0,1.0,1.0,1.0])
+        self.Q = np.diag([0,1.0,10.0,1.0])
         self.q = np.array([[0.0, -2.0,0,0]]).T
-        self.R = np.diag([0.2,0.2])
+        self.R = np.diag([0.1,0.1])
         # opponent collision
         # this quadratic reward on opponent distance is unreasonable
         Kop = 0.0
@@ -225,8 +225,7 @@ class iLQGameCarController(CarController):
 
             xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
             Q1 = Q1_x
-            breakpoint()
-            q1 = 2 * xx_ref @ Q1_x + q1_x
+            q1 = 2 * xx_ref.T @ Q1_x + q1_x
 
             Q2 = Q2_x
             q2 = 2 * xx_ref.T @ Q2_x + q2_x
