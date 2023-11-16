@@ -29,15 +29,21 @@ class iLQGameCarController(CarController):
         # symbolic dynamics
         #self.sym = self.buildSymbolicDynamics()
 
-        # cost
-        # x: s,v,n,phi
-        # Qi, qi, Ri
-        self.Q = np.diag([0,1.0,10.0,1.0])
-        self.q = np.array([[0.0, -2.0,0,0]]).T
-        self.R = np.diag([0.1,0.1])
-        # opponent collision
-        # this quadratic reward on opponent distance is unreasonable
-        Kop = 0.0
+        # cost to apply on state
+        # state x: s,v,n,phi
+        self.Q1 = np.diag([0,1.0,15.0,3.0])
+        self.q1 = np.array([[-1.0, -3,0,0]]).T
+        # cost on control u (ay,ax)
+        self.R1 = np.diag([0.1,0.1])
+
+        self.Q2 = np.diag([0,1.0,15.0,3.0])
+        self.q2 = np.array([[-1.0, -4.5,0,0]]).T
+        self.R2 = np.diag([0.1,0.1])
+
+        # cost on opponent collision
+        Kop = 30.0
+        self.opponent_min_distance = 0.2
+        # this should be negative
         self.Qop = -np.diag([Kop,0,Kop,0])
         self.linearize_around_zero_control = True
 
@@ -54,6 +60,10 @@ class iLQGameCarController(CarController):
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
         print(f'car0: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
         print(f'car1: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
+        # DEBUG
+        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
+        dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
+        print(f'dist: {dist}')
 
         self.main.cars[0].steering = ctrl0[0]
         self.main.cars[0].throttle = ctrl0[1]
@@ -213,40 +223,13 @@ class iLQGameCarController(CarController):
             B1s = [np.vstack([Bi,np.zeros((n,m))]) for Bi in Bis]
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
-            II = np.hstack([np.eye(n),-np.eye(n)])
-            # these work on the state x, not state perturbation dx
-            Q1_x =  block_diag(self.Q,np.zeros((n,n))) + II.T @ self.Qop @ II
-            q1_x = np.hstack([self.q.T,np.zeros((1,n))])
-            R1 = self.R
 
-            Q2_x =  block_diag(np.zeros((n,n)),self.Q) + II.T @ self.Qop @ II
-            q2_x = np.hstack([np.zeros((1,n)),self.q.T])
-            R2 = self.R
-
-            xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
-            Q1 = Q1_x
-            q1 = 2 * xx_ref.T @ Q1_x + q1_x
-
-            Q2 = Q2_x
-            q2 = 2 * xx_ref.T @ Q2_x + q2_x
-
-
-            Q1s = [Q1]*self.horizon
-            Q2s = [Q2]*self.horizon
-            l1s = [q1.T]*self.horizon
-            l2s = [q2.T]*self.horizon
-
-            R0 = np.zeros((m,m))
-            R11s = [R1]*self.horizon
-            R22s = [R2]*self.horizon
-
-            R12s = [R0]*self.horizon
-            R21s = [R0]*self.horizon
+            Q1s,q1s,Q2s,q2s,Rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
 
             # LQ cost function, get Q,l, Rs
             [P1s, P2s], [alpha1s, alpha2s] = solve_lq_game(
                 As, [B1s, B2s],
-                [Q1s, Q2s], [l1s, l2s], [[R11s, R12s], [R21s, R22s]])
+                [Q1s, Q2s], [q1s, q2s], Rs)
 
             # DEBUG compare "expected" states from LQ game against simulated states
             # reference u is zero
@@ -277,6 +260,69 @@ class iLQGameCarController(CarController):
 
         self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         return ctrl1,ctrl2
+
+    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
+        Q1s = []
+        Q2s = []
+        q1s = []
+        q2s = []
+
+        R11s = []
+        R22s = []
+
+        R12s = []
+        R21s = []
+
+        n = self.n
+        m = self.m
+        II = np.hstack([np.eye(n),-np.eye(n)])
+        R0 = np.zeros((m,m))
+
+        for t in range(self.horizon):
+            # these work on the state x, not state perturbation dx
+            # cost_i = x.T @ Qi_x @ x + qi_x.T @ x + ui.T @ R @ ui
+            Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
+            q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+
+            Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
+            q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+
+            # barrier function: opponent collision
+            delta_x = xx_i[t] - xx_j[t]
+            dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
+            if (dist < self.opponent_min_distance):
+                Q1_x += II.T @ self.Qop @ II
+                Q2_x += II.T @ self.Qop @ II
+
+            # TODO
+            # barrier function: track boundary
+            # barrier function: control limit
+            R1 = self.R1
+            R2 = self.R1
+
+
+            xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
+            # these work on state perturbation dx
+            Q1 = Q1_x
+            q1 = 2 * xx_ref.T @ Q1_x + q1_x
+
+            Q2 = Q2_x
+            q2 = 2 * xx_ref.T @ Q2_x + q2_x
+
+            Q1s.append(Q1)
+            Q2s.append(Q2)
+            q1s.append(q1.T)
+            q2s.append(q2.T)
+
+            R11s.append(R1)
+            R22s.append(R2)
+
+            R12s.append(R0)
+            R21s.append(R0)
+
+        Rs = [[R11s, R12s], [R21s, R22s]]
+
+        return Q1s,q1s,Q2s,q2s,Rs
 
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
