@@ -24,7 +24,6 @@ class SymbolicDynamics:
 
     def symDer(self):
         ''' calculate jacobian of f(x,u)
-        and jacobian,hessian of Q(x,u)
         before calling this function user should define
         self.f as a function of self.x, self.u
         self.f: list(symbols) -> [f0,f1,f2,...,fn], functions of self.x,self.u
@@ -51,8 +50,7 @@ class SymbolicDynamics:
                 dfi_du.append(f[i].diff(u[j]))
             dfdu.append(dfi_du)
         self.dfdu = dfdu
-
-
+        '''
         # 1*n
         self.lx = []
         # n*n
@@ -80,6 +78,7 @@ class SymbolicDynamics:
                 dl_du_du.append(self.lu[-1].diff(u[j]))
             self.lux.append(dl_du_dx)
             self.luu.append(dl_du_du)
+        '''
         return
 
     def calcDer(self,x0,u0,subs_dict={}):
@@ -88,7 +87,7 @@ class SymbolicDynamics:
         user should call symDer() before calling this function
         x0: list-like, substitute values for x
         u0: list-like, substitute values for u
-        return: dfdx, in numpy array, evaluated at x0,u0
+        return: dfdx,dudx in numpy array, evaluated at x0,u0
         '''
         x0 = np.array(x0).flatten()
         u0 = np.array(u0).flatten()
@@ -98,15 +97,18 @@ class SymbolicDynamics:
             subs_dict.update({self.x[i]:x0[i]})
         for i in range(self.m):
             subs_dict.update({self.u[i]:u0[i]})
-        dfdx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdx])
-        dfdu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdu])
+        dfdx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdx], dtype=np.float64)
+        dfdu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdu], dtype=np.float64)
 
+        '''
         dldx_val = np.array([eq.evalf(subs=subs_dict) for eq in self.lx])
         dldu_val = np.array([eq.evalf(subs=subs_dict) for eq in self.lu])
         dldxdx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.lxx])
         dldudu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.luu])
         dldudx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.lux])
         return dfdx_val, dfdu_val, dldx_val, dldu_val, dldxdx_val, dldudu_val,dldudx_val
+        '''
+        return dfdx_val, dfdu_val
 
     def xQx_diag(self,x,Q):
         ''' calculate x.T @ Q @ x, with x being a vector of symbolic variables

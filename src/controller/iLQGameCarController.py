@@ -29,7 +29,7 @@ class iLQGameCarController(CarController):
         self.horizon = 20
         self.dt = self.main.dt
         # symbolic dynamics
-        #self.sym = self.buildSymbolicDynamics()
+        self.sym = self.buildSymbolicDynamics()
 
         # cost to apply on state
         # state x: s,v,n,phi
@@ -112,24 +112,29 @@ class iLQGameCarController(CarController):
 
         #l_path(x,u) = xT Q x + q x + uT R u
         #l_op(x,xop) = (x-xop)T Qop (x-xop) = (remove const) xT Qop x - 2xopT Qop x
-        l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
-        l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qop)
-        sym.l = l_path + l_op
+        #l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
+        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qop)
+        #sym.l = l_path + l_op
         sym.symDer()
         return sym
 
-    def linearizeSymbolicDynamics(self,x0,u0,xop):
+
+    def linearizeSymbolic(self,x0,u0):
+        ''' linearize dynamics symbolically '''
         sym = self.sym
         x0 = x0.flatten()
         u0 = u0.flatten()
-        xop = xop.flatten()
+        #xop = xop.flatten()
         k_s = self.simulator.curvature(x0[0])
         subs_dict = {sym.k_s:k_s}
+        '''
         for i in range(self.n):
             subs_dict.update({sym.xop[i]:xop[i]})
+        '''
 
-        fx,fu,lx,lu,lxx,luu,lux = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
-        return fx,fu,lx,lu,lxx,luu,lux
+        #fx,fu,lx,lu,lxx,luu,lux = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        fx,fu = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        return fx,fu
 
     def update_dynamics(self,states,controls,dt=None):
         if (dt is None):
@@ -180,13 +185,11 @@ class iLQGameCarController(CarController):
             xx_i =[x0_i.reshape((self.n,1))]
             Ais = []
             Bis = []
-            dis = []
             uu_i = []
 
             xx_j =[x0_j.reshape((self.n,1))]
             Ajs = []
             Bjs = []
-            djs = []
             uu_j = []
 
             # u_ki = u_ref_ki - P_ki @ dx_k - alpha_ki
@@ -204,14 +207,15 @@ class iLQGameCarController(CarController):
                 new_x = self.update_dynamics(xx_i[-1],u)
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
-                    A,B,d = self.linearize(xx_i[-1],np.zeros(self.m))
+                    #oA,oB,d = self.linearizeNumerical(xx_i[-1],np.zeros(self.m))
+                    A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
                 else:
-                    A,B,d = self.linearize(xx_i[-1],u)
+                    #A,B,d = self.linearizeNumerical(xx_i[-1],u)
+                    A, B = self.linearizeSymbolic(xx_i[-1],u)
                 self.t.e('linearize')
                 xx_i.append(new_x.reshape(4,1))
                 Ais.append(A)
                 Bis.append(B)
-                dis.append(d)
                 uu_i.append(u)
 
                 #for ego agent j
@@ -219,14 +223,15 @@ class iLQGameCarController(CarController):
                 new_x = self.update_dynamics(xx_j[-1],u)
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
-                    A,B,d = self.linearize(xx_j[-1],np.zeros(self.m))
+                    #A,B,d = self.linearizeNumerical(xx_j[-1],np.zeros(self.m))
+                    A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
                 else:
-                    A,B,d = self.linearize(xx_j[-1],u)
+                    #A,B,d = self.linearizeNumerical(xx_j[-1],u)
+                    A, B = self.linearizeSymbolic(xx_i[-1],u)
                 self.t.e('linearize')
                 xx_j.append(new_x.reshape(4,1))
                 Ajs.append(A)
                 Bjs.append(B)
-                djs.append(d)
                 uu_j.append(u)
 
             self.x_ref = xx_i
@@ -366,9 +371,10 @@ class iLQGameCarController(CarController):
 
         return Q1s,q1s,Q2s,q2s,Rs
 
+
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
-    def linearize(self, nominal_state, nominal_ctrl):
+    def linearizeNumerical(self, nominal_state, nominal_ctrl):
         nominal_state = np.array(nominal_state.flatten()).copy()
         nominal_ctrl = np.array(nominal_ctrl.flatten()).copy()
         epsilon = 1e-2
