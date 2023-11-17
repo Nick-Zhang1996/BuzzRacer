@@ -136,6 +136,19 @@ class iLQGameCarController(CarController):
         fx,fu = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
         return fx,fu
 
+    def linearizeManual(self,x,u):
+        ''' linearize manually using equations from sympy'''
+        x0,x1,x2,x3 = x.flatten()
+        u0,u1 = u.flatten()
+        k_s = self.simulator.curvature(x0)
+
+        dfdx = [[1, 0.01*cos(x3)/(-k_s*x2 + 1), 0.01*k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -0.01*x1*sin(x3)/(-k_s*x2 + 1)], [0, 1, 0, 0], [0, 0.01*sin(x3), 1, 0.01*x1*cos(x3)], [0, -0.01*k_s*cos(x3)/(-k_s*x2 + 1) - 0.01*u0/x1**2, -0.01*k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, 0.01*k_s*x1*sin(x3)/(-k_s*x2 + 1) + 1]]
+
+        dfdu = [[0, 0], [0, 0.0100000000000000], [0, 0], [0.01/x1, 0]]
+
+
+        return np.array(dfdx,dtype=np.float64),np.array(dfdu,dtype=np.float64)
+
     def update_dynamics(self,states,controls,dt=None):
         if (dt is None):
             dt = self.dt
@@ -204,14 +217,18 @@ class iLQGameCarController(CarController):
 
                 #for ego agent i
                 u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
+                self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_i[-1],u)
+                self.t.e('update_dynamics')
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
                     #oA,oB,d = self.linearizeNumerical(xx_i[-1],np.zeros(self.m))
-                    A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
+                    #A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
+                    A, B = self.linearizeManual(xx_i[-1],np.zeros(self.m))
                 else:
                     #A,B,d = self.linearizeNumerical(xx_i[-1],u)
-                    A, B = self.linearizeSymbolic(xx_i[-1],u)
+                    #A, B = self.linearizeSymbolic(xx_i[-1],u)
+                    A, B = self.linearizeManual(xx_i[-1],u)
                 self.t.e('linearize')
                 xx_i.append(new_x.reshape(4,1))
                 Ais.append(A)
@@ -220,14 +237,18 @@ class iLQGameCarController(CarController):
 
                 #for ego agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
+                self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_j[-1],u)
+                self.t.e('update_dynamics')
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
                     #A,B,d = self.linearizeNumerical(xx_j[-1],np.zeros(self.m))
-                    A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
+                    #A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
+                    A, B = self.linearizeManual(xx_i[-1],np.zeros(self.m))
                 else:
                     #A,B,d = self.linearizeNumerical(xx_j[-1],u)
-                    A, B = self.linearizeSymbolic(xx_i[-1],u)
+                    #A, B = self.linearizeSymbolic(xx_i[-1],u)
+                    A, B = self.linearizeManual(xx_i[-1],u)
                 self.t.e('linearize')
                 xx_j.append(new_x.reshape(4,1))
                 Ajs.append(A)
@@ -246,9 +267,7 @@ class iLQGameCarController(CarController):
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
 
-            self.t.s('cost matrices')
             Q1s,q1s,Q2s,q2s,Rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
-            self.t.e('cost matrices')
 
             self.t.s('solve_lq_game')
             # LQ cost function, get Q,l, Rs
@@ -324,7 +343,9 @@ class iLQGameCarController(CarController):
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
+            self.t.s('preciseTrackBoundary')
             left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
+            self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
             if (left_boundary_i < self.boundary_min_distance or right_boundary_i < self.boundary_min_distance):
@@ -333,7 +354,9 @@ class iLQGameCarController(CarController):
                 Q1_x += Q_bdry
 
             cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
+            self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
+            self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance or right_boundary_j < self.boundary_min_distance):

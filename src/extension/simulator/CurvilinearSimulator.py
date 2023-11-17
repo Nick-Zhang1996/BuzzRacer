@@ -126,18 +126,19 @@ class CurvilinearSimulator(Simulator):
         dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
         ddr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=2))
         _norm = lambda x:np.linalg.norm(x)
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+        dr_norm = _norm(dr)
+        curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
         sign = np.dot(dr,ddr)
         return np.copysign(curvature, sign)
 
     def advancePointMassDynamics(self, curv_states, control, dt):
-        k = lambda x:self.curvature(x)
         s,v,n,phi = curv_states
+        k_s = self.curvature(s)
         ay,ax = control
-        dsdt = v*cos(phi)/(1-n*k(s))
+        dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
         dndt = v*sin(phi)
-        dphidt = ay/v - k(s)*dsdt
+        dphidt = ay/v - k_s*dsdt
 
         if (dt is None):
             dt = CurvilinearSimulator.dt
