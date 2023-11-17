@@ -194,12 +194,10 @@ class Track(ConfigObject):
         self.obstacles = obstacles
 
 
-
-
-
-
-    # NOTE others
     def prepareDiscretizedRaceline(self):
+        '''
+        depends on self.raceline_s, self.raceline_len_m
+        '''
         ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
         drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
@@ -227,8 +225,11 @@ class Track(ConfigObject):
         return
 
     def createBoundary(self,show=False):
-        # construct a (self.discretized_raceline_len * 2) vector
-        # to record the left and right track boundary as an offset to the discretized raceline
+        '''
+         construct a (self.discretized_raceline_len * 2) vector
+         to record the left and right track boundary as an offset to the discretized raceline
+         depends on self.preciseTrackBoundary(coord,heading)
+        '''
         left_boundary = []
         right_boundary = []
 

@@ -40,6 +40,10 @@ class iLQGameCarController(CarController):
         self.q2 = np.array([[-1.0, -4.5,0,0]]).T
         self.R2 = np.diag([0.1,0.1])
 
+        # cost on track boundary
+        self.boundary_min_distance = 0.06
+        self.boundary_cost = 30.0
+
         # cost on opponent collision
         Kop = 30.0
         self.opponent_min_distance_s = 0.25
@@ -126,6 +130,7 @@ class iLQGameCarController(CarController):
             dt = self.dt
         return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
 
+    # FIXME
     def evalCost(self,x0,uus, As,BBs, QQs, lls, RRs):
         ''' calculate cost for given initial state and control sequence '''
         u_i = uus[0]
@@ -294,8 +299,27 @@ class iLQGameCarController(CarController):
                 Q1_x += II.T @ self.Qop @ II
                 Q2_x += II.T @ self.Qop @ II
 
-            # TODO
             # barrier function: track boundary
+            cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
+            left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
+
+            # n>0 -> left
+            if (left_boundary_i < self.boundary_min_distance or right_boundary_i < self.boundary_min_distance):
+                self.print_info('car i out of bounds')
+                Q_bdry = np.diag([0,0,self.boundary_cost,0,0,0,0,0])
+                Q1_x += Q_bdry
+
+            cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
+            left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
+
+            # n>0 -> left
+            if (left_boundary_j < self.boundary_min_distance or right_boundary_j < self.boundary_min_distance):
+                self.print_info('car j out of bounds')
+                Q_bdry = np.diag([0,0,0,0,0,0,self.boundary_cost,0])
+                Q2_x += Q_bdry
+
+
+            # TODO
             # barrier function: control limit
             R1 = self.R1
             R2 = self.R1
