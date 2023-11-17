@@ -7,10 +7,12 @@ from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 from util.SymbolicDynamics import SymbolicDynamics
 from scipy.linalg import block_diag
 import sympy
+from util.timeUtil import execution_timer
 
 class iLQGameCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
+        self.t = execution_timer(True)
         self.m = 2
         self.n = 4
 
@@ -57,6 +59,10 @@ class iLQGameCarController(CarController):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
         assert(isinstance(self.simulator,CurvilinearSimulator))
+
+    def final(self):
+        print("final")
+        self.t.summary()
 
     def control(self):
         self.debug_dict = {}
@@ -157,6 +163,7 @@ class iLQGameCarController(CarController):
 
 
     def lqControl(self,x0_i,x0_j):
+        self.t.s()
         alpha = 0.5
         P1s = [np.zeros((self.m,self.n*2))]*self.horizon
         P2s = [np.zeros((self.m,self.n*2))]*self.horizon
@@ -195,10 +202,12 @@ class iLQGameCarController(CarController):
                 #for ego agent i
                 u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
                 new_x = self.update_dynamics(xx_i[-1],u)
+                self.t.s('linearize')
                 if (self.linearize_around_zero_control):
                     A,B,d = self.linearize(xx_i[-1],np.zeros(self.m))
                 else:
                     A,B,d = self.linearize(xx_i[-1],u)
+                self.t.e('linearize')
                 xx_i.append(new_x.reshape(4,1))
                 Ais.append(A)
                 Bis.append(B)
@@ -208,10 +217,12 @@ class iLQGameCarController(CarController):
                 #for ego agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
                 new_x = self.update_dynamics(xx_j[-1],u)
+                self.t.s('linearize')
                 if (self.linearize_around_zero_control):
                     A,B,d = self.linearize(xx_j[-1],np.zeros(self.m))
                 else:
                     A,B,d = self.linearize(xx_j[-1],u)
+                self.t.e('linearize')
                 xx_j.append(new_x.reshape(4,1))
                 Ajs.append(A)
                 Bjs.append(B)
@@ -230,13 +241,18 @@ class iLQGameCarController(CarController):
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
 
+            self.t.s('cost matrices')
             Q1s,q1s,Q2s,q2s,Rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+            self.t.e('cost matrices')
 
+            self.t.s('solve_lq_game')
             # LQ cost function, get Q,l, Rs
             [P1s, P2s], [alpha1s, alpha2s] = solve_lq_game(
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], Rs)
+            self.t.e('solve_lq_game')
 
+            self.t.s('cleanup')
             # DEBUG compare "expected" states from LQ game against simulated states
             # reference u is zero
             '''
@@ -265,6 +281,8 @@ class iLQGameCarController(CarController):
         ctrl2 = -alpha2s[0].flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
+        self.t.e('cleanup')
+        self.t.e()
         return ctrl1,ctrl2
 
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):

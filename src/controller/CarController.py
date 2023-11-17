@@ -23,6 +23,10 @@ class CarController(ConfigObject,LogObject):
         self.predict()
         return
 
+    def final(self):
+        ''' called at end of program, override to show statistics '''
+        return
+
     # return control signals
     # throttle, steering
     def control(self):

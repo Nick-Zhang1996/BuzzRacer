@@ -101,6 +101,8 @@ class Main(PrintObject,LogObject):
             self.update()
         # exit point
         self.print_info("Exiting ...")
+        for car in self.cars:
+            car.controller.final()
         for item in self.extensions:
             item.preFinal()
         for item in self.extensions:
@@ -117,7 +119,6 @@ class Main(PrintObject,LogObject):
 
     # run the control/visualization update
     # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
-
     # in simulation, this is called with evenly spaced time
     # in real experiment, this is called after a new vicon update is pulled
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
@@ -151,14 +152,6 @@ class Main(PrintObject,LogObject):
         t.e('post')
         t.e()
         
-
-    # call before exiting
-    def stop(self,):
-        for car in self.cars:
-            car.stopStateUpdate(car)
-
-
-
 if __name__ == '__main__':
     if (len(sys.argv) == 2):
         name = sys.argv[1]
