@@ -42,7 +42,7 @@ class iLQGameCarController(CarController):
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
-        self.boundary_cost = 30.0
+        self.boundary_cost = 60.0
 
         # cost on opponent collision
         Kop = 30.0
@@ -167,7 +167,7 @@ class iLQGameCarController(CarController):
             self.u_j_ref = np.zeros((self.horizon, self.m,1))
 
         # iterations
-        for p in range(1):
+        for p in range(3):
             # roll out u_ref, get x_ref
             # linearize around _ref, get A,B,d
             xx_i =[x0_i.reshape((self.n,1))]
