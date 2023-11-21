@@ -185,7 +185,7 @@ class Car(PrintObject,LogObject):
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
                          'width' : 0.0461,
-                         'rendering' : 'data/porsche_red.png'}
+                         'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)
         #print_error("Unrecognized car config")

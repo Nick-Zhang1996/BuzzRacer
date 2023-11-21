@@ -18,7 +18,7 @@
     <car>
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
-      <config_name>audi_11</config_name>
+      <config_name>sim_red</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 1.1)</init_states>
       <controller>
         <type>iLQGameCarController</type>
@@ -28,7 +28,7 @@
     <car>
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
-      <config_name>audi_12</config_name>
+      <config_name>sim_green</config_name>
       <init_states>(3.9*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       <controller>
         <type>EmptyCarController</type>
