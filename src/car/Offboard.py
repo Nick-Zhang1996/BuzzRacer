@@ -123,10 +123,10 @@ class Offboard(Car):
 
         self.width = self.params['width']
         self.wheelbase = self.params['wheelbase']
-        self.max_throttle = self.params['max_throttle']
         self.max_steering_left = self.params['max_steer_angle_left']
         self.max_steering_right = self.params['max_steer_angle_right']
         self.max_throttle = self.params['max_throttle']
+        self.min_throttle = self.params['min_throttle']
         self.optitrack_id = self.params['optitrack_streaming_id']
 
     def initHardware(self):

@@ -17,6 +17,7 @@ class Skidpad(Track):
 
         # default parameters, to be override
         self.radius = 2.0
+        self.width = 0.5
         self.ccw = True
         self.resolution = 100
         # reference velocity, obsolete
@@ -84,7 +85,9 @@ class Skidpad(Track):
         res = self.resolution
         canvas = 255*np.ones([int(res*self.radius*3),int(res*self.radius*3),3],dtype='uint8')
         self.canvas_size = canvas.shape
-        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int(self.radius*res),(255,0,0),5)
+        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int(self.radius*res),(255,0,0),1)
+        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int((self.radius-self.width/2)*res),(255,0,0),3)
+        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int((self.radius+self.width/2)*res),(255,0,0),3)
         return canvas
 
 # conver a world coordinate in meters to canvas coordinate
@@ -95,6 +98,20 @@ class Skidpad(Track):
             return None
         else:
             return (x_new,y_new)
+
+    def preciseTrackBoundary(self,coord,heading):
+        r = (coord[0]**2 + coord[1]**2)**0.5
+        phase = np.arctan2(coord[1],coord[0])
+        rel_heading = heading - phase
+        if (rel_heading > 0 and rel_heading < np.pi):
+            # ccw
+            left = r - (self.radius-self.width/2)
+            right = (self.radius+self.width/2) - r
+        else:
+            # cw
+            right = r - (self.radius-self.width/2)
+            left = (self.radius+self.width/2) - r
+        return (left,right)
 
 
 if __name__ == "__main__":

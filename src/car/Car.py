@@ -15,6 +15,7 @@ class Car(PrintObject,LogObject):
         self.states = (0,0,0,0,0,0)
         # default values, will be overridden
         self.max_throttle = 1.0
+        self.min_throttle = -1.0
         self.max_steering_left = radians(26.1)
         self.max_steering_right = radians(26.1)
         self.debug_dict = {}
@@ -25,7 +26,7 @@ class Car(PrintObject,LogObject):
     @throttle.setter
     def throttle(self,val):
         val = val if val < self.max_throttle else self.max_throttle
-        val = val if val > -1.0 else -1.0
+        val = val if val > self.min_throttle else self.min_throttle
         self._throttle = val
 
     @property
@@ -113,6 +114,7 @@ class Car(PrintObject,LogObject):
                          'width' : 0.0461,
                          #'optitrack_streaming_id' : 998,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
 
@@ -125,6 +127,7 @@ class Car(PrintObject,LogObject):
                          'optitrack_streaming_id' : 2,
                          'width' : 0.0461,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         lambo = {'wheelbase':98e-3,
@@ -136,6 +139,7 @@ class Car(PrintObject,LogObject):
                          'optitrack_streaming_id' : 15,
                          'width' : 0.0461,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_green.png'}
 
         orca = {          'wheelbase':0.029+0.033,
@@ -149,6 +153,7 @@ class Car(PrintObject,LogObject):
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'width' : 0.0461,
                          'rendering' : 'data/porsche_green.png'}
 
@@ -158,8 +163,29 @@ class Car(PrintObject,LogObject):
                          'max_steer_angle_left':radians(26.1),
                          'max_steer_angle_right':radians(26.1),
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'width' : 0.0461,
                          'rendering' : 'data/porsche_orange.png'}
+
+        sim_green = {'wheelbase':98e-3,
+                         'optitrack_streaming_id' : 1005,
+                         'ip' : '192.168.10.12',
+                         'max_steer_angle_left':1e3,
+                         'max_steer_angle_right':1e3,
+                         'max_throttle' : 1e3,
+                         'min_throttle' : -1e3,
+                         'width' : 0.0461,
+                         'rendering' : 'data/porsche_green.png'}
+
+        sim_red = {'wheelbase':98e-3,
+                         'optitrack_streaming_id' : 1005,
+                         'ip' : '192.168.10.12',
+                         'max_steer_angle_left':1e3,
+                         'max_steer_angle_right':1e3,
+                         'max_throttle' : 1e3,
+                         'min_throttle' : -1e3,
+                         'width' : 0.0461,
+                         'rendering' : 'data/porsche_red.png'}
 
         car.params = eval(config_name)
         #print_error("Unrecognized car config")

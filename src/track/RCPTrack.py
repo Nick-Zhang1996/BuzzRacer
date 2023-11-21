@@ -697,6 +697,7 @@ class RCPTrack(Track):
 
         # e.g. 'WE','SE'
         grid_type = self.track[nondim[0]][nondim[1]]
+        # NOTE grid_type may be None if coord is not on track
 
         # change ref frame to tile local ref frame
         x_local = coord[0]/self.scale - nondim[0]
@@ -707,6 +708,8 @@ class RCPTrack(Track):
         deadzone = 0.087
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
+        left = 0
+        right = 0
         if grid_type in straights:
             if grid_type == 'WE':
                 # track section is staight, arranged horizontally
@@ -799,7 +802,6 @@ class RCPTrack(Track):
                     left = 0.1
                     right = 0.1
             '''
-
 
         return (left*self.scale,right*self.scale)
 

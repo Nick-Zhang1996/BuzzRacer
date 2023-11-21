@@ -44,7 +44,7 @@ class iLQGameCarController(CarController):
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
-        self.boundary_cost = 60.0
+        self.boundary_cost = 100.0
 
         # cost on opponent collision
         Kop = 30.0

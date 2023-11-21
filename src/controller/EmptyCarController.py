@@ -12,8 +12,8 @@ class EmptyCarController(CarController):
     def control(self):
         valid = True
         # may be needed to keep car steady
-        throttle = self.calcThrottle(0)
-        steering = 0
+        #throttle = self.calcThrottle(0)
+        #steering = 0
         #self.car.throttle = throttle
         #self.car.steering = steering
 

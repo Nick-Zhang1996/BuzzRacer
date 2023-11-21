@@ -172,6 +172,7 @@ class CurvilinearSimulator(Simulator):
             breakpoint()
         '''
 
+        print(f'{car.id} {control}')
         car.sim_states = self.advancePointMassDynamics(car.sim_states, control, dt)
 
         return self.curv2Cart(car.sim_states)
