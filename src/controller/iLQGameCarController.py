@@ -3,6 +3,7 @@ from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 from third_party.solve_lq_game import solve_lq_game
+from controller.LQGame import my_solve_lq_game
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 from util.SymbolicDynamics import SymbolicDynamics
 from scipy.linalg import block_diag
@@ -267,7 +268,7 @@ class iLQGameCarController(CarController):
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
 
-            Q1s,q1s,Q2s,q2s,Rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+            Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
 
             self.t.s('solve_lq_game')
             # LQ cost function, get Q,l, Rs
@@ -275,6 +276,14 @@ class iLQGameCarController(CarController):
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], Rs)
             self.t.e('solve_lq_game')
+
+            self.t.s('my_solve_lq_game')
+            # LQ cost function, get Q,l, Rs
+            [P1s, P2s], [alpha1s, alpha2s] = my_solve_lq_game(
+                As, [B1s, B2s],
+                [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs)
+            self.t.e('my_solve_lq_game')
+
 
             self.t.s('cleanup')
             # DEBUG compare "expected" states from LQ game against simulated states
@@ -320,6 +329,9 @@ class iLQGameCarController(CarController):
 
         R12s = []
         R21s = []
+
+        r1s = []
+        r2s = []
 
         n = self.n
         m = self.m
@@ -390,9 +402,13 @@ class iLQGameCarController(CarController):
             R12s.append(R0)
             R21s.append(R0)
 
-        Rs = [[R11s, R12s], [R21s, R22s]]
+            r1s.append( (2 * uu_i[t].T @ R1).T )
+            r2s.append( (2 * uu_j[t].T @ R2).T )
 
-        return Q1s,q1s,Q2s,q2s,Rs
+        Rs = [[R11s, R12s], [R21s, R22s]]
+        rs = [r1s, r2s]
+
+        return Q1s,q1s,Q2s,q2s,Rs,rs
 
 
     # differentiate dynamics around nominal state and control
