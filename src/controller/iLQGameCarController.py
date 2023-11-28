@@ -217,7 +217,8 @@ class iLQGameCarController(CarController):
                 dx = np.vstack([dx_i,dx_j])
 
                 #for ego agent i
-                u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
+                #u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
+                u = self.u_ref[t] - P1s[t] @ dx + alpha1s[t]
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_i[-1],u)
                 self.t.e('update_dynamics')
@@ -237,7 +238,8 @@ class iLQGameCarController(CarController):
                 uu_i.append(u)
 
                 #for ego agent j
-                u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
+                #u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
+                u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_j[-1],u)
                 self.t.e('update_dynamics')
@@ -272,7 +274,7 @@ class iLQGameCarController(CarController):
 
             self.t.s('solve_lq_game')
             # LQ cost function, get Q,l, Rs
-            [P1s, P2s], [alpha1s, alpha2s] = solve_lq_game(
+            [P1s_old, P2s_old], [alpha1s_old, alpha2s_old] = solve_lq_game(
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], Rs)
             self.t.e('solve_lq_game')
@@ -283,7 +285,7 @@ class iLQGameCarController(CarController):
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs)
             self.t.e('my_solve_lq_game')
-
+            breakpoint()
 
             self.t.s('cleanup')
             # DEBUG compare "expected" states from LQ game against simulated states
@@ -308,10 +310,10 @@ class iLQGameCarController(CarController):
             '''
             # DEBUG evaluate cost for both agents
 
-        #ctrl1 = self.u_ref[0].flatten()
-        #ctrl2 = self.u_j_ref[0].flatten()
-        ctrl1 = -alpha1s[0].flatten()
-        ctrl2 = -alpha2s[0].flatten()
+        #ctrl1 = -alpha1s[0].flatten()
+        #ctrl2 = -alpha2s[0].flatten()
+        ctrl1 = alpha1s[0].flatten()
+        ctrl2 = alpha2s[0].flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e('cleanup')
@@ -402,8 +404,9 @@ class iLQGameCarController(CarController):
             R12s.append(R0)
             R21s.append(R0)
 
-            r1s.append( (2 * uu_i[t].T @ R1).T )
-            r2s.append( (2 * uu_j[t].T @ R2).T )
+            # FIXME
+            r1s.append( (0* 2 * uu_i[t].T @ R1).T )
+            r2s.append( (0* 2 * uu_j[t].T @ R2).T )
 
         Rs = [[R11s, R12s], [R21s, R22s]]
         rs = [r1s, r2s]
