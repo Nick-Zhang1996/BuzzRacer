@@ -274,12 +274,14 @@ class iLQGameCarController(CarController):
 
             Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
 
+            '''
             self.t.s('solve_lq_game')
             # LQ cost function, get Q,l, Rs
             [P1s_old, P2s_old], [alpha1s_old, alpha2s_old] = solve_lq_game(
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], Rs)
             self.t.e('solve_lq_game')
+            '''
 
             self.t.s('my_solve_lq_game')
             # LQ cost function, get Q,l, Rs
@@ -405,9 +407,8 @@ class iLQGameCarController(CarController):
             R12s.append(R0)
             R21s.append(R0)
 
-            # FIXME
-            r1s.append( (0* 2 * uu_i[t].T @ R1).T )
-            r2s.append( (0* 2 * uu_j[t].T @ R2).T )
+            r1s.append( ( 2 * uu_i[t].T @ R1).T )
+            r2s.append( ( 2 * uu_j[t].T @ R2).T )
 
         Rs = [[R11s, R12s], [R21s, R22s]]
         rs = [r1s, r2s]
