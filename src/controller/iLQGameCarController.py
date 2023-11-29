@@ -14,6 +14,7 @@ class iLQGameCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
         self.t = execution_timer(True)
+        self.lqt = execution_timer(True)
         self.m = 2
         self.n = 4
 
@@ -64,6 +65,7 @@ class iLQGameCarController(CarController):
     def final(self):
         print("final")
         self.t.summary()
+        self.lqt.summary()
 
     def control(self):
         self.debug_dict = {}
@@ -283,7 +285,7 @@ class iLQGameCarController(CarController):
             # LQ cost function, get Q,l, Rs
             [P1s, P2s], [alpha1s, alpha2s] = my_solve_lq_game(
                 As, [B1s, B2s],
-                [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs)
+                [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs,self.lqt)
             self.t.e('my_solve_lq_game')
 
             self.t.s('cleanup')
