@@ -160,6 +160,15 @@ class Car(PrintObject):
                          'width' : 0.0461,
                          'rendering' : 'data/porsche_green.png'}
 
+        tof_car = {'wheelbase':98e-3,
+                         'optitrack_streaming_id' : 1005,
+                         'ip' : '192.168.10.12',
+                         'max_steer_angle_left':radians(26.1),
+                         'max_steer_angle_right':radians(26.1),
+                         'max_throttle' : 0.3,
+                         'width' : 0.0461,
+                         'rendering' : 'data/porsche_green.png'}
+
         car.params = eval(config_name)
         #print_error("Unrecognized car config")
 

@@ -71,8 +71,8 @@ class OffboardPacket(PrintObject):
 
         # sensor update
         if (self.type == 2):
-            self.steering_requested,self.steering_measured = unpack('ff',packet[12:20])
-            #self.print_info('sensor update',self.steering_requested, self.steering_measured)
+            self.steering_requested,self.steering_measured,self.tof_measured = unpack('ffH',packet[12:22])
+            print('sensor update',self.steering_requested, self.steering_measured, self.tof_measured)
 
         # parameter
         if (self.type == 3):
@@ -152,7 +152,7 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.0.101"
+        self.local_ip = "192.168.10.101"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -165,6 +165,8 @@ class Offboard(Car):
         self.log_t_vec = []
         self.steering_requested_vec = []
         self.steering_measured_vec = []
+        self.debug_dict.update({"tof_measured": []})
+
 
 
     # one-time process
@@ -256,7 +258,7 @@ class Offboard(Car):
             self.log_t_vec.append(time())
             self.steering_requested_vec.append(packet.steering_requested)
             self.steering_measured_vec.append(packet.steering_measured)
-            
+            self.debug_dict['tof_measured'].append(packet.tof_measured)
         return packet
 
     def preparePingPacket(self):
