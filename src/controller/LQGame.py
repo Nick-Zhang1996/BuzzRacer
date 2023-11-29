@@ -101,7 +101,7 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs):
         bp = np.zeros((m*N,n))
         for i in range(0,N):
             Ap_i = -( R[i][k] + B[i][k].T @ Q[i][k] @ B[i][k] + B[i][k].T @ Q_bar[i] @ B[i][k] )
-            Av[i*m:(i+1)*m,i*m:(i+1)*m] = Ap_i
+            Ap[i*m:(i+1)*m,i*m:(i+1)*m] = Ap_i
             bp_i = - ( B[i][k].T @ (Q[i][k]+Q_bar[i]) @ A[k] )
             bp[i*m:(i+1)*m] = bp_i
             for j in range(0,N):
@@ -112,6 +112,7 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs):
             #TODO check that only the first i*m rows are non-zero
         v_k, residuals_v, rank_v, s_v = np.linalg.lstsq(a=Av, b=bv, rcond=None)
         P_k, residuals_p, rank_p, s_p = np.linalg.lstsq(a=Ap, b=bp, rcond=None)
+        #breakpoint()
 
         v_k = v_k.reshape(N,m)
         P_k = P_k.reshape(N,m,n)

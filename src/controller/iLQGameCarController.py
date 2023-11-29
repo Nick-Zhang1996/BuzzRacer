@@ -285,7 +285,6 @@ class iLQGameCarController(CarController):
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs)
             self.t.e('my_solve_lq_game')
-            breakpoint()
 
             self.t.s('cleanup')
             # DEBUG compare "expected" states from LQ game against simulated states
