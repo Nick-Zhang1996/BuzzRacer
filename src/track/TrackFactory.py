@@ -5,6 +5,7 @@ from track.EmptyTrack import EmptyTrack
 from track.Skidpad import Skidpad
 from track.OrcaTrack import OrcaTrack
 from track.CurvilinearTrack import CurvilinearTrack
+from track.NascarTrack import NascarTrack
 from math import radians
 
 
@@ -22,7 +23,7 @@ class TrackFactory:
                 # specialized tracks
                 'skidpad':TrackFactory.prepareSkidpad,
                 'empty':TrackFactory.prepareEmptyTrack,
-                'curvi':TrackFactory.prepareCurviTrack,
+                'nascar':TrackFactory.prepareNascarTrack,
                 'orca':TrackFactory.prepareOrcaTrack}
         return mapping
 
@@ -158,6 +159,6 @@ class TrackFactory:
         return track
 
     @staticmethod
-    def prepareCurviTrack(main,config,track=None):
-        track = CurvilinearTrack(main,config)
+    def prepareNascarTrack(main,config,track=None):
+        track = NascarTrack(main,config)
         return track

@@ -3,7 +3,7 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track>curvi</track>
+  <track>nascar</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>

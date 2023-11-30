@@ -12,65 +12,14 @@ class CurvilinearTrack(Track):
     def __init__(self,main,config):
         Track.__init__(self,main,config)
         # default parameters, to be override
-        self.width = 0.5
+        self.width = 0.8
         self.resolution = 200
 
-        # NOTE nascar track params
-        self.length = 2.0
-        self.radius = 1.0
+        # derived class should override the constructor, 
+        # call self.buildContinuousTrack(r) to create a curvilinear track
+        # r.shape == (n,2), and consistes of the discretized track centerline
+        # see NascarTrack.py for example
 
-        ConfigObject.__init__(self,config)
-
-        # NOTE build nascar track
-        xx = []
-        yy = []
-        xx.append(np.linspace(0,self.length))
-        yy.append(0*np.linspace(0,self.length))
-
-        theta_vec = np.linspace(-np.pi/2,np.pi/2)[1:-1]
-        xx.append(self.length + np.cos(theta_vec)*self.radius)
-        yy.append(self.radius + np.sin(theta_vec)*self.radius)
-
-        xx.append(np.linspace(self.length,0))
-        yy.append(2*self.radius + 0*np.linspace(self.length,0))
-
-        theta_vec = np.linspace(np.pi/2,1.5*np.pi)[1:-1]
-        xx.append(np.cos(theta_vec)*self.radius)
-        yy.append(self.radius + np.sin(theta_vec)*self.radius)
-
-        xx = np.hstack(xx)
-        yy = np.hstack(yy)
-
-        n = len(xx)
-        s = 0
-        ss = [s]
-        for i in range(n-1):
-            s += ((xx[(i+1)%n]-xx[i])**2 +(yy[(i+1)%n]-yy[i])**2 )**0.5
-            ss.append(s)
-        self.ss = ss
-        self.raceline_len_m = s
-        self.r = np.vstack([xx,yy]).T
-        assert (len(self.r.shape) == 2)
-        assert (self.r.shape[1] == 2)
-
-        tck, u = splprep([xx,yy], u=ss,s=0,per=1)
-        self.raceline_s = tck
-
-        # let raceline curve be r(u)
-        # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(ss,self.raceline_s,der=1))
-        # ddr = r''(u)
-        ddr = np.array(splev(ss,self.raceline_s,der=2))
-        _norm = lambda x:np.linalg.norm(x,axis=0)
-        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
-        self.curvature, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
-
-        self.buildContinuousTrack()
-
-        # NOTE track specific
-        self.start_pos = (0, 0)
-        self.start_dir = 0
         return
 
     def drawRaceline(self,img):
@@ -111,7 +60,34 @@ class CurvilinearTrack(Track):
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+)
         return (raceline_point,offset,raceline_orientation,signed_curvature,2.0)
 
-    def buildContinuousTrack(self):
+    def buildContinuousTrack(self,r):
+        self.r = r
+        assert (len(self.r.shape) == 2)
+        assert (self.r.shape[1] == 2)
+        n = self.r.shape[0]
+        xx = r[:,0]
+        yy = r[:,1]
+
+        s = 0
+        ss = [s]
+        for i in range(n-1):
+            s += ((xx[(i+1)%n]-xx[i])**2 +(yy[(i+1)%n]-yy[i])**2 )**0.5
+            ss.append(s)
+        self.ss = ss
+        self.raceline_len_m = s
+
+        tck, u = splprep(r.T, u=ss,s=0,per=1)
+        self.raceline_s = tck
+
+        # let raceline curve be r(u)
+        # dr = r'(u), parameterized with xx/u
+        dr = np.array(splev(ss,self.raceline_s,der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(ss,self.raceline_s,der=2))
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+        self.curvature, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
         s_vec = self.ss
         # n*2
         ss = np.linspace(0,self.raceline_len_m,3000)
