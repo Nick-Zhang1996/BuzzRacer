@@ -35,11 +35,15 @@ class iLQGameCarController(CarController):
 
         # cost to apply on state
         # state x: s,v,n,phi
-        self.Q1 = np.diag([0,1.0,5.0,3.0])
-        self.q1 = np.array([[-1.0, -3,0,0]]).T
+        #self.Q1 = np.diag(  [0,  1.0,5.0,3.0])
+        #self.q1 = np.array([[-1.0, -3,0,0]]).T
+        self.Q1 = np.diag(  [ 0,0.01,5.0,3.0])
+        self.q1 = np.array([[-1,0,0,0]]).T
 
-        self.Q2 = np.diag([0,1.0,5.0,3.0])
-        self.q2 = np.array([[-1.0, -3,0,0]]).T
+        #self.Q2 = np.diag(  [0,  1.0,5.0,3.0])
+        #self.q2 = np.array([[-1.0, -3,0,0]]).T
+        self.Q2 = np.diag(  [ 0,0.01,5.0,3.0])
+        self.q2 = np.array([[-1,0,0,0]]).T
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
@@ -68,12 +72,11 @@ class iLQGameCarController(CarController):
         assert(len(self.main.cars)==2)
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
-        print(f'car0: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
-        print(f'car1: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
+        print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
+        print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
         # DEBUG
         delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
         dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
-        print(f'dist: {dist}')
 
         self.main.cars[0].steering = ctrl0[0]
         self.main.cars[0].throttle = ctrl0[1]
@@ -351,7 +354,7 @@ class iLQGameCarController(CarController):
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
-                self.print_info('collision avoidance')
+                #self.print_info('collision avoidance')
                 Q1_x += II.T @ self.Qop @ II
                 Q2_x += II.T @ self.Qop @ II
                 sgn_s = -1 if delta_x[0]>0 else 1
@@ -449,12 +452,6 @@ class iLQGameCarController(CarController):
             x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
             A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
-            '''
-            print("perturbing x%d"%(i))
-            print(A[:,i])
-            breakpoint()
-            print("")
-            '''
 
 
         # B = df/du
