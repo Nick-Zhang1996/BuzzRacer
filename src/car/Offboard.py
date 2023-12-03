@@ -98,7 +98,6 @@ class Offboard(Car):
     # parameter initialization, this will run immediately after self.params is set
     # put all parameters here. 
     def initParam(self):
-        self.car_ip = self.params['ip']
         # default physics properties
         # used when a specific car subclass is not speciied
         self.L = 0.09
@@ -121,12 +120,13 @@ class Offboard(Car):
         self.Cr = -0.20375
         self.Cd = 0.00000
 
-        self.width = self.params['width']
-        self.wheelbase = self.params['wheelbase']
-        self.max_steering_left = self.params['max_steer_angle_left']
-        self.max_steering_right = self.params['max_steer_angle_right']
-        self.max_throttle = self.params['max_throttle']
-        self.min_throttle = self.params['min_throttle']
+        self.width = 0.0461
+        self.wheelbase = 98e-3
+
+        for key in self.params.keys():
+            setattr(self,key,self.params[key])
+
+        self.car_ip = self.params['ip']
         self.optitrack_id = self.params['optitrack_streaming_id']
 
     def initHardware(self):

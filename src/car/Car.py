@@ -105,13 +105,12 @@ class Car(PrintObject,LogObject):
         car.states = (x,y,heading,v_forward,0,0)
 
         porsche = {'wheelbase':90e-3,
-                         'max_steer_angle_left':radians(27.1),
+                         'max_steering_left':radians(27.1),
                          'max_steer_pwm_left':1150,
-                         'max_steer_angle_right':radians(27.1),
+                         'max_steering_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         'width' : 0.0461,
                          #'optitrack_streaming_id' : 998,
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
@@ -119,25 +118,23 @@ class Car(PrintObject,LogObject):
 
 
         porsche_slow = {'wheelbase':90e-3,
-                         'max_steer_angle_left':radians(27.1),
+                         'max_steering_left':radians(27.1),
                          'max_steer_pwm_left':1150,
-                         'max_steer_angle_right':radians(27.1),
+                         'max_steering_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         'width' : 0.0461,
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         lambo = {'wheelbase':98e-3,
-                         'max_steer_angle_left':asin(2*98e-3/0.52),
+                         'max_steering_left':asin(2*98e-3/0.52),
                          'max_steer_pwm_left':1100,
-                         'max_steer_angle_right':asin(2*98e-3/0.47),
+                         'max_steering_right':asin(2*98e-3/0.47),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
                          'optitrack_streaming_id' : 15,
-                         'width' : 0.0461,
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_green.png'}
@@ -147,44 +144,40 @@ class Car(PrintObject,LogObject):
                          'rendering' : 'data/porsche_green.png'}
 
         # TODO render audi
-        audi_11 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 998,
+        audi_11 = {      'optitrack_streaming_id' : 998,
                          'ip' : '192.168.10.11',
-                         'max_steer_angle_left':radians(26.1),
-                         'max_steer_angle_right':radians(26.1),
+                         'max_steering_left':radians(26.1),
+                         'max_steering_right':radians(26.1),
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
-                         'width' : 0.0461,
                          'rendering' : 'data/porsche_green.png'}
 
-        audi_12 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 1005,
+        audi_12 = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steer_angle_left':radians(26.1),
-                         'max_steer_angle_right':radians(26.1),
+                         'max_steering_left':radians(26.1),
+                         'max_steering_right':radians(26.1),
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
-                         'width' : 0.0461,
                          'rendering' : 'data/porsche_orange.png'}
 
-        sim_green = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 1005,
+        sim_green = {    'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steer_angle_left':1e3,
-                         'max_steer_angle_right':1e3,
+                         'max_steering_left':1e3,
+                         'max_steering_right':1e3,
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
-                         'width' : 0.0461,
+                         'max_ax' : 1.0,
+                         'max_ay' : 1.0,
                          'rendering' : 'data/porsche_green.png'}
 
-        sim_red = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 1005,
+        sim_red = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steer_angle_left':1e3,
-                         'max_steer_angle_right':1e3,
+                         'max_steering_left':1e3,
+                         'max_steering_right':1e3,
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
-                         'width' : 0.0461,
+                         'max_ax' : 1.0,
+                         'max_ay' : 1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)

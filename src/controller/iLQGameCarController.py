@@ -18,13 +18,13 @@ class iLQGameCarController(CarController):
         self.m = 2
         self.n = 4
 
-        # for ego agent i
+        # for ego agent i -> car 0
         # horizon*m*1
         self.u_ref = np.zeros((self.horizon, self.m,1))
         # horizon*n*1
         self.x_ref = np.zeros((self.horizon, self.n,1))
 
-        # for ego agent j
+        # for ego agent j -> car 1
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
@@ -35,14 +35,11 @@ class iLQGameCarController(CarController):
 
         # cost to apply on state
         # state x: s,v,n,phi
-        self.Q1 = np.diag([0,1.0,15.0,9.0])
+        self.Q1 = np.diag([0,1.0,5.0,3.0])
         self.q1 = np.array([[-1.0, -3,0,0]]).T
-        # cost on control u (ay,ax)
-        self.R1 = np.diag([0.1,0.1])
 
-        self.Q2 = np.diag([0,1.0,15.0,3.0])
-        self.q2 = np.array([[-1.0, -4.5,0,0]]).T
-        self.R2 = np.diag([0.1,0.1])
+        self.Q2 = np.diag([0,1.0,5.0,3.0])
+        self.q2 = np.array([[-1.0, -3,0,0]]).T
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
@@ -344,7 +341,7 @@ class iLQGameCarController(CarController):
         R0 = np.zeros((m,m))
 
         for t in range(self.horizon):
-            # these work on the state x, not state perturbation dx
+            # these cost matrices work on the agent state x, not state perturbation dx
             # cost_i = x.T @ Qi_x @ x + qi_x.T @ x + ui.T @ R @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
@@ -354,6 +351,7 @@ class iLQGameCarController(CarController):
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
+            # TODO alternatively, we can penalize (distance-min_distance)**2
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 Q1_x += II.T @ self.Qop @ II
                 Q2_x += II.T @ self.Qop @ II
@@ -365,6 +363,7 @@ class iLQGameCarController(CarController):
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
+            # TODO alternatively, we can penalize violation instead of overall centerline deviation
             if (left_boundary_i < self.boundary_min_distance or right_boundary_i < self.boundary_min_distance):
                 self.print_info('car i out of bounds')
                 Q_bdry = np.diag([0,0,self.boundary_cost,0,0,0,0,0])
@@ -382,11 +381,20 @@ class iLQGameCarController(CarController):
                 Q2_x += Q_bdry
 
 
-            # TODO
-            # barrier function: control limit
-            R1 = self.R1
-            R2 = self.R1
+            # TODO barrier function: control limit
+            # with ax, ay being a control this is more difficult
 
+            car_i = self.main.cars[0]
+            car_j = self.main.cars[1]
+            # cost on control u (ay,ax)
+            R1 = 0.1*np.diag([car_i.max_ay,car_i.max_ax])
+            R2 = 0.1*np.diag([car_j.max_ay,car_j.max_ax])
+            '''
+            if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
+                R1 += 10*self.R1
+            if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                R2 += 10*self.R1
+            '''
 
             xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
             # these work on state perturbation dx

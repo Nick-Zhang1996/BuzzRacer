@@ -146,19 +146,11 @@ class CurvilinearTrack(Track):
         img = self.drawPolyline(self.lower,img,lineColor=(0,0,0),thickness=2)
         return img
 
-    # TODO
     def preciseTrackBoundary(self,coord,heading):
-        r = (coord[0]**2 + coord[1]**2)**0.5
-        phase = np.arctan2(coord[1],coord[0])
-        rel_heading = heading - phase
-        if (rel_heading > 0 and rel_heading < np.pi):
-            # ccw
-            left = r - (self.radius-self.width/2)
-            right = (self.radius+self.width/2) - r
-        else:
-            # cw
-            right = r - (self.radius-self.width/2)
-            left = (self.radius+self.width/2) - r
+        state = (coord[0], coord[1], heading, 0, 0, 0)
+        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectory(state)
+        left = self.width/2 - offset
+        right = self.width/2 + offset
         return (left,right)
 
 
