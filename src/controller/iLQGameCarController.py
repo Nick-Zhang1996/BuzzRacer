@@ -49,8 +49,7 @@ class iLQGameCarController(CarController):
         Kop = 30.0
         self.opponent_min_distance_s = 0.25
         self.opponent_min_distance_n = 0.17
-        # this should be negative
-        self.Qop = -np.diag([Kop,0,Kop,0])
+        self.Qop = np.diag([Kop,0,Kop,0])
         self.linearize_around_zero_control = True
 
     def init(self):
@@ -351,10 +350,14 @@ class iLQGameCarController(CarController):
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
-            # TODO alternatively, we can penalize (distance-min_distance)**2
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
+                self.print_info('collision avoidance')
                 Q1_x += II.T @ self.Qop @ II
                 Q2_x += II.T @ self.Qop @ II
+                sgn_s = -1 if delta_x[0]>0 else 1
+                sgn_n = -1 if delta_x[2]>0 else 1
+                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
+                q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
@@ -387,8 +390,8 @@ class iLQGameCarController(CarController):
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
             # cost on control u (ay,ax)
-            R1 = 0.1*np.diag([car_i.max_ay,car_i.max_ax])
-            R2 = 0.1*np.diag([car_j.max_ay,car_j.max_ax])
+            R1 = 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+            R2 = 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
             '''
             if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
                 R1 += 10*self.R1
