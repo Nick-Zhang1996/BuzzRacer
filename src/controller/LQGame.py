@@ -177,4 +177,4 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
         new_Ps.append(P_i)
     t.e('reorder')
     t.e()
-    return (new_Ps, new_vs)
+    return (np.array(new_Ps), np.array(new_vs))

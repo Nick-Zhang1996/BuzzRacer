@@ -37,12 +37,12 @@ class iLQGameCarController(CarController):
         # state x: s,v,n,phi
         #self.Q1 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q1 = np.array([[-1.0, -3,0,0]]).T
-        self.Q1 = np.diag(  [ 0,0.01,50.0,3.0])
+        self.Q1 = np.diag(  [ 0,0.01,5.0,3.0])
         self.q1 = np.array([[-2,0,0,0]]).T
 
         #self.Q2 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q2 = np.array([[-1.0, -3,0,0]]).T
-        self.Q2 = np.diag(  [ 0,0.01,50.0,3.0])
+        self.Q2 = np.diag(  [ 0,0.01,5.0,3.0])
         self.q2 = np.array([[-2,0,0,0]]).T
 
         # cost on track boundary
@@ -55,6 +55,8 @@ class iLQGameCarController(CarController):
         self.opponent_min_distance_n = 0.17
         self.Qop = np.diag([Kop,0,Kop,0])
         self.linearize_around_zero_control = False
+        # ratio of new control to use, 1->use new 0->use old
+        self.alpha = 1.0
 
     def init(self):
         if (self.linearize_around_zero_control):
@@ -79,17 +81,17 @@ class iLQGameCarController(CarController):
         car0_heading = self.main.cars[0].states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
         if (left<0 or right<0):
-            print(f'car0 red: {np.linalg.norm(ctrl0):.2f} ---- out of track ')
+            print(f'car0 red: {np.linalg.norm(ctrl0):.4f} ---- out of track ')
         else:
-            print(f'car0 red: {np.linalg.norm(ctrl0):.2f}')
+            print(f'car0 red: {np.linalg.norm(ctrl0):.4f}')
 
         car1_coord = self.main.cars[1].states[0:2]
         car1_heading = self.main.cars[1].states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
         if (left<0 or right<0):
-            print(f'car1 green: {np.linalg.norm(ctrl1):.2f} ---- out of track ')
+            print(f'car1 green: {np.linalg.norm(ctrl1):.4f} ---- out of track ')
         else:
-            print(f'car1 green: {np.linalg.norm(ctrl1):.2f}')
+            print(f'car1 green: {np.linalg.norm(ctrl1):.4f}')
 
         # DEBUG
         delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
@@ -201,17 +203,16 @@ class iLQGameCarController(CarController):
 
     def lqControl(self,x0_i,x0_j):
         self.t.s()
-        alpha = 0.5
-        P1s = [np.zeros((self.m,self.n*2))]*self.horizon
-        P2s = [np.zeros((self.m,self.n*2))]*self.horizon
-        alpha1s = [np.zeros((self.m,1))]*self.horizon
-        alpha2s = [np.zeros((self.m,1))]*self.horizon
+        P1s = np.array([np.zeros((self.m,self.n*2))]*self.horizon)
+        P2s = np.array([np.zeros((self.m,self.n*2))]*self.horizon)
+        alpha1s = np.array([np.zeros((self.m,1))]*self.horizon)
+        alpha2s = np.array([np.zeros((self.m,1))]*self.horizon)
         if (self.linearize_around_zero_control):
             self.u_ref = np.zeros((self.horizon, self.m,1))
             self.u_j_ref = np.zeros((self.horizon, self.m,1))
 
         # iterations
-        for p in range(3):
+        for iteration in range(3):
             # roll out u_ref, get x_ref
             # linearize around _ref, get A,B,d
             xx_i =[x0_i.reshape((self.n,1))]
@@ -235,19 +236,14 @@ class iLQGameCarController(CarController):
                 dx = np.vstack([dx_i,dx_j])
 
                 #for ego agent i
-                #u = self.u_ref[t] - P1s[t] @ dx - alpha1s[t]
                 u = self.u_ref[t] - P1s[t] @ dx + alpha1s[t]
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_i[-1],u)
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
-                    #oA,oB,d = self.linearizeNumerical(xx_i[-1],np.zeros(self.m))
-                    #A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
                     A, B = self.linearizeManual(xx_i[-1],np.zeros(self.m))
                 else:
-                    #A,B,d = self.linearizeNumerical(xx_i[-1],u)
-                    #A, B = self.linearizeSymbolic(xx_i[-1],u)
                     A, B = self.linearizeManual(xx_i[-1],u)
                 self.t.e('linearize')
                 xx_i.append(new_x.reshape(4,1))
@@ -256,7 +252,6 @@ class iLQGameCarController(CarController):
                 uu_i.append(u)
 
                 #for ego agent j
-                #u = self.u_j_ref[t] - P2s[t] @ dx - alpha2s[t]
                 u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_j[-1],u)
@@ -296,46 +291,35 @@ class iLQGameCarController(CarController):
             [P1s_old, P2s_old], [alpha1s_old, alpha2s_old] = solve_lq_game(
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], Rs)
+            alpha1s_old *= -1
+            alpha2s_old *= -1
             self.t.e('solve_lq_game')
             '''
 
             self.t.s('my_solve_lq_game')
             # LQ cost function, get Q,l, Rs
-            [P1s, P2s], [alpha1s, alpha2s] = my_solve_lq_game(
+            [new_P1s, new_P2s], [new_alpha1s, new_alpha2s] = my_solve_lq_game(
                 As, [B1s, B2s],
                 [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs,self.lqt)
+
+            if (iteration == 0):
+                alpha1s = new_alpha1s
+                alpha2s = new_alpha2s
+                P1s = new_P1s
+                P2s = new_P2s
+            else:
+                alpha = self.alpha
+                alpha1s = alpha1s* (1-alpha) + alpha *new_alpha1s
+                alpha2s = alpha2s* (1-alpha) + alpha *new_alpha2s
+                P1s = P1s* (1-alpha) + alpha *new_P1s
+                P2s = P2s* (1-alpha) + alpha *new_P2s
+
             self.t.e('my_solve_lq_game')
 
-            self.t.s('cleanup')
-            # DEBUG compare "expected" states from LQ game against simulated states
-            # reference u is zero
-            '''
-            dx = [np.zeros((2*n,1))]
-            x_predicted = []
-            u_predicted = []
-            for t in range(self.horizon):
-                u_i = - P1s[t] @ dx[t] - alpha1s[t]
-                u_j = - P2s[t] @ dx[t] - alpha2s[t]
-                dx_new = As[t] @ dx[t] + B1s[t] @ u_i + B2s[t] @ u_j
-                dx.append(dx_new)
-
-                x = np.vstack([self.x_ref[t], self.x_j_ref[t]])
-                x_predicted.append(x+dx[t])
-                u_predicted.append([ u_i, u_j ])
-            # plot x_predicted
-            x_predicted = np.array(x_predicted)
-            self.drawTrajectory(traj=x_predicted[:,:4,0], lineColor=(0,0,100))
-            self.drawTrajectory(traj=x_predicted[:,4:,0], lineColor=(0,0,100))
-            '''
-            # DEBUG evaluate cost for both agents
-
-        #ctrl1 = -alpha1s[0].flatten()
-        #ctrl2 = -alpha2s[0].flatten()
         ctrl1 = alpha1s[0].flatten()
         ctrl2 = alpha2s[0].flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
-        self.t.e('cleanup')
         self.t.e()
         return ctrl1,ctrl2
 
@@ -403,7 +387,7 @@ class iLQGameCarController(CarController):
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance or right_boundary_j < self.boundary_min_distance):
                 #self.print_info('car j out of bounds')
-                Q_bdry = np.diag([0,0,0,0,0,0,self.boundary_cost,0])
+                Q_bdry = 2*np.diag([0,0,0,0,0,0,self.boundary_cost,0])
                 Q2_x += Q_bdry
 
 
@@ -426,13 +410,15 @@ class iLQGameCarController(CarController):
                 R2 += 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
             '''
 
-            xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
+            # FIXME should this be 0?
+            xx_ref = np.vstack([xx_i[t], xx_j[t]])
             # these work on state perturbation dx
+            # FIXME why we need the coefficient 2
             Q1 = Q1_x
-            q1 = xx_ref.T @ Q1_x + q1_x
+            q1 = 2*xx_ref.T @ Q1_x + q1_x
 
             Q2 = Q2_x
-            q2 = xx_ref.T @ Q2_x + q2_x
+            q2 = 2*xx_ref.T @ Q2_x + q2_x
 
             Q1s.append(Q1)
             Q2s.append(Q2)
