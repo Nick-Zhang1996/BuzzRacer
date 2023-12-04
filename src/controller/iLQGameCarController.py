@@ -37,12 +37,12 @@ class iLQGameCarController(CarController):
         # state x: s,v,n,phi
         #self.Q1 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q1 = np.array([[-1.0, -3,0,0]]).T
-        self.Q1 = np.diag(  [ 0,0.01,3.0,3.0])
+        self.Q1 = np.diag(  [ 0,0.01,50.0,3.0])
         self.q1 = np.array([[-2,0,0,0]]).T
 
         #self.Q2 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q2 = np.array([[-1.0, -3,0,0]]).T
-        self.Q2 = np.diag(  [ 0,0.01,3.0,3.0])
+        self.Q2 = np.diag(  [ 0,0.01,50.0,3.0])
         self.q2 = np.array([[-2,0,0,0]]).T
 
         # cost on track boundary
@@ -74,8 +74,23 @@ class iLQGameCarController(CarController):
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
         #print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
         #print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
-        print(f'car0 red: {np.linalg.norm(ctrl0)}')
-        print(f'car1 green: {np.linalg.norm(ctrl1)}')
+
+        car0_coord = self.main.cars[0].states[0:2]
+        car0_heading = self.main.cars[0].states[2]
+        left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
+        if (left<0 or right<0):
+            print(f'car0 red: {np.linalg.norm(ctrl0):.2f} ---- out of track ')
+        else:
+            print(f'car0 red: {np.linalg.norm(ctrl0):.2f}')
+
+        car1_coord = self.main.cars[1].states[0:2]
+        car1_heading = self.main.cars[1].states[2]
+        left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
+        if (left<0 or right<0):
+            print(f'car1 green: {np.linalg.norm(ctrl1):.2f} ---- out of track ')
+        else:
+            print(f'car1 green: {np.linalg.norm(ctrl1):.2f}')
+
         # DEBUG
         delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
         dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
@@ -345,7 +360,7 @@ class iLQGameCarController(CarController):
         R0 = np.zeros((m,m))
 
         for t in range(self.horizon):
-            # these cost matrices work on the agent state x, not state perturbation dx
+            # these cost matrices work on the stacked agent state x, not state perturbation dx
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
@@ -354,6 +369,8 @@ class iLQGameCarController(CarController):
             q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
 
             # barrier function: opponent collision
+            # FIXME
+            '''
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 self.print_info('collision avoidance')
@@ -363,6 +380,7 @@ class iLQGameCarController(CarController):
                 sgn_n = -1 if delta_x[2]>0 else 1
                 q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
                 q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
+            '''
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
@@ -394,12 +412,12 @@ class iLQGameCarController(CarController):
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
             # cost on control u (ay,ax)
-            R1 = 0.01*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
-            R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            R1 = np.diag([0.1,0.1])
+            R2 = np.diag([0.1,0.1])
 
             '''
-            R1 = np.diag([0.01,0.01])
-            R2 = np.diag([0.01,0.01])
+            R1 = 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+            R2 = 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
             if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
                 #self.print_info('car 0 control barrier')
                 R1 += 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
