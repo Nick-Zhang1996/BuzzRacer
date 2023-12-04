@@ -37,13 +37,13 @@ class iLQGameCarController(CarController):
         # state x: s,v,n,phi
         #self.Q1 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q1 = np.array([[-1.0, -3,0,0]]).T
-        self.Q1 = np.diag(  [ 0,0.01,5.0,3.0])
-        self.q1 = np.array([[-1,0,0,0]]).T
+        self.Q1 = np.diag(  [ 0,0.01,3.0,3.0])
+        self.q1 = np.array([[-2,0,0,0]]).T
 
         #self.Q2 = np.diag(  [0,  1.0,5.0,3.0])
         #self.q2 = np.array([[-1.0, -3,0,0]]).T
-        self.Q2 = np.diag(  [ 0,0.01,5.0,3.0])
-        self.q2 = np.array([[-1,0,0,0]]).T
+        self.Q2 = np.diag(  [ 0,0.01,3.0,3.0])
+        self.q2 = np.array([[-2,0,0,0]]).T
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
@@ -54,7 +54,7 @@ class iLQGameCarController(CarController):
         self.opponent_min_distance_s = 0.25
         self.opponent_min_distance_n = 0.17
         self.Qop = np.diag([Kop,0,Kop,0])
-        self.linearize_around_zero_control = True
+        self.linearize_around_zero_control = False
 
     def init(self):
         if (self.linearize_around_zero_control):
@@ -72,8 +72,10 @@ class iLQGameCarController(CarController):
         assert(len(self.main.cars)==2)
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
-        print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
-        print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
+        #print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
+        #print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
+        print(f'car0 red: {np.linalg.norm(ctrl0)}')
+        print(f'car1 green: {np.linalg.norm(ctrl1)}')
         # DEBUG
         delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
         dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
@@ -344,7 +346,7 @@ class iLQGameCarController(CarController):
 
         for t in range(self.horizon):
             # these cost matrices work on the agent state x, not state perturbation dx
-            # cost_i = x.T @ Qi_x @ x + qi_x.T @ x + ui.T @ R @ ui
+            # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
 
@@ -354,9 +356,9 @@ class iLQGameCarController(CarController):
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
-                #self.print_info('collision avoidance')
-                Q1_x += II.T @ self.Qop @ II
-                Q2_x += II.T @ self.Qop @ II
+                self.print_info('collision avoidance')
+                Q1_x += 2* II.T @ self.Qop @ II
+                Q2_x += 2* II.T @ self.Qop @ II
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
                 q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
@@ -371,8 +373,8 @@ class iLQGameCarController(CarController):
             # n>0 -> left
             # TODO alternatively, we can penalize violation instead of overall centerline deviation
             if (left_boundary_i < self.boundary_min_distance or right_boundary_i < self.boundary_min_distance):
-                self.print_info('car i out of bounds')
-                Q_bdry = np.diag([0,0,self.boundary_cost,0,0,0,0,0])
+                #self.print_info('car i out of bounds')
+                Q_bdry = 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
                 Q1_x += Q_bdry
 
             cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
@@ -382,33 +384,37 @@ class iLQGameCarController(CarController):
 
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance or right_boundary_j < self.boundary_min_distance):
-                self.print_info('car j out of bounds')
+                #self.print_info('car j out of bounds')
                 Q_bdry = np.diag([0,0,0,0,0,0,self.boundary_cost,0])
                 Q2_x += Q_bdry
 
 
             # TODO barrier function: control limit
             # with ax, ay being a control this is more difficult
-
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
             # cost on control u (ay,ax)
-            R1 = 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
-            R2 = 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            R1 = 0.01*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+            R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+
             '''
+            R1 = np.diag([0.01,0.01])
+            R2 = np.diag([0.01,0.01])
             if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
-                R1 += 10*self.R1
+                #self.print_info('car 0 control barrier')
+                R1 += 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
             if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
-                R2 += 10*self.R1
+                #self.print_info('car 1 control barrier')
+                R2 += 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
             '''
 
             xx_ref = np.vstack([self.x_ref[0], self.x_j_ref[0]])
             # these work on state perturbation dx
             Q1 = Q1_x
-            q1 = 2 * xx_ref.T @ Q1_x + q1_x
+            q1 = xx_ref.T @ Q1_x + q1_x
 
             Q2 = Q2_x
-            q2 = 2 * xx_ref.T @ Q2_x + q2_x
+            q2 = xx_ref.T @ Q2_x + q2_x
 
             Q1s.append(Q1)
             Q2s.append(Q2)
@@ -421,8 +427,8 @@ class iLQGameCarController(CarController):
             R12s.append(R0)
             R21s.append(R0)
 
-            r1s.append( ( 2 * uu_i[t].T @ R1).T )
-            r2s.append( ( 2 * uu_j[t].T @ R2).T )
+            r1s.append( ( uu_i[t].T @ R1).T )
+            r2s.append( ( uu_j[t].T @ R2).T )
 
         Rs = [[R11s, R12s], [R21s, R22s]]
         rs = [r1s, r2s]
