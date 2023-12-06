@@ -35,19 +35,15 @@ class iLQGameCarController(CarController):
 
         # cost to apply on state
         # state x: s,v,n,phi
-        #self.Q1 = np.diag(  [0,  1.0,5.0,3.0])
-        #self.q1 = np.array([[-1.0, -3,0,0]]).T
-        self.Q1 = np.diag(  [ 0,0.01,5.0,3.0])
+        self.Q1 = np.diag(  [ 0,0.02,0.0,0.0])
         self.q1 = np.array([[-2,0,0,0]]).T
 
-        #self.Q2 = np.diag(  [0,  1.0,5.0,3.0])
-        #self.q2 = np.array([[-1.0, -3,0,0]]).T
-        self.Q2 = np.diag(  [ 0,0.01,5.0,3.0])
+        self.Q2 = np.diag(  [ 0,0.02,0.0,0.0])
         self.q2 = np.array([[-2,0,0,0]]).T
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
-        self.boundary_cost = 100.0
+        self.boundary_cost = 30.0
 
         # cost on opponent collision
         Kop = 30.0
@@ -316,8 +312,13 @@ class iLQGameCarController(CarController):
 
             self.t.e('my_solve_lq_game')
 
-        ctrl1 = alpha1s[0].flatten()
-        ctrl2 = alpha2s[0].flatten()
+        #ctrl1 = alpha1s[0].flatten()
+        #ctrl2 = alpha2s[0].flatten()
+        dx_i = xx_i[0] - self.x_ref[0]
+        dx_j = xx_j[0] - self.x_j_ref[0]
+        dx = np.vstack([dx_i,dx_j])
+        ctrl1 = (self.u_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+        ctrl2 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
@@ -353,8 +354,6 @@ class iLQGameCarController(CarController):
             q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
 
             # barrier function: opponent collision
-            # FIXME
-            '''
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 self.print_info('collision avoidance')
@@ -364,7 +363,6 @@ class iLQGameCarController(CarController):
                 sgn_n = -1 if delta_x[2]>0 else 1
                 q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
                 q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
-            '''
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
@@ -396,29 +394,34 @@ class iLQGameCarController(CarController):
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
             # cost on control u (ay,ax)
-            R1 = np.diag([0.1,0.1])
-            R2 = np.diag([0.1,0.1])
+            '''
+            R1 = np.diag([0.01,0.01])
+            R2 = np.diag([0.01,0.01])
 
             '''
-            R1 = 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
-            R2 = 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            # ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
+            R1 = 0.01*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+            R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            r1_x = np.zeros((1,self.m))
+            r2_x = np.zeros((1,self.m))
+            '''
             if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
                 #self.print_info('car 0 control barrier')
-                R1 += 0.1*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+                R1 = np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
+                r1_x = np.array([[-2/car_i.max_ay, -2/car_i.max_ax]])
             if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
                 #self.print_info('car 1 control barrier')
-                R2 += 0.1*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+                R2 = np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
+                r2_x = np.array([[-2/car_j.max_ay, -2/car_j.max_ax]])
             '''
 
-            # FIXME should this be 0?
             xx_ref = np.vstack([xx_i[t], xx_j[t]])
             # these work on state perturbation dx
-            # FIXME why we need the coefficient 2
             Q1 = Q1_x
-            q1 = 2*xx_ref.T @ Q1_x + q1_x
+            q1 = xx_ref.T @ Q1_x + q1_x
 
             Q2 = Q2_x
-            q2 = 2*xx_ref.T @ Q2_x + q2_x
+            q2 = xx_ref.T @ Q2_x + q2_x
 
             Q1s.append(Q1)
             Q2s.append(Q2)
@@ -431,8 +434,11 @@ class iLQGameCarController(CarController):
             R12s.append(R0)
             R21s.append(R0)
 
-            r1s.append( ( uu_i[t].T @ R1).T )
-            r2s.append( ( uu_j[t].T @ R2).T )
+            r1 = ( uu_i[t].T@ R1 + r1_x).T
+            r2 = ( uu_j[t].T@ R2 + r2_x).T
+
+            r1s.append( r1 )
+            r2s.append( r2 )
 
         Rs = [[R11s, R12s], [R21s, R22s]]
         rs = [r1s, r2s]
