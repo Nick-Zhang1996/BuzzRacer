@@ -152,7 +152,7 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.0.101"
+        self.local_ip = "192.168.10.3"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
