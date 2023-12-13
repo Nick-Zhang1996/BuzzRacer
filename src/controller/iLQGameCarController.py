@@ -50,6 +50,9 @@ class iLQGameCarController(CarController):
         self.opponent_min_distance_s = 0.25
         self.opponent_min_distance_n = 0.17
         self.Qop = np.diag([Kop,0,Kop,0])
+
+        # cost on control
+        self.control_barrier_cost = 0.1
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
         self.alpha = 1.0
@@ -73,21 +76,26 @@ class iLQGameCarController(CarController):
         #print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
         #print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
 
+        car_i = self.main.cars[0]
+        car_j = self.main.cars[1]
+
         car0_coord = self.main.cars[0].states[0:2]
         car0_heading = self.main.cars[0].states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
+        ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
         if (left<0 or right<0):
-            print(f'car0 red: {np.linalg.norm(ctrl0):.4f} ---- out of track ')
+            print(f'car0 red: {ctrl0_normalized:.4f} ---- out of track ')
         else:
-            print(f'car0 red: {np.linalg.norm(ctrl0):.4f}')
+            print(f'car0 red: {ctrl0_normalized:.4f}')
 
         car1_coord = self.main.cars[1].states[0:2]
         car1_heading = self.main.cars[1].states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
+        ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
         if (left<0 or right<0):
-            print(f'car1 green: {np.linalg.norm(ctrl1):.4f} ---- out of track ')
+            print(f'car1 green: {ctrl1_normalized:.4f} ---- out of track ')
         else:
-            print(f'car1 green: {np.linalg.norm(ctrl1):.4f}')
+            print(f'car1 green: {ctrl1_normalized:.4f}')
 
         # DEBUG
         delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
@@ -356,7 +364,7 @@ class iLQGameCarController(CarController):
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
-                self.print_info('collision avoidance')
+                #self.print_info('collision avoidance')
                 Q1_x += 2* II.T @ self.Qop @ II
                 Q2_x += 2* II.T @ self.Qop @ II
                 sgn_s = -1 if delta_x[0]>0 else 1
@@ -404,16 +412,16 @@ class iLQGameCarController(CarController):
             R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
             r1_x = np.zeros((1,self.m))
             r2_x = np.zeros((1,self.m))
-            '''
+
+
             if ( (uu_i[t][1]/car_i.max_ax)**2 + (uu_i[t][0]/car_i.max_ay)**2 > 1.0):
                 #self.print_info('car 0 control barrier')
-                R1 = np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
-                r1_x = np.array([[-2/car_i.max_ay, -2/car_i.max_ax]])
+                R1 = self.control_barrier_cost * np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
+                r1_x = self.control_barrier_cost * np.array([[-2/car_i.max_ay, -2/car_i.max_ax]])
             if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
                 #self.print_info('car 1 control barrier')
-                R2 = np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
-                r2_x = np.array([[-2/car_j.max_ay, -2/car_j.max_ax]])
-            '''
+                R2 = self.control_barrier_cost * np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
+                r2_x = self.control_barrier_cost * np.array([[-2/car_j.max_ay, -2/car_j.max_ax]])
 
             xx_ref = np.vstack([xx_i[t], xx_j[t]])
             # these work on state perturbation dx
