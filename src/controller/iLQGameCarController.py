@@ -28,17 +28,17 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
-        self.horizon = 20
+        self.horizon = 30
         self.dt = self.main.dt
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
 
         # cost to apply on state
         # state x: s,v,n,phi
-        self.Q1 = np.diag(  [ 0,0.02,0.0,0.0])
+        self.Q1 = np.diag(  [ 0,0.03,0.0,0.0])
         self.q1 = np.array([[-2,0,0,0]]).T
 
-        self.Q2 = np.diag(  [ 0,0.02,0.0,0.0])
+        self.Q2 = np.diag(  [ 0,0.03,0.0,0.0])
         self.q2 = np.array([[-2,0,0,0]]).T
 
         # cost on track boundary
@@ -46,7 +46,7 @@ class iLQGameCarController(CarController):
         self.boundary_cost = 30.0
 
         # cost on opponent collision
-        Kop = 30.0
+        Kop = 40.0
         self.opponent_min_distance_s = 0.25
         self.opponent_min_distance_n = 0.17
         self.Qop = np.diag([Kop,0,Kop,0])
@@ -216,7 +216,7 @@ class iLQGameCarController(CarController):
             self.u_j_ref = np.zeros((self.horizon, self.m,1))
 
         # iterations
-        for iteration in range(3):
+        for iteration in range(5):
             # roll out u_ref, get x_ref
             # linearize around _ref, get A,B,d
             xx_i =[x0_i.reshape((self.n,1))]
@@ -402,14 +402,11 @@ class iLQGameCarController(CarController):
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
             # cost on control u (ay,ax)
-            '''
-            R1 = np.diag([0.01,0.01])
-            R2 = np.diag([0.01,0.01])
-
-            '''
             # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
-            R1 = 0.01*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
-            R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            #R1 = 0.01*np.diag([1.0/car_i.max_ay**2,1.0/car_i.max_ax**2])
+            #R2 = 0.01*np.diag([1.0/car_j.max_ay**2,1.0/car_j.max_ax**2])
+            R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
+            R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
             r1_x = np.zeros((1,self.m))
             r2_x = np.zeros((1,self.m))
 

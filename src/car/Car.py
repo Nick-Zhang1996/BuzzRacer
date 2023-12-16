@@ -166,8 +166,8 @@ class Car(PrintObject,LogObject):
                          'max_steering_right':1e3,
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
-                         'max_ax' : 1.0,
-                         'max_ay' : 1.0,
+                         'max_ax' : 5.0,
+                         'max_ay' : 3.0,
                          'rendering' : 'data/porsche_green.png'}
 
         sim_red = {      'optitrack_streaming_id' : 1005,
@@ -176,8 +176,8 @@ class Car(PrintObject,LogObject):
                          'max_steering_right':1e3,
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
-                         'max_ax' : 1.0,
-                         'max_ay' : 1.0,
+                         'max_ax' : 3.0,
+                         'max_ay' : 5.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)
