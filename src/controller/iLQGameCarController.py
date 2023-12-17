@@ -53,6 +53,7 @@ class iLQGameCarController(CarController):
 
         # cost on control
         self.control_barrier_cost = 0.1*10
+        self.circular_control_barrier = False
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
         self.alpha = 1.0
@@ -412,28 +413,57 @@ class iLQGameCarController(CarController):
 
 
 
-            # normalized ay,ax for agent i
-            ayi_n = uu_i[t][0]/car_i.max_ay
-            axi_n = uu_i[t][1]/car_i.max_ax
-            if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
-                #self.print_info('car 0 control barrier')
-                # the point on traction circle that's closest to current (ay,ax)
-                norm = (ayi_n**2+axi_n**2)**0.5
-                by = (ayi_n / norm).item()
-                bx = (axi_n / norm).item()
-                R1 = self.control_barrier_cost * np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
-                r1_x = self.control_barrier_cost * np.array([[-2/car_i.max_ay*by, -2/car_i.max_ax*bx]])
+            if (self.circular_control_barrier):
+                # normalized ay,ax for agent i
+                ayi_n = uu_i[t][0]/car_i.max_ay
+                axi_n = uu_i[t][1]/car_i.max_ax
+                if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
+                    #self.print_info('car 0 control barrier')
+                    # the point on traction circle that's closest to current (ay,ax)
+                    norm = (ayi_n**2+axi_n**2)**0.5
+                    by = (ayi_n / norm).item()
+                    bx = (axi_n / norm).item()
+                    R1 = self.control_barrier_cost * np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
+                    r1_x = self.control_barrier_cost * np.array([[-2/car_i.max_ay*by, -2/car_i.max_ax*bx]])
 
-            # normalized ay,ax for agent i
-            ayj_n = uu_j[t][0]/car_j.max_ay
-            axj_n = uu_j[t][1]/car_j.max_ax
-            if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
-                #self.print_info('car 1 control barrier')
-                norm = (ayj_n**2+axj_n**2)**0.5
-                by = (ayj_n / norm).item()
-                bx = (axj_n / norm).item()
-                R2 = self.control_barrier_cost * np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
-                r2_x = self.control_barrier_cost * np.array([[-2/car_j.max_ay*by, -2/car_j.max_ax*bx]])
+                # normalized ay,ax for agent i
+                ayj_n = uu_j[t][0]/car_j.max_ay
+                axj_n = uu_j[t][1]/car_j.max_ax
+                if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                    #self.print_info('car 1 control barrier')
+                    norm = (ayj_n**2+axj_n**2)**0.5
+                    by = (ayj_n / norm).item()
+                    bx = (axj_n / norm).item()
+                    R2 = self.control_barrier_cost * np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
+                    r2_x = self.control_barrier_cost * np.array([[-2/car_j.max_ay*by, -2/car_j.max_ax*bx]])
+            else:
+                # linear control barrier
+                ayi_n = uu_i[t][0]/car_i.max_ay
+                axi_n = uu_i[t][1]/car_i.max_ax
+                if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
+                    ax = uu_i[t][1].item()
+                    ay = uu_i[t][0].item()
+                    axm = car_i.max_ax
+                    aym = car_i.max_ay
+                    theta = np.arctan2(ax/axm, ay/aym)
+                    p = [aym*np.cos(theta), axm*np.sin(theta)]
+                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    R1 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
+                    r1_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
+
+                # normalized ay,ax for agent i
+                ayj_n = uu_j[t][0]/car_j.max_ay
+                axj_n = uu_j[t][1]/car_j.max_ax
+                if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                    ax = uu_j[t][1].item()
+                    ay = uu_j[t][0].item()
+                    axm = car_j.max_ax
+                    aym = car_j.max_ay
+                    theta = np.arctan2(ax/axm, ay/aym)
+                    p = [aym*np.cos(theta), axm*np.sin(theta)]
+                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    R2 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
+                    r2_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
 
             xx_ref = np.vstack([xx_i[t], xx_j[t]])
             # these work on state perturbation dx
