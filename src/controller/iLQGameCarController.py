@@ -75,6 +75,7 @@ class iLQGameCarController(CarController):
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
 
+        # car i
         car_i = self.main.cars[0]
         car_j = self.main.cars[1]
 
@@ -95,6 +96,11 @@ class iLQGameCarController(CarController):
             else:
                 self.print_info(f'car0 red: {ctrl0_normalized:.4f}')
 
+        # car j
+        bounded_ctrl,_ = self.boundControl(ctrl1,car_j)
+        car_j.steering = bounded_ctrl[0]
+        car_j.throttle = bounded_ctrl[1]
+
         car1_coord = car_j.states[0:2]
         car1_heading = car_j.states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
@@ -108,9 +114,6 @@ class iLQGameCarController(CarController):
                 self.print_info(f'car1 gren: {ctrl1_normalized:.4f}')
 
 
-        bounded_ctrl,_ = self.boundControl(ctrl1,car_j)
-        car_j.steering = bounded_ctrl[0]
-        car_j.throttle = bounded_ctrl[1]
 
         self.drawPredictedTrajectory()
         return
@@ -439,28 +442,25 @@ class iLQGameCarController(CarController):
 
             if (self.circular_control_barrier):
                 # normalized ay,ax for agent i
-                ayi_n = uu_i[t][0]/car_i.max_ay
-                axi_n = uu_i[t][1]/car_i.max_ax
-                if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
+                bounded_ctrl,constrained = self.boundControl(uu_i[t],car_i)
+                if ( bounded_ctrl ):
                     #self.print_info('car 0 control barrier')
                     # the point on traction circle that's closest to current (ay,ax)
-                    norm = (ayi_n**2+axi_n**2)**0.5
-                    by = (ayi_n / norm).item()
-                    bx = (axi_n / norm).item()
-                    R1 = self.control_barrier_cost * np.diag([2*car_i.max_ay**(-2), 2*car_i.max_ax**(-2)])
-                    r1_x = self.control_barrier_cost * np.array([[-2/car_i.max_ay*by, -2/car_i.max_ax*bx]])
+                    by = bounded_ctrl[0].item()
+                    bx = bounded_ctrl[1].item()
+                    R1 = self.control_barrier_cost * np.diag([2, 2])
+                    r1_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
 
-                # normalized ay,ax for agent i
-                ayj_n = uu_j[t][0]/car_j.max_ay
-                axj_n = uu_j[t][1]/car_j.max_ax
-                if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                # normalized ay,ax for agent j
+                bounded_ctrl,constrained = self.boundControl(uu_j[t],car_j)
+                if ( bounded_ctrl):
+                    by = bounded_ctrl[0].item()
+                    bx = bounded_ctrl[1].item()
                     #self.print_info('car 1 control barrier')
-                    norm = (ayj_n**2+axj_n**2)**0.5
-                    by = (ayj_n / norm).item()
-                    bx = (axj_n / norm).item()
-                    R2 = self.control_barrier_cost * np.diag([2*car_j.max_ay**(-2), 2*car_j.max_ax**(-2)])
-                    r2_x = self.control_barrier_cost * np.array([[-2/car_j.max_ay*by, -2/car_j.max_ax*bx]])
+                    R2 = self.control_barrier_cost * np.diag([2, 2])
+                    r2_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
             else:
+                self.print_error('this has been proven uneffective')
                 # linear control barrier
                 ayi_n = uu_i[t][0]/car_i.max_ay
                 axi_n = uu_i[t][1]/car_i.max_ax
