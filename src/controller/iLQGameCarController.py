@@ -29,7 +29,7 @@ class iLQGameCarController(CarController):
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
         self.horizon = 30
-        self.dt = self.main.dt
+        self.dt = self.main.dt * 3
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
 
