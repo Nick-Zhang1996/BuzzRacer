@@ -52,6 +52,7 @@ class PrintObject:
         raise RuntimeError
 
     def print_ok(self, *message):
+        # green
         print('\033[92m',self.prefix(), *message, '\033[0m')
 
     def print_debug(self, *message):
@@ -66,6 +67,7 @@ class PrintObject:
         print('\033[91m',self.prefix(), 'WARNING: ', *message, '\033[0m')
 
     def print_info(self, *message):
+        # light blue
         print('\033[96m',self.prefix(), *message, '\033[0m')
 
 

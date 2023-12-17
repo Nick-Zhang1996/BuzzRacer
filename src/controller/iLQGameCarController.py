@@ -52,8 +52,8 @@ class iLQGameCarController(CarController):
         self.Qop = np.diag([Kop,0,Kop,0])
 
         # cost on control
-        self.control_barrier_cost = 0.1*10
-        self.circular_control_barrier = False
+        self.control_barrier_cost = 0.1*20
+        self.circular_control_barrier = True
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
         self.alpha = 1.0
@@ -74,42 +74,68 @@ class iLQGameCarController(CarController):
         assert(len(self.main.cars)==2)
         # s,v,n,phi
         ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
-        #print(f'car0 red: {self.main.cars[0].sim_states}, ctrl = {ctrl0}')
-        #print(f'car1 green: {self.main.cars[1].sim_states}, ctrl = {ctrl1}')
 
         car_i = self.main.cars[0]
         car_j = self.main.cars[1]
 
-        car0_coord = self.main.cars[0].states[0:2]
-        car0_heading = self.main.cars[0].states[2]
+        #enforce control constraint
+        bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
+        car_i.steering = bounded_ctrl[0]
+        car_i.throttle = bounded_ctrl[1]
+
+        car0_coord = car_i.states[0:2]
+        car0_heading = car_i.states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
         ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
         if (left<0 or right<0):
             print(f'car0 red: {ctrl0_normalized:.4f} ---- out of track ')
         else:
-            print(f'car0 red: {ctrl0_normalized:.4f}')
+            if (constrained):
+                self.print_ok(f'car0 red: {ctrl0_normalized:.4f}')
+            else:
+                self.print_info(f'car0 red: {ctrl0_normalized:.4f}')
 
-        car1_coord = self.main.cars[1].states[0:2]
-        car1_heading = self.main.cars[1].states[2]
+        car1_coord = car_j.states[0:2]
+        car1_heading = car_j.states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
         ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
         if (left<0 or right<0):
             print(f'car1 green: {ctrl1_normalized:.4f} ---- out of track ')
         else:
-            print(f'car1 green: {ctrl1_normalized:.4f}')
+            if (constrained):
+                self.print_ok(f'car1 green: {ctrl1_normalized:.4f}')
+            else:
+                self.print_info(f'car1 gren: {ctrl1_normalized:.4f}')
 
-        # DEBUG
-        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states 
-        dist = (delta_x[0]**2 + delta_x[2]**2)**0.5
 
-        self.main.cars[0].steering = ctrl0[0]
-        self.main.cars[0].throttle = ctrl0[1]
-
-        self.main.cars[1].steering = ctrl1[0]
-        self.main.cars[1].throttle = ctrl1[1]
+        bounded_ctrl,_ = self.boundControl(ctrl1,car_j)
+        car_j.steering = bounded_ctrl[0]
+        car_j.throttle = bounded_ctrl[1]
 
         self.drawPredictedTrajectory()
         return
+
+    def boundControl(self, control, car):
+        violated = False
+        v = car.states[3]
+        max_acc = car.max_ax * (1-v/car.max_v)
+        # first scale to ellipse y/aym^2+x/axm^2=1
+        # then cap ax to  (-infty,max_acc]
+        ay_normalized = control[0]/car.max_ay
+        ax_normalized = control[1]/car.max_ax
+        theta = np.arctan2(ax_normalized,ay_normalized)
+        r = np.linalg.norm([ax_normalized,ay_normalized])
+        if (r>1.0):
+            r = 1.0
+            violated = True
+        ay = car.max_ay*r*np.cos(theta)
+        ax = car.max_ax*r*np.sin(theta)
+        if (ax > max_acc):
+            ax = max_acc
+            violated = True
+        return (ay,ax),violated
+
+
 
     def buildSymbolicDynamics(self):
         sym = SymbolicDynamics(self.n,self.m)
@@ -410,8 +436,6 @@ class iLQGameCarController(CarController):
             R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
             r1_x = np.zeros((1,self.m))
             r2_x = np.zeros((1,self.m))
-
-
 
             if (self.circular_control_barrier):
                 # normalized ay,ax for agent i

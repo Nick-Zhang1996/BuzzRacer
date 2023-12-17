@@ -128,11 +128,14 @@ class CurvilinearSimulator(Simulator):
         _norm = lambda x:np.linalg.norm(x)
         dr_norm = _norm(dr)
         curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
-        sign = np.dot(dr,ddr)
+        sign = np.cross(dr.T,ddr.T)
         return np.copysign(curvature, sign)
 
     def advancePointMassDynamics(self, curv_states, control, dt):
         s,v,n,phi = curv_states
+        if(self.main.breakpoint.is_set()):
+            breakpoint()
+            self.main.breakpoint.clear()
         k_s = self.curvature(s)
         ay,ax = control
         dsdt = v*cos(phi)/(1-n*k_s)

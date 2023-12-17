@@ -7,6 +7,7 @@ import pickle
 import matplotlib.pyplot as plt
 from math import degrees,radians
 from PIL import Image
+from threading import Event
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
@@ -19,6 +20,7 @@ class Visualization(Extension):
         # default setting, will be overridden if defined in config
         self.car_graphics = False
         self.track = self.main.track
+        self.main.breakpoint = Event()
 
     def final(self):
         cv2.destroyAllWindows()
@@ -85,6 +87,10 @@ class Visualization(Extension):
             elif k == ord('p'):
                 self.print_info("Paused")
                 input("press Enter to continue")
+            # p for pause
+            elif k == ord('b'):
+                self.print_info("breakpoint")
+                self.main.breakpoint.set()
             # s for snapshot
             elif k == ord('s'):
                 self.print_info("Requesting snapshot")
