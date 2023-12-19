@@ -28,7 +28,7 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
-        self.horizon = 30
+        self.horizon = 25
         self.dt = self.main.dt * 3
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
@@ -37,19 +37,22 @@ class iLQGameCarController(CarController):
         # state x: s,v,n,phi
         self.Q1 = np.diag(  [ 0,0.03,0.0,0.0])
         self.q1 = np.array([[-2,0,0,0]]).T
+        # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
+        self.Qop1 = 3.0
 
         self.Q2 = np.diag(  [ 0,0.03,0.0,0.0])
         self.q2 = np.array([[-2,0,0,0]]).T
+        self.Qop2 = 3.0
 
         # cost on track boundary
         self.boundary_min_distance = 0.06
         self.boundary_cost = 30.0
 
         # cost on opponent collision
-        Kop = 40.0
+        Kcol = 40.0
         self.opponent_min_distance_s = 0.25
         self.opponent_min_distance_n = 0.17
-        self.Qop = np.diag([Kop,0,Kop,0])
+        self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
         self.control_barrier_cost = 0.1*20
@@ -88,13 +91,14 @@ class iLQGameCarController(CarController):
         car0_heading = car_i.states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
         ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
+        ctrl0_text = f'car0 red: S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
         if (left<0 or right<0):
-            print(f'car0 red: {ctrl0_normalized:.4f} ---- out of track ')
+            print(ctrl0_text+' ---- out of track ')
         else:
             if (constrained):
-                self.print_ok(f'car0 red: {ctrl0_normalized:.4f}')
+                self.print_ok(ctrl0_text+' C')
             else:
-                self.print_info(f'car0 red: {ctrl0_normalized:.4f}')
+                self.print_info(ctrl0_text)
 
         # car j
         bounded_ctrl,_ = self.boundControl(ctrl1,car_j)
@@ -105,13 +109,14 @@ class iLQGameCarController(CarController):
         car1_heading = car_j.states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
         ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
+        ctrl1_text = f'car1 gre: S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
         if (left<0 or right<0):
-            print(f'car1 green: {ctrl1_normalized:.4f} ---- out of track ')
+            print(ctrl1_text+' ---- out of track ')
         else:
             if (constrained):
-                self.print_ok(f'car1 green: {ctrl1_normalized:.4f}')
+                self.print_ok(ctrl1_text+' C')
             else:
-                self.print_info(f'car1 gren: {ctrl1_normalized:.4f}')
+                self.print_info(ctrl1_text)
 
 
 
@@ -131,6 +136,7 @@ class iLQGameCarController(CarController):
         if (r>1.0):
             r = 1.0
             violated = True
+            breakpoint()
         ay = car.max_ay*r*np.cos(theta)
         ax = car.max_ax*r*np.sin(theta)
         if (ax > max_acc):
@@ -166,9 +172,9 @@ class iLQGameCarController(CarController):
         sym.f = [new_s, new_v, new_n, new_phi]
 
         #l_path(x,u) = xT Q x + q x + uT R u
-        #l_op(x,xop) = (x-xop)T Qop (x-xop) = (remove const) xT Qop x - 2xopT Qop x
+        #l_op(x,xop) = (x-xop)T Qcol (x-xop) = (remove const) xT Qcol x - 2xopT Qcol x
         #l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
-        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qop)
+        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qcol)
         #sym.l = l_path + l_op
         sym.symDer()
         return sym
@@ -208,32 +214,6 @@ class iLQGameCarController(CarController):
         if (dt is None):
             dt = self.dt
         return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
-
-    # FIXME
-    def evalCost(self,x0,uus, As,BBs, QQs, lls, RRs):
-        ''' calculate cost for given initial state and control sequence '''
-        u_i = uus[0]
-        u_j = uus[1]
-        B1s = BBs[0]
-        B2s = BBs[1]
-        Q1s = QQs[0]
-        Q2s = QQs[1]
-        l1s = lls[0]
-        l2s = lls[1]
-        R1 = RRs[0][0]
-        R2 = RRs[1][1]
-
-        xx = [x0]
-        cost_i = 0
-        cost_j = 0
-        for t in range(self.horizon):
-            # FIXME incorrect dynamics
-            x = As[t] @ dx[t] + B1s[t] @ u_i + B2s[t] @ u_j
-            cost_i += x.T @ Q1s[t] @ x + l1s[t] @ x + u_i[0] @ R1 @ u_i[0]
-            cost_j += x.T @ Q2s[t] @ x + l2s[t] @ x + u_j[0] @ R2 @ u_j[0]
-        return cost_i,cost_j
-
-
 
     def lqControl(self,x0_i,x0_j):
         self.t.s()
@@ -387,20 +367,22 @@ class iLQGameCarController(CarController):
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+            Q1_x[n,n] = self.Qop1
 
             Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
             q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+            Q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
-                Q1_x += 2* II.T @ self.Qop @ II
-                Q2_x += 2* II.T @ self.Qop @ II
+                Q1_x += 2* II.T @ self.Qcol @ II
+                Q2_x += 2* II.T @ self.Qcol @ II
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
-                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
-                q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qop @ II)
+                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())

@@ -168,7 +168,7 @@ class Car(PrintObject,LogObject):
                          'min_throttle' : -1e3,
                          'max_v' : 2.5,
                          'max_ax' : 3.0,
-                         'max_ay' : 10.0,
+                         'max_ay' : 12.0,
                          'rendering' : 'data/porsche_green.png'}
 
         sim_red = {      'optitrack_streaming_id' : 1005,
@@ -178,7 +178,7 @@ class Car(PrintObject,LogObject):
                          'max_throttle' : 1e3,
                          'min_throttle' : -1e3,
                          'max_v' : 2.5,
-                         'max_ax' : 3.0,
+                         'max_ax' : 8.0,
                          'max_ay' : 8.0,
                          'rendering' : 'data/porsche_orange.png'}
 
