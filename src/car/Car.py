@@ -39,6 +39,10 @@ class Car(PrintObject,LogObject):
         self._steering = val
 
 
+    def preInit(self):
+        self.controller.preInit()
+        return
+
     # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
     # have concluded
     def init(self):
@@ -162,24 +166,24 @@ class Car(PrintObject,LogObject):
 
         sim_green = {    'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steering_left':1e3,
-                         'max_steering_right':1e3,
-                         'max_throttle' : 1e3,
-                         'min_throttle' : -1e3,
-                         'max_v' : 2.5,
+                         'max_steering_left':12.0,
+                         'max_steering_right':12.0,
+                         'max_throttle' : 3.0,
+                         'min_throttle' : -3.0,
+                         'max_v' : 4.0,
                          'max_ax' : 3.0,
                          'max_ay' : 12.0,
                          'rendering' : 'data/porsche_green.png'}
 
         sim_red = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steering_left':1e3,
-                         'max_steering_right':1e3,
-                         'max_throttle' : 1e3,
-                         'min_throttle' : -1e3,
-                         'max_v' : 2.5,
+                         'max_steering_left':10.0,
+                         'max_steering_right':10.0,
+                         'max_throttle' : 8.0,
+                         'min_throttle' : -8.0,
+                         'max_v' : 5.0,
                          'max_ax' : 8.0,
-                         'max_ay' : 8.0,
+                         'max_ay' : 10.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)

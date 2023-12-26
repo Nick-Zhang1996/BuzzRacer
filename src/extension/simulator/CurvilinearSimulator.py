@@ -133,9 +133,6 @@ class CurvilinearSimulator(Simulator):
 
     def advancePointMassDynamics(self, curv_states, control, dt):
         s,v,n,phi = curv_states
-        if(self.main.breakpoint.is_set()):
-            breakpoint()
-            self.main.breakpoint.clear()
         k_s = self.curvature(s)
         ay,ax = control
         dsdt = v*cos(phi)/(1-n*k_s)

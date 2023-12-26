@@ -83,10 +83,13 @@ class Main(PrintObject,LogObject):
                     # all other attributes will be set to extension
                     setattr(ext,key,value)
                     self.print_info('main.'+handle_name+'.'+key+' = '+str(value))
+        for item in self.extensions:
+            item.preInit()
+        for car in self.cars:
+            car.preInit()
 
         for item in self.extensions:
             item.init()
-
         for car in self.cars:
             car.init()
 

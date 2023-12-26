@@ -17,6 +17,9 @@ class CarController(ConfigObject,LogObject):
         KinematicSimulator.dt = self.car.main.dt
         super().__init__(config)
 
+    def preInit(self):
+        return
+
     def init(self):
         # self-reported prediction of future trajectory
         # to be used by opponents for collision avoidance
