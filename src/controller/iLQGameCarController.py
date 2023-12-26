@@ -260,9 +260,10 @@ class iLQGameCarController(CarController):
                 dx_j = xx_j[-1] - self.x_j_ref[t]
                 dx = np.vstack([dx_i,dx_j])
 
+                # FIXME ignoring control constraint
                 #for ego agent i
                 u = self.u_ref[t] - P1s[t] @ dx + alpha1s[t]
-                u,constrained = self.boundControl(u.flatten(),car_i)
+                #u,constrained = self.boundControl(u.flatten(),car_i)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_i[-1],u)
@@ -280,7 +281,8 @@ class iLQGameCarController(CarController):
 
                 #for ego agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
-                u,constrained = self.boundControl(u.flatten(),car_j)
+                # FIXME ignoring control constraint
+                #u,constrained = self.boundControl(u.flatten(),car_j)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
                 new_x = self.update_dynamics(xx_j[-1],u)
