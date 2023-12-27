@@ -29,7 +29,7 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
-        self.horizon = 25
+        self.horizon = 20
         self.dt = self.main.dt * 2
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
@@ -47,7 +47,7 @@ class iLQGameCarController(CarController):
 
         # cost on track boundary
         self.boundary_min_distance = 0.06 * 2
-        self.boundary_cost = 30.0
+        self.boundary_cost = 30.0*2
 
         # cost on opponent collision
         Kcol = 30.0*0
@@ -56,7 +56,7 @@ class iLQGameCarController(CarController):
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
-        self.control_barrier_cost = 0.1*20
+        self.control_barrier_cost = 0.1*10
         self.circular_control_barrier = True
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
@@ -448,7 +448,7 @@ class iLQGameCarController(CarController):
                 q2_x += 2* np.array([[0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0]])
 
 
-            # TODO barrier function: control limit
+            # barrier function: control limit
             # with ax, ay being a control this is more difficult
             car_i = self.main.cars[0]
             car_j = self.main.cars[1]
