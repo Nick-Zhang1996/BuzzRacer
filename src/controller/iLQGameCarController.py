@@ -29,7 +29,7 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
-        self.horizon = 20
+        self.horizon = 25
         self.dt = self.main.dt * 2
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
@@ -47,12 +47,12 @@ class iLQGameCarController(CarController):
 
         # cost on track boundary
         self.boundary_min_distance = 0.06 * 2
-        self.boundary_cost = 30.0*2
+        self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0*0
-        self.opponent_min_distance_s = 0.25 * 1.5
-        self.opponent_min_distance_n = 0.17 * 1.5
+        Kcol = 30.0
+        self.opponent_min_distance_s = 0.25
+        self.opponent_min_distance_n = 0.17
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
@@ -87,12 +87,11 @@ class iLQGameCarController(CarController):
         car_j = self.main.cars[1]
 
         #enforce control constraint
-        # FIXME - control constraints are not enforced
         bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
-        #car_i.steering = bounded_ctrl[0]
-        #car_i.throttle = bounded_ctrl[1]
-        car_i.steering = ctrl0.flatten()[0]
-        car_i.throttle = ctrl0.flatten()[1]
+        car_i.steering = bounded_ctrl[0]
+        car_i.throttle = bounded_ctrl[1]
+        #car_i.steering = ctrl0.flatten()[0]
+        #car_i.throttle = ctrl0.flatten()[1]
 
         car0_coord = car_i.states[0:2]
         car0_heading = car_i.states[2]
@@ -107,13 +106,12 @@ class iLQGameCarController(CarController):
             else:
                 self.print_info(ctrl0_text)
 
-        # FIXME
         # car j
         bounded_ctrl,constrained = self.boundControl(ctrl1,car_j)
-        #car_j.steering = bounded_ctrl[0]
-        #car_j.throttle = bounded_ctrl[1]
-        car_j.steering = ctrl1.flatten()[0]
-        car_j.throttle = ctrl1.flatten()[1]
+        car_j.steering = bounded_ctrl[0]
+        car_j.throttle = bounded_ctrl[1]
+        #car_j.steering = ctrl1.flatten()[0]
+        #car_j.throttle = ctrl1.flatten()[1]
 
         car1_coord = car_j.states[0:2]
         car1_heading = car_j.states[2]
@@ -260,7 +258,7 @@ class iLQGameCarController(CarController):
                 dx_j = xx_j[-1] - self.x_j_ref[t]
                 dx = np.vstack([dx_i,dx_j])
 
-                # FIXME ignoring control constraint
+                # NOTE ignoring control constraint
                 #for ego agent i
                 u = self.u_ref[t] - P1s[t] @ dx + alpha1s[t]
                 #u,constrained = self.boundControl(u.flatten(),car_i)
@@ -281,7 +279,7 @@ class iLQGameCarController(CarController):
 
                 #for ego agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
-                # FIXME ignoring control constraint
+                # NOTE ignoring control constraint
                 #u,constrained = self.boundControl(u.flatten(),car_j)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
@@ -394,8 +392,6 @@ class iLQGameCarController(CarController):
             Q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
-            # FIXME colllision ignorant, additional comment need to be removed
-            '''
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<1.5*self.opponent_min_distance_s and np.abs(delta_x[2])<1.5*self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
@@ -407,18 +403,14 @@ class iLQGameCarController(CarController):
                         Q2_x += 2* II.T @ self.Qcol @ II
                         q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
                     else:
-                        # FIXME
-                        #Q1_x += 2* II.T @ self.Qcol @ II
-                        #q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
-                        pass
+                        Q1_x += 2* II.T @ self.Qcol @ II
+                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
                 else:
                     # if side by side both agent responsible
-                    # FIXME
-                    #Q1_x += 2* II.T @ self.Qcol @ II
-                    #q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                    Q1_x += 2* II.T @ self.Qcol @ II
+                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
                     Q2_x += 2* II.T @ self.Qcol @ II
                     q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
-                '''
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
