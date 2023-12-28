@@ -29,7 +29,6 @@ class SnapshotSaver(Extension):
 
 
     def postUpdate(self):
-        self.timestep +=1
         # save a multiple exposure photo
         if (self.recording.is_set() and self.timestep%self.interval == 0):
             if (self.img is None):
@@ -49,4 +48,5 @@ class SnapshotSaver(Extension):
             plt.imshow(cv2.cvtColor(self.img,cv2.COLOR_BGR2RGB))
             plt.show()
             self.img = None
+        self.timestep +=1
 

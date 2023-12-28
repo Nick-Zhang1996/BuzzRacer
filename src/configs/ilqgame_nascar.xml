@@ -29,7 +29,7 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(0.4,-0.15, radians(0), 3)</init_states>
+      <init_states>(0.2,-0.1, radians(0), 3)</init_states>
       <controller>
         <type>EmptyCarController</type>
       </controller>
