@@ -39,11 +39,11 @@ class iLQGameCarController(CarController):
         self.Q1 = np.diag(  [ 0,0.00,0.0,0.0])
         self.q1 = np.array([[-2,0,0,0]]).T
         # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
-        self.Qop1 = 0.0
+        self.Qop1 = 0.3
 
         self.Q2 = np.diag(  [ 0,0.00,0.0,0.0])
         self.q2 = np.array([[-2,0,0,0]]).T
-        self.Qop2 = 0.0
+        self.Qop2 = 0.3
 
         # cost on track boundary
         self.boundary_min_distance = 0.06 * 2
@@ -51,8 +51,8 @@ class iLQGameCarController(CarController):
 
         # cost on opponent collision
         Kcol = 30.0
-        self.opponent_min_distance_s = 0.25
-        self.opponent_min_distance_n = 0.17
+        self.opponent_min_distance_s = 0.25 * 1.2
+        self.opponent_min_distance_n = 0.17 * 1.2
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
