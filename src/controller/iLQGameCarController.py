@@ -21,9 +21,9 @@ class iLQGameCarController(CarController):
 
         # for ego agent i -> car 0
         # horizon*m*1
-        self.u_ref = np.zeros((self.horizon, self.m,1))
+        self.u_i_ref = np.zeros((self.horizon, self.m,1))
         # horizon*n*1
-        self.x_ref = np.zeros((self.horizon, self.n,1))
+        self.x_i_ref = np.zeros((self.horizon, self.n,1))
 
         # for ego agent j -> car 1
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
@@ -36,13 +36,13 @@ class iLQGameCarController(CarController):
 
         # cost to apply on state
         # state x: s,v,n,phi
-        self.Q1 = np.diag(  [ 0,0.00,0.0,0.0])
-        self.q1 = np.array([[-2,0,0,0]]).T
+        self.Q1 = np.diag(  [ 0,0.00,1.0,1.0])
+        self.q1 = np.array([[-4,0,0,0]]).T
         # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
         self.Qop1 = 0.3
 
-        self.Q2 = np.diag(  [ 0,0.00,0.0,0.0])
-        self.q2 = np.array([[-2,0,0,0]]).T
+        self.Q2 = np.diag(  [ 0,0.00,1.0,1.0])
+        self.q2 = np.array([[-4,0,0,0]]).T
         self.Qop2 = 0.3
 
         # cost on track boundary
@@ -229,8 +229,11 @@ class iLQGameCarController(CarController):
         alpha1s = np.array([np.zeros((self.m,1))]*self.horizon)
         alpha2s = np.array([np.zeros((self.m,1))]*self.horizon)
         if (self.linearize_around_zero_control):
-            self.u_ref = np.zeros((self.horizon, self.m,1))
+            self.u_i_ref = np.zeros((self.horizon, self.m,1))
             self.u_j_ref = np.zeros((self.horizon, self.m,1))
+        # FIXME
+        self.u_i_ref = np.zeros((self.horizon, self.m,1))
+        self.u_j_ref = np.zeros((self.horizon, self.m,1))
         car_i = self.main.cars[0]
         car_j = self.main.cars[1]
 
@@ -254,13 +257,13 @@ class iLQGameCarController(CarController):
                 # x+ = A x + B u + d, for x~x_ref
                 # ~x = x - x_ref
                 # ~x+ = A~x + B~u
-                dx_i = xx_i[-1] - self.x_ref[t]
+                dx_i = xx_i[-1] - self.x_i_ref[t]
                 dx_j = xx_j[-1] - self.x_j_ref[t]
                 dx = np.vstack([dx_i,dx_j])
 
                 # NOTE ignoring control constraint
                 #for ego agent i
-                u = self.u_ref[t] - P1s[t] @ dx + alpha1s[t]
+                u = self.u_i_ref[t] - P1s[t] @ dx + alpha1s[t]
                 #u,constrained = self.boundControl(u.flatten(),car_i)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
@@ -300,8 +303,8 @@ class iLQGameCarController(CarController):
                 Bjs.append(B)
                 uu_j.append(u)
 
-            self.x_ref = xx_i
-            self.u_ref = uu_i
+            self.x_i_ref = xx_i
+            self.u_i_ref = uu_i
             self.x_j_ref = xx_j
             self.u_j_ref = uu_j
             n = self.n
@@ -348,15 +351,13 @@ class iLQGameCarController(CarController):
 
             self.t.e('my_solve_lq_game')
 
-        #ctrl1 = alpha1s[0].flatten()
-        #ctrl2 = alpha2s[0].flatten()
-        dx_i = xx_i[0] - self.x_ref[0]
+        dx_i = xx_i[0] - self.x_i_ref[0]
         dx_j = xx_j[0] - self.x_j_ref[0]
         dx = np.vstack([dx_i,dx_j])
-        ctrl1 = (self.u_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+        ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
         ctrl2 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
 
-        self.debug_dict.update({'u_ref':np.array(self.u_ref), 'x_ref':np.array(self.x_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
+        self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
         return ctrl1,ctrl2
 
@@ -385,11 +386,11 @@ class iLQGameCarController(CarController):
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
-            Q1_x[n,n] = self.Qop1
+            q1_x[0,n] = self.Qop1
 
             Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
             q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
-            Q2_x[0,0] = self.Qop2
+            q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
@@ -398,7 +399,8 @@ class iLQGameCarController(CarController):
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
                 # based on current position, agent in front ignorant of collision
-                if (np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                # FIXME always share collision responsibility
+                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         Q2_x += 2* II.T @ self.Qcol @ II
                         q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
@@ -594,7 +596,7 @@ class iLQGameCarController(CarController):
         return A,B,d
 
     def drawPredictedTrajectory(self, lineColor=(0,100,100)):
-        self.drawTrajectory(self.x_ref, lineColor=(0,100,100))
+        self.drawTrajectory(self.x_i_ref, lineColor=(0,100,100))
         self.drawTrajectory(self.x_j_ref, lineColor=(0,100,100))
         return
 
@@ -641,7 +643,10 @@ class iLQGameCarController(CarController):
                 elif (val > in_h):
                     #val = in_h
                     oob = True
-                return (val-in_l)/(in_h-in_l)*(out_high-out_low)+out_low, oob
+                val = (val-in_l)/(in_h-in_l)*(out_high-out_low)+out_low
+                if (isnan(val)):
+                    val = 0.0
+                return val, oob
 
             #x1 and y1 are the origin values -- need to be changed if origin changes
             x1 = coord[0] + 30
