@@ -14,7 +14,8 @@ class ConfigLogger(Extension):
         config_extensions = config.getElementsByTagName('extensions')[0]
         for config_extension in config_extensions.getElementsByTagName('extension'):
             if config_extension.getAttribute('handle') == 'simulator':
-                self.noise = eval(config_extension.getAttribute('state_noise_magnitude'))[0]
+                # simulator specific logging
+                pass
 
     def postFinal(self):
         # stuff to log down
@@ -31,13 +32,13 @@ class ConfigLogger(Extension):
         # laptime_stddev
         # boundary violation
         # obstacle violation
-        labels = "experiment name , config file name , log name , laps , cvar_A , cvar_a , cvar_Cu , laptime_mean , laptime_stddev , boundary violation , obstacle violation, noise_type, noise_magnitude "
+        labels = "experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary violation , obstacle violation"
         entry.append(self.main.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
         entry.append(self.main.lap_counter.total_laps)
 
-        # retrieve cvar params
+        # retrieve config params
         config_filename = self.main.config_filename
         config = minidom.parse(config_filename)
         config_cars = config.getElementsByTagName('cars')[0]
@@ -45,33 +46,37 @@ class ConfigLogger(Extension):
         config_controller = config_car.getElementsByTagName('controller')[0]
         attrs = config_controller.attributes.items()
 
-        entry.append( config_controller.getAttribute('enable_cvar') )
-        entry.append( config_controller.getAttribute('cvar_A') )
-        entry.append( config_controller.getAttribute('cvar_a') )
-        entry.append( config_controller.getAttribute('cvar_Cu') )
+
+
+        # start position (delta s)
+        # aggressiveness
+        #entry.append( config_controller.getAttribute('Qop1') )
+        #entry.append( config_controller.getAttribute('Qop2') )
+        entry.append( self.main.cars[0].controller.Qop1 )
+        entry.append( self.main.cars[0].controller.Qop2 )
+        entry.append( self.main.cars[0].controller.start_lead_i_j)
+        entry.append( self.main.cars[0].controller.end_lead_i_j)
+
 
         # these may not be available if watchdog is triggered
         if (not self.main.watchdog.triggered):
             entry.append( self.main.car_laptime_mean[0])
-            entry.append( self.main.car_laptime_stddev[0])
-            entry.append( self.main.car_total_boundary_violation[0])
-            entry.append( self.main.car_total_collisions[0])
+            entry.append( self.main.cars[0].total_boundary_collision )
+            entry.append( self.main.car_laptime_mean[1])
+            entry.append( self.main.cars[1].total_boundary_collision )
+            entry.append( self.main.opponent_collision_count)
         else:
-            entry.append(-1 ) 
-            entry.append(-1 ) 
-            entry.append(-1 ) 
-            entry.append(-1 ) 
+            entry.append(-1 )
+            entry.append(-1 )
+            entry.append(-1 )
+            entry.append(-1 )
+            entry.append(-1 )
 
-        entry.append( self.main.simulator.state_noise_type )
-        entry.append( self.noise )
-
-        
         log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')
         with open(log_name,'a') as f:
-            #f.write(labels)
-            #f.write('\n')
+            f.write(labels)
+            f.write('\n')
+            self.print_info('text log at '+log_name)
             text_entry = [str(item) for item in entry]
             f.write(','.join(text_entry))
             f.write('\n')
-        
-        

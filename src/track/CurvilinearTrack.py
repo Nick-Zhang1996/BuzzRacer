@@ -19,15 +19,16 @@ class CurvilinearTrack(Track):
         # call self.buildContinuousTrack(r) to create a curvilinear track
         # r.shape == (n,2), and consistes of the discretized track centerline
         # see NascarTrack.py for example
-
+        self.discretized_raceline_len = 1024
         return
+
 
     def drawRaceline(self,img):
         return img
 
     #state: x,y,theta,vf,vs,omega
     # x,y referenced from skidpad frame
-    def localTrajectory(self,state,ccw=True):
+    def localTrajectory(self,state,ccw=True,wheelbase = 108e-3):
         x = state[0]
         y = state[1]
         heading = state[2]
@@ -36,8 +37,6 @@ class CurvilinearTrack(Track):
         omega = state[5]
 
         # find the coordinate of center of front axle
-        #wheelbase = 98e-3
-        wheelbase = 108e-3
         x += wheelbase*cos(heading)
         y += wheelbase*sin(heading)
 
@@ -59,6 +58,13 @@ class CurvilinearTrack(Track):
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+)
         return (raceline_point,offset,raceline_orientation,signed_curvature,2.0)
+
+    # return true if vehicle is unsalvageably outside of the track
+    # for use by Watchdog to terminate an experiment
+    def isOutside(self,coord):
+        state = (*coord,0,0,0,0)
+        _,offset,_,_,_ = self.localTrajectory(state,wheelbase=0)
+        return offset > (self.width/2)*1.5
 
     def buildContinuousTrack(self,r):
         self.r = r
@@ -131,6 +137,25 @@ class CurvilinearTrack(Track):
         plt.plot(r_vec[:,0],r_vec[:,1],'--')
         plt.show()
         '''
+        self.prepareDiscretizedRaceline()
+
+    def prepareDiscretizedRaceline(self):
+        ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
+        drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
+        heading_vec = np.arctan2(drr[1],drr[0])
+
+        # parameter, distance along track
+        self.ss = ss
+        self.raceline_points = np.array(rr)
+        self.raceline_headings = heading_vec
+
+        # describe track boundary as offset from raceline
+        self.raceline_left_boundary = np.ones_like(ss)*self.width/2
+        self.raceline_right_boundary = np.ones_like(ss)*self.width/2
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        return
+
     def m2canvas(self,coord):
         x_new = int((np.clip(coord[0],self.x_min,self.x_max)-self.x_min) * self.resolution)
         y_new = int((self.y_max - np.clip(coord[1],self.y_min,self.y_max)) * self.resolution)

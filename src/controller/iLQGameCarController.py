@@ -29,7 +29,7 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         self.x_j_ref = np.zeros((self.horizon, self.n,1))
 
-        self.horizon = 25
+        self.horizon = 20
         self.dt = self.main.dt * 2
         # symbolic dynamics
         self.sym = self.buildSymbolicDynamics()
@@ -51,8 +51,8 @@ class iLQGameCarController(CarController):
 
         # cost on opponent collision
         Kcol = 30.0
-        self.opponent_min_distance_s = 0.25 * 1.2
-        self.opponent_min_distance_n = 0.17 * 1.2
+        self.opponent_min_distance_s = 0.18 # 0.25
+        self.opponent_min_distance_n = 0.14 # 0.17
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
@@ -61,20 +61,31 @@ class iLQGameCarController(CarController):
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
         self.alpha = 1.0
+        ConfigObject.__init__(self,config)
 
     def preInit(self):
         self.overrideControlVisualization()
+        self.print_ok('Qop1 = %.2f, Qop2 = %.2f'%(self.Qop1, self.Qop2))
+
 
     def init(self):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
         assert(isinstance(self.simulator,CurvilinearSimulator))
+        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        self.start_lead_i_j = delta_x[0]
 
     def final(self):
-        print("final")
+        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        self.end_lead_i_j = delta_x[0]
         self.t.summary()
         self.lqt.summary()
+
+    def isInCollision(self):
+        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
+        return is_in_collision
 
     def control(self):
         self.debug_dict = {}
@@ -97,6 +108,7 @@ class iLQGameCarController(CarController):
         car0_heading = car_i.states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
         ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
+        '''
         ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
         if (left<0 or right<0):
             self.print_warning(ctrl0_text+' ---- out of track ')
@@ -105,6 +117,7 @@ class iLQGameCarController(CarController):
                 self.print_ok(ctrl0_text+' C')
             else:
                 self.print_info(ctrl0_text)
+        '''
 
         # car j
         bounded_ctrl,constrained = self.boundControl(ctrl1,car_j)
@@ -117,6 +130,7 @@ class iLQGameCarController(CarController):
         car1_heading = car_j.states[2]
         left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
         ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
+        '''
         ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
         if (left<0 or right<0):
             self.print_warning(ctrl1_text+' ---- out of track ')
@@ -125,6 +139,7 @@ class iLQGameCarController(CarController):
                 self.print_ok(ctrl1_text+' C')
             else:
                 self.print_info(ctrl1_text)
+        '''
 
 
 
@@ -238,7 +253,7 @@ class iLQGameCarController(CarController):
         car_j = self.main.cars[1]
 
         # iterations
-        for iteration in range(5):
+        for iteration in range(3):
             # roll out u_ref, get x_ref
             # linearize around _ref, get A,B,d
             xx_i =[x0_i.reshape((self.n,1))]
@@ -668,6 +683,9 @@ class iLQGameCarController(CarController):
             else:
                 img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + int(throttle), y1 + 60), (0, 255, 0), -1)
             img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+            if (self.isInCollision()):
+                img = cv2.putText(img, 'Collision', (x1 + 50, y1 + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
 
             return img
 

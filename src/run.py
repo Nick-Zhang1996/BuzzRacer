@@ -22,6 +22,7 @@ class Main(PrintObject,LogObject):
         LogObject.__init__(self)
         self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
+        self.experiment_name = config_filename
 
     def init(self):
         self.print_ok(" loading settings")
@@ -95,6 +96,8 @@ class Main(PrintObject,LogObject):
 
         for item in self.extensions:
             item.postInit()
+        for car in self.cars:
+            car.postInit()
 
     # run experiment until user press q in visualization window
     def run(self):

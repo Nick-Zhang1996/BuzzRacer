@@ -42,6 +42,9 @@ class Car(PrintObject,LogObject):
     def preInit(self):
         self.controller.preInit()
         return
+    def postInit(self):
+        self.controller.postInit()
+        return
 
     # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
     # have concluded

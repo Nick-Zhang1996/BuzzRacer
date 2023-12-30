@@ -18,6 +18,7 @@ from extension.SteeringTuner import SteeringTuner
 from extension.BoundaryChecker import BoundaryChecker
 from extension.ConfigLogger import ConfigLogger
 from extension.SpeedTracker import SpeedTracker
+from extension.OpponentCollisionChecker import OpponentCollisionChecker
 
 
 from extension.simulator.KinematicSimulator import KinematicSimulator

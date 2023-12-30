@@ -19,6 +19,8 @@ class CarController(ConfigObject,LogObject):
 
     def preInit(self):
         return
+    def postInit(self):
+        return
 
     def init(self):
         # self-reported prediction of future trajectory
