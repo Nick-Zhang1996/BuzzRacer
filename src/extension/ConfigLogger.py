@@ -74,8 +74,8 @@ class ConfigLogger(Extension):
 
         log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')
         with open(log_name,'a') as f:
-            f.write(labels)
-            f.write('\n')
+            #f.write(labels)
+            #f.write('\n')
             self.print_info('text log at '+log_name)
             text_entry = [str(item) for item in entry]
             f.write(','.join(text_entry))
