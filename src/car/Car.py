@@ -180,8 +180,8 @@ class Car(PrintObject,LogObject):
 
         sim_red = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steering_left':10.0,
-                         'max_steering_right':10.0,
+                         'max_steering_left':12.0,
+                         'max_steering_right':12.0,
                          'max_throttle' : 10.0,
                          'min_throttle' : -10.0,
                          'max_v' : 4.0,
