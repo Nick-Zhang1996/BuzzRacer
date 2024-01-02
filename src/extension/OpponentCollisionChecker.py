@@ -14,7 +14,7 @@ class OpponentCollisionChecker(Extension):
 
     def update(self):
         self.timestep += 1
-        if (self.main.cars[0].controller.isInCollision()):
+        if (self.main.cars[1].controller.isInCollision()):
             if (not self.in_collision and self.timestep > self.lockout_timestep+self.last_collision_ts):
                 self.in_collision = True
                 self.collision_count += 1

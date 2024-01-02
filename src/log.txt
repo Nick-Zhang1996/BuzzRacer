@@ -12,3 +12,22 @@ Qop1 	, Qop2 	, start 	, end   	, gain
 1 	, 1 	, 0.0000 	, -0.1118 	, -0.1118
 mean gain: -0.10549844089565585
 win_i: 14, win_j: 33
+Qop1 	, Qop2 	, start 	, end   	, gain
+0 	, 1 	, nan 	, nan 	, nan
+1 	, 0 	, nan 	, nan 	, nan
+0 	, 0 	, nan 	, nan 	, nan
+1 	, 1 	, nan 	, nan 	, nan
+mean gain: -0.08210621581417392
+win_i: 20, win_j: 27
+Qop1 	, Qop2 	, start 	, end   	, gain
+0 	, 1 	, nan 	, nan 	, nan
+> /home/nickzhang/rcvip/src/analyzeBatchRun.py(37)<module>()
+-> printTableEntry(1,0)
+(Pdb) --KeyboardInterrupt--
+(Pdb) (Pdb) (Pdb) --KeyboardInterrupt--
+(Pdb) (Pdb) (Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) (Pdb) (Pdb) (Pdb) --KeyboardInterrupt--
+(Pdb) --KeyboardInterrupt--
+(Pdb) 

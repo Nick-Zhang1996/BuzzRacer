@@ -52,10 +52,10 @@ class ConfigLogger(Extension):
         # aggressiveness
         #entry.append( config_controller.getAttribute('Qop1') )
         #entry.append( config_controller.getAttribute('Qop2') )
-        entry.append( self.main.cars[0].controller.Qop1 )
-        entry.append( self.main.cars[0].controller.Qop2 )
-        entry.append( self.main.cars[0].controller.start_lead_i_j)
-        entry.append( self.main.cars[0].controller.end_lead_i_j)
+        entry.append( self.main.cars[1].controller.Qop1 )
+        entry.append( self.main.cars[1].controller.Qop2 )
+        entry.append( self.main.cars[1].controller.start_lead_i_j)
+        entry.append( self.main.cars[1].controller.end_lead_i_j)
 
 
         # these may not be available if watchdog is triggered

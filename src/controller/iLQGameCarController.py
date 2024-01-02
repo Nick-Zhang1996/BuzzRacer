@@ -306,12 +306,12 @@ class iLQGameCarController(CarController):
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
                     #A,B,d = self.linearizeNumerical(xx_j[-1],np.zeros(self.m))
-                    #A, B = self.linearizeSymbolic(xx_i[-1],np.zeros(self.m))
-                    A, B = self.linearizeManual(xx_i[-1],np.zeros(self.m))
+                    #A, B = self.linearizeSymbolic(xx_j[-1],np.zeros(self.m))
+                    A, B = self.linearizeManual(xx_j[-1],np.zeros(self.m))
                 else:
                     #A,B,d = self.linearizeNumerical(xx_j[-1],u)
-                    #A, B = self.linearizeSymbolic(xx_i[-1],u)
-                    A, B = self.linearizeManual(xx_i[-1],u)
+                    #A, B = self.linearizeSymbolic(xx_j[-1],u)
+                    A, B = self.linearizeManual(xx_j[-1],u)
                 self.t.e('linearize')
                 xx_j.append(new_x.reshape(4,1))
                 Ajs.append(A)
