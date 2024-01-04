@@ -19,11 +19,9 @@ config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
 index = 0
-start_pos = [(0.2,-0.1, radians(0), 3),
-(0.4,-0.1, radians(0), 3),
-(0.2,0.1, radians(0), 3),
+start_pos = [(0.2,0.1, radians(0), 3),
 (0.4,0.1, radians(0), 3)]
-Qop = [0,1]
+Qop = [0,2,4]
 
 
 for s0 in start_pos:

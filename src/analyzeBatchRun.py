@@ -36,6 +36,15 @@ printTableEntry(0,1)
 printTableEntry(1,0)
 printTableEntry(0,0)
 printTableEntry(1,1)
+printTableEntry(0,1)
+printTableEntry(0,2)
+printTableEntry(0,4)
+printTableEntry(2,0)
+printTableEntry(2,2)
+printTableEntry(2,4)
+printTableEntry(4,0)
+printTableEntry(4,2)
+printTableEntry(4,4)
 
 # table 2: agent i/j
 mean_start_lead = np.mean(data_dict['start_lead_i_j'])
@@ -54,4 +63,20 @@ gain = data_dict['end_lead_i_j'] - data_dict['start_lead_i_j']
 win_i = np.sum(gain>0)
 win_j = np.sum(-gain>0)
 print(f'win_i: {win_i}, win_j: {win_j}')
+
+# table 5: when starting from behind, Qop vs finish ratio
+def printTable5Entry(Qop1,Qop2):
+    mask = np.logical_and( data_dict['Qop1']==Qop1,data_dict['Qop2']==Qop2 )
+    mask = np.logical_and( mask , data_dict['start_lead_i_j']<0 )
+    win_mask = np.logical_and( mask , data_dict['end_lead_i_j']>0 )
+    win_ratio = np.sum(win_mask)/np.sum(mask)
+    print(f'{Qop1} \t, {Qop2} \t, {win_ratio},{np.sum(mask)}')
+
+print(f'Qop1 \t, Qop2 \t, win_ratio, total')
+printTable5Entry(0,0)
+printTable5Entry(2,0)
+printTable5Entry(4,0)
+printTable5Entry(0,0)
+printTable5Entry(0,2)
+printTable5Entry(0,4)
 
