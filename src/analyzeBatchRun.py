@@ -70,13 +70,23 @@ def printTable5Entry(Qop1,Qop2):
     mask = np.logical_and( mask , data_dict['start_lead_i_j']<0 )
     win_mask = np.logical_and( mask , data_dict['end_lead_i_j']>0 )
     win_ratio = np.sum(win_mask)/np.sum(mask)
-    print(f'{Qop1} \t, {Qop2} \t, {win_ratio},{np.sum(mask)}')
+    print(f'{Qop1} \t, {Qop2} \t, {win_ratio:.4f},{np.sum(mask)}')
+
+def printTable5Entry_alt(Qop1,Qop2):
+    mask = np.logical_and( data_dict['Qop1']==Qop1,data_dict['Qop2']==Qop2 )
+    mask = np.logical_and( mask , data_dict['start_lead_i_j']>0 )
+    win_mask = np.logical_and( mask , data_dict['end_lead_i_j']<0 )
+    win_ratio = np.sum(win_mask)/np.sum(mask)
+    print(f'{Qop1} \t, {Qop2} \t, {win_ratio:.4f},{np.sum(mask)}')
 
 print(f'Qop1 \t, Qop2 \t, win_ratio, total')
 printTable5Entry(0,0)
-printTable5Entry(2,0)
-printTable5Entry(4,0)
-printTable5Entry(0,0)
-printTable5Entry(0,2)
-printTable5Entry(0,4)
+printTable5Entry(0,3)
+printTable5Entry(3,0)
+printTable5Entry(3,3)
+
+printTable5Entry_alt(0,0)
+printTable5Entry_alt(0,3)
+printTable5Entry_alt(3,0)
+printTable5Entry_alt(3,3)
 
