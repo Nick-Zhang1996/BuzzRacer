@@ -58,7 +58,7 @@ def getRandomInitialStatePair():
         return tuple(s0[:4]),tuple(s1[:4])
 
 index = 0
-Qop = [0,4,-4]
+Qop = [0,2,-2]
 
 
 for i in range(50):

@@ -417,7 +417,7 @@ class iLQGameCarController(CarController):
                 sgn_n = -1 if delta_x[2]>0 else 1
                 # based on current position, agent in front ignorant of collision
                 # FIXME always share collision responsibility
-                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                if (np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         Q2_x += 2* II.T @ self.Qcol @ II
                         q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)

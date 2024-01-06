@@ -4,20 +4,28 @@ import matplotlib.pyplot as plt
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation"
 labels = [val.strip() for val in labels.split(',')]
 
-with open('../log/batch_ilqgame/textlog.txt','r') as f:
+log = '../log/batch_ilqgame_neg/textlog.txt'
+print('opening log ' + log)
+failed_runs_count = 0
+with open(log,'r') as f:
     text = f.readlines()
     text = text[1:]
     data_dict = {}
+    total_runs = len(text)
     for label in labels:
         data_dict[label] = []
     for line in text:
         entry = line.split(',')
+        if (eval(entry[-1]) == -1):
+            failed_runs_count += 1
+            continue
         for raw,label in zip(entry,labels):
             try:
                 datum = eval(raw)
             except (NameError,SyntaxError):
                 datum = raw
             data_dict[label].append(datum)
+print(f'failed runs: {failed_runs_count}, total runs: {total_runs}')
 
 for key in data_dict.keys():
     if (not isinstance(data_dict[key][0],str)):
@@ -80,13 +88,25 @@ def printTable5Entry_alt(Qop1,Qop2):
     print(f'{Qop1} \t, {Qop2} \t, {win_ratio:.4f},{np.sum(mask)}')
 
 print(f'Qop1 \t, Qop2 \t, win_ratio, total')
+print('i behind')
+printTable5Entry(-4,-4)
+printTable5Entry(-4,0)
+printTable5Entry(-4,4)
+printTable5Entry(0,-4)
 printTable5Entry(0,0)
-printTable5Entry(0,3)
-printTable5Entry(3,0)
-printTable5Entry(3,3)
+printTable5Entry(0,4)
+printTable5Entry(4,-4)
+printTable5Entry(4,0)
+printTable5Entry(4,4)
 
+print('j behind')
+printTable5Entry_alt(-4,-4)
+printTable5Entry_alt(-4,0)
+printTable5Entry_alt(-4,4)
+printTable5Entry_alt(0,-4)
 printTable5Entry_alt(0,0)
-printTable5Entry_alt(0,3)
-printTable5Entry_alt(3,0)
-printTable5Entry_alt(3,3)
+printTable5Entry_alt(0,4)
+printTable5Entry_alt(4,-4)
+printTable5Entry_alt(4,0)
+printTable5Entry_alt(4,4)
 
