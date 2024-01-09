@@ -39,7 +39,7 @@ class iLQGameCarController(CarController):
         self.Q1 = np.diag(  [ 0,0.00,1.0,1.0])
         self.q1 = np.array([[-4,0,0,0]]).T
         # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
-        self.Qop1 = 4
+        self.Qop1 = 0
 
         self.Q2 = np.diag(  [ 0,0.00,1.0,1.0])
         self.q2 = np.array([[-4,0,0,0]]).T
@@ -61,7 +61,11 @@ class iLQGameCarController(CarController):
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
         self.alpha = 1.0
+        # if true, this controller will control opponent
+        self.control_opponent = False
         ConfigObject.__init__(self,config)
+        if (self.control_opponent):
+            self.print_ok('Controller will control opponent')
 
     def preInit(self):
         self.overrideControlVisualization()
@@ -73,38 +77,43 @@ class iLQGameCarController(CarController):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
         assert(isinstance(self.simulator,CurvilinearSimulator))
-        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        assert(len(self.main.cars)==2)
+        self.ego_car = self.car
+        for car in self.main.cars:
+            if car != self.ego_car:
+                self.oppo_car = car
+                break
+
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
         self.start_lead_i_j = delta_x[0]
 
+
     def final(self):
-        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
         self.end_lead_i_j = delta_x[0]
-        self.print_info(f'car 0: {self.main.cars[0].sim_states}')
-        self.print_info(f'car 1: {self.main.cars[1].sim_states}')
+        self.print_info(f'ego car : {self.ego_car.sim_states}')
+        self.print_info(f'opponent car : {self.oppo_car.sim_states}')
         self.t.summary()
         self.lqt.summary()
 
     def isInCollision(self):
-        delta_x = self.main.cars[0].sim_states - self.main.cars[1].sim_states
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
         is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
         return is_in_collision
 
     def control(self):
         self.debug_dict = {}
-        assert(len(self.main.cars)==2)
         # s,v,n,phi
-        ctrl0, ctrl1 = self.lqControl(self.main.cars[0].sim_states, self.main.cars[1].sim_states)
+        ctrl0, ctrl1 = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
 
         # car i
-        car_i = self.main.cars[0]
-        car_j = self.main.cars[1]
+        car_i = self.ego_car
+        car_j = self.oppo_car
 
         #enforce control constraint
         bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
         car_i.steering = bounded_ctrl[0]
         car_i.throttle = bounded_ctrl[1]
-        #car_i.steering = ctrl0.flatten()[0]
-        #car_i.throttle = ctrl0.flatten()[1]
 
         car0_coord = car_i.states[0:2]
         car0_heading = car_i.states[2]
@@ -122,29 +131,25 @@ class iLQGameCarController(CarController):
         '''
 
         # car j
-        bounded_ctrl,constrained = self.boundControl(ctrl1,car_j)
-        car_j.steering = bounded_ctrl[0]
-        car_j.throttle = bounded_ctrl[1]
-        #car_j.steering = ctrl1.flatten()[0]
-        #car_j.throttle = ctrl1.flatten()[1]
+        if (self.control_opponent):
+            bounded_ctrl,constrained = self.boundControl(ctrl1,car_j)
+            car_j.steering = bounded_ctrl[0]
+            car_j.throttle = bounded_ctrl[1]
 
-        car1_coord = car_j.states[0:2]
-        car1_heading = car_j.states[2]
-        left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
-        ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
-        '''
-        ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
-        if (left<0 or right<0):
-            self.print_warning(ctrl1_text+' ---- out of track ')
-        else:
-            if (constrained):
-                self.print_ok(ctrl1_text+' C')
+            car1_coord = car_j.states[0:2]
+            car1_heading = car_j.states[2]
+            left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
+            ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
+            '''
+            ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
+            if (left<0 or right<0):
+                self.print_warning(ctrl1_text+' ---- out of track ')
             else:
-                self.print_info(ctrl1_text)
-        '''
-
-
-
+                if (constrained):
+                    self.print_ok(ctrl1_text+' C')
+                else:
+                    self.print_info(ctrl1_text)
+            '''
         self.drawPredictedTrajectory()
         return
 
@@ -251,8 +256,8 @@ class iLQGameCarController(CarController):
         # FIXME
         self.u_i_ref = np.zeros((self.horizon, self.m,1))
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
-        car_i = self.main.cars[0]
-        car_j = self.main.cars[1]
+        car_i = self.ego_car
+        car_j = self.oppo_car
 
         # iterations
         for iteration in range(3):
@@ -461,8 +466,8 @@ class iLQGameCarController(CarController):
 
             # barrier function: control limit
             # with ax, ay being a control this is more difficult
-            car_i = self.main.cars[0]
-            car_j = self.main.cars[1]
+            car_i = self.ego_car
+            car_j = self.oppo_car
             # cost on control u (ay,ax)
             # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
             #R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
@@ -614,7 +619,8 @@ class iLQGameCarController(CarController):
 
     def drawPredictedTrajectory(self, lineColor=(0,100,100)):
         self.drawTrajectory(self.x_i_ref, lineColor=(0,100,100))
-        self.drawTrajectory(self.x_j_ref, lineColor=(0,100,100))
+        if (self.control_opponent):
+            self.drawTrajectory(self.x_j_ref, lineColor=(0,100,100))
         return
 
     def drawTrajectory(self, traj=None, lineColor=(0,100,100)):
