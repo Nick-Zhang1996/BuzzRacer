@@ -1,0 +1,17 @@
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp184.xml,../log/batch_ilqgame_solo/full_state1.p,1,0,0,0.0,0.0016815967939978194,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp68.xml,../log/batch_ilqgame_solo/full_state2.p,1,0,0,0.0,-4.912597144191011e-05,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp184.xml,../log/batch_ilqgame_solo/full_state3.p,1,0,0,0.0,0.3009951774012052,nan,0,4.189999999999911,0,1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp68.xml,../log/batch_ilqgame_solo/full_state4.p,1,0,0,0.0,-0.0048713994435277685,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp137.xml,../log/batch_ilqgame_solo/full_state5.p,1,0,0,-0.14879226271667267,-0.3017716184157564,4.189999999999911,0,nan,0,1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp5.xml,../log/batch_ilqgame_solo/full_state6.p,1,0,0,-0.11342324547216442,-0.035010165327179266,4.269999999999909,0,nan,0,2
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp57.xml,../log/batch_ilqgame_solo/full_state7.p,1,0,0,-0.2116365714541576,3.45617084553269,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp180.xml,../log/batch_ilqgame_solo/full_state8.p,1,0,0,0.0,0.30206327092069074,nan,0,4.189999999999911,0,1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp64.xml,../log/batch_ilqgame_solo/full_state9.p,1,0,0,0.0,-0.0048713994435277685,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp158.xml,../log/batch_ilqgame_solo/full_state10.p,1,0,0,0.19655081931493878,0.30760724485249114,nan,0,4.249999999999909,0,3
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp229.xml,../log/batch_ilqgame_solo/full_state11.p,1,0,0,-0.15020024616393124,-0.31110348482472006,4.179999999999911,0,nan,0,1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp226.xml,../log/batch_ilqgame_solo/full_state12.p,1,0,0,-0.15020024616393124,-0.3137471018518312,4.189999999999911,0,nan,0,1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp17.xml,../log/batch_ilqgame_solo/full_state13.p,1,0,0,-0.13267417343859345,-0.3803345101829052,4.179999999999911,0,nan,0,0
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp108.xml,../log/batch_ilqgame_solo/full_state14.p,1,0,0,-0.14941774859078483,-0.1461492044386395,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp239.xml,../log/batch_ilqgame_solo/full_state15.p,1,0,0,0.32641894861894594,0.038691818802170985,nan,0,4.279999999999909,0,2
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp133.xml,../log/batch_ilqgame_solo/full_state16.p,1,0,0,0.0,-0.004193503627163642,-1,-1,-1,-1,-1
+batch_ilqgame_solo,./configs/batch_ilqgame_solo/exp202.xml,../log/batch_ilqgame_solo/full_state17.p,1,0,0,0.12546039916823926,0.30695453904457537,nan,0,4.23999999999991,0,2
