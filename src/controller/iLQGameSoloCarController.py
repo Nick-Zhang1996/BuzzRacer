@@ -1,9 +1,9 @@
 
 from common import *
-from iLQGameCarController import iLQGameCarController
+from controller.iLQGameCarController import iLQGameCarController
 from controller.LQGame import my_solve_lq_game
 
-class iLQGameSoloCarController(iLQGameSoloCarController):
+class iLQGameSoloCarController(iLQGameCarController):
     def __init__(self, car,config):
         super().__init__(car,config)
 

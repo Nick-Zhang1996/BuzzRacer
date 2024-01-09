@@ -14,6 +14,6 @@ from controller.EmptyCarController import EmptyCarController
 from controller.CopgCarController import CopgCarController
 from controller.PointMassCarController import PointMassCarController
 from controller.iLQGameCarController import iLQGameCarController
-from controller.iLQGameCarSoloController import iLQGameSoloCarController
+from controller.iLQGameSoloCarController import iLQGameSoloCarController
 from controller.PointMassMpcCarController import PointMassMpcCarController
 from controller.DdpPointMassCarController import DdpPointMassCarController

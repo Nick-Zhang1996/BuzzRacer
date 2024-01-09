@@ -70,7 +70,7 @@ for i in range(50):
             config_cars = config.getElementsByTagName('cars')[0]
             config_car0 = config_cars.getElementsByTagName('car')[0]
             config_car1 = config_cars.getElementsByTagName('car')[1]
-            config_controller = config_car1.getElementsByTagName('controller')[0]
+            config_controller = config_car0.getElementsByTagName('controller')[0]
             #attrs = config_controller.attributes.items()
             config_controller.attributes['Qop1'] =  str(q0)
             config_controller.attributes['Qop2'] =  str(q1)
