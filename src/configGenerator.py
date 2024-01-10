@@ -35,7 +35,7 @@ sim.track = track
 
 def getRandomInitialStatePair():
     s0 = np.random.uniform(0.4,track.raceline_len_m-0.4)
-    s1 = s0 + np.random.uniform(-0.35,0.35)
+    s1 = s0 + np.random.uniform(-0.3,0.3)
     n0 = np.random.uniform(-0.2,0.2)
     n1 = np.random.uniform(-0.2,0.2)
     drr0 = splev(s0,track.raceline_s,der=1)
@@ -65,7 +65,7 @@ index = 0
 Qop = [0,2,-2]
 
 
-for i in range(30):
+for i in range(50):
     s0,s1 = getRandomInitialStatePair()
     for q0 in Qop:
         for q1 in Qop:

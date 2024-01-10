@@ -1,0 +1,43 @@
+<?xml version="1.0" ?><config>
+  <settings dt="0.01">
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track radius="2.0" length="2.0" width="0.6" resolution="100">nascar</track>
+
+  <extensions>
+      <extension handle="laptimer">Laptimer</extension>
+      <extension handle="logger">Logger</extension>
+      <extension handle="visualization" car_graphics="True">Visualization</extension>
+      <extension handle="simulator" match_time="False">CurvilinearSimulator</extension>
+      <extension handle="boundary_checker">BoundaryChecker</extension>
+      <extension handle="collision_checker">OpponentCollisionChecker</extension>
+      <extension handle="lap_counter" lap_count="1">LapCounter</extension>
+      <extension handle="config_logger">ConfigLogger</extension>
+      <extension handle="watchdog">Watchdog</extension>
+          <!--<extension handle='gifsaver'>Gifsaver</extension>-->
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_red</config_name>
+      <init_states>(-1.1112474081626804, 3.7547058363127386, -2.5770502235817974, 3.100596712854653)</init_states>
+      <controller Qop1="0" Qop2="0">
+        <type>iLQGameCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
+      <init_states>(-1.1902649925280286, 3.375622636787731, -2.4283084114579627, 3.193994135960892)</init_states>
+      <controller>
+        <type>iLQGameSoloCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>

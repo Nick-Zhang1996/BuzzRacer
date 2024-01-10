@@ -2,6 +2,7 @@
 from common import *
 from controller.iLQGameCarController import iLQGameCarController
 from controller.LQGame import my_solve_lq_game
+from scipy.linalg import block_diag
 
 class iLQGameSoloCarController(iLQGameCarController):
     def __init__(self, car,config):
