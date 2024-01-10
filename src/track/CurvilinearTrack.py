@@ -76,13 +76,14 @@ class CurvilinearTrack(Track):
 
         s = 0
         ss = [s]
-        for i in range(n-1):
+        for i in range(n):
             s += ((xx[(i+1)%n]-xx[i])**2 +(yy[(i+1)%n]-yy[i])**2 )**0.5
             ss.append(s)
         self.ss = ss
         self.raceline_len_m = s
+        self.r = np.vstack([self.r,self.r[-1]])
 
-        tck, u = splprep(r.T, u=ss,s=0,per=1)
+        tck, u = splprep(self.r.T, u=ss,s=0,per=1)
         self.raceline_s = tck
 
         # let raceline curve be r(u)
@@ -134,7 +135,7 @@ class CurvilinearTrack(Track):
         '''
         plt.plot(upper[:,0],upper[:,1])
         plt.plot(lower[:,0],lower[:,1])
-        plt.plot(r_vec[:,0],r_vec[:,1],'--')
+        plt.plot(r_vec[0,:],r_vec[1,:],'o')
         plt.show()
         '''
         self.prepareDiscretizedRaceline()
@@ -148,6 +149,7 @@ class CurvilinearTrack(Track):
         # parameter, distance along track
         self.ss = ss
         self.raceline_points = np.array(rr)
+        self.r = self.raceline_points.T
         self.raceline_headings = heading_vec
 
         # describe track boundary as offset from raceline

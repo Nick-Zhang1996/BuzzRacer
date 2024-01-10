@@ -150,6 +150,9 @@ class CurvilinearSimulator(Simulator):
         dr_norm = _norm(dr)
         curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
         sign = np.cross(dr.T,ddr.T)
+        if (np.isnan(curvature)):
+            #self.print_warning('curvature is nan, likely because curvature is exactly 0')
+            curvature = 0.0
         return np.copysign(curvature, sign)
 
     def advancePointMassDynamics(self, curv_states, control, dt):
