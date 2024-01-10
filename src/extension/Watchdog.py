@@ -28,8 +28,12 @@ class Watchdog(Extension):
                 print_warning(self.prefix()+"car stopped, terminating experiment")
 
             # if laptime is unreasonable, halt
-            if (car.laptimer.new_lap.is_set()):
-                if(car.laptimer.last_laptime < 2.0 or self.main.sim_t - car.laptimer.last_lap_ts > 20):
+            if (self.main.sim_t - car.laptimer.last_lap_ts > 20):
+                    self.triggered = True
+                    self.main.exit_request.set()
+                    print_warning(self.prefix()+"No new laps detected for %.2f s, terminating experiment"%(car.laptimer.last_laptime))
+            if (car.laptimer.new_lap.is_set() and car.lap_count >0):
+                if(car.laptimer.last_laptime < 2.0 ):
                     self.triggered = True
                     self.main.exit_request.set()
                     print_warning(self.prefix()+"unreasonable laptime: %.2f, terminating experiment"%(car.laptimer.last_laptime))

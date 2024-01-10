@@ -34,9 +34,6 @@ class LapCounter(Extension):
                 car.laps_remaining -= 1
                 car.lap_count += 1
                 print_ok("[LapCounter]: car%d, %d laps remaining"%(car.id, car.laps_remaining))
-
-
-
                 if (car.laps_remaining <= 0):
                     print_ok("[LapCounter]: car%d critical lap end"%(car.id))
                     car.critical_lap.clear()
