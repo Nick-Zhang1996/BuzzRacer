@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation"
 labels = [val.strip() for val in labels.split(',')]
 
-log = '../log/batch_ilqgame_neg/textlog.txt'
+log = '../log/batch_ilqgame_solo/new_textlog.txt'
 print('opening log ' + log)
 failed_runs_count = 0
 with open(log,'r') as f:
@@ -40,19 +40,9 @@ def printTableEntry(Qop1,Qop2):
     mean_end_lead = np.mean(data_dict['end_lead_i_j'][mask])
     mean_gain = mean_end_lead - mean_start_lead
     print(f'{Qop1} \t, {Qop2} \t, {mean_start_lead:.4f} \t, {mean_end_lead:.4f} \t, {mean_gain:.4f}')
-printTableEntry(0,1)
-printTableEntry(1,0)
-printTableEntry(0,0)
-printTableEntry(1,1)
-printTableEntry(0,1)
-printTableEntry(0,2)
-printTableEntry(0,4)
 printTableEntry(2,0)
-printTableEntry(2,2)
-printTableEntry(2,4)
-printTableEntry(4,0)
-printTableEntry(4,2)
-printTableEntry(4,4)
+printTableEntry(2,0)
+printTableEntry(0,0)
 
 # table 2: agent i/j
 mean_start_lead = np.mean(data_dict['start_lead_i_j'])
@@ -102,21 +92,23 @@ def printTable5Entry_alt(Qop1,Qop2):
     print(f'{Qop1} \t, {Qop2} \t, {follow_win_ratio:.2f}\t\t,{lead_win_ratio:.2f}\t\t,{overall_win_ratio:.2f}\t\t,{np.sum(mask)}')
 
 print(f'Qop1 \t, Qop2 \t, follow win \t, lead win \t,overall win \t, total runs')
-print('i follow')
+print('i ')
 printTable5Entry(0,0)
-printTable5Entry(4,0)
-printTable5Entry(-4,0)
-printTable5Entry(0,-4)
-printTable5Entry(0,4)
-printTable5Entry(-4,-4)
-printTable5Entry(4,4)
+printTable5Entry(2,0)
+printTable5Entry(-2,0)
+printTable5Entry(0,-2)
+printTable5Entry(0,2)
+printTable5Entry(-2,-2)
+printTable5Entry(2,2)
 
-print('j behind')
+print('j ')
 printTable5Entry_alt(0,0)
-printTable5Entry_alt(0,4)
-printTable5Entry_alt(0,-4)
-printTable5Entry_alt(-4,0)
-printTable5Entry_alt(4,0)
-printTable5Entry_alt(-4,-4)
-printTable5Entry_alt(4,4)
+printTable5Entry_alt(0,2)
+printTable5Entry_alt(0,-2)
+printTable5Entry_alt(-2,0)
+printTable5Entry_alt(2,0)
+printTable5Entry_alt(-2,-2)
+printTable5Entry_alt(2,2)
 
+zero_lead = np.abs(data_dict['start_lead_i_j'])<1e-5
+print(f'{np.sum(zero_lead)} zero leads')

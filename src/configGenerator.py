@@ -53,9 +53,13 @@ def getRandomInitialStatePair():
     if (is_in_collision):
         return getRandomInitialStatePair()
     else:
-        s0 = sim.curv2Cart(x0)
-        s1 = sim.curv2Cart(x1)
-        return tuple(s0[:4]),tuple(s1[:4])
+        cart0 = sim.curv2Cart(x0)
+        cart1 = sim.curv2Cart(x1)
+        curv0 = sim.cart2Curv(cart0)
+        curv1 = sim.cart2Curv(cart1)
+        if (curv0[0] == curv1[0]):
+            breakpoint()
+        return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
 Qop = [0,2,-2]
