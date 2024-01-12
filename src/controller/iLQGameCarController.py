@@ -40,6 +40,9 @@ class iLQGameCarController(CarController):
         self.q1 = np.array([[-4,0,0,0]]).T
         # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
         self.Qop1 = 0
+        self.Qop1_leading = 0
+        self.Qop1_following = -2
+        self.adaptive_Qop = False
 
         self.Q2 = np.diag(  [ 0,0.00,1.0,1.0])
         self.q2 = np.array([[-4,0,0,0]]).T
@@ -64,12 +67,15 @@ class iLQGameCarController(CarController):
         # if true, this controller will control opponent
         self.control_opponent = False
         ConfigObject.__init__(self,config)
-        if (self.control_opponent):
-            self.print_ok('Controller will control opponent')
 
     def preInit(self):
         self.overrideControlVisualization()
-        self.print_ok('Qop1 = %.2f, Qop2 = %.2f'%(self.Qop1, self.Qop2))
+        if (self.control_opponent):
+            self.print_ok('Controller will control opponent')
+        if (self.adaptive_Qop):
+            self.print_ok('Qop1 = %.2f/%.2f, Qop2 = %.2f'%(self.Qop1_following,self.Qop1_leading, self.Qop2))
+        else:
+            self.print_ok('Qop1 = %.2f, Qop2 = %.2f'%(self.Qop1, self.Qop2))
 
 
     def init(self):
@@ -404,18 +410,25 @@ class iLQGameCarController(CarController):
         R0 = np.zeros((m,m))
 
         for t in range(self.horizon):
+            delta_x = xx_i[t] - xx_j[t]
             # these cost matrices work on the stacked agent state x, not state perturbation dx
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
             q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
-            q1_x[0,n] = self.Qop1
+            if (self.adaptive_Qop):
+                if (delta_x[0]>0):
+                    q1_x[0,n] = self.Qop1_leading
+                else:
+                    q1_x[0,n] = self.Qop1_following
+
+            else:
+                q1_x[0,n] = self.Qop1
 
             Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
             q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
             q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
-            delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<1.5*self.opponent_min_distance_s and np.abs(delta_x[2])<1.5*self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0]>0 else 1

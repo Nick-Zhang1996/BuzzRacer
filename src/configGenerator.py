@@ -65,10 +65,10 @@ index = 0
 Qop = [0,2,-2]
 
 
-for i in range(50):
-    s0,s1 = getRandomInitialStatePair()
+for i in range(30):
     for q0 in Qop:
         for q1 in Qop:
+            s0,s1 = getRandomInitialStatePair()
             config = deepcopy(original_config)
             config_extensions = config.getElementsByTagName('extensions')[0]
             config_cars = config.getElementsByTagName('cars')[0]
