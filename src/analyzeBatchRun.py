@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation"
 labels = [val.strip() for val in labels.split(',')]
 
-log = '../log/batch_ilqgame_adaptive_Qop/textlog.txt'
+log = '../log/batch_ilqgame_baseline/textlog.txt'
 print('opening log ' + log)
 failed_runs_count = 0
 with open(log,'r') as f:
@@ -100,6 +100,8 @@ printTable5Entry(0,-2)
 printTable5Entry(0,2)
 printTable5Entry(-2,-2)
 printTable5Entry(2,2)
+printTable5Entry(2,-2)
+printTable5Entry(-2,2)
 
 print('j ')
 printTable5Entry_alt(0,0)
@@ -109,6 +111,8 @@ printTable5Entry_alt(-2,0)
 printTable5Entry_alt(2,0)
 printTable5Entry_alt(-2,-2)
 printTable5Entry_alt(2,2)
+printTable5Entry_alt(2,-2)
+printTable5Entry_alt(-2,2)
 
 zero_lead = np.abs(data_dict['start_lead_i_j'])<1e-5
 print(f'{np.sum(zero_lead)} zero leads')
