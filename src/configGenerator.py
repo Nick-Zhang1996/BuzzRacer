@@ -62,10 +62,10 @@ def getRandomInitialStatePair():
         return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
-Qop = [0,2,-2]
+Qop = [0]
 
 
-for i in range(50):
+for i in range(30):
     for q0 in Qop:
         for q1 in Qop:
             s0,s1 = getRandomInitialStatePair()
