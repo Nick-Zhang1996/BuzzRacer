@@ -18,6 +18,7 @@ class iLQGameCarController(CarController):
         self.lqt = execution_timer(True)
         self.m = 2
         self.n = 4
+        self.iterations = 3
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -266,7 +267,7 @@ class iLQGameCarController(CarController):
         car_j = self.oppo_car
 
         # iterations
-        for iteration in range(3):
+        for iteration in range(self.iterations):
             # roll out u_ref, get x_ref
             # linearize around _ref, get A,B,d
             xx_i =[x0_i.reshape((self.n,1))]

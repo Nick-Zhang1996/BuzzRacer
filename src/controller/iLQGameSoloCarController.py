@@ -7,6 +7,7 @@ from scipy.linalg import block_diag
 class iLQGameSoloCarController(iLQGameCarController):
     def __init__(self, car,config):
         super().__init__(car,config)
+        self.iterations = 1
 
     # ego car solely responsible for evading opponent car
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
