@@ -23,7 +23,7 @@
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(3.317990972588321, 0.25888239024234083, 0.6479532771617325, 2.9170657279716248)</init_states>
+      <init_states>(-0.7881397870486833, 0.24725654691221355, -0.4225716999983016, 3.35457333142807)</init_states>
       <controller Qop1="-4" Qop2="-4">
         <type>iLQGameCarController</type>
       </controller>
@@ -33,9 +33,9 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(2.8202919904840384, 0.36062368089265645, 0.4639422288001973, 3.256156818759777)</init_states>
+      <init_states>(-1.2302992411555194, 0.23892777780379393, -0.6097911617548881, 3.993313739468567)</init_states>
       <controller>
-        <type>iLQGameCarController</type>
+        <type>iLQGameSoloCarController</type>
       </controller>
     </car>
 

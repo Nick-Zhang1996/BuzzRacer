@@ -35,7 +35,7 @@
       <config_name>sim_green</config_name>
       <init_states>(0.4,0.1, radians(0), 3)</init_states>
       <controller>
-        <type>iLQGameCarController</type>
+        <type>iLQGameSoloCarController</type>
       </controller>
     </car>
 

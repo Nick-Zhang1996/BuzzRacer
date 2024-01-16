@@ -34,7 +34,7 @@ sim = CurvilinearSimulator(FakeMain())
 sim.track = track
 
 def getRandomInitialStatePair():
-    s0 = np.random.uniform(0.4,track.raceline_len_m-0.4)
+    s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
     #s1 = s0 + np.random.uniform(-0.3,0.3)
     # s1 in rear
     s1 = s0 + np.random.uniform(-0.5,-0.3)
