@@ -1,10 +1,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from xml.dom import minidom
+import xml.etree.ElementTree as ET
+from track import TrackFactory
 
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation"
 labels = [val.strip() for val in labels.split(',')]
 
-log = '../log/batch_ilqgame_evasive/textlog.txt'
+name = 'batch_ilqgame_blocking'
+config_folder = './configs/' + name + '/'
+config_filename = config_folder + 'master.xml'
+original_config = minidom.parse(config_filename)
+
+config_track= original_config.getElementsByTagName('track')[0]
+track = TrackFactory.build(main=None,config=config_track)
+track.init()
+
+log = '../log/'+name+'/textlog.txt'
 print('opening log ' + log)
 failed_runs_count = 0
 with open(log,'r') as f:
@@ -30,6 +42,8 @@ print(f'failed runs: {failed_runs_count}, total runs: {total_runs}')
 for key in data_dict.keys():
     if (not isinstance(data_dict[key][0],str)):
         data_dict[key] = np.array(data_dict[key])
+data_dict['start_lead_i_j'] %= track.raceline_len_m
+data_dict['end_lead_i_j'] %= track.raceline_len_m
 
 # table 1: Qop -> start/end lead
 print('Qop1 \t, Qop2 \t, start \t, end   \t, gain')
@@ -40,15 +54,21 @@ def printTableEntry(Qop1,Qop2):
     mean_end_lead = np.mean(data_dict['end_lead_i_j'][mask])
     mean_gain = mean_end_lead - mean_start_lead
     print(f'{Qop1} \t, {Qop2} \t, {mean_start_lead:.4f} \t, {mean_end_lead:.4f} \t, {mean_gain:.4f}')
-printTableEntry(2,0)
-printTableEntry(2,0)
-printTableEntry(0,0)
 
 # table 2: agent i/j
 mean_start_lead = np.mean(data_dict['start_lead_i_j'])
 mean_end_lead = np.mean(data_dict['end_lead_i_j'])
 mean_gain = mean_end_lead - mean_start_lead
 print(f'mean gain: {mean_gain}')
+printTableEntry(0,0)
+printTableEntry(4,0)
+printTableEntry(-4,0)
+printTableEntry(0,-4)
+printTableEntry(0,4)
+printTableEntry(-4,-4)
+printTableEntry(4,4)
+printTableEntry(4,-4)
+printTableEntry(-4,4)
 
 # table 3: end gain vs lead gain
 '''
@@ -92,16 +112,16 @@ def printTable5Entry_alt(Qop1,Qop2):
     print(f'{Qop1} \t, {Qop2} \t, {follow_win_ratio:.2f}\t\t,{lead_win_ratio:.2f}\t\t,{overall_win_ratio:.2f}\t\t,{np.sum(mask)}')
 
 print(f'Qop1 \t, Qop2 \t, follow win \t, lead win \t,overall win \t, total runs')
-print('i ')
+print('Results for i')
 printTable5Entry(0,0)
-printTable5Entry(2,0)
-printTable5Entry(-2,0)
-printTable5Entry(0,-2)
-printTable5Entry(0,2)
-printTable5Entry(-2,-2)
-printTable5Entry(2,2)
-printTable5Entry(2,-2)
-printTable5Entry(-2,2)
+printTable5Entry(4,0)
+printTable5Entry(-4,0)
+printTable5Entry(0,-4)
+printTable5Entry(0,4)
+printTable5Entry(-4,-4)
+printTable5Entry(4,4)
+printTable5Entry(4,-4)
+printTable5Entry(-4,4)
 
 zero_lead = np.abs(data_dict['start_lead_i_j'])<1e-5
 print(f'{np.sum(zero_lead)} zero leads')
