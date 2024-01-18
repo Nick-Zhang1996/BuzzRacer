@@ -37,9 +37,9 @@ def getRandomInitialStatePair():
     s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
     #s1 = s0 + np.random.uniform(-0.3,0.3)
     # s1 in rear
-    #s1 = s0 + np.random.uniform(-0.5,-0.3)
+    s1 = s0 + np.random.uniform(-0.5,-0.3)
     # s1 in front
-    s1 = s0 + np.random.uniform(0.3,0.5)
+    #s1 = s0 + np.random.uniform(0.3,0.5)
 
     n0 = np.random.uniform(-0.2,0.2)
     n1 = np.random.uniform(-0.2,0.2)
@@ -51,9 +51,13 @@ def getRandomInitialStatePair():
     '''
     #v0 = np.random.uniform(3.0,4.0)
     #v1 = np.random.uniform(3.0,4.0)
-    v1 = np.random.uniform(2.5,3.5)
+    #v1 = np.random.uniform(2.5,3.0)
     # v0 (follower) faster
-    v0 = v1 + np.random.uniform(0.2,0.8)
+    #v0 = v1 + np.random.uniform(0.7,1.0)
+
+    v0 = np.random.uniform(2.5,3.0)
+    v1 = v0 + np.random.uniform(0.7,1.0)
+
     x0 = np.array((s0,v0,n0,0))
     x1 = np.array((s1,v1,n1,0))
     delta_x = x0 - x1
@@ -74,7 +78,7 @@ Qop = [4,0,-4]
 # car_i in front
 # car_j in rear, with speed advantage
 
-for i in range(50):
+for i in range(30):
     for q0 in Qop:
         for q1 in Qop:
             s0,s1 = getRandomInitialStatePair()
