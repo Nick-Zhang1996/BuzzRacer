@@ -175,3 +175,75 @@ Results for i
 4 	, -4 	, 0.26		,nan		,0.26		,50
 -4 	, 4 	, 0.32		,nan		,0.32		,50
 0 zero leads
+[92m [NascarTrack]:  setting nascar attributes [0m
+[96m [NascarTrack]:  nascar . radius = 2.0 [0m
+[96m [NascarTrack]:  nascar . length = 2.0 [0m
+[96m [NascarTrack]:  nascar . width = 0.6 [0m
+[96m [NascarTrack]:  nascar . resolution = 100 [0m
+[92m [NascarTrack]:  setting nascar attributes [0m
+[96m [NascarTrack]:  nascar . radius = 2.0 [0m
+[96m [NascarTrack]:  nascar . length = 2.0 [0m
+[96m [NascarTrack]:  nascar . width = 0.6 [0m
+[96m [NascarTrack]:  nascar . resolution = 100 [0m
+opening log ../log/batch_ilqgame_blocking_boost/textlog.txt
+failed runs: 0, total runs: 269
+Qop1 	, Qop2 	, start 	, end   	, gain
+mean gain: -0.31660140770189693
+0 	, 0 	, 0.4026 	, 0.0291 	, -0.3735
+4 	, 0 	, 0.4029 	, 0.0707 	, -0.3323
+-4 	, 0 	, 0.3922 	, 0.1361 	, -0.2562
+0 	, -4 	, 0.4045 	, 0.0432 	, -0.3613
+0 	, 4 	, 0.4144 	, 0.1065 	, -0.3078
+-4 	, -4 	, 0.4014 	, 0.1668 	, -0.2345
+4 	, 4 	, 0.4248 	, 0.0825 	, -0.3424
+4 	, -4 	, 0.4320 	, 0.1011 	, -0.3308
+-4 	, 4 	, 0.3968 	, 0.0889 	, -0.3079
+win_i: 246, win_j: 23
+Qop1 	, Qop2 	, follow win 	, lead win 	,overall win 	, total runs
+Results for i
+0 	, 0 	, nan		,0.83		,0.83		,30
+4 	, 0 	, nan		,0.90		,0.90		,30
+-4 	, 0 	, nan		,0.90		,0.90		,30
+0 	, -4 	, nan		,0.90		,0.90		,30
+0 	, 4 	, nan		,0.97		,0.97		,30
+-4 	, -4 	, nan		,1.00		,1.00		,29
+4 	, 4 	, nan		,0.93		,0.93		,30
+4 	, -4 	, nan		,0.97		,0.97		,30
+-4 	, 4 	, nan		,0.83		,0.83		,30
+0 zero leads
+[92m [NascarTrack]:  setting nascar attributes [0m
+[96m [NascarTrack]:  nascar . radius = 2.0 [0m
+[96m [NascarTrack]:  nascar . length = 2.0 [0m
+[96m [NascarTrack]:  nascar . width = 0.6 [0m
+[96m [NascarTrack]:  nascar . resolution = 100 [0m
+[92m [NascarTrack]:  setting nascar attributes [0m
+[96m [NascarTrack]:  nascar . radius = 2.0 [0m
+[96m [NascarTrack]:  nascar . length = 2.0 [0m
+[96m [NascarTrack]:  nascar . width = 0.6 [0m
+[96m [NascarTrack]:  nascar . resolution = 100 [0m
+opening log ../log/batch_ilqgame_chasing_boost/textlog.txt
+failed runs: 0, total runs: 269
+Qop1 	, Qop2 	, start 	, end   	, gain
+mean gain: 0.23985449769617204
+0 	, 0 	, -0.3872 	, -0.1437 	, 0.2435
+4 	, 0 	, -0.3934 	, -0.2350 	, 0.1584
+-4 	, 0 	, -0.3959 	, -0.0806 	, 0.3153
+0 	, -4 	, -0.4001 	, -0.1487 	, 0.2514
+0 	, 4 	, -0.4014 	, -0.1549 	, 0.2466
+-4 	, -4 	, -0.4113 	, -0.1085 	, 0.3028
+4 	, 4 	, -0.3881 	, -0.3000 	, 0.0881
+4 	, -4 	, -0.4072 	, -0.2098 	, 0.1974
+-4 	, 4 	, -0.4050 	, -0.0477 	, 0.3573
+win_i: 87, win_j: 182
+Qop1 	, Qop2 	, follow win 	, lead win 	,overall win 	, total runs
+Results for i
+0 	, 0 	, 0.40		,nan		,0.40		,30
+4 	, 0 	, 0.17		,nan		,0.17		,30
+-4 	, 0 	, 0.43		,nan		,0.43		,30
+0 	, -4 	, 0.37		,nan		,0.37		,30
+0 	, 4 	, 0.40		,nan		,0.40		,30
+-4 	, -4 	, 0.38		,nan		,0.38		,29
+4 	, 4 	, 0.07		,nan		,0.07		,30
+4 	, -4 	, 0.20		,nan		,0.20		,30
+-4 	, 4 	, 0.50		,nan		,0.50		,30
+0 zero leads
