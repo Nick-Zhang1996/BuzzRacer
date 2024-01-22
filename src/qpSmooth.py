@@ -147,7 +147,6 @@ class QpSmooth(RCPTrack):
 
     # P: array of control points, shape n*2*5
     # u (iterable): parameter, domain [0,n], where n is number of break points in spline generation
-
     def evalBezierSpline(self,P,u):
         u = np.array(u).reshape(-1,1)
         n = len(P)
@@ -305,11 +304,6 @@ class QpSmooth(RCPTrack):
         y_new = xy[:,1]
 
         # convert to visualization coordinate
-        #x_new /= self.scale
-        #x_new *= self.resolution
-        #y_new /= self.scale
-        #y_new *= self.resolution
-        #y_new = self.resolution*rows - y_new
         x_temp = []
         y_temp = []
         for coord in zip(x_new,y_new):
@@ -341,11 +335,6 @@ class QpSmooth(RCPTrack):
         for point in self.break_pts:
             x = point[0]
             y = point[1]
-            #x /= self.scale
-            #x *= self.resolution
-            #y /= self.scale
-            #y *= self.resolution
-            #y = self.resolution*rows - y
             x,y = self.m2canvas(point)
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
