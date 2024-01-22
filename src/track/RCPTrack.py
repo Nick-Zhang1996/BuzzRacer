@@ -422,6 +422,7 @@ class RCPTrack(Track):
 
         return {'speed_profile_fun':speed_profile_fun, 'min_v': min_v, 'max_v':max_v}
 
+    '''
     # save raceline to pickle file
     def save(self,filename=None):
         if filename is None:
@@ -478,8 +479,13 @@ class RCPTrack(Track):
         self.y_limit = self.gridsize[0]*self.scale
 
         print_ok("track and raceline loaded")
-        self.reconstructRaceline()
         return self
+    '''
+    
+    # initialization to do after load()
+    def postLoad(self):
+        self.reconstructRaceline()
+        pass
 
     # calculate distance
     def calcPathDistance(self,u0,u1):
@@ -1087,6 +1093,8 @@ class RCPTrack(Track):
             return (raceline_point,copysign(abs(min_fun_val)**0.5,cross_theta),atan2(der[1],der[0]),copysign(norm_curvature,cross_curvature),request_velocity)
 
 
+    def sToV_lut(self,x):
+        return self.v_lut[bisect(self.s_lut,x)]
     # create two function to map between u(raceline parameter)<->s(distance along racelien)
     # also create mapping between s -> v_ref
     # also create raceline_s, raceline parameterized with s
@@ -1111,7 +1119,7 @@ class RCPTrack(Track):
         # when absolute speed is needed, use lookup tables
         # this may lose some accuracy but with larger n_step
         # and moderate change in velocity this should not be an issue
-        self.sToV_lut = lambda x: self.v_lut[bisect(self.s_lut,x)]
+        #self.sToV_lut = lambda x: self.v_lut[bisect(self.s_lut,x)]
         self.s_lut = ss
         self.v_lut = vv
 

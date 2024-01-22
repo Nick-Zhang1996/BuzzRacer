@@ -812,45 +812,5 @@ class CurvilinearTrack(Track):
 
         return self.preciseTrackBoundary(coord,heading=0)
 
-    # save raceline to pickle file
-    def save(self,filename=None):
-        if filename is None:
-            filename = "raceline.p"
-
-        # assemble save data
-        save = {}
-        save['object'] = self
-        '''
-        for attr in dir(self):
-            if ( attr.find('__') == 0 or type(getattr(self,attr)) == types.MethodType or attr=='raceline_fun'):
-                continue
-            else:
-                print(attr,type(getattr(self,attr)))
-                save[attr] = getattr(self,attr)
-        '''
-
-        with open('./data/'+filename, 'wb') as f:
-            pickle.dump(save,f)
-        print_ok("track and raceline saved")
-
-    # load quadratically smoothed raceline
-    @staticmethod
-    def load(filename=None):
-        # get data folder abs path
-        thisdir = os.path.dirname(os.path.abspath(__file__))
-        basedir = os.path.dirname(thisdir)
-        if filename is None:
-            filename = "raceline.p"
-        try:
-            with open(basedir+'/data/'+filename, 'rb') as f:
-                save = pickle.load(f)
-        except FileNotFoundError:
-            print_error("can't find "+filename+", run qpSmooth.py first")
-
-        # restore save data
-        obj = save['object']
-        print_ok('track loaded')
-        return obj
-
 if __name__ == "__main__":
     pass

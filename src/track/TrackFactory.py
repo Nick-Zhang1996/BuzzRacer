@@ -15,8 +15,8 @@ class TrackFactory:
     def getMapping():
         # NOTE skidpad, empty, orca weren't fully tested
         mapping = {
-                # RCP tracks
                 'saved':TrackFactory.prepareSavedTrack,
+                # RCP tracks
                 'full':TrackFactory.prepareRcpTrack,
                 'small':TrackFactory.prepareRcpTrackSmall,
                 'easy':TrackFactory.prepareEasyTrack,
@@ -54,8 +54,8 @@ class TrackFactory:
     @staticmethod
     def prepareSavedTrack(main,config,track=None):
         if (track is None):
-            track = RCPTrack(main=main,config=config)
-        track.load()
+            track = Track(main=main,config=config)
+        track = track.load(main=main,config=config)
         return track
 
     @staticmethod

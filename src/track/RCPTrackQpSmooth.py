@@ -510,7 +510,6 @@ class RCPTrackQpSmooth(RCPTrack):
         # generate bezier spline
         self.P = self.bezierSpline(self.ctrl_pts)
         self.u_max = len(self.ctrl_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
         # render
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
@@ -526,7 +525,6 @@ class RCPTrackQpSmooth(RCPTrack):
         # generate bezier spline
         self.P = self.bezierSpline(self.break_pts)
         self.u_max = len(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
         K, C, Ds = self.curvatureJac()
         '''
@@ -599,7 +597,6 @@ class RCPTrackQpSmooth(RCPTrack):
         # this requires re-generation of the Bezier Spline
         self.break_pts = new_pts
         self.P = self.bezierSpline(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
         # need this to calculate new ds and k
         K, C, Ds = self.curvatureJac()
         ds = self.ds
@@ -645,14 +642,17 @@ class RCPTrackQpSmooth(RCPTrack):
         # 1.0 is ideal
         return (J_p-J)/(J_pm[0,0]-J)
 
+    def raceline_fun(self,u):
+        return self.evalBezierSpline(self.P,u)
+
+
     # resample path defined in raceline_fun
     # new_n: number of break points on the new path
     def resamplePath(self,new_n):
         # generate bezier spline
-        P = self.bezierSpline(self.break_pts)
+        self.P = self.bezierSpline(self.break_pts)
         N = len(self.break_pts)
 
-        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
         # show initial raceline
         '''
@@ -691,9 +691,8 @@ class RCPTrackQpSmooth(RCPTrack):
 
         # regenerate spline
         self.break_pts = np.array(new_break_pts)
-        P = self.bezierSpline(self.break_pts)
+        self.P = self.bezierSpline(self.break_pts)
         N = len(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
         '''
         print("showing initial raceline AFTER resampling")
@@ -728,7 +727,6 @@ class RCPTrackQpSmooth(RCPTrack):
             self.u_max = len(self.break_pts)
             N = self.u_max
 
-            self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
             print_ok("iter: %d"%(iter_count,))
             img_track = self.drawTrack()
