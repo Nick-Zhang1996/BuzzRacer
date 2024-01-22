@@ -8,6 +8,30 @@ class ExperimentType(Enum):
     Realworld = auto()
     Replay = auto()
 
+class LogObject:
+    ''' to use this, user need to add LogObject as a parent class for the class
+    they wish to log.
+    During use, populate a self.debug_dict of type Dictionary then add the class's log as key/value pairs. If the class has member variables that need to be logged, declare them as LogObject and handle their debug_dict by themselves. There is no need for a class to handle its member variable's debug_dict, populateLog will take care of that '''
+    def __init__(self):
+        self.debug_dict = {}
+
+    def preUpdate(self):
+        self.debug_dict = {}
+
+    @staticmethod
+    def populateLog(root,logged=None):
+        ''' build a tree of debug_dict '''
+        if (logged is None):
+            logged = set()
+        debug_dict = root.debug_dict
+        logged.add(root)
+        for att in dir(root):
+            item = getattr(root,att)
+            if (isinstance(item, LogObject) and not item in logged):
+                debug_dict[att] = LogObject.populateLog(item,logged)
+
+        return debug_dict
+
 class PrintObject:
     debug = False
     def __init__(self):
@@ -28,6 +52,7 @@ class PrintObject:
         raise RuntimeError
 
     def print_ok(self, *message):
+        # green
         print('\033[92m',self.prefix(), *message, '\033[0m')
 
     def print_debug(self, *message):
@@ -42,6 +67,7 @@ class PrintObject:
         print('\033[91m',self.prefix(), 'WARNING: ', *message, '\033[0m')
 
     def print_info(self, *message):
+        # light blue
         print('\033[96m',self.prefix(), *message, '\033[0m')
 
 

@@ -8,6 +8,9 @@ class Extension(PrintObject):
 
 
     # optional initialization
+    def preInit(self):
+        pass
+
     def init(self):
         pass
 

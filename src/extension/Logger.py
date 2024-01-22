@@ -19,6 +19,7 @@ class Logger(Extension):
         # this is updated frequently, use the last line
         # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
         self.full_state_log = []
+        self.debug_dict_log = []
 
     def resolveLogname(self,):
         # setup log file
@@ -36,7 +37,6 @@ class Logger(Extension):
             logFolder = '../log/' + self.main.experiment_name +'/'
         except AttributeError:
             logFolder = '../log/' + '%d_%d_%d_'%(today.year,today.month,today.day) + suffix + '/'
-        
 
         if not os.path.exists(logFolder):
             os.makedirs(logFolder)
@@ -53,7 +53,7 @@ class Logger(Extension):
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
         self.logFolder = logFolder
 
-    def update(self):
+    def postUpdate(self):
         # x,y,theta are in track frame
         # v_forward in vehicle frame, forward positive
         # v_sideway in vehicle frame, left positive
@@ -68,6 +68,14 @@ class Logger(Extension):
 
         self.full_state_log.append(log_entry)
 
+        # debug_dict
+        logged = set()
+        debug_dict = LogObject.populateLog(self.main, logged)
+        debug_dict['cars'] = []
+        for car in self.main.cars:
+            debug_dict['cars'].append(LogObject.populateLog(car,logged))
+        self.debug_dict_log.append(debug_dict)
+
     def postFinal(self):
         print_ok("[Logger]: saving full_state log at " + self.logFilename)
 
@@ -76,9 +84,6 @@ class Logger(Extension):
         output.close()
 
         print_ok("[Logger]: saving debugDict log at " + self.logDictFilename)
-        self.debug_dict = []
-        for car in self.main.cars:
-            self.debug_dict.append(car.debug_dict)
         output = open(self.logDictFilename,'wb')
-        pickle.dump(self.debug_dict,output)
+        pickle.dump(self.debug_dict_log,output)
         output.close()

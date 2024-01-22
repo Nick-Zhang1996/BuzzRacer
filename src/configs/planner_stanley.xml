@@ -1,7 +1,7 @@
 <config>
   <settings dt='0.01'>
     <experiment_type>Simulation</experiment_type>
-    <track>full</track>
+    <track>saved</track>
   </settings>
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
@@ -54,7 +54,7 @@
       <name>Green Porsche</name>
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
-      <init_states>(2.4*0.6,1.3*0.6, radians(90), 0.1)</init_states>
+      <init_states>(2.8*0.6,1.3*0.6, radians(90), 0.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>
       </controller>

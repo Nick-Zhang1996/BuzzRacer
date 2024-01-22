@@ -7,6 +7,7 @@ import pickle
 import matplotlib.pyplot as plt
 from math import degrees,radians
 from PIL import Image
+from threading import Event
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
@@ -19,6 +20,7 @@ class Visualization(Extension):
         # default setting, will be overridden if defined in config
         self.car_graphics = False
         self.track = self.main.track
+        self.main.breakpoint = Event()
 
     def final(self):
         cv2.destroyAllWindows()
@@ -38,7 +40,6 @@ class Visualization(Extension):
 
         # draw static components onto background
         self.img_track = self.drawControlStaticForAllCars(self.img_track)
-        # FIXME
         self.visualization_img = img
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
@@ -86,6 +87,10 @@ class Visualization(Extension):
             elif k == ord('p'):
                 self.print_info("Paused")
                 input("press Enter to continue")
+            # p for pause
+            elif k == ord('b'):
+                self.print_info("breakpoint")
+                self.main.breakpoint.set()
             # s for snapshot
             elif k == ord('s'):
                 self.print_info("Requesting snapshot")
@@ -142,25 +147,41 @@ class Visualization(Extension):
         return img
 
     def drawControl(self,img,car,coord):
-        # FIXME move static stuff to background since it doesn't change
+        ''' draw control, throttle/steering: [-1,1]'''
+        def bound(a,l,h):
+            val = l if a < l else a
+            return h if val>h else val
+        def map(val, in_l, in_h, out_low, out_high):
+            # out of bound flag
+            oob = False
+            if (val<in_l):
+                val = in_l
+                oob = True
+            elif (val > in_h):
+                val = in_h
+                oob = True
+            return (val-in_l)/(in_h-in_l)*(out_high-out_low)+out_low, oob
 
         #x1 and y1 are the origin values -- need to be changed if origin changes
         x1 = coord[0] + 30
         y1 = coord[1]
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
-        steering = car.steering
-        throttle = car.throttle
         # Add steering bar
-        img = cv2.rectangle(img, (x1 + 4, y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
-        end_coordinate = int(50 - (steering * 100))              
-        img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + end_coordinate, y1 + 40), (0, 255, 0), -1)
+        steering,oob = map(car.steering, -car.max_steering_left, car.max_steering_right, 100,0)
+        img = cv2.rectangle(img, (x1 , y1 + 25), (x1 + 100, y1 + 40), (0, 0, 255), 1)
+        if (oob):
+            img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + int(steering), y1 + 40), (0, 0, 255), -1)
+        else:
+            img = cv2.rectangle(img, (x1 + 50, y1 + 25), (x1 + int(steering), y1 + 40), (0, 255, 0), -1)
         img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        
         # Add Throttle bar
-        img = cv2.rectangle(img, (x1 + 4, y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        throttle,oob = map(car.throttle, car.min_throttle, car.max_throttle, 0,100)
+        img = cv2.rectangle(img, (x1 , y1 + 45), (x1 + 100, y1 + 60), (0,0,255), 1)
+        if (oob):
+            img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + int(throttle), y1 + 60), (0, 0, 255), -1)
+        else:
+            img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + int(throttle), y1 + 60), (0, 255, 0), -1)
         img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        throttle_end = int(50+(72*throttle))
-        img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
 
         
         return img

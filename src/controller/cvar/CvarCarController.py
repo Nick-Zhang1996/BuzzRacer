@@ -10,6 +10,7 @@ import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 import matplotlib.pyplot as plt
 import pickle
+from controller.PidController import PidController
 
 class CvarCarController(CarController):
     def __init__(self,car,config):
@@ -28,6 +29,12 @@ class CvarCarController(CarController):
         self.discretized_raceline_len = 1024
         self.temperature = 0.01
         self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+
+        P = 1
+        I = 0.0
+        D = 0.005
+        dt = car.main.dt
+        self.throttle_pid = PidController(P,I,D,dt,1,100)
 
         # CVaR specific settings
         self.enable_cvar = None
@@ -463,6 +470,11 @@ class CvarCarController(CarController):
         self.last_ref_control = np.zeros_like(control)
 
         self.car.throttle += control_rate[0,0]*self.dt
+        # XXX
+
+        retval = self.track.localTrajectory(self.car.states)
+        (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        self.car.throttle = self.throttle_pid.control(v_target,vf) + self.steadyStateThrottle(v_target)
         self.car.steering += control_rate[0,1]*self.dt
 
         #self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
@@ -511,3 +523,14 @@ class CvarCarController(CarController):
         return drv.to_device(np.array(data,dtype=np.float32).flatten())
     def from_device(self,data,shape,dtype=np.float32):
         return drv.from_device(data,shape,dtype)
+
+    # get ss throttle, given ss velocity, linearfit
+    def steadyStateThrottle(self,velocity_ss):
+        # 0.25 -> 0.94
+        # 0.28 -> 1.4
+        # 0.31 -> 1.9
+        p = np.array([0.06246385,0.19171776])
+        if (velocity_ss > 0):
+            return velocity_ss * p[0] + p[1]
+        else:
+            return 0

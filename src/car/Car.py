@@ -1,11 +1,12 @@
 from common import *
 import serial
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
-class Car(PrintObject):
+class Car(PrintObject,LogObject):
     car_count = 0
     cars = []
     # initialization for variables common to all subclass
     def __init__(self,main):
+        LogObject.__init__(self)
         self.main = main
         self.controller = None
         self._throttle = 0.0
@@ -14,6 +15,7 @@ class Car(PrintObject):
         self.states = (0,0,0,0,0,0)
         # default values, will be overridden
         self.max_throttle = 1.0
+        self.min_throttle = -1.0
         self.max_steering_left = radians(26.1)
         self.max_steering_right = radians(26.1)
         self.debug_dict = {}
@@ -24,7 +26,7 @@ class Car(PrintObject):
     @throttle.setter
     def throttle(self,val):
         val = val if val < self.max_throttle else self.max_throttle
-        val = val if val > -1.0 else -1.0
+        val = val if val > self.min_throttle else self.min_throttle
         self._throttle = val
 
     @property
@@ -36,6 +38,13 @@ class Car(PrintObject):
         val = val if val > -self.max_steering_right else -self.max_steering_right
         self._steering = val
 
+
+    def preInit(self):
+        self.controller.preInit()
+        return
+    def postInit(self):
+        self.controller.postInit()
+        return
 
     # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
     # have concluded
@@ -88,8 +97,8 @@ class Car(PrintObject):
             init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            print_warning('Car: no initial state specified')
-            init_states = (0,0,0,0)
+            print_warning('Car: no initial state specified, using track default')
+            init_states = (*main.track.start_pos, main.track.start_dir,0.1)
 
         config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
         exec('from controller import '+controller_class_text)
@@ -103,38 +112,38 @@ class Car(PrintObject):
         car.states = (x,y,heading,v_forward,0,0)
 
         porsche = {'wheelbase':90e-3,
-                         'max_steer_angle_left':radians(27.1),
+                         'max_steering_left':radians(27.1),
                          'max_steer_pwm_left':1150,
-                         'max_steer_angle_right':radians(27.1),
+                         'max_steering_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         'width' : 0.0461,
                          #'optitrack_streaming_id' : 998,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
 
         porsche_slow = {'wheelbase':90e-3,
-                         'max_steer_angle_left':radians(27.1),
+                         'max_steering_left':radians(27.1),
                          'max_steer_pwm_left':1150,
-                         'max_steer_angle_right':radians(27.1),
+                         'max_steering_right':radians(27.1),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB0',
                          'optitrack_streaming_id' : 2,
-                         'width' : 0.0461,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         lambo = {'wheelbase':98e-3,
-                         'max_steer_angle_left':asin(2*98e-3/0.52),
+                         'max_steering_left':asin(2*98e-3/0.52),
                          'max_steer_pwm_left':1100,
-                         'max_steer_angle_right':asin(2*98e-3/0.47),
+                         'max_steering_right':asin(2*98e-3/0.47),
                          'max_steer_pwm_right':1850,
                          'serial_port' : '/dev/ttyUSB1',
                          'optitrack_streaming_id' : 15,
-                         'width' : 0.0461,
                          'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_green.png'}
 
         orca = {          'wheelbase':0.029+0.033,
@@ -142,23 +151,43 @@ class Car(PrintObject):
                          'rendering' : 'data/porsche_green.png'}
 
         # TODO render audi
-        audi_11 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 998,
+        audi_11 = {      'optitrack_streaming_id' : 998,
                          'ip' : '192.168.10.11',
-                         'max_steer_angle_left':radians(26.1),
-                         'max_steer_angle_right':radians(26.1),
+                         'max_steering_left':radians(26.1),
+                         'max_steering_right':radians(26.1),
                          'max_throttle' : 1.0,
-                         'width' : 0.0461,
+                         'min_throttle' : -1.0,
                          'rendering' : 'data/porsche_green.png'}
 
-        audi_12 = {'wheelbase':98e-3,
-                         'optitrack_streaming_id' : 1005,
+        audi_12 = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steer_angle_left':radians(26.1),
-                         'max_steer_angle_right':radians(26.1),
-                         'max_throttle' : 0.5,
-                         'width' : 0.0461,
+                         'max_steering_left':radians(26.1),
+                         'max_steering_right':radians(26.1),
+                         'max_throttle' : 1.0,
+                         'min_throttle' : -1.0,
+                         'rendering' : 'data/porsche_orange.png'}
+
+        sim_green = {    'optitrack_streaming_id' : 1005,
+                         'ip' : '192.168.10.12',
+                         'max_steering_left':13.0,
+                         'max_steering_right':13.0,
+                         'max_throttle' : 10.0,
+                         'min_throttle' : -10.0,
+                         'max_v' : 4.0,
+                         'max_ax' : 10.0,
+                         'max_ay' : 13.0,
                          'rendering' : 'data/porsche_green.png'}
+
+        sim_red = {      'optitrack_streaming_id' : 1005,
+                         'ip' : '192.168.10.12',
+                         'max_steering_left':9.0,
+                         'max_steering_right':9.0,
+                         'max_throttle' : 13.0,
+                         'min_throttle' : -13.0,
+                         'max_v' : 4.0,
+                         'max_ax' : 13.0,
+                         'max_ay' : 9.0,
+                         'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)
         #print_error("Unrecognized car config")

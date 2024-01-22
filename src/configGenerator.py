@@ -7,114 +7,93 @@ import xml.etree.ElementTree as ET
 import numpy as np
 from copy import deepcopy
 import sys
+from math import radians
+from track import TrackFactory
+from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 
 if (len(sys.argv) == 2):
     name = sys.argv[1]
 else:
     print_error("you must specify a folder name under configs/")
 
+
 config_folder = './configs/' + name + '/'
 config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
+config_track= original_config.getElementsByTagName('track')[0]
+track = TrackFactory.build(main=None,config=config_track)
+track.init()
+
+class FakeMain():
+    def __init__(self):
+        self.extensions = []
+        self.track = None
+sim = CurvilinearSimulator(FakeMain())
+sim.track = track
+
+def getRandomInitialStatePair():
+    #s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+    #s1 = s0 + np.random.uniform(-0.3,0.3)
+    # s1 in rear
+    #s1 = s0 + np.random.uniform(-0.5,-0.3)
+    # s1 in front
+    s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+    s1 = s0 + np.random.uniform(0.3,0.5)
+
+    n0 = np.random.uniform(-0.2,0.2)
+    n1 = np.random.uniform(-0.2,0.2)
+    drr0 = splev(s0,track.raceline_s,der=1)
+    '''
+    heading0 = np.arctan2(drr0[1],drr0[0])
+    drr1 = splev(s1,track.raceline_s,der=1)
+    heading1 = np.arctan2(drr0[1],drr0[0])
+    '''
+    #v1 = np.random.uniform(2.5,3.0)
+
+    v1 = np.random.uniform(2.5,3.0)
+    v0 = v1 + np.random.uniform(0.7,1.0)
+
+    x0 = np.array((s0,v0,n0,0))
+    x1 = np.array((s1,v1,n1,0))
+    delta_x = x0 - x1
+    is_in_collision = np.abs(delta_x[0])<0.18 and np.abs(delta_x[2])<0.14
+    if (is_in_collision):
+        return getRandomInitialStatePair()
+    else:
+        cart0 = sim.curv2Cart(x0)
+        cart1 = sim.curv2Cart(x1)
+        curv0 = sim.cart2Curv(cart0)
+        curv1 = sim.cart2Curv(cart1)
+        if (curv0[0] == curv1[0]):
+            breakpoint()
+        return tuple(cart0[:4]),tuple(cart1[:4])
+
 index = 0
-#cvar_a_vec = np.linspace(0.1,0.9,3)
-#cvar_Cu_vec = [0,0.5,1,2,5]
-#cvar_a_vec = np.linspace(0.1,0.9,9)
-#cvar_Cu_vec = np.linspace(0.1,0.9,9)
+Qop = [4,0,-4]
+# car_i in front
+# car_j in rear, with speed advantage
 
-# grid 5,6, grid 6 use 0.1 noise, grid5 use 0.2 noise
-#cvar_a_vec = [0.99,0.95,0.93]
-#cvar_Cu_vec = np.linspace(0.5,0.9,5)
-
-# grid 7, also has hand written tests with different noise level
-#cvar_a_vec = [0.95]
-#cvar_Cu_vec = [0.5]
-#enable_cvar = True
-#cvar_A_vec = [2,4,6,8,10]
-
-# grid 9a
-#enable_cvar = True
-#cvar_a_vec = np.linspace(0.1,0.9,5)
-#cvar_A_vec = [4,7,10]
-#cvar_Cu = 0.5
-
-# grid9b
-#noise_vec = [0.3,0.5,0.7]
-
-# grid 13
-#cvar_a_vec = np.linspace(0.1,0.9,5)
-#cvar_Cu_vec = [0.5,0.8,1.0,10,100,200]
-#cvar_A = 10.0
-#enable_cvar = True
-
-# grid 15, 17
-#cvar_a_vec = np.linspace(0.1,0.9,5)
-#cvar_Cu_vec = np.linspace(0.6,1.0,5)
-#cvar_A = 10.0
-#enable_cvar = True
-
-# grid 16, grid18
-# baseline vs cvar
-# search noise level
-# search noise type
-#cvar_a = 0.5
-#cvar_Cu = 0.5
-#cvar_A = 10.0
-#enable_cvar_vec = [True,False]
-#noise_vec = [0.1,0.2,0.3,0.4,0.5]
-#noise_type_vec = ['normal','uniform','impulse']
-
-# grid 16,grid18
-'''
-for enable_cvar in enable_cvar_vec:
-    for noise_type in noise_type_vec:
-        for noise in noise_vec:
+for i in range(30):
+    for q0 in Qop:
+        for q1 in Qop:
+            s0,s1 = getRandomInitialStatePair()
             config = deepcopy(original_config)
             config_extensions = config.getElementsByTagName('extensions')[0]
-            for config_extension in config_extensions.getElementsByTagName('extension'):
-                if config_extension.getAttribute('handle') == 'simulator':
-                    config_extension.attributes['state_noise_magnitude'] = str([noise]*6)
-                    config_extension.attributes['state_noise_type'] =  str(noise_type)
             config_cars = config.getElementsByTagName('cars')[0]
-            config_car = config_cars.getElementsByTagName('car')[0]
-            config_controller = config_car.getElementsByTagName('controller')[0]
-            attrs = config_controller.attributes.items()
+            config_car0 = config_cars.getElementsByTagName('car')[0]
+            config_car1 = config_cars.getElementsByTagName('car')[1]
+            config_controller = config_car0.getElementsByTagName('controller')[0]
+            #attrs = config_controller.attributes.items()
+            config_controller.attributes['Qop1'] =  str(q0)
+            config_controller.attributes['Qop2'] =  str(q1)
 
-            config_controller.attributes['enable_cvar'] =  str(enable_cvar)
-            config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
-            config_controller.attributes['cvar_a'] =   str(cvar_a)
-            config_controller.attributes['cvar_A'] =   str(cvar_A)
-            config_controller.attributes['state_noise_magnitude'] =  str([noise]*6) 
-            config_controller.attributes['state_noise_type'] =  str(noise_type)
+            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(s0)
+            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(s1)
 
             with open(config_folder+'exp%d.xml'%(index),'w') as f:
                 config.writexml(f)
             index += 1
-'''
-
-# grid 19
-cvar_a_vec = np.linspace(0.1,0.9,5)
-cvar_Cu_vec = np.linspace(0.6,1.0,5)
-cvar_A = 3.0
-enable_cvar = True
-
-for cvar_a in cvar_a_vec:
-    for cvar_Cu in cvar_Cu_vec:
-        config = deepcopy(original_config)
-        config_extensions = config.getElementsByTagName('extensions')[0]
-        config_cars = config.getElementsByTagName('cars')[0]
-        config_car = config_cars.getElementsByTagName('car')[0]
-        config_controller = config_car.getElementsByTagName('controller')[0]
-        attrs = config_controller.attributes.items()
-
-        config_controller.attributes['enable_cvar'] =  str(enable_cvar)
-        config_controller.attributes['cvar_Cu'] =  str(cvar_Cu)
-        config_controller.attributes['cvar_a'] =   str(cvar_a)
-        config_controller.attributes['cvar_A'] =   str(cvar_A)
-
-        with open(config_folder+'exp%d.xml'%(index),'w') as f:
-            config.writexml(f)
-        index += 1
 
 print('generated %d configs'%index)

@@ -12,17 +12,18 @@ class Laptimer(Extension):
         Extension.__init__(self,main)
 
     def init(self):
-        # in case the first expertiment fails
-        # FIXME sketchy
-        self.main.car_laptime_mean = [-1]
-        self.main.car_laptime_stddev = [-1]
-        self.main.car_total_laps = [0]
+        self.main.car_laptime_mean = []
+        self.main.car_laptime_stddev = []
+        self.main.car_total_laps = []
 
         for car in self.main.cars:
             car.enableLaptimer = True
             if car.enableLaptimer:
-                car.laptimer = _Laptimer(self.main.track.startPos, self.main.track.startDir)
+                car.laptimer = _Laptimer(self.main.track.start_pos, self.main.track.start_dir)
                 car.laptime_vec = []
+            self.main.car_laptime_mean.append(-1)
+            self.main.car_laptime_stddev.append(-1)
+            self.main.car_total_laps.append(-1)
 
     def update(self):
         for car in self.main.cars:
@@ -30,7 +31,7 @@ class Laptimer(Extension):
                 retval = car.laptimer.update((car.states[0],car.states[1]),current_time=self.main.time())
                 if retval:
                     #car.laptimer.announce()
-                    print_info("[Laptimer]: car%d, new laptime: %.4f s"%(car.id, car.laptimer.last_laptime))
+                    print_info("[Laptimer]: car%d, Lap %d laptime: %.4f s"%(car.id, len(car.laptime_vec),car.laptimer.last_laptime))
                     car.laptime_vec.append(car.laptimer.last_laptime)
                     #self.showStats()
 
@@ -55,11 +56,15 @@ class Laptimer(Extension):
         car_laptime_mean = []
         car_laptime_stddev = []
         for car in self.main.cars:
-            if (car.enableLaptimer and len(car.laptime_vec) > 0):
-                mean = np.mean(car.laptime_vec[1:])
-                stddev = np.std(car.laptime_vec[1:])
-                laps = len(car.laptime_vec[1:])
-                print_info("[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)"%(car.id,laps,mean,stddev))
+            if (car.enableLaptimer ):
+                if (len(car.laptime_vec) > 0):
+                    mean = np.mean(car.laptime_vec[1:])
+                    stddev = np.std(car.laptime_vec[1:])
+                    laps = len(car.laptime_vec[1:])
+                    print_info("[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)"%(car.id,laps,mean,stddev))
+                else:
+                    mean = -1
+                    stddev = -1
                 car_laptime_mean.append(mean)
                 car_laptime_stddev.append(stddev)
         self.main.car_laptime_mean = car_laptime_mean
@@ -114,10 +119,13 @@ class _Laptimer:
             self.last_laptime = current_time - self.last_lap_ts
             self.last_lap_ts = current_time
 
+            # require one lap as "warmup"
+            '''
             if (self.lap_count == 0 ):
                 self.lap_count += 1
                 self.new_lap.clear()
                 return False
+            '''
 
             self.lap_count += 1
             self.new_lap.set()

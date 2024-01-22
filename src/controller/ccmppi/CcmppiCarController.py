@@ -540,7 +540,7 @@ class CcmppiCarController(CarController):
     def applyDiscreteDynamics(self,states,control,dt):
         #return self.sim.updateCar(dt,control[0], control[1],external_states=state)
         # NOTE kinematic simulator and dynamic simulator use different state representation
-        return self.model.advanceDynamics(states, control, car = self.car)
+        return self.model.advanceDynamics(states, (control[1],control[0]), car = self.car)
 
     def predictOpponent(self):
         self.opponent_prediction = []

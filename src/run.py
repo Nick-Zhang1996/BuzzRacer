@@ -17,10 +17,12 @@ import os.path
 import os
 os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
 
-class Main(PrintObject):
+class Main(PrintObject,LogObject):
     def __init__(self,config_filename):
+        LogObject.__init__(self)
         self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
+        self.experiment_name = config_filename
 
     def init(self):
         self.print_ok(" loading settings")
@@ -37,7 +39,7 @@ class Main(PrintObject):
         # prepare track
         #config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
         config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(self,config_track)
+        self.track = TrackFactory.build(main=self,config=config_track)
         self.track.init()
 
         # prepare cars
@@ -77,20 +79,25 @@ class Main(PrintObject):
                 else:
                     try:
                         value = eval(raw)
-                    except NameError:
+                    except (NameError,SyntaxError):
                         value = raw
                     # all other attributes will be set to extension
                     setattr(ext,key,value)
                     self.print_info('main.'+handle_name+'.'+key+' = '+str(value))
+        for item in self.extensions:
+            item.preInit()
+        for car in self.cars:
+            car.preInit()
 
         for item in self.extensions:
             item.init()
-
         for car in self.cars:
             car.init()
 
         for item in self.extensions:
             item.postInit()
+        for car in self.cars:
+            car.postInit()
 
     # run experiment until user press q in visualization window
     def run(self):
@@ -100,6 +107,8 @@ class Main(PrintObject):
             self.update()
         # exit point
         self.print_info("Exiting ...")
+        for car in self.cars:
+            car.controller.final()
         for item in self.extensions:
             item.preFinal()
         for item in self.extensions:
@@ -116,7 +125,6 @@ class Main(PrintObject):
 
     # run the control/visualization update
     # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
-
     # in simulation, this is called with evenly spaced time
     # in real experiment, this is called after a new vicon update is pulled
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
@@ -150,14 +158,6 @@ class Main(PrintObject):
         t.e('post')
         t.e()
         
-
-    # call before exiting
-    def stop(self,):
-        for car in self.cars:
-            car.stopStateUpdate(car)
-
-
-
 if __name__ == '__main__':
     if (len(sys.argv) == 2):
         name = sys.argv[1]

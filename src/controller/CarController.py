@@ -3,8 +3,9 @@ from common import *
 import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
-class CarController(ConfigObject):
+class CarController(ConfigObject,LogObject):
     def __init__(self, car, config):
+        LogObject.__init__(self)
         self.config = config
         self.car = car
         self.main = car.main
@@ -16,10 +17,19 @@ class CarController(ConfigObject):
         KinematicSimulator.dt = self.car.main.dt
         super().__init__(config)
 
+    def preInit(self):
+        return
+    def postInit(self):
+        return
+
     def init(self):
         # self-reported prediction of future trajectory
         # to be used by opponents for collision avoidance
         self.predict()
+        return
+
+    def final(self):
+        ''' called at end of program, override to show statistics '''
         return
 
     # return control signals
@@ -34,7 +44,7 @@ class CarController(ConfigObject):
     # update predicted_traj vector
     def predict(self):
         # DEBUG plotting
-        control = np.array((self.car.throttle, self.car.steering))
+        control = np.array((self.car.steering, self.car.throttle))
         control = np.repeat(np.reshape(control,(1,-1)),self.horizon,0)
         # kinematic
         expected_trajectory = self.getKinematicTrajectory( self.car.states, control )

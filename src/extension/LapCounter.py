@@ -7,7 +7,7 @@ import cv2
 class LapCounter(Extension):
     def __init__(self, main):
         Extension.__init__(self,main)
-        self.plotLapCountFlag = False
+        self.plotLapCountFlag = True
 
     def init(self):
         self.total_laps = self.lap_count
@@ -28,15 +28,13 @@ class LapCounter(Extension):
                 if (not car.critical_lap.is_set()):
                     car.critical_lap.set()
                     print_ok("[LapCounter]: car%d critical lap start, total = %d laps"%(car.id, car.laps_remaining))
+                    # NOTE count the "warm up" lap as a proper lap
                     continue
 
                 car.laps_remaining -= 1
                 car.lap_count += 1
                 print_ok("[LapCounter]: car%d, %d laps remaining"%(car.id, car.laps_remaining))
-
-
-
-                if (car.laps_remaining == 0):
+                if (car.laps_remaining <= 0):
                     print_ok("[LapCounter]: car%d critical lap end"%(car.id))
                     car.critical_lap.clear()
                     # should we wait for next time step to st exit flag?

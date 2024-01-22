@@ -12,4 +12,5 @@ __pycache__/
 *.pth
 *.0
 tags
+*.mp4
 nohup.out

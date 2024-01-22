@@ -300,7 +300,8 @@ void forward_dynamics( float* state, float* u){
   return;
 
 }
-
+/*
+// old 
 __device__
 float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index){
   //float heading = state[4];
@@ -322,6 +323,30 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   // additional penalty on negative velocity 
   if (state[STATE_VX] < 0.05){
     cost += 0.2;
+  }
+
+  return cost;
+}
+
+*/
+__device__
+float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index){
+  //float heading = state[4];
+  int idx;
+  float dist;
+
+  find_closest_id(state,*last_index, &idx,&dist);
+  // update estimate of closest index on raceline
+  *last_index = idx;
+
+  // VX: current FORWARD velocity - target velocity at closest ref point
+  // velocity deviation from reference velocity profile
+  float dv = sqrtf(state[STATE_VX]*state[STATE_VX]+state[STATE_VY]*state[STATE_VY]) - raceline[idx][RACELINE_V];
+
+  float cost = 5*(dist + 0.05*dv*dv );
+  // additional penalty on negative velocity 
+  if (state[STATE_VX] < 0){
+    cost += -state[STATE_VX]*10;
   }
 
   return cost;

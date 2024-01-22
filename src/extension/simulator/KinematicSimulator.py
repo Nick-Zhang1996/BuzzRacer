@@ -37,16 +37,10 @@ class KinematicSimulator(Simulator):
         x,y,heading,v_forward,v_sideways,omega = car.states
         return
 
-    def update(self): 
-        #print_ok("[KinematicSimulator]: update")
-        for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
-        self.main.new_state_update.set()
-        self.main.sim_t += self.main.dt
-        self.matchRealTime()
 
     @staticmethod
     def advanceDynamics(car_states,control, car):
+        ''' advance dynamics using kinematics model '''
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
@@ -62,18 +56,21 @@ class KinematicSimulator(Simulator):
         if (car.in_collision):
             v *= 0.9
         '''
-        throttle = control[0]
-        steering = control[1]
+        throttle = control[1]
+        steering = control[0]
 
         beta = np.arctan( np.tan(steering) * lr / (lf+lr))
         dXdt = v * np.cos( heading + beta )
         dYdt = v * np.sin( heading + beta )
-        if KinematicSimulator.simple_throttle_model:
-            if (v > KinematicSimulator.max_v):
-                dvdt = -0.01
+        try:
+            if KinematicSimulator.simple_throttle_model:
+                if (v > KinematicSimulator.max_v):
+                    dvdt = -0.01
+                else:
+                    dvdt = throttle
             else:
-                dvdt = throttle
-        else:
+                dvdt = 6.17*(throttle - v/15.2 -0.333)
+        except AttributeError:
             dvdt = 6.17*(throttle - v/15.2 -0.333)
         omega = dheadingdt = v/lr*np.sin(beta)
 

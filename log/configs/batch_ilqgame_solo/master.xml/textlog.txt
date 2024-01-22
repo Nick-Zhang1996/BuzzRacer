@@ -1,0 +1,1 @@
+./configs/batch_ilqgame_solo/master.xml,./configs/batch_ilqgame_solo/master.xml,../log/./configs/batch_ilqgame_solo/master.xml/full_state1.p,1,0,0,0.20000712164818515,0.3011886122842249,nan,0,nan,0,0

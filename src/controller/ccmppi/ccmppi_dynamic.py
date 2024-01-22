@@ -78,7 +78,7 @@ class CCMPPI_DYNAMIC():
         # NOTE load track instead of re-constructing
         fulltrack = RCPTrack()
         # for laptimer
-        fulltrack.startPos = (0.6*3.5,0.6*1.75)
+        fulltrack.start_pos = (0.6*3.5,0.6*1.75)
         fulltrack.startDir = radians(90)
         fulltrack.load()
         self.track = fulltrack
@@ -122,10 +122,10 @@ class CCMPPI_DYNAMIC():
 
         # search for log_no lap
         self.track = RCPTrack()
-        self.track.startPos = (0.6*3.5,0.6*1.75)
+        self.track.start_pos = (0.6*3.5,0.6*1.75)
         self.track.startDir = radians(90)
         self.track.load()
-        laptimer = Laptimer(self.track.startPos, self.track.startDir)
+        laptimer = Laptimer(self.track.start_pos, self.track.startDir)
         current_lap = 0
         index = 0
         start_index = -1
@@ -535,7 +535,7 @@ class CCMPPI_DYNAMIC():
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
 
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = DynamicSimulator.advanceDynamics(x_i, control,self.car)
+                x_i = DynamicSimulator.advanceDynamics(x_i, (control[1],control[0]),self.car)
                 y_i = As[:,:,i] @ y_i + Bs[:,:,i] @ epsilon
 
                 cc_states_vec[j].append(x_i.flatten())
@@ -565,7 +565,7 @@ class CCMPPI_DYNAMIC():
                     for k in range(self.m):
                         control[k] = np.clip(control[k], self.control_limit[k,0], self.control_limit[k,1])
                 #x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = DynamicSimulator.advanceDynamics(x_i, control,self.car)
+                x_i = DynamicSimulator.advanceDynamics(x_i, (control[1],control[0]),self.car)
                 #print("states = %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], x_i[4], x_i[5], control[0], control[1]))
                 nocc_states_vec[j].append(x_i.flatten())
 
@@ -812,7 +812,7 @@ class CCMPPI_DYNAMIC():
 
         # prepare track map
         track = RCPTrack()
-        track.startPos = (0.6*3.5,0.6*1.75)
+        track.start_pos = (0.6*3.5,0.6*1.75)
         track.startDir = radians(90)
         track.load()
 

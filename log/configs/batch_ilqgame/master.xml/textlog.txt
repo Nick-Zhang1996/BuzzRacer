@@ -1,0 +1,4 @@
+./configs/batch_ilqgame/master.xml,./configs/batch_ilqgame/master.xml,../log/./configs/batch_ilqgame/master.xml/full_state1.p,1,0.3,0.3,-0.20000712135958604,-0.3496050622697311,nan,0,4.179999999999911,0,0
+./configs/batch_ilqgame/master.xml,./configs/batch_ilqgame/master.xml,../log/./configs/batch_ilqgame/master.xml/full_state2.p,1,0.3,0.3,-0.20000712135958604,-0.034377732338271016,nan,0,4.3399999999999075,0,2
+./configs/batch_ilqgame/master.xml,./configs/batch_ilqgame/master.xml,../log/./configs/batch_ilqgame/master.xml/full_state3.p,1,4,0,-0.20000712135958604,-0.33597161745431947,nan,0,4.189999999999911,0,1
+./configs/batch_ilqgame/master.xml,./configs/batch_ilqgame/master.xml,../log/./configs/batch_ilqgame/master.xml/full_state4.p,1,4,0,-0.20000712135958604,-0.34644842240361484,nan,0,nan,0,1

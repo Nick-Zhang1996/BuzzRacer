@@ -59,7 +59,7 @@ with open("track_boundary_img.p", 'rb') as f:
 config_filename = '../configs/cvar.xml'
 config = minidom.parse(config_filename)
 config_track= config.getElementsByTagName('track')[0]
-track = TrackFactory(None,config_track)
+track = TrackFactory(config=config_track)
 
 offset = 0
 

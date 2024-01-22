@@ -52,6 +52,7 @@ class DynamicSimulator(Simulator):
         # not implemented: support for artificially added noise
         noise = False
         car.noise = noise
+        noise_cov = np.diag([0.01]*6)
         if noise:
             car.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6,6)
@@ -77,7 +78,7 @@ class DynamicSimulator(Simulator):
 
         # NOTE here vx = vf, vy = vs, different convention
         x,y,heading,vx,vy,omega = car_states
-        throttle, steering = control
+        steering, throttle = control
 
         # for small longitudinal velocity use kinematic model
         if (vx<0.05):
@@ -126,17 +127,4 @@ class DynamicSimulator(Simulator):
 
         car_states = x,y,heading,vx,vy,omega
         return np.array(car_states)
-
-
-    def update(self): 
-        #print_ok(self.prefix() + "update")
-        for car in self.cars:
-            car.states = self.advanceDynamics(car.states, (car.throttle, car.steering), car)
-            #print(self.prefix()+str(car.states))
-            #print(self.prefix()+"T: %.1f, S:%.1f"%(car.throttle, degrees(car.steering)))
-        if (self.state_noise_enabled):
-            self.addStateNoise()
-        self.main.new_state_update.set()
-        self.main.sim_t += self.main.dt
-        self.matchRealTime()
 

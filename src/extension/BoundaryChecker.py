@@ -8,44 +8,40 @@ class BoundaryChecker(Extension):
         Extension.__init__(self,main)
         # running sum of collision count, reset every lap
         self.collision_count = [0] * len(self.main.cars)
-        # collision count by lap
-        self.collision_by_lap_vec = [[] * len(self.main.cars)]
 
     def postInit(self):
-        self.discretized_raceline = self.main.cars[0].controller.discretized_raceline
+        self.discretized_raceline = self.main.track.discretized_raceline
+        for car in self.main.cars:
+            car.in_collision = False
 
     def update(self):
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
             if (self.isOutOfBoundary(car)):
-                self.collision_count[i] += 1
-                car.in_collision = True
-                #print_ok(self.prefix(), "collision = %d"%(self.collision_count))
+                if (not car.in_collision):
+                    car.in_collision = True
+                    self.collision_count[i] += 1
+                    print_ok(self.prefix(), "car %d collision = %d"%(i,self.collision_count[i]))
             else:
-                car.in_collision = False
-            try:
-                if (car.laptimer.new_lap.is_set()):
-                    self.collision_by_lap_vec[i].append(self.collision_count[i])
-                    self.collision_count[i] = 0
-
-            except AttributeError:
-                pass
+                if (car.in_collision):
+                    car.in_collision = False
 
     def final(self):
-        total_vec = []
-        mean_vec = []
         for i in range(len(self.main.cars)):
-            total = np.sum(self.collision_by_lap_vec[i])
-            mean = np.mean(self.collision_by_lap_vec[i])
-            total_vec.append(total)
-            mean_vec.append(mean)
-            self.print_info("car %d, total boundary violation = %d, mean = %.2f"%(i,total, mean))
-        self.main.car_total_boundary_violation = total_vec
+            self.print_info("car %d, total boundary violation = %d"%(i,self.collision_count[i]))
+            self.main.cars[i].total_boundary_collision = self.collision_count[i]
 
     def isOutOfBoundary(self,car):
+        car_coord = car.states[0:2]
+        car_heading = car.states[2]
+        left, right = self.main.track.preciseTrackBoundary(car_coord, car_heading)
+        out = left<0 or right<0
+        return out
+
+    def isOutOfBoundaryDiscrete(self,car):
         x,y,heading,vf,vs,omega = car.states
         ref_points = self.discretized_raceline[:,0:2]
-        ref_heading = self.discretized_raceline[:,1]
+        ref_heading = self.discretized_raceline[:,2]
         left_bdry = self.discretized_raceline[:,3]
         right_bdry = self.discretized_raceline[:,4]
         #self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
@@ -64,13 +60,7 @@ class BoundaryChecker(Extension):
             out = dist + margin > left_bdry[idx]
         else:
             out = dist + margin > right_bdry[idx]
-        if (out):
-            pass
-            #self.print_info('collision with boundary')
         return out
-
-
-
         '''
   // performance barrier FIXME
   find_closest_id(state,*u_estimate,  &idx,&dist);

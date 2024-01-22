@@ -25,7 +25,6 @@ class Track(ConfigObject):
         # track dimension, in meters
         self.x_limit = None
         self.y_limit = None
-        
         ConfigObject.__init__(self,config)
 
     def init(self):
@@ -137,8 +136,14 @@ class Track(ConfigObject):
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
             p2 = np.array(pts[i+1])
+            if (pts[i] is None or pts[i+1] is None):
+                continue
             img = cv2.line(img, tuple(p1),tuple(p2), color=lineColor ,thickness=thickness) 
         return img
+
+    def drawTrajectory(self,traj_points,img=None,lineColor=(0,0,255),thickness=3 ):
+        return self.drawPolyline(traj_points[:,1:3],img,lineColor,thickness)
+
 
     # draw ONE arrow, unit: meter, coord sys: dimensioned
     # source: source of arrow, in meter
@@ -189,12 +194,10 @@ class Track(ConfigObject):
         self.obstacles = obstacles
 
 
-
-
-
-
-    # NOTE others
     def prepareDiscretizedRaceline(self):
+        '''
+        depends on self.raceline_s, self.raceline_len_m
+        '''
         ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
         rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
         drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
@@ -222,8 +225,11 @@ class Track(ConfigObject):
         return
 
     def createBoundary(self,show=False):
-        # construct a (self.discretized_raceline_len * 2) vector
-        # to record the left and right track boundary as an offset to the discretized raceline
+        '''
+         construct a (self.discretized_raceline_len * 2) vector
+         to record the left and right track boundary as an offset to the discretized raceline
+         depends on self.preciseTrackBoundary(coord,heading)
+        '''
         left_boundary = []
         right_boundary = []
 
