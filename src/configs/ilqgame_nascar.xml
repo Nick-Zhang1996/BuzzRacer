@@ -3,7 +3,8 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track radius='2.0' length='2.0' width='0.6' resolution='100'>nascar</track>
+    <!--<track radius='2.0' length='2.0' width='0.6' resolution='100'>nascar</track>-->
+    <track>nascar</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
@@ -30,7 +31,10 @@
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
       <init_states>(0.4,0.1, radians(0), 3)</init_states>
-      <controller control_opponent='True'>
+      <controller 
+        control_opponent='True'
+        blocking_control='False'
+        >
         <type>iLQGameCarController</type>
       </controller>
     </car>

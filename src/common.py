@@ -77,6 +77,9 @@ class PrintObject:
 # so they don't get overridden
 class ConfigObject(PrintObject):
     def __init__(self,config):
+        self.loadConfig(config)
+
+    def loadConfig(self,config):
         self.config = config
         if config is None:
             self.print_warning('no config available')
@@ -120,3 +123,5 @@ def angular_difference(a, b):
         angle_diff += 2 * np.pi
     return angle_diff
 
+def wrap(val):
+    return (val + np.pi) % (2*np.pi) - np.pi

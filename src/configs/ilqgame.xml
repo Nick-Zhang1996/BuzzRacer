@@ -9,9 +9,10 @@
       <extension handle='laptimer'>Laptimer</extension>
       <extension handle='logger'>Logger</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-      <extension handle='visualization' car_graphics='True'>Visualization</extension>
+      <extension handle='visualization' car_graphics='True'>FakeVisualization</extension>
       <extension handle='simulator' match_time='True'>CurvilinearSimulator</extension>
-     <extension handle='gifsaver'>Gifsaver</extension>
+      <extension handle='lap_counter' lap_count='1'>LapCounter</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 
   <cars>
@@ -20,7 +21,17 @@
       <hardware>Offboard</hardware>
       <config_name>sim_red</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
-      <controller>
+      <controller 
+        control_opponent='True' 
+        blocking_control='False'
+        iterations='1'
+        horizon='14'
+        Q1='np.diag(  [ 0,0.00,10.0,10.0])'
+        q1='np.array([[-1,-0.1,0,0]]).T'
+        Q2='np.diag(  [ 0,0.00,10.0,10.0])'
+        q2='np.array([[-1,-0.1,0,0]]).T'
+        boundary_min_distance='0.03'
+        >
         <type>iLQGameCarController</type>
       </controller>
     </car>

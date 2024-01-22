@@ -15,8 +15,8 @@ from track.Track import Track
 class CurvilinearTrack(Track):
     def __init__(self,main,config):
         Track.__init__(self,main,config)
-        # default parameters, to be override
-        self.width = 0.8
+        # default parameters, to be overriden
+        self.width = 0.6
         self.resolution = 200
 
         # derived class should override the constructor, 
@@ -28,48 +28,51 @@ class CurvilinearTrack(Track):
         self.max_v = 4
         self.min_v = 0
         self.save_dir = './'
+
+
         return
 
+    def createBoundary(self, raceline_s, raceline_len_m):
+        # generate left/right boundary from self.raceline_left_boundary_*
+        ss = np.linspace(0,raceline_len_m, self.discretized_raceline_len)
+        rr = np.array(splev(ss,raceline_s,der=0))
+        boundary = np.array([self.preciseTrackBoundary(r,0) for r in rr.T])
 
-    # for qpSmooth procedure
-    def drawRaceline(self,img):
-        u_new = np.linspace(0,len(self.break_pts),1000)
-        xy = self.raceline_fun(u_new).reshape(-1,2)
+        left_boundary_fun, _ = splprep(boundary[:,0].reshape(1,-1), u=ss,s=0,per=1) 
+        right_boundary_fun, _ = splprep(boundary[:,1].reshape(1,-1), u=ss,s=0,per=1) 
+        return left_boundary_fun, right_boundary_fun
 
-        x_new = xy[:,0]
-        y_new = xy[:,1]
-
-        x_temp = []
-        y_temp = []
-        for coord in zip(x_new,y_new):
-            x,y = self.m2canvas(coord)
-            x_temp.append(x)
-            y_temp.append(y)
-        x_new = x_temp
-        y_new = y_temp
-
-        pts = np.vstack([x_new,y_new]).T
-        # for polylines, pts = pts.reshape((-1,1,2))
-        pts = pts.reshape((-1,2))
-        pts = pts.astype(int)
-        # render different color based on speed
-        # slow - red, fast - green (BGR)
-        #v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        #getColor = lambda v:(0,v2c(v),255-v2c(v))
+    # for plotting raceline during qpSmooth procedure
+    def drawBezierRaceline(self,img,P,u_max,break_pts=None):
+        u_new = np.linspace(0,u_max,1000)
+        xy = self.evalBezierSpline(P,u_new).reshape(-1,2)
+        pts = np.array([ self.m2canvas(coord) for coord in xy ]).astype(int)
         for i in range(len(u_new)-1):
-            #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
-            # ignore color for now
             img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=(0,255,0), thickness=3) 
 
-        # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        for point in self.break_pts:
-            x = point[0]
-            y = point[1]
-            x,y = self.m2canvas(point)
-            
-            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        if (not break_pts is None):
+            for point in break_pts:
+                x = point[0]
+                y = point[1]
+                x,y = self.m2canvas(point)
+                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
+        return img
+
+
+    # depends on self.raceline_s, self.min_v
+    def drawRaceline(self,img):
+        ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        rr = np.array(splev(ss,self.raceline_s,der=0))
+        plot_points = np.array([ self.m2canvas(coord) for coord in rr.T ]).astype(int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        for i in range(len(plot_points)-1):
+            img = cv2.line(img, tuple(plot_points[i]),tuple(plot_points[i+1]), color=getColor(self.raceline_speed_s(ss[i])), thickness=3) 
+            #img = cv2.line(img, tuple(plot_points[i]),tuple(plot_points[i+1]), color=(0,255,0), thickness=3) 
         return img
 
     #state: x,y,theta,vf,vs,omega
@@ -86,7 +89,6 @@ class CurvilinearTrack(Track):
         x += wheelbase*cos(heading)
         y += wheelbase*sin(heading)
 
-        # TODO optimize this
         dxx = self.r[:,0]-x
         dyy = self.r[:,1]-y
         index = np.argmin(dxx**2+dyy**2)
@@ -94,29 +96,49 @@ class CurvilinearTrack(Track):
 
         # find offset
         # positive offset means car is to the left of the trajectory(need to turn right)
-        dr = self.r[index+1] - self.r[index]
+        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
         track_to_car = (x-self.r[index,0], y-self.r[index,1])
         offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
 
         raceline_orientation = atan2(dr[1],dr[0])
 
-        signed_curvature = splev(self.ss[index],self.curvature)[0].item()
+        signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
 
-        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+)
+        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
         return (raceline_point,offset,raceline_orientation,signed_curvature,2.0)
 
     # return true if vehicle is unsalvageably outside of the track
     # for use by Watchdog to terminate an experiment
     def isOutside(self,coord):
+        x = coord[0]
+        y = coord[1]
         state = (*coord,0,0,0,0)
-        _,offset,_,_,_ = self.localTrajectory(state,wheelbase=0)
-        return offset > (self.width/2)*1.5
+        dxx = self.r[:,0]-coord[0]
+        dyy = self.r[:,1]-coord[1]
+        index = np.argmin(dxx**2+dyy**2)
+        raceline_point = (self.r[index])
+
+        # find offset
+        # positive offset means car is to the left of the trajectory(need to turn right)
+        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+        track_to_car = (x-self.r[index,0], y-self.r[index,1])
+        offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+        s = self.ss[index]
+
+        retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item()*1.5 )
+        return retval
+
+    def isOutsideCurv(self,curv_coord):
+        # curv_coord: s,v,n,omega
+        offset = curv_coord[2]
+        s = curv_coord[0]
+        retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item() )
+        return retval
 
     def buildContinuousTrack(self,r):
-        self.r = r
-        assert (len(self.r.shape) == 2)
-        assert (self.r.shape[1] == 2)
-        n = self.r.shape[0]
+        assert (len(r.shape) == 2)
+        assert (r.shape[1] == 2)
+        n = r.shape[0]
         xx = r[:,0]
         yy = r[:,1]
 
@@ -125,58 +147,65 @@ class CurvilinearTrack(Track):
         for i in range(n):
             s += ((xx[(i+1)%n]-xx[i])**2 +(yy[(i+1)%n]-yy[i])**2 )**0.5
             ss.append(s)
-        self.ss = ss
-        self.raceline_len_m = s
-        self.r = np.vstack([self.r,self.r[-1]])
+        raceline_len_m = s
+        r = np.vstack([r,r[-1]])
 
-        tck, u = splprep(self.r.T, u=ss,s=0,per=1)
-        self.raceline_s = tck
+        raceline_s, u = splprep(r.T, u=ss,s=0,per=1)
 
         # let raceline curve be r(u)
         # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(ss,self.raceline_s,der=1))
+        dr = np.array(splev(ss,raceline_s,der=1))
         # ddr = r''(u)
-        ddr = np.array(splev(ss,self.raceline_s,der=2))
+        ddr = np.array(splev(ss,raceline_s,der=2))
         _norm = lambda x:np.linalg.norm(x,axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
-        self.curvature, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
-        s_vec = self.ss
+        curvature_fun, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
         # n*2
-        ss = np.linspace(0,self.raceline_len_m,3000)
-        r_vec = np.array(splev(ss,self.raceline_s,der=0))
-        dr_vec = np.array(splev(ss,self.raceline_s,der=1))
-        self.phi = np.arctan2(dr_vec[1,:], dr_vec[0,:])
-        lateral = np.vstack([np.cos(self.phi+np.pi/2), np.sin(self.phi+np.pi/2)]).T
+        ss = np.linspace(0,raceline_len_m,self.discretized_raceline_len)
+        r_vec = np.array(splev(ss,raceline_s,der=0))
+        dr_vec = np.array(splev(ss,raceline_s,der=1))
+        phi = np.arctan2(dr_vec[1,:], dr_vec[0,:])
+        lateral = np.vstack([np.cos(phi+np.pi/2), np.sin(phi+np.pi/2)]).T
+
         # boundary
         upper = r_vec.T + lateral * self.width/2
         lower = r_vec.T - lateral * self.width/2
+
+
+        # discretized raceline center progress
+        self.ss = ss
+        # centerline positions, correspond to self.ss (n*2)
+        self.r = self.r_vec =  r_vec.T
+        self.raceline_points = r_vec
+        self.curvature_fun = curvature_fun
+        # heading
+        self.raceline_headings = phi
+        # raceline length in meters
+        self.raceline_len_m = raceline_len_m
+        # spline for centerline(raceline) defined on [0,raceline_len_m]
+        self.raceline_s = raceline_s
+        # discretized position vector for left/right boundary
+        self.raceline_left_boundary_points = upper
+        self.raceline_right_boundary_points = lower
 
         self.x_min = np.min( np.hstack([upper[:,0],lower[:,0]]) ) - 0.1
         self.x_max = np.max( np.hstack([upper[:,0],lower[:,0]]) ) + 0.1
         self.y_min = np.min( np.hstack([upper[:,1],lower[:,1]]) ) - 0.1
         self.y_max = np.max( np.hstack([upper[:,1],lower[:,1]]) ) + 0.1
 
-        # shift track to first quadrant, x,y>0
-        '''
-        self.x_limit = x_max - x_min
-        self.y_limit = y_max - y_min
-        upper[:,0] -= x_min
-        upper[:,1] -= y_min
-        lower[:,0] -= x_min
-        lower[:,1] -= y_min
-        r_vec[:,0] -= x_min
-        r_vec[:,1] -= y_min
-        '''
+        # left boundary distance to centerline
+        self.raceline_left_boundary = np.ones_like(ss)*self.width/2
+        self.raceline_right_boundary = np.ones_like(ss)*self.width/2
 
-        self.r_vec = r_vec
-        self.upper = upper
-        self.lower = lower
+        self.raceline_left_boundary_fun, _ = splprep(self.raceline_left_boundary.reshape(1,-1), u=ss,s=0,per=1) 
+        self.raceline_right_boundary_fun, _ = splprep(self.raceline_right_boundary.reshape(1,-1), u=ss,s=0,per=1) 
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
 
-        #self.raceline_len_m = s_vec[-1]
-        #self.raceline_s = self.buildSpline(r_vec)
         #self.upper_fun = self.buildSpline(upper)
         #self.lower_fun = self.buildSpline(lower)
+
+        self.raceline_speed_s = interp1d(ss,np.ones_like(ss),kind='cubic')
 
         '''
         plt.plot(upper[:,0],upper[:,1])
@@ -184,25 +213,8 @@ class CurvilinearTrack(Track):
         plt.plot(r_vec[0,:],r_vec[1,:],'o')
         plt.show()
         '''
-        self.prepareDiscretizedRaceline()
-
-    def prepareDiscretizedRaceline(self):
-        ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
-        rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
-        drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
-        heading_vec = np.arctan2(drr[1],drr[0])
-
-        # parameter, distance along track
-        self.ss = ss
-        self.raceline_points = np.array(rr)
-        self.r = self.raceline_points.T
-        self.raceline_headings = heading_vec
-
-        # describe track boundary as offset from raceline
-        self.raceline_left_boundary = np.ones_like(ss)*self.width/2
-        self.raceline_right_boundary = np.ones_like(ss)*self.width/2
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
         return
+
 
     def m2canvas(self,coord):
         x_new = int((np.clip(coord[0],self.x_min,self.x_max)-self.x_min) * self.resolution)
@@ -215,15 +227,25 @@ class CurvilinearTrack(Track):
         y_pix = int((self.y_max - self.y_min)*self.resolution)
         # height, width
         img = 255*np.ones([y_pix,x_pix,3],dtype=np.uint8)
-        img = self.drawPolyline(self.upper,img,lineColor=(0,0,0),thickness=2)
-        img = self.drawPolyline(self.lower,img,lineColor=(0,0,0),thickness=2)
+        img = self.drawPolyline(self.raceline_left_boundary_points,img,lineColor=(0,0,0),thickness=3)
+        img = self.drawPolyline(self.raceline_right_boundary_points,img,lineColor=(0,0,0),thickness=3)
         return img
 
     def preciseTrackBoundary(self,coord,heading):
-        state = (coord[0], coord[1], heading, 0, 0, 0)
-        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectory(state,wheelbase=0)
-        left = self.width/2 - offset
-        right = self.width/2 + offset
+        x = coord[0]
+        y = coord[1]
+        dxx = self.r[:,0]-x
+        dyy = self.r[:,1]-y
+        index = np.argmin(dxx**2+dyy**2)
+
+        # find offset
+        # positive offset means car is to the left of the trajectory(need to turn right)
+        dr = self.r[(index+2)%self.discretized_raceline_len] - self.r[index]
+        track_to_car = (x-self.r[index,0], y-self.r[index,1])
+        offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+        s = self.ss[index]
+        left =  splev(s,self.raceline_left_boundary_fun)[0].item() - offset
+        right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
         return (left,right)
 
     # optimize path and save to pickle file
@@ -234,8 +256,8 @@ class CurvilinearTrack(Track):
 
         new_N = 60
         step = int(self.discretized_raceline_len / new_N)
-        # self.break_pts.shape == n*2
-        self.break_pts = self.r[0::step,:]
+        # break_pts.shape == n*2
+        break_pts = self.r[0::step,:]
         self.print_info(f'subsample to {self.r.shape[0]} break points')
         #self.resamplePath(60)
 
@@ -246,17 +268,15 @@ class CurvilinearTrack(Track):
         for iter_count in range(max_iter):
 
             # re-sample reference points before every iteration
-            self.resamplePath(new_N)
+            break_pts = self.resamplePath(break_pts, new_N)
+            N = len(break_pts)
 
             # generate bezier spline
-            self.P = self.bezierSpline(self.break_pts)
-            self.u_max = len(self.break_pts)
-            N = self.u_max
-
+            P = self.bezierSpline(break_pts)
 
             print_ok("iter: %d"%(iter_count,))
             img_track = self.drawTrack()
-            img_track = self.drawRaceline(img=img_track)
+            img_track = self.drawBezierRaceline(img_track,P,len(break_pts),break_pts)
             if (save_steps):
                 filename = os.path.join(self.save_dir,f'iter{iter_count}.png')
                 cv2.imwrite(filename,img_track)
@@ -270,7 +290,7 @@ class CurvilinearTrack(Track):
             if (save_gif):
                 self.gifimages.append(Image.fromarray(cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)))
 
-            K, C, Ds = self.curvatureJac()
+            K, C, Ds, n = self.curvatureJac(P,break_pts)
 
             # assemble matrices in QP
             # NOTE ignored W, W=I
@@ -286,8 +306,8 @@ class CurvilinearTrack(Track):
             h2 =  []
             delta_max = 5e-2
             for i in range(N):
-                coord = self.break_pts[i]
-                F,R = self.checkTrackBoundary(coord,self.n[i],delta_max,offset)
+                coord = break_pts[i]
+                F,R = self.checkTrackBoundary(coord,n[i],delta_max,offset)
                 h1.append(F)
                 h2.append(R)
 
@@ -311,7 +331,6 @@ class CurvilinearTrack(Track):
             assert G.shape[1]==N
             assert G.shape[0]==4*N
             assert h.shape[0]==4*N
-
 
             # optimize
             P_qp = cvxopt.matrix(P_qp)
@@ -340,22 +359,56 @@ class CurvilinearTrack(Track):
 
             # apply changes to break points
             # move break points in tangential direction by variance vector
-            n = np.array(self.n).reshape(-1,2)
-            perturbed_break_pts = np.array(self.break_pts)
+            # n = np.array(n).reshape(-1,2)
+            perturbed_break_pts = np.array(break_pts)
             for i in range(N):
                 perturbed_break_pts[i,:] += n[i]*variance[i]
 
-            self.break_pts = perturbed_break_pts
+            break_pts = perturbed_break_pts
 
-        self.convertToSpline()
-        # TODO add car specific information here
+        raceline_s, raceline_len_m = self.convertToSpline(P,break_pts)
+        ss = np.linspace(0,raceline_len_m, self.discretized_raceline_len)
+
+        dr = np.array(splev(ss,raceline_s,der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(ss,raceline_s,der=2))
+        heading = np.arctan2(dr[1,:], dr[0,:])
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+        curvature_fun, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
+
+        # create boundary
+        left_boundary_fun, right_boundary_fun = self.createBoundary(raceline_s, raceline_len_m)
+
+        # continuous raceline
+        self.raceline_s = raceline_s
+        self.raceline_len_m = raceline_len_m
+        self.raceline_left_boundary_fun = left_boundary_fun
+        self.raceline_right_boundary_fun = right_boundary_fun
+        self.curvature_fun = curvature_fun
+
+        # discretized raceline
+        self.ss = ss
+        self.r = np.array(splev(self.ss, raceline_s, der=0)).T
+        self.curvature = curvature
+        self.raceline_points = self.r.T
+        self.raceline_headings = heading
+        self.raceline_left_boundary = np.array(splev(self.ss, left_boundary_fun, der=0))
+        self.raceline_right_boundary = np.array(splev(self.ss, right_boundary_fun, der=0))
+
+        lateral = np.vstack([np.cos(heading+np.pi/2), np.sin(heading+np.pi/2)]).T
+
+        self.raceline_left_boundary_points = self.r + lateral * self.raceline_left_boundary.T
+        self.raceline_right_boundary_points = self.r - lateral * self.raceline_right_boundary.T
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
+
         retval = self.generateSpeedProfile()
-        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
+        self.raceline_speed_s = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
 
-        # TODO
-        #self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
+        self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
         if save_gif:
             print_info("saving gif.. This may take a while")
             self.log_no = 0
@@ -365,7 +418,9 @@ class CurvilinearTrack(Track):
 
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
+        img_track = self.drawBezierRaceline(img_track,P,N,break_pts)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+
         plt.imshow(img_track_rgb)
         plt.show()
 
@@ -398,6 +453,7 @@ class CurvilinearTrack(Track):
             last_x,last_y = x,y
         return s
 
+    # requires self.raceline_s, self.raceline_len_m
     def generateSpeedProfile(self, *, mu=1.0, acc_max_fun=lambda x:10.0, dec_max_fun=lambda x:10.0, show=False):
         '''
         generate speed profile given traction constraints, braking/acceleration limit
@@ -413,9 +469,9 @@ class CurvilinearTrack(Track):
 
         # let raceline curve be r(u)
         # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(xx,self.raceline,der=1))
+        dr = np.array(splev(xx,self.raceline_s,der=1))
         # ddr = r''(u)
-        ddr = np.array(splev(xx,self.raceline,der=2))
+        ddr = np.array(splev(xx,self.raceline_s,der=2))
         _norm = lambda x:np.linalg.norm(x,axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
@@ -439,8 +495,8 @@ class CurvilinearTrack(Track):
                 # constrain with motor capacity
                 a_lon = min(acc_max_fun(v2[i%self.discretized_raceline_len]),a_lon_available_traction)
 
-                (x_i, y_i) = splev(xx[i%self.discretized_raceline_len], self.raceline, der=0)
-                (x_i_1, y_i_1) = splev(xx[(i+1)%self.discretized_raceline_len], self.raceline, der=0)
+                (x_i, y_i) = splev(xx[i%self.discretized_raceline_len], self.raceline_s, der=0)
+                (x_i_1, y_i_1) = splev(xx[(i+1)%self.discretized_raceline_len], self.raceline_s, der=0)
                 # distance between two steps
                 ds = dist((x_i, y_i),(x_i_1, y_i_1))
                 # assume vehicle accelerate uniformly between the two steps
@@ -460,8 +516,8 @@ class CurvilinearTrack(Track):
             a_lon = min(dec_max_fun(v3[i%self.discretized_raceline_len]),a_lon_available_traction)
             #print(a_lon)
 
-            (x_i, y_i) = splev(xx[i%self.discretized_raceline_len], self.raceline, der=0)
-            (x_i_1, y_i_1) = splev(xx[(i-1+self.discretized_raceline_len)%self.discretized_raceline_len], self.raceline, der=0)
+            (x_i, y_i) = splev(xx[i%self.discretized_raceline_len], self.raceline_s, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i-1+self.discretized_raceline_len)%self.discretized_raceline_len], self.raceline_s, der=0)
             # distance between two steps
             ds = dist((x_i, y_i),(x_i_1, y_i_1))
             #print(ds)
@@ -483,7 +539,7 @@ class CurvilinearTrack(Track):
         # debug target v curve fitting
         #p0, = plt.plot(xx,v3,'*',label='original')
         #xxx = np.linspace(0,self.track_length_grid,10*self.discretized_raceline_len)
-        #sampleV = self.targetVfromU(xxx)
+        #sampleV = self.raceline_speed_s(xxx)
         #p1, = plt.plot(xxx,sampleV,label='fitted')
         #plt.legend(handles=[p0,p1])
         #plt.show()
@@ -501,29 +557,27 @@ class CurvilinearTrack(Track):
 
     # convert raceline to a B spline to reuse old code for velocity generation and localTrajectory, since they expect a spline object
     # result save at self.raceline
-    def convertToSpline(self):
+    def convertToSpline(self, P, break_pts):
         # sample entire path
-        N = len(self.break_pts)
-        uu = np.linspace(0,N,self.discretized_raceline_len)
-        r = self.raceline_fun(uu).reshape(-1,2).T
+        uu = np.linspace(0,len(break_pts),self.discretized_raceline_len)
+        r = self.evalBezierSpline(P,uu).reshape(-1,2).T
         # s = smoothing factor
         # per = loop/period
-
-        fun = lambda x:self.raceline_fun(x).flatten()
+        fun = lambda x:self.evalBezierSpline(P,x).flatten()
+        N = len(break_pts)
         new_raceline_len = self.arcLen(fun,0,N)
         self.print_info(f'Reference length {self.raceline_len_m} -> {new_raceline_len}')
 
-        tck, u = splprep(r, u=np.linspace(0,new_raceline_len,self.discretized_raceline_len),s=0,per=1) 
+        raceline_s, u = splprep(r, u=np.linspace(0,new_raceline_len,self.discretized_raceline_len),s=0,per=1) 
 
-        self.u = u
-        self.raceline_s = self.raceline = tck
+        return raceline_s, new_raceline_len
+
 
     # calculate variance of curvature w.r.t. break point variation
     # correspond to equation 6 in paper
-    def curvatureJac(self):
-        break_pts = np.array(self.break_pts).T
-        # u_max is also number of break points
-        N = self.u_max
+    def curvatureJac(self,P,break_pts):
+        N = len(break_pts)
+        break_ptsT = np.array(break_pts).T
         A = np.array([[0,-1],[1,0]])
 
 
@@ -531,7 +585,7 @@ class CurvilinearTrack(Track):
         # s[i] = arc distance r_i to r_{i+1}
         # NOTE maybe more accurately this is ds
         ds = []
-        fun = lambda x:self.raceline_fun(x).flatten()
+        fun = lambda x:self.evalBezierSpline(P,x).flatten()
         for i in range(N):
             ds.append(self.arcLen(fun,i,(i+1)))
 
@@ -539,7 +593,7 @@ class CurvilinearTrack(Track):
         # w.r.t. ds
         dr_vec = []
         ddr_vec = []
-        # (N,3)
+        # (N=len(break_pts),3)
         # see eq 1
         alfa_vec = []
         # see eq 2
@@ -555,11 +609,11 @@ class CurvilinearTrack(Track):
         # calculate terms in eq 6
         for i in range(N):
             # rl -> r_k-1
-            rl = break_pts[:,(i-1)%N]
+            rl = break_ptsT[:,(i-1)%N]
             # r -> r_k
-            r  = break_pts[:,(i)%N]
+            r  = break_ptsT[:,(i)%N]
             # rr -> r_k+1
-            rr = break_pts[:,(i+1)%N]
+            rr = break_ptsT[:,(i+1)%N]
             points = [rl, r, rr]
             sl = ds[(i-1)%N]
             sr = ds[(i)%N]
@@ -619,13 +673,13 @@ class CurvilinearTrack(Track):
 
         Ds = 0.5*np.array(np.diag(Ds))
 
-        self.ds = ds
-        self.k = k_vec
-        self.n = np.array(n_vec).reshape(-1,2)
-        self.dr = np.array(dr_vec)
-        self.ddr = ddr_vec
+        #self.ds = ds
+        #self.k = k_vec
+        n = np.array(n_vec).reshape(-1,2)
+        #self.dr = np.array(dr_vec)
+        #self.ddr = ddr_vec
 
-        return K, C, Ds
+        return K, C, Ds, n
 
     # generate a bezier spline matching derivative estimated from lagrange interpolation
     # break_pts.shape = (n,2)
@@ -667,15 +721,13 @@ class CurvilinearTrack(Track):
         # NOTE verify P dimension n*2*5
         return np.array(P)
 
-    def raceline_fun(self,u):
-        return self.evalBezierSpline(self.P,u)
 
     # resample path defined in raceline_fun
     # new_n: number of break points on the new path
-    def resamplePath(self,new_n):
+    def resamplePath(self, break_pts, new_n):
         # generate bezier spline
-        self.P = self.bezierSpline(self.break_pts)
-        N = len(self.break_pts)
+        P = self.bezierSpline(break_pts)
+        N = len(break_pts)
 
         # show initial raceline
         '''
@@ -691,7 +743,7 @@ class CurvilinearTrack(Track):
         arc_len = [0]
         # we have N+1 points here
         for i in range(1,N+1):
-            s = self.arcLen(self.raceline_fun,i-1,i)
+            s = self.arcLen(lambda x:self.evalBezierSpline(P,x),i-1,i)
             arc_len.append(s)
         uu = np.linspace(0,N,N+1)
         arc_len = np.array(arc_len)
@@ -710,12 +762,11 @@ class CurvilinearTrack(Track):
         #uu += np.hstack([0,np.random.rand(new_n-2)/3,0])
         new_break_pts =[]
         for u in uu:
-            new_break_pts.append(self.raceline_fun(u).flatten())
+            new_break_pts.append(self.evalBezierSpline(P,u).flatten())
 
         # regenerate spline
-        self.break_pts = np.array(new_break_pts)
-        self.P = self.bezierSpline(self.break_pts)
-        N = len(self.break_pts)
+        break_pts = np.array(new_break_pts)
+        return break_pts
 
         '''
         print("showing initial raceline AFTER resampling")
@@ -810,47 +861,120 @@ class CurvilinearTrack(Track):
             # F,R such that r+F*n and r-R*n are boundaries of the track
         '''
 
-        return self.preciseTrackBoundary(coord,heading=0)
+        L,R = self.preciseTrackBoundary(coord,heading=0)
+        L = max(L-offset,0)
+        R = max(R-offset,0)
+        return (L,R)
 
-    # save raceline to pickle file
-    def save(self,filename=None):
-        if filename is None:
-            filename = "raceline.p"
+    # uses self.raceline_len_m, self.raceline_s
+    def verifySpeedProfile(self,*,speed_profile_fun, mu = 0.7,show_traction_circle=True):
+        # calculate theoretical lap time
+        g = 9.81
+        t_total = 0
+        path_len = 0
+        n_steps = self.discretized_raceline_len
+        xx = np.linspace(0,self.raceline_len_m,n_steps+1)
+        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        vv = speed_profile_fun(xx)
+        for i in range(n_steps):
+            (x_i, y_i) = splev(xx[i%n_steps], self.raceline_s, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline_s, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            path_len += ds
+            t_total += ds/(vv[i%n_steps]+vv[(i+1)%n_steps])*2
 
-        # assemble save data
-        save = {}
-        save['object'] = self
-        '''
-        for attr in dir(self):
-            if ( attr.find('__') == 0 or type(getattr(self,attr)) == types.MethodType or attr=='raceline_fun'):
-                continue
-            else:
-                print(attr,type(getattr(self,attr)))
-                save[attr] = getattr(self,attr)
-        '''
+        print_info("Theoretical value:")
+        print_info("\t top speed = %.2fm/s"%max(vv))
+        print_info("\t total time = %.2fs"%t_total)
+        print_info("\t path len = %.2fm"%path_len)
 
-        with open('./data/'+filename, 'wb') as f:
-            pickle.dump(save,f)
-        print_ok("track and raceline saved")
+        # cartesian distance from two u(parameter)
+        distuu = lambda u1,u2: dist(splev(u1, self.raceline_s, der=0),splev(u2, self.raceline_s, der=0))
 
-    # load quadratically smoothed raceline
-    @staticmethod
-    def load(filename=None):
-        # get data folder abs path
-        thisdir = os.path.dirname(os.path.abspath(__file__))
-        basedir = os.path.dirname(thisdir)
-        if filename is None:
-            filename = "raceline.p"
-        try:
-            with open(basedir+'/data/'+filename, 'rb') as f:
-                save = pickle.load(f)
-        except FileNotFoundError:
-            print_error("can't find "+filename+", run qpSmooth.py first")
+        vel_vec = []
+        ds_vec = []
 
-        # restore save data
-        obj = save['object']
-        print_ok('track loaded')
-        return obj
+        # get velocity at each point
+        for i in range(n_steps):
+            # tangential direction
+            tan_dir = splev(xx[i], self.raceline_s, der=1)
+            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
+            vel_now = vv[i] * tan_dir
+            vel_vec.append(vel_now)
+
+        vel_vec = np.array(vel_vec)
+
+        lat_acc_vec = []
+        lon_acc_vec = []
+        dtheta_vec = []
+        theta_vec = []
+        v_vec = []
+        dt_vec = []
+
+        # get lateral and longitudinal acceleration
+        for i in range(n_steps-1):
+
+            theta = np.arctan2(vel_vec[i,1],vel_vec[i,0])
+            theta_vec.append(theta)
+
+            dtheta = np.arctan2(vel_vec[i+1,1],vel_vec[i+1,0]) - theta
+            dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
+            dtheta_vec.append(dtheta)
+
+            speed = np.linalg.norm(vel_vec[i])
+            next_speed = np.linalg.norm(vel_vec[i+1])
+            v_vec.append(speed)
+
+            dt = distuu(xx[i],xx[i+1])/speed
+            dt_vec.append(dt)
+
+            lat_acc_vec.append(speed*dtheta/dt)
+            lon_acc_vec.append((next_speed-speed)/dt)
+
+        dt_vec = np.array(dt_vec)
+        lon_acc_vec = np.array(lon_acc_vec)
+        lat_acc_vec = np.array(lat_acc_vec)
+
+        # get acc_vector, track frame
+        dt_vec2 = np.vstack([dt_vec,dt_vec]).T
+        acc_vec = np.diff(vel_vec,axis=0)
+        acc_vec = acc_vec / dt_vec2
+
+        # plot acceleration vector cloud
+        # with x,y axis being vehicle frame, x lateral
+        if (show_traction_circle):
+            p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+
+            # draw the traction circle
+            cc = np.linspace(0,2*np.pi)
+            circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+            p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+            plt.gcf().gca().set_aspect('equal','box')
+            plt.xlim(-12,12)
+            plt.ylim(-12,12)
+            plt.xlabel('Lateral Acceleration')
+            plt.ylabel('Longitudinal Acceleration')
+            plt.legend(handles=[p0,p1])
+            plt.show()
+
+            p0, = plt.plot(theta_vec,label='theta')
+            p1, = plt.plot(v_vec,label='v')
+            p2, = plt.plot(dtheta_vec,label='dtheta')
+            acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+            p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+            p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+
+            p2, = plt.plot(lon_acc_vec,label='longitudinal')
+            p3, = plt.plot(lat_acc_vec,label='lateral')
+            plt.legend(handles=[p0,p1])
+            plt.show()
+
+            p0, = plt.plot(vv,label='speed')
+            plt.legend(handles=[p0])
+            plt.show()
+        print("theoretical laptime %.2f"%t_total)
+        return t_total
 
 if __name__ == "__main__":
     pass

@@ -7,7 +7,7 @@ class NascarTrack(CurvilinearTrack):
         CurvilinearTrack.__init__(self,main,config)
         # NOTE nascar track params
         self.length = 2.0
-        self.radius = 1.0
+        self.radius = 2.0
 
         # NOTE track specific
         self.start_pos = (0, 0)

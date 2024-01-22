@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from math import degrees,radians
 from PIL import Image
 from threading import Event
+
 class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
@@ -41,6 +42,7 @@ class Visualization(Extension):
         # draw static components onto background
         self.img_track = self.drawControlStaticForAllCars(self.img_track)
         self.visualization_img = img
+        # FIXME this line causes segfault
         cv2.imshow('experiment',img)
         cv2.waitKey(200)
 
@@ -59,7 +61,6 @@ class Visualization(Extension):
                 img = self.main.track.drawCircle(img, obs, 0.1, color=(255,100,100))
         except AttributeError:
             pass
-        
         with open("track_img.p",'wb') as f:
             print_info(self.prefix()+"saved raw track background")
             pickle.dump(img,f)
@@ -241,7 +242,7 @@ class Visualization(Extension):
             # draw steering angle, orientation as red arrow
             img = self.main.track.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
         return img
-    
+
     def overlayCarRendering(self,img, car):
         x,y,heading, vf_lf, vs_lf, omega_lf = car.states
         coord = (x,y)
@@ -277,7 +278,6 @@ class Visualization(Extension):
         bg_img.paste(overlay_t,(x,y),overlay_t)
         bg_img = np.array(bg_img,dtype=np.uint8)
         bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
-        
         return bg_img
 
 

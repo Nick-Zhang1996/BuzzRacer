@@ -12,35 +12,32 @@ from track import TrackFactory
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 
-if (len(sys.argv) == 2):
-    name = sys.argv[1]
-else:
-    print_error("you must specify a folder name under configs/")
-
-
-config_folder = './configs/' + name + '/'
-config_filename = config_folder + 'master.xml'
-original_config = minidom.parse(config_filename)
-
-config_track= original_config.getElementsByTagName('track')[0]
-track = TrackFactory.build(main=None,config=config_track)
-track.init()
 
 class FakeMain():
     def __init__(self):
         self.extensions = []
         self.track = None
-sim = CurvilinearSimulator(FakeMain())
-sim.track = track
 
-def getRandomInitialStatePair():
-    #s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
-    #s1 = s0 + np.random.uniform(-0.3,0.3)
-    # s1 in rear
-    #s1 = s0 + np.random.uniform(-0.5,-0.3)
-    # s1 in front
-    s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
-    s1 = s0 + np.random.uniform(0.3,0.5)
+# leader = 0: s0 lead, =1: s1 lead, None: even
+def getRandomInitialStatePair(leader=None):
+
+    if (leader == 0):
+        # s0 in front
+        s1 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+        s0 = s1 + np.random.uniform(0.1,0.3)
+        v0 = np.random.uniform(2.5,3.0)
+        v1 = v0 + np.random.uniform(0.7,1.0)
+    elif (leader == 1):
+        # s1 in front
+        s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+        s1 = s0 + np.random.uniform(0.1,0.3)
+        v1 = np.random.uniform(2.5,3.0)
+        v0 = v1 + np.random.uniform(0.7,1.0)
+    else:
+        s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+        s1 = s0 + np.random.uniform(0.3,0.5)
+        v0 = np.random.uniform(2.5,3.0)
+        v1 = np.random.uniform(2.5,3.0)
 
     n0 = np.random.uniform(-0.2,0.2)
     n1 = np.random.uniform(-0.2,0.2)
@@ -50,16 +47,13 @@ def getRandomInitialStatePair():
     drr1 = splev(s1,track.raceline_s,der=1)
     heading1 = np.arctan2(drr0[1],drr0[0])
     '''
-    #v1 = np.random.uniform(2.5,3.0)
-
-    v1 = np.random.uniform(2.5,3.0)
-    v0 = v1 + np.random.uniform(0.7,1.0)
 
     x0 = np.array((s0,v0,n0,0))
     x1 = np.array((s1,v1,n1,0))
     delta_x = x0 - x1
-    is_in_collision = np.abs(delta_x[0])<0.18 and np.abs(delta_x[2])<0.14
-    if (is_in_collision):
+    is_in_collision = np.abs(delta_x[0])<0.3 and np.abs(delta_x[2])<0.1
+    is_outside = track.isOutsideCurv(x0) or track.isOutsideCurv(x1)
+    if (is_in_collision or is_outside):
         return getRandomInitialStatePair()
     else:
         cart0 = sim.curv2Cart(x0)
@@ -70,30 +64,118 @@ def getRandomInitialStatePair():
             breakpoint()
         return tuple(cart0[:4]),tuple(cart1[:4])
 
-index = 0
-Qop = [4,0,-4]
-# car_i in front
-# car_j in rear, with speed advantage
+def configHelper(config):
+    config_extensions = config.getElementsByTagName('extensions')[0]
+    config_cars = config.getElementsByTagName('cars')[0]
+    config_car0 = config_cars.getElementsByTagName('car')[0]
+    config_car1 = config_cars.getElementsByTagName('car')[1]
+    config_car0_controller = config_car0.getElementsByTagName('controller')[0]
+    config_car1_controller = config_car1.getElementsByTagName('controller')[0]
+    return config_car0, config_car0_controller, config_car1, config_car1_controller
 
-for i in range(30):
-    for q0 in Qop:
-        for q1 in Qop:
-            s0,s1 = getRandomInitialStatePair()
-            config = deepcopy(original_config)
-            config_extensions = config.getElementsByTagName('extensions')[0]
-            config_cars = config.getElementsByTagName('cars')[0]
-            config_car0 = config_cars.getElementsByTagName('car')[0]
-            config_car1 = config_cars.getElementsByTagName('car')[1]
-            config_controller = config_car0.getElementsByTagName('controller')[0]
-            #attrs = config_controller.attributes.items()
-            config_controller.attributes['Qop1'] =  str(q0)
-            config_controller.attributes['Qop2'] =  str(q1)
+def exploit_sine_dense():
+    index = 0
+    setup_vec = ['mpc','coordinative', 'adversarial','baseline']
+    for i in range(50):
+        for setup in setup_vec:
+            s0,s1 = getRandomInitialStatePair(leader=0)
+            for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                config = deepcopy(original_config)
+                config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+                config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
 
-            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(s0)
-            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(s1)
+                # controller name
+                config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                config_car0_controller.attributes['blocking_control'] =  'True'
+                config_car0_controller.attributes['alpha'] =  '1.0'
 
-            with open(config_folder+'exp%d.xml'%(index),'w') as f:
-                config.writexml(f)
-            index += 1
+                if (setup == 'mpc'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+                elif (setup == 'coordinative'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '-4'
+                    config_car1_controller.attributes['Qop2'] =  '-4'
+                elif (setup == 'adversarial'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '4'
+                    config_car1_controller.attributes['Qop2'] =  '4'
+                elif (setup == 'baseline'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '0'
+                    config_car1_controller.attributes['Qop2'] =  '0'
+                else:
+                    print('error')
 
-print('generated %d configs'%index)
+                with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                    config.writexml(f)
+                index += 1
+
+    print('generated %d configs'%index)
+
+def exploit_triangle_dense():
+    return exploit_sine_dense()
+def exploit_nascar_dense():
+    return exploit_sine_dense()
+
+def sine_mpc_dense():
+    index = 0
+    setup_vec = ['coordinative', 'adversarial','baseline']
+    for i in range(50):
+        for setup in setup_vec:
+            s0,s1 = getRandomInitialStatePair(leader=0)
+            for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                config = deepcopy(original_config)
+                config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+                config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+
+                if (setup == 'coordinative'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '-4'
+                    config_car0_controller.attributes['Qop2'] =  '-4'
+                elif (setup == 'adversarial'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '4'
+                    config_car0_controller.attributes['Qop2'] =  '4'
+                elif (setup == 'baseline'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '0'
+                    config_car0_controller.attributes['Qop2'] =  '0'
+                else:
+                    print('error')
+
+                # controller name
+                config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+
+                with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                    config.writexml(f)
+                index += 1
+
+    print('generated %d configs'%index)
+
+def triangle_mpc_dense():
+    return sine_mpc_dense()
+def nascar_mpc_dense():
+    return sine_mpc_dense()
+
+if __name__=='__main__':
+    if (len(sys.argv) == 2):
+        name = sys.argv[1]
+    else:
+        print_error("you must specify a folder name under configs/")
+
+
+    config_folder = './configs/' + name + '/'
+    config_filename = config_folder + 'master.xml'
+    original_config = minidom.parse(config_filename)
+
+    config_track= original_config.getElementsByTagName('track')[0]
+    track = TrackFactory.build(main=None,config=config_track)
+    track.init()
+
+    sim = CurvilinearSimulator(FakeMain())
+    sim.track = track
+
+    eval(f'{name}()')

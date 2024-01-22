@@ -24,15 +24,7 @@ class ConfigLogger(Extension):
         # config file name, (e.g. Cu_a_param_sweep/exp48.xml)
         # log name
         # laps
-        # enable_cvar
-        # cvar_A
-        # cvar_a
-        # cvar_Cu
-        # laptime_mean
-        # laptime_stddev
-        # boundary violation
-        # obstacle violation
-        labels = "experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary violation , obstacle violation"
+        labels = "experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean(i) , boundary violation(i),laptime_mean(j) , boundary violation(j) , oppponent_col"
         entry.append(self.main.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
