@@ -1,4 +1,5 @@
 # a track defined by a spline
+import os
 from common import *
 import cv2
 import cvxopt
@@ -7,6 +8,7 @@ from math import cos,sin,pi,atan2,radians,degrees,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
 import pickle
+import types
 
 from track.Track import Track
 
@@ -52,8 +54,8 @@ class CurvilinearTrack(Track):
         pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
-        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        getColor = lambda v:(0,v2c(v),255-v2c(v))
+        #v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        #getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
             #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
             # ignore color for now
@@ -251,7 +253,6 @@ class CurvilinearTrack(Track):
             self.u_max = len(self.break_pts)
             N = self.u_max
 
-            self.raceline_fun = lambda u:self.evalBezierSpline(self.P,u)
 
             print_ok("iter: %d"%(iter_count,))
             img_track = self.drawTrack()
@@ -666,14 +667,15 @@ class CurvilinearTrack(Track):
         # NOTE verify P dimension n*2*5
         return np.array(P)
 
+    def raceline_fun(self,u):
+        return self.evalBezierSpline(self.P,u)
+
     # resample path defined in raceline_fun
     # new_n: number of break points on the new path
     def resamplePath(self,new_n):
         # generate bezier spline
-        P = self.bezierSpline(self.break_pts)
+        self.P = self.bezierSpline(self.break_pts)
         N = len(self.break_pts)
-
-        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
         # show initial raceline
         '''
@@ -712,9 +714,8 @@ class CurvilinearTrack(Track):
 
         # regenerate spline
         self.break_pts = np.array(new_break_pts)
-        P = self.bezierSpline(self.break_pts)
+        self.P = self.bezierSpline(self.break_pts)
         N = len(self.break_pts)
-        self.raceline_fun = lambda u:self.evalBezierSpline(P,u)
 
         '''
         print("showing initial raceline AFTER resampling")
@@ -819,6 +820,14 @@ class CurvilinearTrack(Track):
         # assemble save data
         save = {}
         save['object'] = self
+        '''
+        for attr in dir(self):
+            if ( attr.find('__') == 0 or type(getattr(self,attr)) == types.MethodType or attr=='raceline_fun'):
+                continue
+            else:
+                print(attr,type(getattr(self,attr)))
+                save[attr] = getattr(self,attr)
+        '''
 
         with open('./data/'+filename, 'wb') as f:
             pickle.dump(save,f)
@@ -840,7 +849,7 @@ class CurvilinearTrack(Track):
 
         # restore save data
         obj = save['object']
-        print_ok("track and raceline loaded")
+        print_ok('track loaded')
         return obj
 
 if __name__ == "__main__":

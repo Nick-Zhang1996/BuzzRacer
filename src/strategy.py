@@ -1,8 +1,7 @@
 # code for validating strategy controller
 import pickle
 import numpy as np
-from qpSmooth import QpSmooth
-from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
+from track.RCPTrack import RCPTrack
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
@@ -79,7 +78,7 @@ def buildStatefromSpeedProfile(fulltrack, speed_profile_fun,dt=0.01):
     return (pos.T,phi.T, tt, ss, vv)
 
 if __name__ == "__main__":
-    fulltrack = QpSmooth()
+    fulltrack = RCPTrack()
     fulltrack.load()
     dt = 0.01
 

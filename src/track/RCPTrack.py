@@ -479,7 +479,7 @@ class RCPTrack(Track):
 
         print_ok("track and raceline loaded")
         self.reconstructRaceline()
-        return
+        return self
 
     # calculate distance
     def calcPathDistance(self,u0,u1):
