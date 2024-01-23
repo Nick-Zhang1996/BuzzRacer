@@ -16,7 +16,7 @@ class CurvilinearTrack(Track):
     def __init__(self,main,config):
         Track.__init__(self,main,config)
         # default parameters, to be overriden
-        self.width = 0.8
+        self.width = 0.6
         self.resolution = 200
 
         # derived class should override the constructor, 
@@ -34,11 +34,20 @@ class CurvilinearTrack(Track):
         # generate left/right boundary from 
         # TODO
         # self.break_pts
+        # self.r.shape == n*2
+        # self.ss
+        # self.raceline_len_m
+        # self.raceline_s
+        # self.phi
+        # self.width (need override)
+        # self.x/y_min/max boundary of track
+        # self.r_vec
+        # self.upper / lower -> boundary upper(left)
+        # call self.prepareDiscretizedRaceline()
+        return
 
-
-    # for qpSmooth procedure
-    def drawRaceline(self,img):
-        # TODO don't use break_pts, use self.r or something similar
+    # for plotting raceline during qpSmooth procedure
+    def drawBezierRaceline(self,img):
         u_new = np.linspace(0,len(self.break_pts),1000)
         xy = self.raceline_fun(u_new).reshape(-1,2)
 
@@ -76,6 +85,10 @@ class CurvilinearTrack(Track):
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
+        return img
+
+
+    def drawRaceline(self,img):
         return img
 
     #state: x,y,theta,vf,vs,omega
@@ -264,7 +277,7 @@ class CurvilinearTrack(Track):
 
             print_ok("iter: %d"%(iter_count,))
             img_track = self.drawTrack()
-            img_track = self.drawRaceline(img=img_track)
+            img_track = self.drawBezierRaceline(img=img_track)
             if (save_steps):
                 filename = os.path.join(self.save_dir,f'iter{iter_count}.png')
                 cv2.imwrite(filename,img_track)
@@ -371,6 +384,7 @@ class CurvilinearTrack(Track):
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 600,loop=0)
             print_ok("gif saved at "+gif_filename)
 
+        # TODO populate track boundary etc here
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
