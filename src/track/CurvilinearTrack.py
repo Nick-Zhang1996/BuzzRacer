@@ -15,7 +15,7 @@ from track.Track import Track
 class CurvilinearTrack(Track):
     def __init__(self,main,config):
         Track.__init__(self,main,config)
-        # default parameters, to be override
+        # default parameters, to be overriden
         self.width = 0.8
         self.resolution = 200
 
@@ -30,9 +30,15 @@ class CurvilinearTrack(Track):
         self.save_dir = './'
         return
 
+    def createBoundary(self):
+        # generate left/right boundary from 
+        # TODO
+        # self.break_pts
+
 
     # for qpSmooth procedure
     def drawRaceline(self,img):
+        # TODO don't use break_pts, use self.r or something similar
         u_new = np.linspace(0,len(self.break_pts),1000)
         xy = self.raceline_fun(u_new).reshape(-1,2)
 
@@ -110,6 +116,7 @@ class CurvilinearTrack(Track):
     def isOutside(self,coord):
         state = (*coord,0,0,0,0)
         _,offset,_,_,_ = self.localTrajectory(state,wheelbase=0)
+        # TODO
         return offset > (self.width/2)*1.5
 
     def buildContinuousTrack(self,r):
@@ -222,6 +229,7 @@ class CurvilinearTrack(Track):
     def preciseTrackBoundary(self,coord,heading):
         state = (coord[0], coord[1], heading, 0, 0, 0)
         raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectory(state,wheelbase=0)
+        # TODO
         left = self.width/2 - offset
         right = self.width/2 + offset
         return (left,right)
@@ -810,7 +818,10 @@ class CurvilinearTrack(Track):
             # F,R such that r+F*n and r-R*n are boundaries of the track
         '''
 
-        return self.preciseTrackBoundary(coord,heading=0)
+        L,R = self.preciseTrackBoundary(coord,heading=0)
+        L = max(L-offset,0)
+        R = max(R-offset,0)
+        return (L,R)
 
 if __name__ == "__main__":
     pass

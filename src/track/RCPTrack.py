@@ -855,6 +855,7 @@ class RCPTrack(Track):
             img = self.drawPoint(img,(x,y))
         return img
 
+    '''
     # draw the raceline from self.raceline
     def drawRaceline(self,lineColor=(0,0,255), img=None,points=None):
 
@@ -901,6 +902,7 @@ class RCPTrack(Track):
                 img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         return img
+    '''
     
 
     def drawRacelineWithColor(self,lineColor=(0,0,255), img=None, thickness = 3,s_to_color=lambda s:0):

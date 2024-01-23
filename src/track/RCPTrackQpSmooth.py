@@ -323,18 +323,22 @@ class RCPTrackQpSmooth(RCPTrack):
         v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
         getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
+            # speed related color
             #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3) 
-            # ignore color for now
-            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=(0,255,0), thickness=3) 
+            img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.track_length_grid))), thickness=3) 
+            # mono-color
+            #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=(0,255,0), thickness=3) 
 
         # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
+        '''
         for point in self.break_pts:
             x = point[0]
             y = point[1]
             x,y = self.m2canvas(point)
             
             img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        '''
 
         return img
 
