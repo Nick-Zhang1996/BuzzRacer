@@ -113,7 +113,7 @@ class CurvilinearTrack(Track):
 
         # find offset
         # positive offset means car is to the left of the trajectory(need to turn right)
-        dr = self.r[index+1] - self.r[index]
+        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
         track_to_car = (x-self.r[index,0], y-self.r[index,1])
         offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
 
@@ -133,10 +133,9 @@ class CurvilinearTrack(Track):
         return offset > (self.width/2)*1.5
 
     def buildContinuousTrack(self,r):
-        self.r = r
-        assert (len(self.r.shape) == 2)
-        assert (self.r.shape[1] == 2)
-        n = self.r.shape[0]
+        assert (len(r.shape) == 2)
+        assert (r.shape[1] == 2)
+        n = r.shape[0]
         xx = r[:,0]
         yy = r[:,1]
 
@@ -145,56 +144,58 @@ class CurvilinearTrack(Track):
         for i in range(n):
             s += ((xx[(i+1)%n]-xx[i])**2 +(yy[(i+1)%n]-yy[i])**2 )**0.5
             ss.append(s)
-        self.ss = ss
-        self.raceline_len_m = s
-        self.r = np.vstack([self.r,self.r[-1]])
+        raceline_len_m = s
+        r = np.vstack([r,r[-1]])
 
-        tck, u = splprep(self.r.T, u=ss,s=0,per=1)
-        self.raceline_s = tck
+        raceline_s, u = splprep(r.T, u=ss,s=0,per=1)
 
         # let raceline curve be r(u)
         # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(ss,self.raceline_s,der=1))
+        dr = np.array(splev(ss,raceline_s,der=1))
         # ddr = r''(u)
-        ddr = np.array(splev(ss,self.raceline_s,der=2))
+        ddr = np.array(splev(ss,raceline_s,der=2))
         _norm = lambda x:np.linalg.norm(x,axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
-        self.curvature, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
-        s_vec = self.ss
+        curvature, u = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1)
         # n*2
-        ss = np.linspace(0,self.raceline_len_m,3000)
-        r_vec = np.array(splev(ss,self.raceline_s,der=0))
-        dr_vec = np.array(splev(ss,self.raceline_s,der=1))
-        self.phi = np.arctan2(dr_vec[1,:], dr_vec[0,:])
-        lateral = np.vstack([np.cos(self.phi+np.pi/2), np.sin(self.phi+np.pi/2)]).T
+        ss = np.linspace(0,raceline_len_m,self.discretized_raceline_len)
+        r_vec = np.array(splev(ss,raceline_s,der=0))
+        dr_vec = np.array(splev(ss,raceline_s,der=1))
+        phi = np.arctan2(dr_vec[1,:], dr_vec[0,:])
+        lateral = np.vstack([np.cos(phi+np.pi/2), np.sin(phi+np.pi/2)]).T
+
         # boundary
         upper = r_vec.T + lateral * self.width/2
         lower = r_vec.T - lateral * self.width/2
+
+
+        # discretized raceline center progress
+        self.ss = ss
+        # centerline positions, correspond to self.ss (n*2)
+        self.r = self.r_vec =  r_vec.T
+        self.raceline_points = r_vec
+        self.curvature = curvature
+        # heading
+        self.raceline_headings = phi
+        # raceline length in meters
+        self.raceline_len_m = raceline_len_m
+        # spline for centerline(raceline) defined on [0,raceline_len_m]
+        self.raceline_s = raceline_s
+        # discretized position vector for left/right boundary
+        self.upper = upper
+        self.lower = lower
 
         self.x_min = np.min( np.hstack([upper[:,0],lower[:,0]]) ) - 0.1
         self.x_max = np.max( np.hstack([upper[:,0],lower[:,0]]) ) + 0.1
         self.y_min = np.min( np.hstack([upper[:,1],lower[:,1]]) ) - 0.1
         self.y_max = np.max( np.hstack([upper[:,1],lower[:,1]]) ) + 0.1
 
-        # shift track to first quadrant, x,y>0
-        '''
-        self.x_limit = x_max - x_min
-        self.y_limit = y_max - y_min
-        upper[:,0] -= x_min
-        upper[:,1] -= y_min
-        lower[:,0] -= x_min
-        lower[:,1] -= y_min
-        r_vec[:,0] -= x_min
-        r_vec[:,1] -= y_min
-        '''
+        # left boundary distance to centerline
+        self.raceline_left_boundary = np.ones_like(ss)*self.width/2
+        self.raceline_right_boundary = np.ones_like(ss)*self.width/2
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
 
-        self.r_vec = r_vec
-        self.upper = upper
-        self.lower = lower
-
-        #self.raceline_len_m = s_vec[-1]
-        #self.raceline_s = self.buildSpline(r_vec)
         #self.upper_fun = self.buildSpline(upper)
         #self.lower_fun = self.buildSpline(lower)
 
@@ -204,25 +205,8 @@ class CurvilinearTrack(Track):
         plt.plot(r_vec[0,:],r_vec[1,:],'o')
         plt.show()
         '''
-        self.prepareDiscretizedRaceline()
-
-    def prepareDiscretizedRaceline(self):
-        ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
-        rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
-        drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
-        heading_vec = np.arctan2(drr[1],drr[0])
-
-        # parameter, distance along track
-        self.ss = ss
-        self.raceline_points = np.array(rr)
-        self.r = self.raceline_points.T
-        self.raceline_headings = heading_vec
-
-        # describe track boundary as offset from raceline
-        self.raceline_left_boundary = np.ones_like(ss)*self.width/2
-        self.raceline_right_boundary = np.ones_like(ss)*self.width/2
-        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
         return
+
 
     def m2canvas(self,coord):
         x_new = int((np.clip(coord[0],self.x_min,self.x_max)-self.x_min) * self.resolution)
@@ -386,7 +370,8 @@ class CurvilinearTrack(Track):
 
         # TODO populate track boundary etc here
         img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        #img_track = self.drawRaceline(img=img_track)
+        img_track = self.drawBezierRaceline(img=img_track)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
         plt.imshow(img_track_rgb)
         plt.show()
