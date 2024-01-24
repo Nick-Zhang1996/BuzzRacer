@@ -3,8 +3,8 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-    <track radius='2.0' length='2.0' width='0.6' resolution='100'>nascar</track>
-    <!--<track>saved</track>-->
+    <!--<track radius='2.0' length='2.0' width='0.6' resolution='100'>nascar</track>-->
+    <track>saved</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>

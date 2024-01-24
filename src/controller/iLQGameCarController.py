@@ -50,13 +50,14 @@ class iLQGameCarController(CarController):
         self.Qop2 = 0
 
         # cost on track boundary
-        self.boundary_min_distance = 0.06 * 2
+        #self.boundary_min_distance = 0.06 * 2
+        self.boundary_min_distance = 0.02
         self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0
-        self.opponent_min_distance_s = 0.18 # 0.25
-        self.opponent_min_distance_n = 0.14 # 0.17
+        Kcol = 30.0*2
+        self.opponent_min_distance_s = 0.3
+        self.opponent_min_distance_n = 0.1
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
@@ -105,6 +106,7 @@ class iLQGameCarController(CarController):
 
     def isInCollision(self):
         delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        print(delta_x[0],delta_x[2])
         is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
         return is_in_collision
 
@@ -158,6 +160,7 @@ class iLQGameCarController(CarController):
                     self.print_info(ctrl1_text)
             '''
         self.drawPredictedTrajectory()
+        #self.drawDebug()
         return
 
     def boundControl(self, control, car):
@@ -630,6 +633,19 @@ class iLQGameCarController(CarController):
         d = x_post.flatten() - A @ x0 - B @ u0
 
         return A,B,d
+
+    def drawDebug(self):
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            car0 = self.ego_car
+            car0_coord = car0.states[0:2]
+            car0_heading = car0.states[2]
+            left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
+            left_pt = [car0_coord[0] + np.cos(car0_heading+np.pi/2)*left, car0_coord[1] + np.sin(car0_heading+np.pi/2)*left]
+            right_pt = [car0_coord[0] - np.cos(car0_heading+np.pi/2)*right, car0_coord[1] - np.sin(car0_heading+np.pi/2)*right]
+            img = self.main.track.drawPolyline([left_pt,right_pt],img=img)
+
+            self.main.visualization.visualization_img = img
 
     def drawPredictedTrajectory(self, lineColor=(0,100,100)):
         self.drawTrajectory(self.x_i_ref, lineColor=(0,100,100))
