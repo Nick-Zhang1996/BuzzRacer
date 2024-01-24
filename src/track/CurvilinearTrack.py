@@ -45,17 +45,9 @@ class CurvilinearTrack(Track):
         u_new = np.linspace(0,u_max,1000)
         xy = self.evalBezierSpline(P,u_new).reshape(-1,2)
         pts = np.array([ self.m2canvas(coord) for coord in xy ]).astype(int)
-
-        # render different color based on speed
-        # slow - red, fast - green (BGR)
-        #v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        #getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(u_new)-1):
-            #img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.raceline_speed_s(u_new[i]%(break_pts.shape[0]))), thickness=3) 
-            # ignore color for now
             img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=(0,255,0), thickness=3) 
 
-        # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
         if (not break_pts is None):
             for point in break_pts:
@@ -67,13 +59,18 @@ class CurvilinearTrack(Track):
         return img
 
 
-    # TODO add coloring
+    # depends on self.raceline_s, self.min_v
     def drawRaceline(self,img):
         ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
         rr = np.array(splev(ss,self.raceline_s,der=0))
         plot_points = np.array([ self.m2canvas(coord) for coord in rr.T ]).astype(int)
+        # render different color based on speed
+        # slow - red, fast - green (BGR)
+        v2c = lambda x: int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        getColor = lambda v:(0,v2c(v),255-v2c(v))
         for i in range(len(plot_points)-1):
-            img = cv2.line(img, tuple(plot_points[i]),tuple(plot_points[i+1]), color=(0,255,0), thickness=3) 
+            img = cv2.line(img, tuple(plot_points[i]),tuple(plot_points[i+1]), color=getColor(self.raceline_speed_s(ss[i])), thickness=3) 
+            #img = cv2.line(img, tuple(plot_points[i]),tuple(plot_points[i+1]), color=(0,255,0), thickness=3) 
         return img
 
     #state: x,y,theta,vf,vs,omega
@@ -90,7 +87,6 @@ class CurvilinearTrack(Track):
         x += wheelbase*cos(heading)
         y += wheelbase*sin(heading)
 
-        # TODO optimize this
         dxx = self.r[:,0]-x
         dyy = self.r[:,1]-y
         index = np.argmin(dxx**2+dyy**2)
@@ -113,9 +109,9 @@ class CurvilinearTrack(Track):
     # for use by Watchdog to terminate an experiment
     def isOutside(self,coord):
         state = (*coord,0,0,0,0)
-        _,offset,_,_,_ = self.localTrajectory(state,wheelbase=0)
-        # TODO
-        return offset > (self.width/2)*1.5
+        _,offset,_,_,_,s = self.localTrajectory(state,wheelbase=0)
+        retval ( offset > splev(s,self.raceline_left_boundary_fun)*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)*1.5 )
+        return retval
 
     def buildContinuousTrack(self,r):
         assert (len(r.shape) == 2)
@@ -375,14 +371,12 @@ class CurvilinearTrack(Track):
         self.raceline_right_boundary_points = self.r - lateral * self.raceline_right_boundary.T
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
 
-        # TODO add car specific information here
         retval = self.generateSpeedProfile()
         self.raceline_speed_s = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
 
-        # TODO
-        #self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
+        self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
         if save_gif:
             print_info("saving gif.. This may take a while")
             self.log_no = 0
@@ -390,7 +384,6 @@ class CurvilinearTrack(Track):
             self.gifimages[0].save(fp=gif_filename,format='GIF',append_images=self.gifimages,save_all=True,duration = 600,loop=0)
             print_ok("gif saved at "+gif_filename)
 
-        # TODO populate track boundary etc here
         img_track = self.drawTrack()
         img_track = self.drawRaceline(img=img_track)
         img_track = self.drawBezierRaceline(img_track,P,N,break_pts)
@@ -839,6 +832,116 @@ class CurvilinearTrack(Track):
         L = max(L-offset,0)
         R = max(R-offset,0)
         return (L,R)
+
+    # uses self.raceline_len_m, self.raceline_s
+    def verifySpeedProfile(self,*,speed_profile_fun, mu = 0.7,show_traction_circle=True):
+        # calculate theoretical lap time
+        g = 9.81
+        t_total = 0
+        path_len = 0
+        n_steps = self.discretized_raceline_len
+        xx = np.linspace(0,self.raceline_len_m,n_steps+1)
+        dist = lambda a,b: ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        vv = speed_profile_fun(xx)
+        for i in range(n_steps):
+            (x_i, y_i) = splev(xx[i%n_steps], self.raceline_s, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i+1)%n_steps], self.raceline_s, der=0)
+            # distance between two steps
+            ds = dist((x_i, y_i),(x_i_1, y_i_1))
+            path_len += ds
+            t_total += ds/(vv[i%n_steps]+vv[(i+1)%n_steps])*2
+
+        print_info("Theoretical value:")
+        print_info("\t top speed = %.2fm/s"%max(vv))
+        print_info("\t total time = %.2fs"%t_total)
+        print_info("\t path len = %.2fm"%path_len)
+
+        # cartesian distance from two u(parameter)
+        distuu = lambda u1,u2: dist(splev(u1, self.raceline_s, der=0),splev(u2, self.raceline_s, der=0))
+
+        vel_vec = []
+        ds_vec = []
+
+        # get velocity at each point
+        for i in range(n_steps):
+            # tangential direction
+            tan_dir = splev(xx[i], self.raceline_s, der=1)
+            tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
+            vel_now = vv[i] * tan_dir
+            vel_vec.append(vel_now)
+
+        vel_vec = np.array(vel_vec)
+
+        lat_acc_vec = []
+        lon_acc_vec = []
+        dtheta_vec = []
+        theta_vec = []
+        v_vec = []
+        dt_vec = []
+
+        # get lateral and longitudinal acceleration
+        for i in range(n_steps-1):
+
+            theta = np.arctan2(vel_vec[i,1],vel_vec[i,0])
+            theta_vec.append(theta)
+
+            dtheta = np.arctan2(vel_vec[i+1,1],vel_vec[i+1,0]) - theta
+            dtheta = (dtheta+np.pi)%(2*np.pi)-np.pi
+            dtheta_vec.append(dtheta)
+
+            speed = np.linalg.norm(vel_vec[i])
+            next_speed = np.linalg.norm(vel_vec[i+1])
+            v_vec.append(speed)
+
+            dt = distuu(xx[i],xx[i+1])/speed
+            dt_vec.append(dt)
+
+            lat_acc_vec.append(speed*dtheta/dt)
+            lon_acc_vec.append((next_speed-speed)/dt)
+
+        dt_vec = np.array(dt_vec)
+        lon_acc_vec = np.array(lon_acc_vec)
+        lat_acc_vec = np.array(lat_acc_vec)
+
+        # get acc_vector, track frame
+        dt_vec2 = np.vstack([dt_vec,dt_vec]).T
+        acc_vec = np.diff(vel_vec,axis=0)
+        acc_vec = acc_vec / dt_vec2
+
+        # plot acceleration vector cloud
+        # with x,y axis being vehicle frame, x lateral
+        if (show_traction_circle):
+            p0, = plt.plot(lat_acc_vec,lon_acc_vec,'*',label='data')
+
+            # draw the traction circle
+            cc = np.linspace(0,2*np.pi)
+            circle = np.vstack([np.cos(cc),np.sin(cc)])*mu*g
+            p1, = plt.plot(circle[0,:],circle[1,:],label='1g')
+            plt.gcf().gca().set_aspect('equal','box')
+            plt.xlim(-12,12)
+            plt.ylim(-12,12)
+            plt.xlabel('Lateral Acceleration')
+            plt.ylabel('Longitudinal Acceleration')
+            plt.legend(handles=[p0,p1])
+            plt.show()
+
+            p0, = plt.plot(theta_vec,label='theta')
+            p1, = plt.plot(v_vec,label='v')
+            p2, = plt.plot(dtheta_vec,label='dtheta')
+            acc_mag_vec = (acc_vec[:,0]**2+acc_vec[:,1]**2)**0.5
+            p0, = plt.plot(acc_mag_vec,'*',label='acc vec2mag')
+            p1, = plt.plot((lon_acc_vec**2+lat_acc_vec**2)**0.5,label='acc mag')
+
+            p2, = plt.plot(lon_acc_vec,label='longitudinal')
+            p3, = plt.plot(lat_acc_vec,label='lateral')
+            plt.legend(handles=[p0,p1])
+            plt.show()
+
+            p0, = plt.plot(vv,label='speed')
+            plt.legend(handles=[p0])
+            plt.show()
+        print("theoretical laptime %.2f"%t_total)
+        return t_total
 
 if __name__ == "__main__":
     pass
