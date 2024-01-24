@@ -28,6 +28,8 @@ class CurvilinearTrack(Track):
         self.max_v = 4
         self.min_v = 0
         self.save_dir = './'
+
+
         return
 
     def createBoundary(self, raceline_s, raceline_len_m):
@@ -102,14 +104,25 @@ class CurvilinearTrack(Track):
 
         signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
 
-        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity, progress
-        return (raceline_point,offset,raceline_orientation,signed_curvature,2.0,self.ss[index])
+        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
+        return (raceline_point,offset,raceline_orientation,signed_curvature,2.0)
 
     # return true if vehicle is unsalvageably outside of the track
     # for use by Watchdog to terminate an experiment
     def isOutside(self,coord):
         state = (*coord,0,0,0,0)
-        _,offset,_,_,_,s = self.localTrajectory(state,wheelbase=0)
+        dxx = self.r[:,0]-coord[0]
+        dyy = self.r[:,1]-coord[1]
+        index = np.argmin(dxx**2+dyy**2)
+        raceline_point = (self.r[index])
+
+        # find offset
+        # positive offset means car is to the left of the trajectory(need to turn right)
+        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+        track_to_car = (x-self.r[index,0], y-self.r[index,1])
+        offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+        s = self.ss[index]
+
         retval ( offset > splev(s,self.raceline_left_boundary_fun)*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)*1.5 )
         return retval
 
@@ -183,6 +196,8 @@ class CurvilinearTrack(Track):
         #self.upper_fun = self.buildSpline(upper)
         #self.lower_fun = self.buildSpline(lower)
 
+        self.raceline_speed_s = interp1d(ss,np.ones_like(ss),kind='cubic')
+
         '''
         plt.plot(upper[:,0],upper[:,1])
         plt.plot(lower[:,0],lower[:,1])
@@ -208,12 +223,20 @@ class CurvilinearTrack(Track):
         return img
 
     def preciseTrackBoundary(self,coord,heading):
-        state = (coord[0], coord[1], heading, 0, 0, 0)
-        raceline_point,offset,raceline_orientation,signed_curvature,_,s = self.localTrajectory(state,wheelbase=0)
+        x = coord[0]
+        y = coord[1]
+        dxx = self.r[:,0]-x
+        dyy = self.r[:,1]-y
+        index = np.argmin(dxx**2+dyy**2)
+
+        # find offset
+        # positive offset means car is to the left of the trajectory(need to turn right)
+        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+        track_to_car = (x-self.r[index,0], y-self.r[index,1])
+        offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+        s = self.ss[index]
         left =  splev(s,self.raceline_left_boundary_fun)[0].item() - offset
         right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
-        #left = self.width/2 - offset
-        #right = self.width/2 + offset
         return (left,right)
 
     # optimize path and save to pickle file
