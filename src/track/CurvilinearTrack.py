@@ -47,9 +47,9 @@ class CurvilinearTrack(Track):
         return
 
     # for plotting raceline during qpSmooth procedure
-    def drawBezierRaceline(self,img):
-        u_new = np.linspace(0,len(self.break_pts),1000)
-        xy = self.raceline_fun(u_new).reshape(-1,2)
+    def drawBezierRaceline(self,img,P,u_max,break_pts=None):
+        u_new = np.linspace(0,u_max,1000)
+        xy = self.evalBezierSpline(P,u_new).reshape(-1,2)
 
         x_new = xy[:,0]
         y_new = xy[:,1]
@@ -78,12 +78,12 @@ class CurvilinearTrack(Track):
 
         # solid color
         #img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3) 
-        for point in self.break_pts:
-            x = point[0]
-            y = point[1]
-            x,y = self.m2canvas(point)
-            
-            img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
+        if (not break_pts is None):
+            for point in break_pts:
+                x = point[0]
+                y = point[1]
+                x,y = self.m2canvas(point)
+                img = cv2.circle(img, (int(x),int(y)), 5, (0,0,255),-1)
 
         return img
 
@@ -261,7 +261,7 @@ class CurvilinearTrack(Track):
 
             print_ok("iter: %d"%(iter_count,))
             img_track = self.drawTrack()
-            img_track = self.drawBezierRaceline(img=img_track)
+            img_track = self.drawBezierRaceline(img_track,self.P,self.u_max,self.break_pts)
             if (save_steps):
                 filename = os.path.join(self.save_dir,f'iter{iter_count}.png')
                 cv2.imwrite(filename,img_track)
@@ -371,7 +371,7 @@ class CurvilinearTrack(Track):
         # TODO populate track boundary etc here
         img_track = self.drawTrack()
         #img_track = self.drawRaceline(img=img_track)
-        img_track = self.drawBezierRaceline(img=img_track)
+        img_track = self.drawBezierRaceline(img_track,self.P,self.u_max,self.break_pts)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
         plt.imshow(img_track_rgb)
         plt.show()
