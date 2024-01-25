@@ -19,6 +19,7 @@ class iLQGameCarController(CarController):
         self.m = 2
         self.n = 4
         self.iterations = 3
+        self.draw_prediction = True
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -106,7 +107,6 @@ class iLQGameCarController(CarController):
 
     def isInCollision(self):
         delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
-        print(delta_x[0],delta_x[2])
         is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
         return is_in_collision
 
@@ -158,7 +158,8 @@ class iLQGameCarController(CarController):
                 else:
                     self.print_info(ctrl1_text)
             '''
-        self.drawPredictedTrajectory()
+        if (self.draw_prediction):
+            self.drawPredictedTrajectory()
         #self.drawDebug()
         return
 
