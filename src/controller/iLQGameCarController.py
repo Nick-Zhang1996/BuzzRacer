@@ -123,12 +123,11 @@ class iLQGameCarController(CarController):
         bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
         car_i.steering = bounded_ctrl[0]
         car_i.throttle = bounded_ctrl[1]
-
+        '''
         car0_coord = car_i.states[0:2]
         car0_heading = car_i.states[2]
         left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
         ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
-        '''
         ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
         if (left<0 or right<0):
             self.print_warning(ctrl0_text+' ---- out of track ')
@@ -145,11 +144,11 @@ class iLQGameCarController(CarController):
             car_j.steering = bounded_ctrl[0]
             car_j.throttle = bounded_ctrl[1]
 
+            '''
             car1_coord = car_j.states[0:2]
             car1_heading = car_j.states[2]
             left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
             ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
-            '''
             ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
             if (left<0 or right<0):
                 self.print_warning(ctrl1_text+' ---- out of track ')
@@ -457,6 +456,7 @@ class iLQGameCarController(CarController):
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
             self.t.s('preciseTrackBoundary')
             left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
+            #left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(s=xx_i[t][0],n=xx_i[t][2])
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
@@ -470,6 +470,7 @@ class iLQGameCarController(CarController):
             cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
             self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
+            #left_boundary_i, right_boundary_j = self.main.track.preciseTrackBoundary(s=xx_j[t][0],n=xx_j[t][2])
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left

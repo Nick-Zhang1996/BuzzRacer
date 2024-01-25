@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import numpy as np
 import os.path
 from numpy import isclose
@@ -499,7 +497,8 @@ class RCPTrack(Track):
         return s
 
     # new representation of raceline via piecewise curvature map along path
-    def discretizePath(self,steps=1000):
+    def discretizePath(self):
+        steps = self.discretized_raceline_len
         u = np.linspace(0,self.u[-1],steps)
         # s[k]: path distance from k to k+1
         s = np.zeros_like(u)
@@ -693,7 +692,38 @@ class RCPTrack(Track):
 
     # given coordinate and heading, calculate precise boundary to left and right
     # return a vector (dist_to_left, dist_to_right)
-    def preciseTrackBoundary(self,coord,heading):
+    # need: self.r, self.ss
+    def preciseTrackBoundary(self,coord=None,heading=None,s=None,n=None):
+        if (not coord is None):
+            x = coord[0]
+            y = coord[1]
+            dxx = self.r[:,0]-x
+            dyy = self.r[:,1]-y
+            index = np.argmin(dxx**2+dyy**2)
+
+            # find offset
+            # positive offset means car is to the left of the trajectory(need to turn right)
+            dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+            track_to_car = (x-self.r[index,0], y-self.r[index,1])
+            offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+            s = self.ss[index]
+            left =  splev(s,self.raceline_left_boundary_fun)[0].item() - offset
+            right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
+            return (left,right)
+        elif (not s is None):
+            r = splev(s,self.raceline_s,der=0)
+            dr = splev(s,self.raceline_s,der=1)
+            track_to_car = (x-r[0], y-r[1])
+            offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+            left =  splev(s,self.raceline_left_boundary_fun)[0].item() - offset
+            right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
+            return (left,right)
+
+
+        else:
+            self.print_error('no suitable input to preciseTrackBoundary()')
+
+    def preciseTrackBoundaryGrid(self,coord,heading):
         heading = (heading + np.pi)%(2*np.pi) - np.pi
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
@@ -1139,7 +1169,25 @@ class RCPTrack(Track):
         rr = splev(uu%self.track_length_grid,self.raceline)
         tck, u = splprep(rr, u=ss,s=0,per=1) 
         self.raceline_s = tck
+        self.r = np.array(rr).T
+        self.ss = ss
+
+        # construct boundary
+        self.raceline_left_boundary_fun, self.raceline_right_boundary_fun = self.createBoundary(self.raceline_s, self.raceline_len_m)
         return
+
+    def createBoundary(self, raceline_s, raceline_len_m):
+        # generate left/right boundary from self.raceline_left_boundary_*
+        ss = np.linspace(0,raceline_len_m, self.discretized_raceline_len)
+        rr = np.array(splev(ss,raceline_s,der=0))
+        dr = np.array(splev(ss,raceline_s,der=1))
+        phi = np.arctan2(dr[1,:],dr[0,:])
+        boundary = np.array([self.preciseTrackBoundaryGrid(r,h) for (r,h) in zip(rr.T,phi.T)])
+
+        boundary[-1] = boundary[0]
+        left_boundary_fun, _ = splprep(boundary[:,0].reshape(1,-1), u=ss,s=0,per=1) 
+        right_boundary_fun, _ = splprep(boundary[:,1].reshape(1,-1), u=ss,s=0,per=1) 
+        return left_boundary_fun, right_boundary_fun
 
     # get future reference point for dynamic MPC
     # Inputs:

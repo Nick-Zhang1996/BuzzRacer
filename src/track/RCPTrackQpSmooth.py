@@ -833,6 +833,7 @@ class RCPTrackQpSmooth(RCPTrack):
         self.min_v = retval['min_v']
 
         self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
+        self.reconstructRaceline()
         if save_gif:
             print_info("saving gif.. This may take a while")
             self.log_no = 0
@@ -1092,7 +1093,6 @@ class RCPTrackQpSmooth(RCPTrack):
             plt.show()
         print("theoretical laptime %.2f"%t_total)
 
-        self.reconstructRaceline()
         return t_total
 
 
