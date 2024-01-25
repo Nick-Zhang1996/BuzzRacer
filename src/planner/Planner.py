@@ -23,7 +23,6 @@ from scipy.optimize import minimize
 
 class Planner(ConfigObject):
     def __init__(self,config=None):
-        super().__init__(config)
         self.config = config
         # NOTE these will be overridded by config file
         # p: prediction horizon
@@ -39,6 +38,9 @@ class Planner(ConfigObject):
         #self.opponent_width = 0.08*2
         self.opponent_length = 0.21*2
         self.opponent_width = 0.12*2
+        self.boundary_offset = 0.0
+
+
         self.best_solution = None
         self.best_plan_traj_points = None
         # replan every x steps
@@ -47,6 +49,8 @@ class Planner(ConfigObject):
         #self.replan_overlap = 3
         self.no_solution = True
         self.plan_age = 0
+
+        super().__init__(config)
         return
 
     def init(self):
@@ -609,7 +613,7 @@ class Planner(ConfigObject):
         u_max = None
         mpc.convertLtiPlanner(A,B,P,Q,xref_vec,x0,N,u_max,du_max)
         # add track boundary constraints
-        self.constructTrackBoundaryConstraint()
+        self.constructTrackBoundaryConstraint(offset=self.boundary_offset)
         scenarios = self.constructOpponentConstraint(opponent_state)
         self.addCurvatureNormObjective( weight=1, n_estimate=None )
         self.addDeviationObjective( weight=1 )
@@ -762,7 +766,8 @@ class Planner(ConfigObject):
         return sol
 
     # construct the state limits
-    def constructTrackBoundaryConstraint(self):
+    # offset: amount of offset from actual boundary
+    def constructTrackBoundaryConstraint(self,offset=0.0):
         # create additional lines for Gx<h
         # track boundary limits
         mpc = self.mpc
@@ -779,12 +784,12 @@ class Planner(ConfigObject):
         # left is positive
         G1 = M @ C @ mpc.F
         # left
-        L = self.left_limit[self.idx[1:]].reshape((N,1))
+        L = self.left_limit[self.idx[1:]].reshape((N,1)) - offset
         #L = np.ones((N,1))*self.track_width/2
         h1 = L - M @ C @ mpc.Ex0
 
         G2 = -M @ C @ mpc.F
-        R = -self.right_limit[self.idx[1:]].reshape((N,1))
+        R = -self.right_limit[self.idx[1:]].reshape((N,1)) + offset
         h2 = R + M @ C @ mpc.Ex0
 
         if (mpc.G is None):
