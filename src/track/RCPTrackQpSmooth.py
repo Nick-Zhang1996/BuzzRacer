@@ -342,7 +342,7 @@ class RCPTrackQpSmooth(RCPTrack):
 
         return img
 
-    def checkTrackBoundary(self,coord,n,delta_max,offset=0):
+    def checkTrackBoundary(self,coord,n,delta_max=1e3,offset=0):
         '''
             # input:
             # coord: r=(x,y) unit:m

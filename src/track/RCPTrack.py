@@ -749,7 +749,7 @@ class RCPTrack(Track):
             flag_in_limit = True
             while (flag_in_limit):
                 left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
-                flag_in_limit = self.checkTrackBoundary(left_point) > 0
+                flag_in_limit = RCPTrack.checkTrackBoundary(self,left_point) > 0
                 left += step_size
 
             # find right boundary
@@ -757,7 +757,7 @@ class RCPTrack(Track):
             flag_in_limit = True
             while (flag_in_limit):
                 right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-                flag_in_limit = self.checkTrackBoundary(right_point) > 0
+                flag_in_limit = RCPTrack.checkTrackBoundary(self,right_point) > 0
                 right += step_size
 
             # convert metric unit to dimensionless unit
