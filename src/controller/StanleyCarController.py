@@ -9,7 +9,7 @@ class StanleyCarController(CarController):
         # defaults for configurable parameters
         # NOTE these will be overridden
         self.max_offset = 0.4
-        self.max_speed = 2.2
+        self.max_speed = 4.0
         # load config etc
         super().__init__(car,config)
 

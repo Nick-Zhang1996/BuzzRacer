@@ -169,24 +169,24 @@ class Car(PrintObject,LogObject):
 
         sim_green = {    'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steering_left':12.0,
-                         'max_steering_right':12.0,
+                         'max_steering_left':13.0,
+                         'max_steering_right':13.0,
                          'max_throttle' : 10.0,
                          'min_throttle' : -10.0,
                          'max_v' : 4.0,
                          'max_ax' : 10.0,
-                         'max_ay' : 10.0,
+                         'max_ay' : 13.0,
                          'rendering' : 'data/porsche_green.png'}
 
         sim_red = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.12',
-                         'max_steering_left':12.0,
-                         'max_steering_right':12.0,
-                         'max_throttle' : 10.0,
-                         'min_throttle' : -10.0,
+                         'max_steering_left':9.0,
+                         'max_steering_right':9.0,
+                         'max_throttle' : 13.0,
+                         'min_throttle' : -13.0,
                          'max_v' : 4.0,
-                         'max_ax' : 10.0,
-                         'max_ay' : 10.0,
+                         'max_ax' : 13.0,
+                         'max_ay' : 9.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         car.params = eval(config_name)

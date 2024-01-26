@@ -78,7 +78,12 @@ class CurvilinearSimulator(Simulator):
             return val
 
         if (guess_s is None):
-            fit = minimize(dist, x0=0, method='L-BFGS-B', bounds=((-1.0,self.main.track.raceline_len_m),))
+            # initial guess to avoid local minima
+            xx = np.linspace(0.0, self.track.raceline_len_m,10)
+            yy = [dist(x) for x in xx]
+            guess_s = xx[np.argmin(yy)]
+            ds = 2*self.track.raceline_len_m/10
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-ds,guess_s+ds),))
         else:
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-0.2,guess_s+0.2),))
 
@@ -92,6 +97,22 @@ class CurvilinearSimulator(Simulator):
         v = v_forward
         phi = wrap(heading - np.arctan2(dr[1],dr[0]))
         return np.array([s,v,n,phi])
+
+    # DEBUG
+    def debugPlot(self,cart):
+        x,y,heading,v_forward,v_sideway,omega = cart
+        def dist(s):
+            val = np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)).flatten() - np.array([x,y]))
+            return val
+        xx = np.linspace(-1.0, self.track.raceline_len_m,1000)
+        yy = [dist(x) for x in xx]
+        plt.plot(xx,yy)
+
+        xx = np.linspace(-1.0, self.track.raceline_len_m,10)
+        yy = [dist(x) for x in xx]
+        plt.plot(xx,yy,'o')
+        plt.show()
+        return
 
     def curv2Cart(self, curv):
         '''
@@ -129,6 +150,9 @@ class CurvilinearSimulator(Simulator):
         dr_norm = _norm(dr)
         curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
         sign = np.cross(dr.T,ddr.T)
+        if (np.isnan(curvature)):
+            #self.print_warning('curvature is nan, likely because curvature is exactly 0')
+            curvature = 0.0
         return np.copysign(curvature, sign)
 
     def advancePointMassDynamics(self, curv_states, control, dt):

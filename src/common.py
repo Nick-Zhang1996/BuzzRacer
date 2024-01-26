@@ -77,6 +77,9 @@ class PrintObject:
 # so they don't get overridden
 class ConfigObject(PrintObject):
     def __init__(self,config):
+        self.loadConfig(config)
+
+    def loadConfig(self,config):
         self.config = config
         if config is None:
             self.print_warning('no config available')

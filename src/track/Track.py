@@ -8,9 +8,10 @@ from math import radians,degrees,cos,sin,ceil,floor,atan,tan
 import cv2
 import os.path
 import pickle
+import types
 class Track(ConfigObject):
     def __init__(self,main,config):
-        self.main=main
+        self.main = main
         # the following variables need to be overriden in subclass initilization
         # pixels per meter
         self.resolution = None
@@ -29,6 +30,10 @@ class Track(ConfigObject):
 
     def init(self):
         self.setUpObstacles()
+
+    # initialization to do after load()
+    def postLoad(self):
+        self.print_info('No custom postLoad()')
 
     # NOTE funs that need to move to this file TODO
 
@@ -280,3 +285,38 @@ class Track(ConfigObject):
             plt.show()
             return img
         return
+
+    # save raceline to pickle file
+    def save(self,filename=None):
+        if filename is None:
+            filename = "raceline.p"
+
+        # check attribute types
+        for attr in dir(self):
+            if ( type(getattr(self,attr)) == types.FunctionType):
+                self.print_warning(f' attribute .{attr} {getattr(self,attr)} may cause issue in saving if it is a lambda function')
+
+        with open('./data/'+filename, 'wb') as f:
+            pickle.dump(self,f)
+        print_ok("track and raceline saved")
+
+    # load quadratically smoothed raceline
+    @staticmethod
+    def load(filename=None,main=None,config=None):
+        # get data folder abs path
+        thisdir = os.path.dirname(os.path.abspath(__file__))
+        basedir = os.path.dirname(thisdir)
+        if filename is None:
+            filename = "raceline.p"
+        try:
+            with open(basedir+'/data/'+filename, 'rb') as f:
+                save = pickle.load(f)
+        except FileNotFoundError:
+            print_error("can't find "+filename+", run qpSmooth.py first")
+
+        # restore save data
+        print_ok('track loaded')
+        save.main = main
+        save.loadConfig(config)
+        save.postLoad()
+        return save
