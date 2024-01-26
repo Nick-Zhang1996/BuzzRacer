@@ -44,8 +44,8 @@ def getRandomInitialStatePair():
     drr1 = splev(s1,track.raceline_s,der=1)
     heading1 = np.arctan2(drr0[1],drr0[0])
     '''
-    v0 = np.random.uniform(3.0,4.0)
-    v1 = np.random.uniform(3.0,4.0)
+    v0 = np.random.uniform(3.5,3.7)
+    v1 = np.random.uniform(3.5,3.7)
     x0 = np.array((s0,v0,n0,0))
     x1 = np.array((s1,v1,n1,0))
     delta_x = x0 - x1
