@@ -34,13 +34,16 @@ sim = CurvilinearSimulator(FakeMain())
 sim.track = track
 
 def getRandomInitialStatePair():
-    #s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
-    #s1 = s0 + np.random.uniform(-0.3,0.3)
-    # s1 in rear
-    #s1 = s0 + np.random.uniform(-0.5,-0.3)
-    # s1 in front
     s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
+    # s0 in front
+    #s1 = s0 + np.random.uniform(-0.5,-0.3)
+    #v0 = np.random.uniform(2.5,3.0)
+    #v1 = v0 + np.random.uniform(0.7,1.0)
+
+    # s1 in front
     s1 = s0 + np.random.uniform(0.3,0.5)
+    v1 = np.random.uniform(2.5,3.0)
+    v0 = v1 + np.random.uniform(0.7,1.0)
 
     n0 = np.random.uniform(-0.2,0.2)
     n1 = np.random.uniform(-0.2,0.2)
@@ -50,10 +53,6 @@ def getRandomInitialStatePair():
     drr1 = splev(s1,track.raceline_s,der=1)
     heading1 = np.arctan2(drr0[1],drr0[0])
     '''
-    #v1 = np.random.uniform(2.5,3.0)
-
-    v1 = np.random.uniform(2.5,3.0)
-    v0 = v1 + np.random.uniform(0.7,1.0)
 
     x0 = np.array((s0,v0,n0,0))
     x1 = np.array((s1,v1,n1,0))
@@ -71,29 +70,33 @@ def getRandomInitialStatePair():
         return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
-Qop = [4,0,-4]
-# car_i in front
-# car_j in rear, with speed advantage
+#Qop = [4,0,-4]
+qop_vec = [3,-3,-100]
 
-for i in range(30):
-    for q0 in Qop:
-        for q1 in Qop:
-            s0,s1 = getRandomInitialStatePair()
-            config = deepcopy(original_config)
-            config_extensions = config.getElementsByTagName('extensions')[0]
-            config_cars = config.getElementsByTagName('cars')[0]
-            config_car0 = config_cars.getElementsByTagName('car')[0]
-            config_car1 = config_cars.getElementsByTagName('car')[1]
-            config_controller = config_car0.getElementsByTagName('controller')[0]
-            #attrs = config_controller.attributes.items()
-            config_controller.attributes['Qop1'] =  str(q0)
-            config_controller.attributes['Qop2'] =  str(q1)
+for i in range(10):
+    for qop in qop_vec:
 
-            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(s0)
-            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(s1)
+        s0,s1 = getRandomInitialStatePair()
+        config = deepcopy(original_config)
+        config_extensions = config.getElementsByTagName('extensions')[0]
+        config_cars = config.getElementsByTagName('cars')[0]
+        config_car0 = config_cars.getElementsByTagName('car')[0]
+        config_car1 = config_cars.getElementsByTagName('car')[1]
+        config_controller = config_car0.getElementsByTagName('controller')[0]
+        #attrs = config_controller.attributes.items()
+        #config_controller.attributes['Qop1'] =  str(q0)
+        #config_controller.attributes['Qop2'] =  str(q1)
+        config_controller.attributes['Qop1_blocking'] =  str(qop)
+        if (qop > -10):
+            config_controller.attributes['blocking_control'] =  str(True)
+        else:
+            config_controller.attributes['blocking_control'] =  str(False)
 
-            with open(config_folder+'exp%d.xml'%(index),'w') as f:
-                config.writexml(f)
-            index += 1
+        config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(s0)
+        config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(s1)
+
+        with open(config_folder+'exp%d.xml'%(index),'w') as f:
+            config.writexml(f)
+        index += 1
 
 print('generated %d configs'%index)

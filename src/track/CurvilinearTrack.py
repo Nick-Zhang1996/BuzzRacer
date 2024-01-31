@@ -110,6 +110,8 @@ class CurvilinearTrack(Track):
     # return true if vehicle is unsalvageably outside of the track
     # for use by Watchdog to terminate an experiment
     def isOutside(self,coord):
+        x = coord[0]
+        y = coord[1]
         state = (*coord,0,0,0,0)
         dxx = self.r[:,0]-coord[0]
         dyy = self.r[:,1]-coord[1]
@@ -123,7 +125,7 @@ class CurvilinearTrack(Track):
         offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
         s = self.ss[index]
 
-        retval ( offset > splev(s,self.raceline_left_boundary_fun)*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)*1.5 )
+        retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item()*1.5 )
         return retval
 
     def buildContinuousTrack(self,r):
