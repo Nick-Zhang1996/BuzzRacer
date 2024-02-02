@@ -170,23 +170,25 @@ class Planner(ConfigObject):
 
     # plot smooth bezier curve
     def plotSolutions(self,sols,color=(255,51,204)):
-        img = self.main.visualization.visualization_img
-        for sol in sols:
-            bezier_coeffs = sol[4]
-            u = np.linspace(0,self.N-1)
-            traj = self.evalBezierSpline(bezier_coeffs,u)
-            img = self.track.drawPolyline(traj,lineColor=color,img=img)
-        self.main.visualization.visualization_img = img
-        return 
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            for sol in sols:
+                bezier_coeffs = sol[4]
+                u = np.linspace(0,self.N-1)
+                traj = self.evalBezierSpline(bezier_coeffs,u)
+                img = self.track.drawPolyline(traj,lineColor=color,img=img)
+            self.main.visualization.visualization_img = img
+            return 
 
     # plot raw points
     def plotSolutionsPoint(self,sols,color=(255,51,204)):
-        img = self.main.visualization.visualization_img
-        for sol in sols:
-            p = sol[3]
-            img = self.track.drawPoints(img,p,color=color)
-        self.main.visualization.visualization_img = img
-        return 
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            for sol in sols:
+                p = sol[3]
+                img = self.track.drawPoints(img,p,color=color)
+            self.main.visualization.visualization_img = img
+            return 
 
     def test(self):
         vs = 1.3

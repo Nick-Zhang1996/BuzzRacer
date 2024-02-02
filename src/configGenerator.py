@@ -36,12 +36,13 @@ sim.track = track
 def getRandomInitialStatePair():
     s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
     # s0 in front
-    #s1 = s0 + np.random.uniform(-0.5,-0.3)
+    #s1 = s0 + np.random.uniform(-0.3,-0.1)
     #v0 = np.random.uniform(2.5,3.0)
     #v1 = v0 + np.random.uniform(0.7,1.0)
 
     # s1 in front
-    s1 = s0 + np.random.uniform(0.3,0.5)
+    #s1 = s0 + np.random.uniform(0.3,0.5)
+    s1 = s0 + np.random.uniform(0.1,0.3)
     v1 = np.random.uniform(2.5,3.0)
     v0 = v1 + np.random.uniform(0.7,1.0)
 
@@ -73,10 +74,9 @@ index = 0
 #Qop = [4,0,-4]
 qop_vec = [3,-3,-100]
 
-for i in range(10):
+for i in range(30):
+    s0,s1 = getRandomInitialStatePair()
     for qop in qop_vec:
-
-        s0,s1 = getRandomInitialStatePair()
         config = deepcopy(original_config)
         config_extensions = config.getElementsByTagName('extensions')[0]
         config_cars = config.getElementsByTagName('cars')[0]

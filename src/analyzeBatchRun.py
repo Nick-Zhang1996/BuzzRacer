@@ -161,3 +161,20 @@ print('Qop=-3')
 printTable6Entry(-3)
 print('No exploiting')
 printTable6Entry(-100)
+
+# Table 7: look at experiments where exploiting controller has an advantage
+
+'''
+breakpoint()
+mask_exploiting = data_dict['Qop1_blocking'] == -3
+mask_win = data_dict['end_lead_i_j']>0
+mask = np.logical_and(mask_exploiting, mask_win)
+#qop_vec = [3,-3,-100], so if i -> -3, the next log is same initial state with -100
+for index in np.nonzero(mask):
+    # find config with identical initial states
+    # without exploiting
+    # that failed
+    assert(data_dict['Qop1_blocking'][index+1] == -100)
+    if (not mask_win[index+1]
+
+'''
