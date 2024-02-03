@@ -44,6 +44,7 @@ class iLQGameCarController(CarController):
         self.Qop1 = 0
         self.Qop1_leading = 0
         self.Qop1_following = -2
+        self.Qop1_blocking = 0
         self.adaptive_Qop = False
 
         self.Q2 = np.diag(  [ 0,0.00,1.0,1.0])
@@ -69,6 +70,8 @@ class iLQGameCarController(CarController):
         self.alpha = 1.0
         # if true, this controller will control opponent
         self.control_opponent = False
+        # if true, add another layer of optimization for ego agent (i)
+        self.blocking_control = False
         ConfigObject.__init__(self,config)
 
     def preInit(self):
@@ -79,6 +82,8 @@ class iLQGameCarController(CarController):
             self.print_ok('Qop1 = %.2f/%.2f, Qop2 = %.2f'%(self.Qop1_following,self.Qop1_leading, self.Qop2))
         else:
             self.print_ok('Qop1 = %.2f, Qop2 = %.2f'%(self.Qop1, self.Qop2))
+        if (self.blocking_control):
+            self.print_ok(f'blocking control enabled Qop {self.Qop1_blocking}')
 
 
     def init(self):
@@ -343,6 +348,7 @@ class iLQGameCarController(CarController):
             m = self.m
 
             As = [block_diag(Ais[i],Ajs[i]) for i in range(len(Ais))]
+            ds = [np.zeros(n*2) for i in range(len(Ais))]
             B1s = [np.vstack([Bi,np.zeros((n,m))]) for Bi in Bis]
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
@@ -367,7 +373,31 @@ class iLQGameCarController(CarController):
             # LQ cost function, get Q,l, Rs
             [new_P1s, new_P2s], [new_alpha1s, new_alpha2s] = my_solve_lq_game(
                 As, [B1s, B2s],
-                [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs,self.lqt)
+                [Q1s, Q2s], [q1s, q2s], [Rs[0][0], Rs[1][1]],rs,ds,self.lqt)
+
+            self.t.e('my_solve_lq_game')
+
+            # additional layer of optimization
+            if (self.blocking_control):
+                K = len(Ais)
+                # prefix 'b' signal blocking, to distinguish from As, Bs
+                bAs = [As[k] - B2s[k] @ P2s[k] for k in range(K)]
+                bBs = B1s
+                bds = [ (B2s[k] @ alpha1s[k]).flatten() for k in range(K)]
+
+                original_Qop = self.Qop1
+                self.Qop1 = self.Qop1_blocking
+                bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+
+                [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
+                    bAs, [bBs],
+                    [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
+
+                self.Qop1 = original_Qop
+                #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
+                #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
+                new_alpha1s = blocking_alpha1s
+                new_P1s = blocking_P1s
 
             if (iteration == 0):
                 alpha1s = new_alpha1s
@@ -381,7 +411,7 @@ class iLQGameCarController(CarController):
                 P1s = P1s* (1-alpha) + alpha *new_P1s
                 P2s = P2s* (1-alpha) + alpha *new_P2s
 
-            self.t.e('my_solve_lq_game')
+
 
         dx_i = xx_i[0] - self.x_i_ref[0]
         dx_j = xx_j[0] - self.x_j_ref[0]

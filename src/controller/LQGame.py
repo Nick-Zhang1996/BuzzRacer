@@ -1,7 +1,7 @@
 import numpy as np
 from util.timeUtil import execution_timer
 
-def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
+def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, ds, t):
     '''
     solve a linear quadratic game defined as follows:
     notations:
@@ -13,8 +13,9 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     Ji = sum_{k=0}^{K} gi_k
     NOTE: omitted _k for clarity, uj = uj_k, Rj = Rj_k
     gi_k = 1/2 x+.T @ Q+ @ x+ + q+.T @ x+ + 1/2 sum_j [uj.T @ Rj @ uj.T + 2 rj.T @ uj]
-    x+ = Ak @ x + sum (Bj_k @ uj_k)
+    x+ = Ak @ x + sum (Bj_k @ uj_k) + dk
     As = [A_0, A_1, ... A_K]
+    ds = [d_0, d_1, ... d_K]
     Bs = [B1s,B2s,... Bis,..BNs], for each of the N agents. 
        B0s = [B0_0, B0_1,...B0_K] B for agent 0 at each time step k
     Qs = [Q1s, Q2s, ..., QNs] for each of the N agents
@@ -64,6 +65,7 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     q = qs
     R = Rs
     r = rs
+    d = ds
 
     # value function / min cost to go
     # Vk(x) = 1/2 x.T @ Q_bar_k x + L_bar_k @ x + C_bar_k
@@ -132,7 +134,7 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
 
         t.s('value fun')
         Fk = (A[k] - sum([B[j][k] @ P_k[j] for j in range(N)]))
-        Mk = sum([B[j][k] @ v_k[j] for j in range(N)])
+        Mk = sum([B[j][k] @ v_k[j] for j in range(N)]) + d[k]
         # update Q_bar, L_bar,C_bar for backpropagate value function
         temp_Q = sum([P_k[j].T @ R[j][k] @ P_k[j] for j in range(N)]) 
         temp_L = sum([v_k[j].T @ R[j][k] @ P_k[j] + r[j][k].T @ P_k[j] for j in range(N)])
