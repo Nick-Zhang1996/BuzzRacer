@@ -79,13 +79,11 @@ def getRandomInitialStatePair(leader=None):
         return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
-#Qop = [4,0,-4]
 qop_vec = [3,-3,-100]
-leader_vec = [0,1]
 
-for leader in leader_vec:
-    for i in range(10):
-        s0,s1 = getRandomInitialStatePair(leader=leader)
+for i in range(30):
+    s0,s1 = getRandomInitialStatePair(leader=0)
+    for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
         for qop in qop_vec:
             config = deepcopy(original_config)
             config_extensions = config.getElementsByTagName('extensions')[0]
@@ -102,8 +100,8 @@ for leader in leader_vec:
             else:
                 config_controller.attributes['blocking_control'] =  str(False)
 
-            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(s0)
-            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(s1)
+            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
 
             with open(config_folder+'exp%d.xml'%(index),'w') as f:
                 config.writexml(f)
