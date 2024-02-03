@@ -383,7 +383,7 @@ class iLQGameCarController(CarController):
                 # prefix 'b' signal blocking, to distinguish from As, Bs
                 bAs = [As[k] - B2s[k] @ P2s[k] for k in range(K)]
                 bBs = B1s
-                bds = [ (B2s[k] @ alpha1s[k]).flatten() for k in range(K)]
+                bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
 
                 original_Qop = self.Qop1
                 self.Qop1 = self.Qop1_blocking
