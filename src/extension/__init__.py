@@ -11,6 +11,7 @@ from extension.Simulator import Simulator
 from extension.StepCounter import StepCounter
 from extension.TrajectoryPlotter import TrajectoryPlotter
 from extension.Visualization import Visualization
+from extension.FakeVisualization import FakeVisualization
 from extension.Watchdog import Watchdog
 from extension.SteeringTracker import SteeringTracker
 from extension.SnapshotSaver import SnapshotSaver
