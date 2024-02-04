@@ -15,7 +15,7 @@ inv = lambda M: np.array([[M[1,1],-M[0,1]],[-M[1,0],M[0,0]]])/(M[0,0]*M[1,1]-M[0
 class TofSensorSimulation(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
-        self.t = execution_timer(True)
+        self.t = execution_timer(False)
 
         # Configurable param
         # cars to simulate ToF readings for
