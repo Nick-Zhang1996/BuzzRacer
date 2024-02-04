@@ -377,27 +377,6 @@ class iLQGameCarController(CarController):
 
             self.t.e('my_solve_lq_game')
 
-            # additional layer of optimization
-            if (self.blocking_control):
-                K = len(Ais)
-                # prefix 'b' signal blocking, to distinguish from As, Bs
-                bAs = [As[k] - B2s[k] @ P2s[k] for k in range(K)]
-                bBs = B1s
-                bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
-
-                original_Qop = self.Qop1
-                self.Qop1 = self.Qop1_blocking
-                bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
-
-                [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
-                    bAs, [bBs],
-                    [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
-
-                self.Qop1 = original_Qop
-                #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
-                #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
-                new_alpha1s = blocking_alpha1s
-                new_P1s = blocking_P1s
 
             if (iteration == 0):
                 alpha1s = new_alpha1s
@@ -411,6 +390,27 @@ class iLQGameCarController(CarController):
                 P1s = P1s* (1-alpha) + alpha *new_P1s
                 P2s = P2s* (1-alpha) + alpha *new_P2s
 
+        # additional layer of optimization
+        if (self.blocking_control):
+            K = len(Ais)
+            # prefix 'b' signal blocking, to distinguish from As, Bs
+            bAs = [As[k] - B2s[k] @ P2s[k] for k in range(K)]
+            bBs = B1s
+            bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
+
+            original_Qop = self.Qop1
+            self.Qop1 = self.Qop1_blocking
+            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+
+            [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
+                bAs, [bBs],
+                [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
+
+            self.Qop1 = original_Qop
+            #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
+            #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
+            alpha1s = new_alpha1s = blocking_alpha1s
+            P1s = new_P1s = blocking_P1s
 
 
         dx_i = xx_i[0] - self.x_i_ref[0]

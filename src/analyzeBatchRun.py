@@ -7,7 +7,7 @@ from track import TrackFactory
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation"
 labels = [val.strip() for val in labels.split(',')]
 
-name = 'baseline'
+name = 'exploit_baseline_post'
 config_folder = './configs/' + name + '/'
 config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
