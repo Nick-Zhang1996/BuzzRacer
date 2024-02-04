@@ -148,14 +148,14 @@ class Main(PrintObject,LogObject):
         t.e('control')
 
         # -- Extension update -- 
-        t.s('update')
         for item in self.extensions:
+            t.s(item.name)
             item.update()
-        t.e('update')
-        t.s('post')
+            t.e(item.name)
         for item in self.extensions:
+            t.s(item.name)
             item.postUpdate()
-        t.e('post')
+            t.e(item.name)
         t.e()
         
 if __name__ == '__main__':

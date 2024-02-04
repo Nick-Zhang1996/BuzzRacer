@@ -12,6 +12,7 @@
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
         <!--<extension handle='gifsaver'>Gifsaver</extension>-->
+      <extension>TofSensorSimulation</extension>
   </extensions>
 
   <cars>
