@@ -40,32 +40,6 @@ class Optitrack(Extension,PrintObject):
     def final(self):
         self.vi.quit()
 
-
-# ---- Optitrack ---- old
-    def initOptitrack(self,car,unused=None):
-        self.print_info("Initializing Optitrack...")
-        car.vi = Optitrack(wheelbase=car.wheelbase)
-        # TODO use acutal optitrack id for car
-        # porsche: 2
-        car.internal_id = car.vi.getInternalId(car.optitrack_id)
-        car.new_state_update = car.vi.newState
-
-    def updateOptitrack(self,car):
-        # update for eachj car
-        # not using kf state for now
-        (x,y,v,theta,omega) = car.vi.getKFstate(car.internal_id)
-
-        #(x,y,theta) = self.vi.getState2d(self.car.internal_id)
-        # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = (x,y,theta,v,0,omega)
-        return
-
-    def stopOptitrack(self,car):
-        # the optitrack destructor should handle things properly
-        car.vi.quit()
-        pass
-
-
 class _Optitrack(PrintObject):
     def __init__(self,base,enableKF=True):
         self.base = base
