@@ -1,6 +1,8 @@
 from time import time
+from math import sin,cos,tan
 from common import *
 from track.RCPTrack import RCPTrack
+from extension.Extension import Extension
 class TofLocalization(Extension):
     def __init__(self, main):
         super().__init__(main)
@@ -18,7 +20,8 @@ class TofLocalization(Extension):
     def postInit(self):
         for car_id in self.car_ids:
             car = self.main.cars[car_id]
-            car.tof_kf = KalmanFilter()
+            car.tof_kf = KalmanFilter(Dynamics(car))
+            car.tof_kf.tof_simulator = self.main.tof_simulator
             # NOTE rely on car.states for initial localization
             car.tof_kf.init(car.states,self.time())
             car.tof_states = car.states
@@ -27,37 +30,57 @@ class TofLocalization(Extension):
     def tofReadingUpdateCallback(self,car,timestamp=None):
         if (timestamp is None):
             timestamp = self.time()
-        car.kf.update(car.tof_measurement,timestamp)
+        car.tof_kf.update(car.tof_measurement,timestamp)
 
     # update car states
     def preUpdate(self):
         for car_id in self.car_ids:
             car = self.main.cars[car_id]
-            t = time()
-            if (self.main.experiment_type == ExperimentType.Simulation):
-                t = self.main.sim_t
+            t = self.time()
             action = (car.steering, car.throttle)
             (x,y,theta,v_forward,v_sideway,omega) = car.tof_kf.predict(action,timestamp=t)
-            car.states = (x,y,theta,v_forward,v_sideway,omega)
+            #car.states = (x,y,theta,v_forward,v_sideway,omega)
         self.main.new_state_update.set()
 
     def update(self):
-KalmanFilter(wheelbase=self.wheelbase)
-                self.kf[-1].init(x_local,y_local,theta_local)
-            self.kf[internal_id].predict(self.action)
-            observation = np.matrix([[x_local,y_local,theta_local]]).T
-            self.kf[internal_id].update(observation)
+        # update with measurement
+        for car_id in self.car_ids:
+            car = self.main.cars[car_id]
+            self.tofReadingUpdateCallback(car)
+
+        # visualization
+        if (self.main.visualization.update_visualization.isSet()):
+            img = self.main.visualization.visualization_img
+            for car_id in self.car_ids:
+                car = self.main.cars[car_id]
+                # draw covariance
+                px = car.tof_kf.P[0,0]
+                py = car.tof_kf.P[1,1]
+                p0 = car.tof_kf.X[:2,0]
+                d = car.tof_kf.X[2,0]
+                p1 = p0 + np.array([px*cos(d),px*sin(d)])
+                img = self.main.track.drawPolyline([p0,p1],img)
+                p2 = p0 + np.array([py*cos(d+np.pi/2),py*sin(d+np.pi/2)])
+
+                # draw state
+                p3 = p0 + np.array([0.4*cos(d),0.4*sin(d)])
+                img = self.main.track.drawPolyline([p0,p3],img)
+                img = self.main.track.drawCircle(img, p0, 0.03)
+
+            self.main.visualization.visualization_img = img
+        return
+
 
 
 class KalmanFilter():
-    def __init__(self):
+    def __init__(self, dynamics):
         # timestamp associated with current state
         self.state_ts = None
         # unit: x,y coordinate(m), velocity(m/s), heading(rad,ccw), angular speed(rad/s,ccw)
         #(x,y,theta,v_forward,v_sideway,omega)
-        self.state_dim = n = 6
+        self.state_dim = n = dynamics.n
         # (steering (rad, ccw+), throttle (-1,1))
-        self.action_dim = m = 2
+        self.action_dim = m = dynamics.m
         # ToF [front, left, right, rear]
         self.measure_dim = h = 4
 
@@ -68,6 +91,7 @@ class KalmanFilter():
         # dynamics noise, normalized by time
         self.q = np.diag([0.5]*n)
         self.action_cov_mtx = np.diag([0.1]*m)
+        self.dynamics = dynamics
 
         # Jacobian for dynamics, let dxdt = f(x,u)
         # f = df/dx, dim: (n,n)
@@ -108,11 +132,11 @@ class KalmanFilter():
         m = self.action_dim
         dt = (timestamp - self.state_ts)
         if (dt < 1e-10):
-            return
+            return self.X.flatten()
 
-        dxdt = Dynamics.f(self.X, action).reshape((n,1))
+        dxdt = self.dynamics.f(self.X, action).reshape((n,1))
 
-        dfdx, dfdu = Dynamics.df(self.X, action)
+        dfdx, dfdu = self.dynamics.df(self.X, action)
         F = np.eye(n) + dfdx.reshape(n,n) * dt
         B = dfdu.reshape(n,m) * dt
         Q = self.q * dt
@@ -122,15 +146,29 @@ class KalmanFilter():
         self.X += dxdt * dt
         self.P = F @ self.P @ F.T + B @ self.action_cov_mtx @ B.T + Q
         self.state_ts = timestamp
-        return
+        return self.X.flatten()
+
+    def getTofRange(self,state):
+        x,y,d,*_ = state
+        # jac: drdx, drdy, drdd
+        front,jac_front = self.tof_simulator.getTofReadingJacobian((x,y),d)
+        left, jac_left  = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi/2)
+        right,jac_right = self.tof_simulator.getTofReadingJacobian((x,y),d-np.pi/2)
+        rear, jac_rear  = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi)
+        # TODO verify jacobian
+        tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
+        jac = np.vstack([jac_front, jac_left, jac_right, jac_rear])
+        jac = np.hstack([jac,np.zeros((4,3))])
+
+        return (tof_range,jac)
 
     # update given z(observation) and associated timestamp
     # NOTE this should be run right after prediction
     def update(self,z,timestamp):
-        z = z.reshape((self.measure_dim,1))
-        # TODO
-        z_expected = make_measurement(self.X.flatten())
-        H = measurement_jacobian()
+        z = np.array(z).reshape((self.measure_dim,1))
+        z_expected,H = self.getTofRange(self.X.flatten())
+        assert(z_expected.shape == (self.measure_dim,1))
+        assert(H.shape == (self.measure_dim, self.state_dim))
 
         #y = z - H @ self.X
         y = z - z_expected
@@ -139,7 +177,7 @@ class KalmanFilter():
         self.X += K @ y
 
         # wrap again for numerical stability
-        self.X[2,0] = self.wrap(self.X[2,0])
+        self.X[2,0] = wrap(self.X[2,0])
         self.P = (np.identity(self.state_dim) - K @ H) @ self.P
         self.state_ts = timestamp
 
@@ -151,6 +189,14 @@ class Dynamics:
         self.m = 2
         self.car = car
         return
+
+    def tireCurve(self,slip):
+        C = 1.6
+        B = 2.3
+        D = 1.1
+        # C: tail shape
+        retval = D * np.sin( C * np.arctan(B *slip)) 
+        return retval
 
     def f(self, state, control):
         lf = self.car.lf
@@ -170,33 +216,21 @@ class Dynamics:
             norm = lambda a,b:(a**2+b**2)**0.5
             # motor model
             d_vx = 6.17*(throttle - vx/15.2 -0.333)
-            vx = vx + d_vx * dt
-            vy = norm(vx,vy)*sin(beta)
+            d_vy = 0
             d_omega = 0.0
-            omega = vx/L*tan(steering)
-
-            slip_f = 0
-            slip_r = 0
-            Ffy = 0
-            Fry = 0
 
         else:
             slip_f = -np.arctan((omega*lf + vy)/vx) + steering
             slip_r = np.arctan((omega*lr - vy)/vx)
 
-            Ffy = tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
-            Fry = 1.15*tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
+            Ffy = self.tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+            Fry = 1.15*self.tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
 
             # Dynamics
             #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
             d_vx = 6.17*(throttle - vx/15.2 -0.333)
             d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
             d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
-
-            # discretization
-            vx = vx + d_vx * dt
-            vy = vy + d_vy * dt
-            omega = omega + d_omega * dt 
 
         # back to global frame
         vxg = vx*cos(heading)-vy*sin(heading)

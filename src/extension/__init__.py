@@ -21,6 +21,7 @@ from extension.ConfigLogger import ConfigLogger
 from extension.SpeedTracker import SpeedTracker
 from extension.OpponentCollisionChecker import OpponentCollisionChecker
 from extension.TofSensorSimulation import TofSensorSimulation
+from extension.TofLocalization import TofLocalization
 
 
 from extension.simulator.KinematicSimulator import KinematicSimulator

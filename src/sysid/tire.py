@@ -4,6 +4,7 @@ import numpy as np
 from math import radians,degrees
 # slip: slip angle in rad
 # output: lateral friction coefficient
+'''
 def oldoldTireCurve(slip):
     C = 2.80646
     B = 0.51943
@@ -21,6 +22,7 @@ def oldtireCurve(slip):
     # C: tail shape
     retval = D * np.sin( C * np.arctan(B *slip)) 
     return retval
+'''
 
 def tireCurve(slip):
     C = 1.6

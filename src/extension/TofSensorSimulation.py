@@ -1,6 +1,7 @@
 import sys
 import warnings
 import numpy as np
+from math import sin,cos
 import matplotlib.pyplot as plt
 
 from common import *
@@ -16,6 +17,7 @@ class TofSensorSimulation(Extension):
     def __init__(self,main):
         Extension.__init__(self,main)
         self.t = execution_timer(False)
+        self.simulate_tof = True
 
         # Configurable param
         # cars to simulate ToF readings for
@@ -34,17 +36,18 @@ class TofSensorSimulation(Extension):
         for i in self.car_id:
             self.main.cars[i].tof_measurement = (inf,inf,inf,inf)
 
-    def update(self):
-        for i in self.car_id:
-            car = self.main.cars[i]
-            self.t.s()
-            front = self.getTofReading(car.states,car.states[2])
-            left = self.getTofReading(car.states,car.states[2]+np.pi/2)
-            right = self.getTofReading(car.states,car.states[2]-np.pi/2)
-            rear = self.getTofReading(car.states,car.states[2]+np.pi)
-            car.tof_measurement = (front, left, right, rear)
-            self.t.e()
-            #self.plotTof(car)
+    def preUpdate(self):
+        if (self.simulate_tof):
+            for i in self.car_id:
+                car = self.main.cars[i]
+                self.t.s()
+                front = self.getTofReading(car.states,car.states[2])
+                left = self.getTofReading(car.states,car.states[2]+np.pi/2)
+                right = self.getTofReading(car.states,car.states[2]-np.pi/2)
+                rear = self.getTofReading(car.states,car.states[2]+np.pi)
+                car.tof_measurement = (front, left, right, rear)
+                self.t.e()
+                #self.plotTof(car)
 
     def plotTof(self,car):
         if (self.main.visualization.update_visualization.is_set()):
@@ -86,6 +89,53 @@ class TofSensorSimulation(Extension):
             if (edge_dist < tof_range):
                 tof_range = edge_dist
         return tof_range
+
+    def getTofReadingJacobian(self, coord, direction):
+        x0 = coord[0]; y0 = coord[1]
+        x1 = x0 + self.max_range*np.cos(direction)
+        y1 = y0 + self.max_range*np.sin(direction)
+        e0 = Edge((x0,y0),(x1,y1))
+        tof_range = float('inf')
+        dist = lambda a,b: ( (a[0]-b[0])**2 + (a[1]-b[1])**2 )**0.5
+        # track edge picked up by ToF
+        key_edge = None
+        # intersection
+        key_p = None
+        for edge in self.edges:
+            p = Edge.getIntersection(e0,edge)
+            if (p is None):
+                continue
+            edge_dist = dist(coord,p)
+            if (edge_dist < tof_range):
+                tof_range = edge_dist
+                key_edge = edge
+                key_p = p
+
+        if (key_p is None):
+            p = Edge.getIntersection(e0,edge)
+
+        # jacobian
+        A = key_edge.coeff[0]; B = key_edge.coeff[1]
+        C = key_edge.coeff[2]; d = direction
+        # xp,yp: coordinate of intersection
+        xp = key_p[0]; yp = key_p[1]
+        dxp_dx0 = 1/(-A*cos(d)-B*sin(d)) * (-B*sin(d))
+        dxp_dy0 = 1/(-A*cos(d)-B*sin(d)) * (B*cos(d))
+        dyp_dx0 = 1/(-A*cos(d)-B*sin(d)) * (A*sin(d))
+        dyp_dy0 = 1/(-A*cos(d)-B*sin(d)) * (-A*cos(d))
+
+        # sympy result
+        dyp_dd = (-A*sin(d) + B*cos(d))*(B*x0*cos(d) - B*y0*sin(d) - C*cos(d))/(-A*cos(d) - B*sin(d))**2 + (-B*x0*sin(d) - B*y0*cos(d) + C*sin(d))/(-A*cos(d) - B*sin(d))
+
+        dxp_dd = (-A*sin(d) + B*cos(d))*(-A*x0*cos(d) + A*y0*sin(d) - C*sin(d))/(-A*cos(d) - B*sin(d))**2 + (A*x0*sin(d) + A*y0*cos(d) - C*cos(d))/(-A*cos(d) - B*sin(d))
+
+        drange_dx0 = 1/(2*tof_range) *(2*(xp-x0)*(dxp_dx0-1) + 2*(yp-y0)*(dyp_dx0))
+        drange_dy0 = 1/(2*tof_range) *(2*(xp-x0)*dxp_dy0 + 2*(yp-y0)*(dyp_dy0-1))
+        drange_dd = 1/(2*tof_range) *(2*(xp-x0)*dxp_dd + 2*(yp-y0)*dyp_dd)
+
+        return tof_range, (drange_dx0, drange_dy0, drange_dd)
+
+
     def final(self):
         self.t.summary()
 
@@ -141,7 +191,6 @@ class Edge:
     # C,D: endpoints for input line segment
     # return intersection position if AB intersects CD
     # elsewise return None
-    # FIXME
     @staticmethod
     def getIntersection(edge1,edge2):
         A = edge1.A

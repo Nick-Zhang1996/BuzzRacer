@@ -70,7 +70,7 @@ class Simulator(Extension,PrintObject):
         print_error('unimplemented')
         return
 
-    def update(self): 
+    def postUpdate(self): 
         for car in self.cars:
             car.states = self.advanceDynamics(car.states, (car.steering,car.throttle), car)
         if (self.state_noise_enabled):
