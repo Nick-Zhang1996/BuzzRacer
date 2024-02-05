@@ -214,9 +214,12 @@ class KalmanFilter():
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
         # TODO  heading correction is finicky
-        K[-1,:] = 0
-        # maybe pass this through a softmax?
-        self.X += K @ y
+        # limit updates
+        # or do a particle filter on this
+        correction = K @ y
+        # limit update on heading to 1 deg
+        correction[-1,:] = np.arctan(correction[-1,:]/(np.pi/2)*radians(2))/(np.pi/2)*radians(2)
+        self.X += correction
 
         # wrap again for numerical stability
         self.X[2,0] = wrap(self.X[2,0])
