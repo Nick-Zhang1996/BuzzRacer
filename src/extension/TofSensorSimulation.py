@@ -18,6 +18,7 @@ class TofSensorSimulation(Extension):
         Extension.__init__(self,main)
         self.t = execution_timer(False)
         self.simulate_tof = True
+        self.debug_plot = True
 
         # Configurable param
         # cars to simulate ToF readings for
@@ -47,7 +48,8 @@ class TofSensorSimulation(Extension):
                 rear = self.getTofReading(car.states,car.states[2]+np.pi)
                 car.tof_measurement = (front, left, right, rear)
                 self.t.e()
-                #self.plotTof(car)
+                if (self.debug_plot):
+                    self.plotTof(car)
 
     def plotTof(self,car):
         if (self.main.visualization.update_visualization.is_set()):

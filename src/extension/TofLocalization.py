@@ -1,5 +1,5 @@
 from time import time
-from math import sin,cos,tan
+from math import sin,cos,tan,radians,degrees
 from common import *
 from track.RCPTrack import RCPTrack
 from extension.Extension import Extension
@@ -61,6 +61,7 @@ class TofLocalization(Extension):
                 p1 = p0 + np.array([px*cos(d),px*sin(d)])
                 img = self.main.track.drawPolyline([p0,p1],img)
                 p2 = p0 + np.array([py*cos(d+np.pi/2),py*sin(d+np.pi/2)])
+                img = self.main.track.drawPolyline([p0,p2],img)
 
                 # draw state
                 p3 = p0 + np.array([0.4*cos(d),0.4*sin(d)])
@@ -89,7 +90,7 @@ class KalmanFilter():
         # state covariance, dim: (n,n)
         self.P = None
         # dynamics noise, normalized by time
-        self.q = np.diag([0.5]*n)
+        self.q = np.diag([0.1,0.1,radians(5),0.5,0.5,radians(20)])
         self.action_cov_mtx = np.diag([0.1]*m)
         self.dynamics = dynamics
 
@@ -105,19 +106,9 @@ class KalmanFilter():
         # Jacobian for measurement function z = h(x), dim (h,n)
         # H = None
         # measurement error, dim (h,h)
-        self.R = np.diag([0.1]*h)
+        self.R = np.diag([0.2]*h)
 
 
-        '''
-        # measurement, dim:(h,1)
-
-        # variance of action
-        action_var = [radians(3)**2,1.5**2]
-        # action noise
-        self.R = np.matrix(self.R)
-        # process noise
-        self.Q = np.diag([0.005, 0.005, 6, 0.00005, 0.01])
-        '''
 
     # initialize X (state) ts(time) P(covariance for state)
     def init(self,car_states,timestamp):
@@ -156,6 +147,34 @@ class KalmanFilter():
         right,jac_right = self.tof_simulator.getTofReadingJacobian((x,y),d-np.pi/2)
         rear, jac_rear  = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi)
         # TODO verify jacobian
+        
+        # test front jacobian
+        err = []
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.01,y),d)
+        front_j = front + jac_front[0]*0.01
+        err.append(np.abs(front_a-front_j))
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.01),d)
+        front_j = front + jac_front[1]*0.01
+        err.append(np.abs(front_a-front_j))
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+0.01)
+        front_j = front + jac_front[2]*0.01
+        err.append(np.abs(front_a-front_j))
+
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.01,y),d+np.pi/2)
+        left_j = left + jac_left[0]*0.01
+        err.append(np.abs(left_a-left_j))
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.01),d+np.pi/2)
+        left_j = left + jac_left[1]*0.01
+        err.append(np.abs(left_a-left_j))
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi/2+0.01)
+        left_j = left + jac_left[2]*0.01
+        err.append(np.abs(left_a-left_j))
+        print(np.max(err))
+
+
+
+
+
         tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
         jac = np.vstack([jac_front, jac_left, jac_right, jac_rear])
         jac = np.hstack([jac,np.zeros((4,3))])
@@ -174,6 +193,7 @@ class KalmanFilter():
         y = z - z_expected
         S = H @ self.P @ H.T + self.R
         K = self.P @ H.T @ np.linalg.inv(S)
+        # TODO add a limit
         self.X += K @ y
 
         # wrap again for numerical stability
@@ -195,7 +215,7 @@ class Dynamics:
         B = 2.3
         D = 1.1
         # C: tail shape
-        retval = D * np.sin( C * np.arctan(B *slip)) 
+        retval = D * np.sin( C * np.arctan(B *slip))
         return retval
 
     def f(self, state, control):
