@@ -9,21 +9,24 @@ class AggressiveCarController(iLQGameCarController):
         super().__init__(car,config)
 
         ConfigObject.__init__(self,config)
-        self.iterations = 3
-        self.Q1 = np.diag(  [ 0,0.00,0.0,1.0]) # n:1
-        self.q1 = np.array([[-1,0,0,0]]).T # -4
-        # collision cost, repurposed to blocking reward
-        Kcol = 30.0
-        self.Qcol = np.diag([0,0,Kcol,0])
-        self.print_ok('param override')
 
 
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
-        # if leading: block opponent by penalizing (n_i-n_j)**2
-        # FIXME
+        lead = self.ego_car.sim_states[0] - self.oppo_car.sim_states[0]
+        v_diff = self.ego_car.sim_states[1] - self.oppo_car.sim_states[1]
         opponent_n = self.oppo_car.sim_states[2]
-
-        # if chasing: no regard to collision
+        if (lead > 0 and v_diff < 0):
+            # if leading: block opponent by penalizing (n_i-n_j)**2
+            self.Q1 = np.diag(  [ 0,0.00,0.0,1.0]) # n:1
+            self.q1 = np.array([[-1,0,0,0]]).T # -4
+            # collision cost, repurposed to blocking reward
+            Kcol = 30.0
+            self.Qcol = np.diag([0,0,Kcol,0])
+        else:
+            # if chasing: no regard to collision
+            self.Q1 = np.diag(  [ 0,0.00,2.0,1.0]) # n:1
+            self.q1 = np.array([[-4,0,0,0]]).T # -4
+            self.Qcol = np.diag([0,0,0,0])
 
         Q1s = []
         Q2s = []
