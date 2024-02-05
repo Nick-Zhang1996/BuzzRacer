@@ -1,5 +1,5 @@
 from time import time
-from math import sin,cos,tan,radians,degrees
+from math import sin,cos,tan,radians,degrees,atan
 from common import *
 from track.RCPTrack import RCPTrack
 from extension.Extension import Extension
@@ -47,26 +47,29 @@ class TofLocalization(Extension):
         for car_id in self.car_ids:
             car = self.main.cars[car_id]
             self.tofReadingUpdateCallback(car)
+        self.drawDebug()
 
-        # visualization
+    def drawDebug(self):
+        # visualization NOTE very slow
         if (self.main.visualization.update_visualization.isSet()):
             img = self.main.visualization.visualization_img
             for car_id in self.car_ids:
                 car = self.main.cars[car_id]
-                # draw covariance
                 px = car.tof_kf.P[0,0]
                 py = car.tof_kf.P[1,1]
                 p0 = car.tof_kf.X[:2,0]
                 d = car.tof_kf.X[2,0]
+
+                # draw state
+                coord = self.main.track.m2canvas(p0)
+                img = self.main.visualization.overlayCarRenderingRaw(img,car,coord,d)
+                img = self.main.track.drawCircle(img, p0, 0.03)
+
+                # draw covariance
                 p1 = p0 + np.array([px*cos(d),px*sin(d)])
                 img = self.main.track.drawPolyline([p0,p1],img)
                 p2 = p0 + np.array([py*cos(d+np.pi/2),py*sin(d+np.pi/2)])
                 img = self.main.track.drawPolyline([p0,p2],img)
-
-                # draw state
-                p3 = p0 + np.array([0.4*cos(d),0.4*sin(d)])
-                img = self.main.track.drawPolyline([p0,p3],img)
-                img = self.main.track.drawCircle(img, p0, 0.03)
 
             self.main.visualization.visualization_img = img
         return
@@ -90,7 +93,8 @@ class KalmanFilter():
         # state covariance, dim: (n,n)
         self.P = None
         # dynamics noise, normalized by time
-        self.q = np.diag([0.1,0.1,radians(5),0.5,0.5,radians(20)])
+        # FIXME for more pronounced noise
+        self.q = np.diag([0.1,0.1,radians(5),0.5,0.5,radians(10)])*3
         self.action_cov_mtx = np.diag([0.1]*m)
         self.dynamics = dynamics
 
@@ -125,7 +129,9 @@ class KalmanFilter():
         if (dt < 1e-10):
             return self.X.flatten()
 
-        dxdt = self.dynamics.f(self.X, action).reshape((n,1))
+        # FIXME artificial noise
+        noise = (np.random.normal(size=n)*self.q.diagonal()).reshape((n,1))
+        dxdt = self.dynamics.f(self.X, action).reshape((n,1)) + noise
 
         dfdx, dfdu = self.dynamics.df(self.X, action)
         F = np.eye(n) + dfdx.reshape(n,n) * dt
@@ -146,34 +152,38 @@ class KalmanFilter():
         left, jac_left  = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi/2)
         right,jac_right = self.tof_simulator.getTofReadingJacobian((x,y),d-np.pi/2)
         rear, jac_rear  = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi)
+        '''
         # TODO verify jacobian
+        # derivative against heading still isn't accurate, but doesn't affect perf
         
         # test front jacobian
-        err = []
-        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.01,y),d)
-        front_j = front + jac_front[0]*0.01
-        err.append(np.abs(front_a-front_j))
-        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.01),d)
-        front_j = front + jac_front[1]*0.01
-        err.append(np.abs(front_a-front_j))
-        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+0.01)
-        front_j = front + jac_front[2]*0.01
-        err.append(np.abs(front_a-front_j))
+        num_jac_front = []
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.001,y),d)
+        num_jac_front.append( (front_a-front)/0.001)
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.001),d)
+        num_jac_front.append( (front_a-front)/0.001)
+        front_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+0.0001)
+        num_jac_front.append( (front_a-front)/0.0001)
 
-        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.01,y),d+np.pi/2)
-        left_j = left + jac_left[0]*0.01
-        err.append(np.abs(left_a-left_j))
-        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.01),d+np.pi/2)
-        left_j = left + jac_left[1]*0.01
-        err.append(np.abs(left_a-left_j))
-        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi/2+0.01)
-        left_j = left + jac_left[2]*0.01
-        err.append(np.abs(left_a-left_j))
-        print(np.max(err))
+        num_jac_left = []
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x+0.001,y),d+np.pi/2)
+        num_jac_left.append( (left_a-left)/0.001)
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y+0.001),d+np.pi/2)
+        num_jac_left.append( (left_a-left)/0.001)
+        left_a ,_ = self.tof_simulator.getTofReadingJacobian((x,y),d+np.pi/2+0.0001)
+        num_jac_left.append( (left_a-left)/0.0001)
+
+        err_front = np.array(jac_front)-np.array(num_jac_front)
+        err_left = np.array(jac_left)-np.array(num_jac_left)
 
 
-
-
+        if (np.max(np.abs(np.hstack([err_front,err_left]))) > 0.05):
+            print(jac_front)
+            print(num_jac_front)
+            print(jac_left)
+            print(num_jac_left)
+            front,jac_front = self.tof_simulator.getTofReadingJacobian((x,y),d+0.0001)
+        '''
 
         tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
         jac = np.vstack([jac_front, jac_left, jac_right, jac_rear])
@@ -191,9 +201,21 @@ class KalmanFilter():
 
         #y = z - H @ self.X
         y = z - z_expected
-        S = H @ self.P @ H.T + self.R
+        # when a tof hit is near track edge, small uncertainty in state
+        # can lead to drastically different expected measurement
+        # this is due to the actual/expected tof hit edge is different
+        # we remove these measurements
+        # TODO requires refinement
+        mask = (np.abs(y)<0.1).flatten()
+        y = y[mask,:]
+        H = H[mask,:]
+        R = np.diag(np.diagonal(self.R)[mask])
+
+        S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
-        # TODO add a limit
+        # TODO  heading correction is finicky
+        K[-1,:] = 0
+        # maybe pass this through a softmax?
         self.X += K @ y
 
         # wrap again for numerical stability

@@ -127,9 +127,9 @@ class TofSensorSimulation(Extension):
         dyp_dy0 = 1/(-A*cos(d)-B*sin(d)) * (-A*cos(d))
 
         # sympy result
-        dyp_dd = (-A*sin(d) + B*cos(d))*(B*x0*cos(d) - B*y0*sin(d) - C*cos(d))/(-A*cos(d) - B*sin(d))**2 + (-B*x0*sin(d) - B*y0*cos(d) + C*sin(d))/(-A*cos(d) - B*sin(d))
+        dxp_dd = (-A*sin(d) + B*cos(d))*(B*x0*cos(d) - B*y0*sin(d) - C*cos(d))/(-A*cos(d) - B*sin(d))**2 + (-B*x0*sin(d) - B*y0*cos(d) + C*sin(d))/(-A*cos(d) - B*sin(d))
 
-        dxp_dd = (-A*sin(d) + B*cos(d))*(-A*x0*cos(d) + A*y0*sin(d) - C*sin(d))/(-A*cos(d) - B*sin(d))**2 + (A*x0*sin(d) + A*y0*cos(d) - C*cos(d))/(-A*cos(d) - B*sin(d))
+        dyp_dd = (-A*sin(d) + B*cos(d))*(-A*x0*cos(d) + A*y0*sin(d) - C*sin(d))/(-A*cos(d) - B*sin(d))**2 + (A*x0*sin(d) + A*y0*cos(d) - C*cos(d))/(-A*cos(d) - B*sin(d))
 
         drange_dx0 = 1/(2*tof_range) *(2*(xp-x0)*(dxp_dx0-1) + 2*(yp-y0)*(dyp_dx0))
         drange_dy0 = 1/(2*tof_range) *(2*(xp-x0)*dxp_dy0 + 2*(yp-y0)*(dyp_dy0-1))
