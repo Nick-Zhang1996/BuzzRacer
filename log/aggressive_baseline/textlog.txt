@@ -1,0 +1,7 @@
+aggressive_baseline,./configs/aggressive_baseline/exp68.xml,../log/aggressive_baseline/full_state1.p,1,0,0,0.1173099713028698,0.8164498599508789,3.7999999999999194,1,nan,0,3
+aggressive_baseline,./configs/aggressive_baseline/exp5.xml,../log/aggressive_baseline/full_state2.p,1,0,0,0.19233176230773452,0.9859548749308757,3.8699999999999175,0,nan,0,0
+aggressive_baseline,./configs/aggressive_baseline/exp57.xml,../log/aggressive_baseline/full_state3.p,1,0,0,0.2124262105783905,1.0587497083463333,3.869999999999918,0,nan,0,0
+aggressive_baseline,./configs/aggressive_baseline/exp64.xml,../log/aggressive_baseline/full_state4.p,1,0,0,0.1071057128400863,0.7040186119027076,3.7999999999999234,0,nan,0,1
+aggressive_baseline,./configs/aggressive_baseline/exp17.xml,../log/aggressive_baseline/full_state5.p,1,0,0,0.10806834890159056,0.5148230974103924,3.8799999999999177,0,nan,0,0
+aggressive_baseline,./configs/aggressive_baseline/exp108.xml,../log/aggressive_baseline/full_state6.p,1,0,0,0.18909858842218186,1.5279524829830606,3.7999999999999194,0,nan,0,1
+aggressive_baseline,./configs/aggressive_baseline/exp50.xml,../log/aggressive_baseline/full_state7.p,1,0,0,-0.2673806849914282,1.4300853679638053,3.7999999999999194,0,nan,0,2

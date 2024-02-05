@@ -79,12 +79,11 @@ def getRandomInitialStatePair(leader=None):
         return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
-qop_vec = [3,-3,-100]
-
+controller_vec = ['AggressiveCarController','iLQGameCarController']
 for i in range(30):
     s0,s1 = getRandomInitialStatePair(leader=0)
     for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
-        for qop in qop_vec:
+        for controller_name in controller_vec:
             config = deepcopy(original_config)
             config_extensions = config.getElementsByTagName('extensions')[0]
             config_cars = config.getElementsByTagName('cars')[0]
@@ -94,11 +93,8 @@ for i in range(30):
             #attrs = config_controller.attributes.items()
             #config_controller.attributes['Qop1'] =  str(q0)
             #config_controller.attributes['Qop2'] =  str(q1)
-            config_controller.attributes['Qop1_blocking'] =  str(qop)
-            if (qop > -10):
-                config_controller.attributes['blocking_control'] =  str(True)
-            else:
-                config_controller.attributes['blocking_control'] =  str(False)
+            #config_controller.attributes['Qop1_blocking'] =  str(qop)
+            config_controller.childNodes[1].childNodes[0].data = controller_name
 
             config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
             config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
