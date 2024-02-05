@@ -17,3 +17,4 @@ from controller.iLQGameCarController import iLQGameCarController
 from controller.iLQGameSoloCarController import iLQGameSoloCarController
 from controller.PointMassMpcCarController import PointMassMpcCarController
 from controller.DdpPointMassCarController import DdpPointMassCarController
+from controller.AggressiveCarController import AggressiveCarController

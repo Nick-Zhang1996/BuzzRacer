@@ -463,7 +463,7 @@ class iLQGameCarController(CarController):
             q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
-            if (np.abs(delta_x[0])<1.5*self.opponent_min_distance_s and np.abs(delta_x[2])<1.5*self.opponent_min_distance_n):
+            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
