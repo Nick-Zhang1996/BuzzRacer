@@ -711,15 +711,15 @@ class RCPTrack(Track):
             right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
             return (left,right)
         elif (not s is None):
-            r = splev(s,self.raceline_s,der=0)
-            dr = splev(s,self.raceline_s,der=1)
-            track_to_car = (x-r[0], y-r[1])
-            offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
-            left =  splev(s,self.raceline_left_boundary_fun)[0].item() - offset
-            right = splev(s,self.raceline_right_boundary_fun)[0].item() + offset
+            r = np.array(splev(s,self.raceline_s,der=0))
+            dr = np.array(splev(s,self.raceline_s,der=1))
+            dr /= np.linalg.norm(dr)
+            A = np.array([[0,-1],[1,0]])
+            track_to_car = r + A @ (n*dr)
+            offset = np.cross(dr.T,track_to_car.T).item()
+            left =  splev(s,self.raceline_left_boundary_fun)[0].item() - n
+            right = splev(s,self.raceline_right_boundary_fun)[0].item() + n
             return (left,right)
-
-
         else:
             self.print_error('no suitable input to preciseTrackBoundary()')
 
@@ -1174,7 +1174,29 @@ class RCPTrack(Track):
 
         # construct boundary
         self.raceline_left_boundary_fun, self.raceline_right_boundary_fun = self.createBoundary(self.raceline_s, self.raceline_len_m)
+
+        # construct curvature
+        self.curvature_fun = self.createCurvature( self.raceline_s, self.raceline_len_m)
         return
+
+    def createCurvature(self, raceline_s, raceline_len_m):
+        '''
+        get signed curvature fun of raceline at s, ccw positive
+        '''
+        ss = np.linspace(0,raceline_len_m, self.discretized_raceline_len)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        r = np.array(splev(ss%self.raceline_len_m, self.raceline_s, der=0))
+        dr = np.array(splev(ss%self.raceline_len_m, self.raceline_s, der=1))
+        ddr = np.array(splev(ss%self.raceline_len_m, self.raceline_s, der=2))
+        _norm = lambda x:np.linalg.norm(x,axis=0)
+        dr_norm = _norm(dr)
+        curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
+        sign = np.cross(dr.T,ddr.T)
+        curvature[np.isnan(curvature)] = 0.0
+        curvature = np.copysign(curvature, sign)
+        curvature_fun, _ = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1) 
+        return curvature_fun
+
 
     def createBoundary(self, raceline_s, raceline_len_m):
         # generate left/right boundary from self.raceline_left_boundary_*

@@ -77,6 +77,7 @@ class iLQGameCarController(CarController):
         ConfigObject.__init__(self,config)
 
     def preInit(self):
+        self.createConstants()
         self.overrideControlVisualization()
         if (self.control_opponent):
             self.print_ok('Controller will control opponent')
@@ -274,7 +275,6 @@ class iLQGameCarController(CarController):
         car_i = self.ego_car
         car_j = self.oppo_car
 
-        update_dynamics_count = 0
 
         # iterations
         for iteration in range(self.iterations):
@@ -306,7 +306,6 @@ class iLQGameCarController(CarController):
                 #u,constrained = self.boundControl(u.flatten(),car_i)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
-                update_dynamics_count += 1
                 new_x = self.update_dynamics(xx_i[-1],u)
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
@@ -326,7 +325,6 @@ class iLQGameCarController(CarController):
                 #u,constrained = self.boundControl(u.flatten(),car_j)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
-                update_dynamics_count += 1
                 new_x = self.update_dynamics(xx_j[-1],u)
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
@@ -357,7 +355,9 @@ class iLQGameCarController(CarController):
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
 
+            self.t.s('getCostMatrices')
             Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+            self.t.e('getCostMatrices')
             if (self.main.breakpoint.isSet()):
                 breakpoint()
                 self.main.breakpoint.clear()
@@ -425,8 +425,19 @@ class iLQGameCarController(CarController):
 
         self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
-        print(f'update dynamics: {update_dynamics_count}')
         return ctrl1,ctrl2
+
+    def createConstants(self):
+        n = self.n
+        m = self.m
+        self.II = np.hstack([np.eye(n),-np.eye(n)])
+        self.R0 = np.zeros((m,m))
+        self.Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
+        self.q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+        self.Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
+        self.q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+        self.R1 = 0.005*np.diag([1.0,1.0])
+        self.R2 = 0.005*np.diag([1.0,1.0])
 
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
         Q1s = []
@@ -445,15 +456,19 @@ class iLQGameCarController(CarController):
 
         n = self.n
         m = self.m
-        II = np.hstack([np.eye(n),-np.eye(n)])
-        R0 = np.zeros((m,m))
+        #II = np.hstack([np.eye(n),-np.eye(n)])
+        #R0 = np.zeros((m,m))
+        II = self.II
+        R0 = self.R0
 
         for t in range(self.horizon):
             delta_x = xx_i[t] - xx_j[t]
             # these cost matrices work on the stacked agent state x, not state perturbation dx
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
-            Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
-            q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+            #Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
+            #q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+            Q1_x =  self.Q1_x.copy()
+            q1_x = self.q1_x.copy()
             if (self.adaptive_Qop):
                 if (delta_x[0]>0):
                     q1_x[0,n] = self.Qop1_leading
@@ -463,8 +478,10 @@ class iLQGameCarController(CarController):
             else:
                 q1_x[0,n] = self.Qop1
 
-            Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
-            q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+            #Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
+            #q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+            Q2_x =  self.Q2_x.copy()
+            q2_x = self.q2_x.copy()
             q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
@@ -505,7 +522,7 @@ class iLQGameCarController(CarController):
             cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
             self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
-            #left_boundary_i, right_boundary_j = self.main.track.preciseTrackBoundary(s=xx_j[t][0],n=xx_j[t][2])
+            #left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(s=xx_j[t][0],n=xx_j[t][2])
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
@@ -525,8 +542,10 @@ class iLQGameCarController(CarController):
             # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
             #R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
             #R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
-            R1 = 0.005*np.diag([1.0,1.0])
-            R2 = 0.005*np.diag([1.0,1.0])
+            #R1 = 0.005*np.diag([1.0,1.0])
+            #R2 = 0.005*np.diag([1.0,1.0])
+            R1 = self.R1
+            R2 = self.R2
             r1_x = np.zeros((1,self.m))
             r2_x = np.zeros((1,self.m))
 

@@ -136,6 +136,10 @@ class CurvilinearSimulator(Simulator):
         return np.array([x,y,heading, v_forward, v_sideway, omega])
 
     def curvature(self,s):
+        r = np.array(splev(s%self.track.raceline_len_m, self.track.curvature_fun, der=0))
+        return r.item()
+
+    def _curvature(self,s):
         '''
         get signed curvature of raceline at s, ccw positive
         '''
