@@ -274,6 +274,8 @@ class iLQGameCarController(CarController):
         car_i = self.ego_car
         car_j = self.oppo_car
 
+        update_dynamics_count = 0
+
         # iterations
         for iteration in range(self.iterations):
             # roll out u_ref, get x_ref
@@ -304,6 +306,7 @@ class iLQGameCarController(CarController):
                 #u,constrained = self.boundControl(u.flatten(),car_i)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
+                update_dynamics_count += 1
                 new_x = self.update_dynamics(xx_i[-1],u)
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
@@ -323,6 +326,7 @@ class iLQGameCarController(CarController):
                 #u,constrained = self.boundControl(u.flatten(),car_j)
                 u = np.array(u).reshape(-1,1)
                 self.t.s('update_dynamics')
+                update_dynamics_count += 1
                 new_x = self.update_dynamics(xx_j[-1],u)
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
@@ -421,6 +425,7 @@ class iLQGameCarController(CarController):
 
         self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
+        print(f'update dynamics: {update_dynamics_count}')
         return ctrl1,ctrl2
 
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
