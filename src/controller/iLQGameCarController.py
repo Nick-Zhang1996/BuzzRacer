@@ -20,6 +20,8 @@ class iLQGameCarController(CarController):
         self.n = 4
         self.iterations = 3
         self.draw_prediction = True
+        self.debug = False
+        self.leader_collision_ignorant = False
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -128,20 +130,19 @@ class iLQGameCarController(CarController):
         bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
         car_i.steering = bounded_ctrl[0]
         car_i.throttle = bounded_ctrl[1]
-        '''
-        car0_coord = car_i.states[0:2]
-        car0_heading = car_i.states[2]
-        left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
-        ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
-        ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
-        if (left<0 or right<0):
-            self.print_warning(ctrl0_text+' ---- out of track ')
-        else:
-            if (constrained):
-                self.print_ok(ctrl0_text+' C')
+        if (self.debug):
+            car0_coord = car_i.states[0:2]
+            car0_heading = car_i.states[2]
+            left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
+            ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
+            ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
+            if (left<0 or right<0):
+                self.print_warning(ctrl0_text+' ---- out of track ')
             else:
-                self.print_info(ctrl0_text)
-        '''
+                if (constrained):
+                    self.print_ok(ctrl0_text+' C')
+                else:
+                    self.print_info(ctrl0_text)
 
         # car j
         if (self.control_opponent):
@@ -149,20 +150,19 @@ class iLQGameCarController(CarController):
             car_j.steering = bounded_ctrl[0]
             car_j.throttle = bounded_ctrl[1]
 
-            '''
-            car1_coord = car_j.states[0:2]
-            car1_heading = car_j.states[2]
-            left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
-            ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
-            ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
-            if (left<0 or right<0):
-                self.print_warning(ctrl1_text+' ---- out of track ')
-            else:
-                if (constrained):
-                    self.print_ok(ctrl1_text+' C')
+            if (self.debug):
+                car1_coord = car_j.states[0:2]
+                car1_heading = car_j.states[2]
+                left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
+                ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
+                ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
+                if (left<0 or right<0):
+                    self.print_warning(ctrl1_text+' ---- out of track ')
                 else:
-                    self.print_info(ctrl1_text)
-            '''
+                    if (constrained):
+                        self.print_ok(ctrl1_text+' C')
+                    else:
+                        self.print_info(ctrl1_text)
         if (self.draw_prediction):
             self.drawPredictedTrajectory()
         #self.drawDebug()
@@ -468,8 +468,7 @@ class iLQGameCarController(CarController):
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
                 # based on current position, agent in front ignorant of collision
-                # FIXME always share collision responsibility
-                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                if (self.leader_collision_ignorant and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         Q2_x += 2* II.T @ self.Qcol @ II
                         q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
