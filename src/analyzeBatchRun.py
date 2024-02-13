@@ -7,7 +7,7 @@ from track import TrackFactory
 labels = "experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean_i , boundary_violation_i ,laptime_mean_j , boundary_violation_j , opponent_col"
 labels = [val.strip() for val in labels.split(',')]
 
-name = 'aggressive_baseline'
+name = 'aggressive_blocking'
 config_folder = './configs/' + name + '/'
 config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
@@ -29,6 +29,7 @@ with open(log,'r') as f:
         data_dict[label] = []
     #data_dict['Qop1_blocking'] = []
     data_dict['controller_name'] = []
+    data_dict['blocking_control'] = []
     for line in text:
         entry = line.split(',')
         if (eval(entry[-1]) == -1):
@@ -50,6 +51,8 @@ with open(log,'r') as f:
         #data_dict['Qop1_blocking'].append(Qop1_blocking)
         controller_name = config_controller.childNodes[1].childNodes[0].data
         data_dict['controller_name'].append(controller_name)
+        blocking = eval(config_controller.attributes['blocking_control'].nodeValue)
+        data_dict['blocking_control'].append(blocking)
 
 print(f'failed runs: {failed_runs_count}, total runs: {total_runs}')
 
@@ -75,8 +78,9 @@ win_i = np.sum(data_dict['end_lead_i_j']>0)
 win_j = np.sum(data_dict['end_lead_i_j']<0)
 print(f'win_i: {win_i}, win_j: {win_j}')
 
-def printTableEntry(controller_name):
-    mask = [val == controller_name for val in data_dict['controller_name']]
+def printTableEntry(blocking_control):
+    #mask = [val == controller_name for val in data_dict['controller_name']]
+    mask = [val == blocking_control for val in data_dict['blocking_control']]
 
     follow_mask = np.logical_and( mask , data_dict['start_lead_i_j']<0 )
     follow_win_mask = np.logical_and( follow_mask , data_dict['end_lead_i_j']>0 )
@@ -94,8 +98,8 @@ def printTableEntry(controller_name):
 
     opponent_col = np.mean(data_dict['opponent_col'][mask])
 
-    print(f'{controller_name:<30}\t, {follow_win_ratio:.2f}\t\t,{lead_win_ratio:.2f}\t\t,{overall_win_ratio:.2f}\t\t,{boundary_col_i:.2f}\t,{boundary_col_j:.2f}\t,{opponent_col:.2f}\t, {np.sum(mask)}')
+    print(f'{blocking_control:<30}\t, {follow_win_ratio:.2f}\t\t,{lead_win_ratio:.2f}\t\t,{overall_win_ratio:.2f}\t\t,{boundary_col_i:.2f}\t,{boundary_col_j:.2f}\t,{opponent_col:.2f}\t, {np.sum(mask)}')
 
-print(f'{"controller":<30} \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
-printTableEntry('iLQGameCarController')
-printTableEntry('AggressiveCarController')
+print(f'{"blocking?":<30} \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
+printTableEntry(True)
+printTableEntry(False)
