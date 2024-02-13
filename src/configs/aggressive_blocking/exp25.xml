@@ -8,7 +8,7 @@
   <extensions>
       <extension handle="laptimer">Laptimer</extension>
       <extension handle="logger">Logger</extension>
-      <extension car_graphics="False" handle="visualization">FakeVisualization</extension>
+      <extension handle="visualization" car_graphics="False">FakeVisualization</extension>
       <extension handle="simulator" match_time="False">CurvilinearSimulator</extension>
       <extension handle="boundary_checker">BoundaryChecker</extension>
       <extension handle="collision_checker">OpponentCollisionChecker</extension>
@@ -23,8 +23,8 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(2.1527282243092567, 1.2702509262820965, -1.5663770013906062, 3.9371317195270343)</init_states>
-      <controller Q1="np.diag(  [ 0,0.00,0.0,1.0])" Q2="np.diag(  [ 0,0.00,0.0,1.0])" blocking_control="True" boundary_min_distance="0.03" control_opponent="False" horizon="20" iterations="3" q1="np.array([[-1,-0.1,0,0]]).T" q2="np.array([[-1,-0.1,0,0]]).T">
+      <init_states>(3.5304878304480156, 0.7182496992315368, 0.8734529361824155, 2.8489619659889556)</init_states>
+      <controller control_opponent="False" blocking_control="True" iterations="3" horizon="20" Q1="np.diag(  [ 0,0.00,0.0,1.0])" q1="np.array([[-1,-0.1,0,0]]).T" Q2="np.diag(  [ 0,0.00,0.0,1.0])" q2="np.array([[-1,-0.1,0,0]]).T" boundary_min_distance="0.03">
         <type>iLQGameCarController</type>
       </controller>
     </car>
@@ -33,8 +33,8 @@
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(2.3581010889050478, 1.0704318080745, -1.6065157260604397, 2.9863368355319633)</init_states>
-      <controller Q1="np.diag(  [ 0,0.00,0.0,1.0])" Q2="np.diag(  [ 0,0.00,0.0,1.0])" blocking_control="False" boundary_min_distance="0.03" control_opponent="False" horizon="20" iterations="3" q1="np.array([[-1,-0.1,0,0]]).T" q2="np.array([[-1,-0.1,0,0]]).T">
+      <init_states>(3.142381214751396, 0.5311398744712028, 0.6785797732421956, 2.8454509708842517)</init_states>
+      <controller control_opponent="False" blocking_control="False" iterations="3" horizon="20" Q1="np.diag(  [ 0,0.00,0.0,1.0])" q1="np.array([[-1,-0.1,0,0]]).T" Q2="np.diag(  [ 0,0.00,0.0,1.0])" q2="np.array([[-1,-0.1,0,0]]).T" boundary_min_distance="0.03">
         <type>iLQGameCarController</type>
       </controller>
     </car>
