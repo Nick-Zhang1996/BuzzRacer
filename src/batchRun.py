@@ -17,6 +17,7 @@ if __name__ == '__main__':
     if (len(config_filename_vec) == 0):
         print_error("no file fitting pattern ",pattern)
     print_info('total configs: %d'%len(config_filename_vec))
+    config_filename_vec.sort(key=lambda f:int(''.join(filter(str.isdigit,f))))
 
     # TODO add progress report, suppress output
     print_info('skipping first %d exp'%(skip))
