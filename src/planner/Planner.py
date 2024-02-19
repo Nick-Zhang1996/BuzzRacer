@@ -7,7 +7,7 @@ class Planner(ConfigObject):
         self.config = config
         self.car = None
         self.main = None
-        super().__init__(config)
+        ConfigObject.__init__(self,config)
 
     def init(self):
         return

@@ -42,11 +42,14 @@ class StanleyCarController(CarController):
             self.print_info(" controller.",key,'=',value_text)
         '''
 
+
+    def init(self):
+        CarController.init(self)
         # if there's planner set it up
         # TODO put this in a parent class constructor
         self.no_planner_override = True
         try:
-            config_planner = config.getElementsByTagName('planner')[0]
+            config_planner = self.config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
             self.planner = planner_class(config_planner)
             self.planner.main = self.main
