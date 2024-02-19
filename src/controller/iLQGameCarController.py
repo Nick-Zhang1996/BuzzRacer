@@ -400,7 +400,7 @@ class iLQGameCarController(CarController):
             bBs = B1s
             bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
 
-            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=1)
+            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=self.alpha)
 
             [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
                 bAs, [bBs],
@@ -767,19 +767,7 @@ class iLQGameCarController(CarController):
         v_diff = self.ego_car.sim_states[1] - self.oppo_car.sim_states[1]
         opponent_n = self.oppo_car.sim_states[2]
 
-        Q1s = []
-        Q2s = []
-        q1s = []
-        q2s = []
-
-        R11s = []
-        R22s = []
-
-        R12s = []
-        R21s = []
-
-        r1s = []
-        r2s = []
+        Q1s = [];Q2s = [];q1s = [];q2s = [];R11s = [];R22s = [];R12s = [];R21s = [];r1s = [];r2s = [];
 
         n = self.n
         m = self.m
@@ -787,39 +775,41 @@ class iLQGameCarController(CarController):
         II = np.hstack([np.eye(n),-np.eye(n)])
         R0 = np.zeros((m,m))
 
-        Q1 = self.Q1
-        q1 = self.q1
-        Q2 = self.Q2
-        q2 = self.q2
-        Qcol = self.Qcol
+        Q1 = self.Q1; q1 = self.q1;Q2 = self.Q2;q2 = self.q2;Qcol = self.Qcol;
+        ori_Q1_x =  block_diag(Q1,np.zeros((n,n)))
+        ori_q1_x = np.hstack([q1.T,np.zeros((1,n))])
+        ori_q1_x[0,n] = self.Qop1
+
+        ori_Q2_x =  block_diag(np.zeros((n,n)),Q2)
+        ori_q2_x = np.hstack([np.zeros((1,n)),q2.T])
+        ori_q2_x[0,0] = self.Qop2
+
         if (lead > 0 and v_diff < 0):
             # if leading: block opponent by penalizing (n_i-n_j)**2
             Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,0.0,1.0]) # n:1
             q1 = (1-alpha)*self.q1 + alpha* np.array([[-1,0,0,0]]).T # -4
             # blocking reward
             Qblk = np.diag([0,0,30.0,0])
-            Q1_x += alpha* (2* Ii.T @ Qblk @ Ii)
-            q1_x += alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
+            ori_Q1_x += alpha* (2* Ii.T @ Qblk @ Ii)
+            ori_q1_x += alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
         else:
             # if chasing: less regard to collision
-            Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
-            q1 = (1-alpha)*self.Q1 + alpha* np.array([[-4,0,0,0]]).T # -4
+            ori_Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
+            ori_q1 = (1-alpha)*self.Q1 + alpha* np.array([[-4,0,0,0]]).T # -4
             # TODO: retain some collision cost
-            Qcol = (1-alpha)*self.Qcol + alpha*(self.Qcol*0.2)
+            ori_Qcol = (1-alpha)*self.Qcol + alpha*(self.Qcol*0.2)
 
 
         for t in range(self.horizon):
             # these cost matrices work on the stacked agent state x, not state perturbation dx
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
-            Q1_x =  block_diag(Q1,np.zeros((n,n)))
-            q1_x = np.hstack([q1.T,np.zeros((1,n))])
-            q1_x[0,n] = self.Qop1
-
-            Q2_x =  block_diag(np.zeros((n,n)),Q2)
-            q2_x = np.hstack([np.zeros((1,n)),q2.T])
-            q2_x[0,0] = self.Qop2
+            Q1_x = ori_Q1_x.copy()
+            q1_x = ori_q1_x.copy()
+            Q2_x = ori_Q2_x.copy()
+            q2_x = ori_q2_x.copy()
 
             # barrier function: opponent collision
+            delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0]>0 else 1

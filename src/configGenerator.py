@@ -79,30 +79,39 @@ def getRandomInitialStatePair(leader=None):
         return tuple(cart0[:4]),tuple(cart1[:4])
 
 index = 0
-#controller_vec = ['AggressiveCarController','iLQGameCarController']
-blocking_control_vec = [True,False]
+#blocking_control_vec = [True,False]
+alpha_vec = [0,0.5,1.0]
 for i in range(10):
-    for blocking in blocking_control_vec:
-        s0,s1 = getRandomInitialStatePair(leader=0)
-        for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
-            config = deepcopy(original_config)
-            config_extensions = config.getElementsByTagName('extensions')[0]
-            config_cars = config.getElementsByTagName('cars')[0]
-            config_car0 = config_cars.getElementsByTagName('car')[0]
-            config_car1 = config_cars.getElementsByTagName('car')[1]
-            config_controller = config_car0.getElementsByTagName('controller')[0]
-            #attrs = config_controller.attributes.items()
-            #config_controller.attributes['Qop1'] =  str(q0)
-            #config_controller.attributes['Qop2'] =  str(q1)
-            #config_controller.attributes['Qop1_blocking'] =  str(qop)
-            #config_controller.childNodes[1].childNodes[0].data = controller_name
-            config_controller.attributes['blocking_control'] =  str(blocking)
+    for alpha0 in alpha_vec:
+        for alpha1 in alpha_vec:
+            if alpha0<alpha1:
+                continue
+            s0,s1 = getRandomInitialStatePair(leader=0)
+            for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                config = deepcopy(original_config)
+                config_extensions = config.getElementsByTagName('extensions')[0]
+                config_cars = config.getElementsByTagName('cars')[0]
+                config_car0 = config_cars.getElementsByTagName('car')[0]
+                config_car1 = config_cars.getElementsByTagName('car')[1]
+                config_car0_controller = config_car0.getElementsByTagName('controller')[0]
+                config_car1_controller = config_car1.getElementsByTagName('controller')[0]
+                #attrs = config_controller.attributes.items()
+                #config_controller.attributes['Qop1'] =  str(q0)
+                #config_controller.attributes['Qop2'] =  str(q1)
+                #config_controller.attributes['Qop1_blocking'] =  str(qop)
+                #config_controller.childNodes[1].childNodes[0].data = controller_name
 
-            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
-            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+                config_car0_controller.attributes['blocking_control'] =  str(alpha0>0)
+                config_car0_controller.attributes['alpha'] =  str(alpha0)
 
-            with open(config_folder+'exp%d.xml'%(index),'w') as f:
-                config.writexml(f)
-            index += 1
+                config_car1_controller.attributes['blocking_control'] =  str(alpha1>0)
+                config_car1_controller.attributes['alpha'] =  str(alpha1)
+
+                config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+                with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                    config.writexml(f)
+                index += 1
 
 print('generated %d configs'%index)
