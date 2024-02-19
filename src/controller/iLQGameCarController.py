@@ -93,7 +93,7 @@ class iLQGameCarController(CarController):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
-        assert(isinstance(self.simulator,CurvilinearSimulator))
+        #assert(isinstance(self.simulator,CurvilinearSimulator))
         assert(len(self.main.cars)==2)
         self.ego_car = self.car
         for car in self.main.cars:
@@ -121,7 +121,15 @@ class iLQGameCarController(CarController):
     def control(self):
         self.debug_dict = {}
         # s,v,n,phi
-        ctrl0, ctrl1 = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
+        alpha1s, P1s, alpha2s, P2s = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
+        xx_i = self.ego_car.sim_states.reshape((self.n,1))
+        xx_j = self.oppo_car.sim_states.reshape((self.n,1))
+        dx_i = xx_i - self.x_i_ref[0]
+        dx_j = xx_j - self.x_j_ref[0]
+        dx = np.vstack([dx_i,dx_j])
+        ctrl0 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+        ctrl1 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
+
 
         # car i
         car_i = self.ego_car
@@ -319,7 +327,7 @@ class iLQGameCarController(CarController):
                 Bis.append(B)
                 uu_i.append(u)
 
-                #for ego agent j
+                #for oppo agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
                 # NOTE ignoring control constraint
                 #u,constrained = self.boundControl(u.flatten(),car_j)
@@ -417,15 +425,10 @@ class iLQGameCarController(CarController):
             P1s = new_P1s = blocking_P1s
 
 
-        dx_i = xx_i[0] - self.x_i_ref[0]
-        dx_j = xx_j[0] - self.x_j_ref[0]
-        dx = np.vstack([dx_i,dx_j])
-        ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
-        ctrl2 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
-        return ctrl1,ctrl2
+        return alpha1s, P1s, alpha2s, P2s
 
     def createConstants(self):
         n = self.n
