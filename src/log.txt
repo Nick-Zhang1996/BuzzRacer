@@ -247,3 +247,13 @@ Results for i
 4 	, -4 	, 0.20		,nan		,0.20		,30
 -4 	, 4 	, 0.50		,nan		,0.50		,30
 0 zero leads
+[92m [Track]:  setting saved attributes [0m
+[92m track loaded [0m
+[92m [NascarTrack]:  setting saved attributes [0m
+[96m [NascarTrack]:  No custom postLoad() [0m
+opening log ../log/aggressive_blocking/textlog.txt
+failed runs: 0, total runs: 39
+win_i: 29, win_j: 10
+blocking?                      	, follow win 	, lead win 	,overall win 	, i out	, j out	, col	,total runs
+1                             	, 1.00		,1.00		,1.00		,0.11	,0.11	,1.00	, 19
+0                             	, 0.40		,0.60		,0.50		,0.05	,0.05	,0.80	, 20

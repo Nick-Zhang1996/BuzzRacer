@@ -398,15 +398,12 @@ class iLQGameCarController(CarController):
             bBs = B1s
             bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
 
-            original_Qop = self.Qop1
-            self.Qop1 = self.Qop1_blocking
-            bQ1s,bq1s,_,_,bRs,brs = self.getAggressiveCostMatrices(xx_i,uu_i,xx_j,uu_j)
+            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=1)
 
             [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
                 bAs, [bBs],
                 [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
 
-            self.Qop1 = original_Qop
             #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
             #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
             alpha1s = new_alpha1s = blocking_alpha1s
@@ -423,7 +420,7 @@ class iLQGameCarController(CarController):
         self.t.e()
         return ctrl1,ctrl2
 
-    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
+    def getCostMatricesObsolete(self,xx_i,uu_i,xx_j,uu_j):
         Q1s = []
         Q2s = []
         q1s = []
@@ -761,22 +758,10 @@ class iLQGameCarController(CarController):
 
         self.main.visualization.drawControl = drawControl
 
-    def getAggressiveCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
+    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j,alpha=0):
         lead = self.ego_car.sim_states[0] - self.oppo_car.sim_states[0]
         v_diff = self.ego_car.sim_states[1] - self.oppo_car.sim_states[1]
         opponent_n = self.oppo_car.sim_states[2]
-        if (lead > 0 and v_diff < 0):
-            # if leading: block opponent by penalizing (n_i-n_j)**2
-            self.Q1 = np.diag(  [ 0,0.00,0.0,1.0]) # n:1
-            self.q1 = np.array([[-1,0,0,0]]).T # -4
-            # collision cost, repurposed to blocking reward
-            Kcol = 30.0
-            self.Qcol = np.diag([0,0,Kcol,0])
-        else:
-            # if chasing: no regard to collision
-            self.Q1 = np.diag(  [ 0,0.00,2.0,1.0]) # n:1
-            self.q1 = np.array([[-4,0,0,0]]).T # -4
-            self.Qcol = np.diag([0,0,0,0])
 
         Q1s = []
         Q2s = []
@@ -795,25 +780,63 @@ class iLQGameCarController(CarController):
         n = self.n
         m = self.m
         Ii = np.hstack([np.eye(n),np.zeros((n,n))])
+        II = np.hstack([np.eye(n),-np.eye(n)])
         R0 = np.zeros((m,m))
 
+        Q1 = self.Q1
+        q1 = self.q1
+        Q2 = self.Q2
+        q2 = self.q2
+        Qcol = self.Qcol
+        if (lead > 0 and v_diff < 0):
+            # if leading: block opponent by penalizing (n_i-n_j)**2
+            Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,0.0,1.0]) # n:1
+            q1 = (1-alpha)*self.q1 + alpha* np.array([[-1,0,0,0]]).T # -4
+            # blocking reward
+            Qblk = np.diag([0,0,30.0,0])
+            Q1_x += alpha* (2* Ii.T @ Qblk @ Ii)
+            q1_x += alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
+        else:
+            # if chasing: less regard to collision
+            Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
+            q1 = (1-alpha)*self.Q1 + alpha* np.array([[-4,0,0,0]]).T # -4
+            # TODO: retain some collision cost
+            Qcol = (1-alpha)*self.Qcol + alpha*np.diag([0,0,0,0])
 
 
         for t in range(self.horizon):
             # these cost matrices work on the stacked agent state x, not state perturbation dx
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
-            Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
-            q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
-            q1_x[0,n] = self.Qop1
+            Q1_x =  block_diag(Q1,np.zeros((n,n)))
+            q1_x = np.hstack([q1.T,np.zeros((1,n))])
+            q1_x[0,n] = Qop1
 
-            Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
-            q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
-            q2_x[0,0] = self.Qop2
+            Q2_x =  block_diag(np.zeros((n,n)),Q2)
+            q2_x = np.hstack([np.zeros((1,n)),q2.T])
+            q2_x[0,0] = Qop2
 
-            # NOTE reward for blocking opponent
-            delta_x = xx_i[t] - xx_j[t]
-            Q1_x += 2* Ii.T @ self.Qcol @ Ii
-            q1_x += -2*np.array([[0,0,opponent_n,0]]) @ self.Qcol @ Ii
+            # barrier function: opponent collision
+            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
+                #self.print_info('collision avoidance')
+                sgn_s = -1 if delta_x[0]>0 else 1
+                sgn_n = -1 if delta_x[2]>0 else 1
+                # based on current position, agent in front ignorant of collision
+                # FIXME always share collision responsibility
+                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                    if (xx_i[t][0] - xx_j[t][0] > 0):
+                        # agent j responsible
+                        Q2_x += 2* II.T @ Qcol @ II
+                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                    else:
+                        # agent i responsible
+                        Q1_x += 2* II.T @ Qcol @ II
+                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                else:
+                    # if side by side both agent responsible
+                    Q1_x += 2* II.T @ Qcol @ II
+                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                    Q2_x += 2* II.T @ Qcol @ II
+                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
