@@ -15,13 +15,14 @@ from scipy.linalg import block_diag
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from bisect import bisect
 from scipy.optimize import minimize
+from planner.Planner import Planner
 
 # TODO:
 # properly fix first step error
 # in curvilinear coord conversion, search for shorter range
 # drop irrelevant opponent ASAP
 
-class Planner(ConfigObject):
+class MinCurvaturePlanner(Planner):
     def __init__(self,config=None):
         self.config = config
         # NOTE these will be overridded by config file
@@ -160,7 +161,7 @@ class Planner(ConfigObject):
         self.best_plan_traj_points = self.stateTrajToCartesianTraj(self.best_solution[1])
         return True
 
-    def plotAllSolutions(self):
+    def plotDebug(self):
         # plot solutions
         sols = self.solutions
         best_sol_idx = self.best_solution_index

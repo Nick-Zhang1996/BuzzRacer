@@ -2,7 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
+from planner import *
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
@@ -68,7 +68,7 @@ class StanleyCarController(CarController):
         if (self.planner is not None):
             retval = self.planner.plan()
             if (retval):
-                self.planner.plotAllSolutions()
+                self.planner.plotDebug()
                 self.no_planner_override = False
             else:
                 self.no_planner_override = True
