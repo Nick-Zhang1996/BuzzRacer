@@ -20,6 +20,8 @@ class iLQGameCarController(CarController):
         self.n = 4
         self.iterations = 3
         self.draw_prediction = True
+        # aggressiveness
+        self.alpha = 0
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -420,6 +422,7 @@ class iLQGameCarController(CarController):
         self.t.e()
         return ctrl1,ctrl2
 
+    '''
     def getCostMatricesObsolete(self,xx_i,uu_i,xx_j,uu_j):
         Q1s = []
         Q2s = []
@@ -601,6 +604,7 @@ class iLQGameCarController(CarController):
         rs = [r1s, r2s]
 
         return Q1s,q1s,Q2s,q2s,Rs,rs
+    '''
 
 
     # differentiate dynamics around nominal state and control
@@ -801,7 +805,7 @@ class iLQGameCarController(CarController):
             Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
             q1 = (1-alpha)*self.Q1 + alpha* np.array([[-4,0,0,0]]).T # -4
             # TODO: retain some collision cost
-            Qcol = (1-alpha)*self.Qcol + alpha*np.diag([0,0,0,0])
+            Qcol = (1-alpha)*self.Qcol + alpha*(self.Qcol*0.2)
 
 
         for t in range(self.horizon):
@@ -809,11 +813,11 @@ class iLQGameCarController(CarController):
             # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
             Q1_x =  block_diag(Q1,np.zeros((n,n)))
             q1_x = np.hstack([q1.T,np.zeros((1,n))])
-            q1_x[0,n] = Qop1
+            q1_x[0,n] = self.Qop1
 
             Q2_x =  block_diag(np.zeros((n,n)),Q2)
             q2_x = np.hstack([np.zeros((1,n)),q2.T])
-            q2_x[0,0] = Qop2
+            q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):

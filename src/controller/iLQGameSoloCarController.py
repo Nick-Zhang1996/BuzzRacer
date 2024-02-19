@@ -8,6 +8,8 @@ class iLQGameSoloCarController(iLQGameCarController):
     def __init__(self, car,config):
         super().__init__(car,config)
         self.iterations = 1
+        self.opponent_min_distance_s *= 1.5
+        self.opponent_min_distance_n *=1.5
 
     # ego car solely responsible for evading opponent car
     def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
@@ -43,7 +45,7 @@ class iLQGameSoloCarController(iLQGameCarController):
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
-            if (np.abs(delta_x[0])<1.5*self.opponent_min_distance_s and np.abs(delta_x[2])<1.5*self.opponent_min_distance_n):
+            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
