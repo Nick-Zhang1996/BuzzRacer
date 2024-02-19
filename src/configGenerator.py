@@ -80,12 +80,11 @@ def getRandomInitialStatePair(leader=None):
 
 index = 0
 #blocking_control_vec = [True,False]
-alpha_vec = [0,0.5,1.0]
+#alpha_vec = [0,0.5,1.0]
+Qop_vec = [-4,0,4]
 for i in range(10):
-    for alpha0 in alpha_vec:
-        for alpha1 in alpha_vec:
-            if alpha0<alpha1:
-                continue
+    for Qop1 in Qop_vec:
+        for Qop2 in Qop_vec:
             s0,s1 = getRandomInitialStatePair(leader=0)
             for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
                 config = deepcopy(original_config)
@@ -96,16 +95,16 @@ for i in range(10):
                 config_car0_controller = config_car0.getElementsByTagName('controller')[0]
                 config_car1_controller = config_car1.getElementsByTagName('controller')[0]
                 #attrs = config_controller.attributes.items()
-                #config_controller.attributes['Qop1'] =  str(q0)
-                #config_controller.attributes['Qop2'] =  str(q1)
+                config_car0_controller.attributes['Qop1'] =  str(Qop1)
+                config_car0_controller.attributes['Qop2'] =  str(Qop2)
                 #config_controller.attributes['Qop1_blocking'] =  str(qop)
                 #config_controller.childNodes[1].childNodes[0].data = controller_name
 
-                config_car0_controller.attributes['blocking_control'] =  str(alpha0>0)
-                config_car0_controller.attributes['alpha'] =  str(alpha0)
+                #config_car0_controller.attributes['blocking_control'] =  str(alpha0>0)
+                #config_car0_controller.attributes['alpha'] =  str(alpha0)
 
-                config_car1_controller.attributes['blocking_control'] =  str(alpha1>0)
-                config_car1_controller.attributes['alpha'] =  str(alpha1)
+                #config_car1_controller.attributes['blocking_control'] =  str(alpha1>0)
+                #config_car1_controller.attributes['alpha'] =  str(alpha1)
 
                 config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
                 config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
