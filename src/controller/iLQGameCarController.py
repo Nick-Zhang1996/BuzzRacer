@@ -69,7 +69,7 @@ class iLQGameCarController(CarController):
         self.circular_control_barrier = True
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
-        self.alpha = 1.0
+        self.new_control_ratio = 1.0
         # if true, this controller will control opponent
         self.control_opponent = False
         # if true, add another layer of optimization for ego agent (i)
@@ -386,11 +386,12 @@ class iLQGameCarController(CarController):
                 P1s = new_P1s
                 P2s = new_P2s
             else:
-                alpha = self.alpha
-                alpha1s = alpha1s* (1-alpha) + alpha *new_alpha1s
-                alpha2s = alpha2s* (1-alpha) + alpha *new_alpha2s
-                P1s = P1s* (1-alpha) + alpha *new_P1s
-                P2s = P2s* (1-alpha) + alpha *new_P2s
+                # momentum
+                r = self.new_control_ratio
+                alpha1s = alpha1s* (1-r) + r *new_alpha1s
+                alpha2s = alpha2s* (1-r) + r *new_alpha2s
+                P1s = P1s* (1-r) + r *new_P1s
+                P2s = P2s* (1-r) + r *new_P2s
 
         # additional layer of optimization
         if (self.blocking_control):
