@@ -1,0 +1,1 @@
+./configs/ilqgame_mpc/exp100.xml,./configs/ilqgame_mpc/exp100.xml,../log/./configs/ilqgame_mpc/exp100.xml/full_state1.p,1,0,4,0.18549622318191472,0.7207865704735497,3.859999999999918,0,nan,0,0
