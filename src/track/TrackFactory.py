@@ -56,6 +56,7 @@ class TrackFactory:
         if (track is None):
             track = Track(main=main,config=config)
         track = track.load(main=main,config=config)
+        print(f'loaded track of type {type(track)}')
         return track
 
     @staticmethod

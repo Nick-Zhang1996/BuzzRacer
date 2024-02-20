@@ -7,19 +7,21 @@ class Planner(ConfigObject):
         self.config = config
         self.car = None
         self.main = None
+        # N*2 cartesian points
+        self.plan_traj = None
         ConfigObject.__init__(self,config)
 
-    def init(self):
-        return
     # create a plan, store states internally
+    # return True/False, indicating planner success/failure
     def plan(self):
-        return
+        return True
 
     def plotDebug(self):
         #plot debug information
         return
 
     def localTrajectory(self,state):
+        #(local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
         return
 
 

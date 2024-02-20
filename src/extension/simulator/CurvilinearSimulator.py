@@ -63,34 +63,38 @@ class CurvilinearSimulator(Simulator):
         car.control_dim = 2
 
     def cart2Curv(self, cart, guess_s=None):
+        return CurvilinearSimulator.cart2CurvTrack(cart,self.track,guess_s)
+
+    @staticmethod
+    def cart2CurvTrack(cart, track,guess_s=None):
         '''
             transform cartesian states to curvilinear states
-            relies on self.track.raceline_s
+            relies on track.raceline_s
             [cart]: (x,y,heading,v_forward,v_sideway,omega)
             [guess_s]: estimated s
             [return]: (s,v,n,phi)
         '''
         x,y,heading,v_forward,v_sideway,omega = cart
 
-        #dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
+        #dist = lambda s: np.linalg.norm(np.array(splev(s%track.raceline_len_m,track.raceline_s,der=0)) - np.array([x,y]))
         def dist(s):
-            val = np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)).flatten() - np.array([x,y]))
+            val = np.linalg.norm(np.array(splev(s%track.raceline_len_m,track.raceline_s,der=0)).flatten() - np.array([x,y]))
             return val
 
         if (guess_s is None):
             # initial guess to avoid local minima
-            xx = np.linspace(0.0, self.track.raceline_len_m,10)
+            xx = np.linspace(0.0, track.raceline_len_m,10)
             yy = [dist(x) for x in xx]
             guess_s = xx[np.argmin(yy)]
-            ds = 2*self.track.raceline_len_m/10
+            ds = 2*track.raceline_len_m/10
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-ds,guess_s+ds),))
         else:
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-0.2,guess_s+0.2),))
 
         s = fit.x[0]
 
-        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
-        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
+        r = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=0))
+        dr = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
         n = np.cross(dr, np.array([x,y]) - r)
         # ignore sideway velocity
@@ -114,15 +118,19 @@ class CurvilinearSimulator(Simulator):
         plt.show()
         return
 
-    def curv2Cart(self, curv):
+    def curv2Cart(self,curv):
+        return CurvilinearSimulator.curv2CartTrack(curv,self.track)
+
+    @staticmethod
+    def curv2CartTrack(curv,track):
         '''
             transform curvilinear states to cartesian states
             [curv]: (s,v,n,phi)
             [return]: (x,y,heading,v_forward,v_sideway,omega)
         '''
         s,v,n,phi = curv.flatten()
-        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
-        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
+        r = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=0))
+        dr = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
 
         # ccw 90 deg
@@ -134,6 +142,11 @@ class CurvilinearSimulator(Simulator):
         v_sideway = 0.0
         omega = 0.0
         return np.array([x,y,heading, v_forward, v_sideway, omega])
+
+    @staticmethod
+    def curvatureTrack(s,track):
+        r = np.array(splev(s%track.raceline_len_m, track.curvature_fun, der=0))
+        return r.item()
 
     def curvature(self,s):
         r = np.array(splev(s%self.track.raceline_len_m, self.track.curvature_fun, der=0))
@@ -159,9 +172,10 @@ class CurvilinearSimulator(Simulator):
             curvature = 0.0
         return np.copysign(curvature, sign)
 
-    def advancePointMassDynamics(self, curv_states, control, dt):
+    @staticmethod
+    def advancePointMassDynamics(curv_states, control, dt,track):
         s,v,n,phi = curv_states
-        k_s = self.curvature(s)
+        k_s = CurvilinearSimulator.curvatureTrack(s,track)
         ay,ax = control
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
@@ -200,6 +214,6 @@ class CurvilinearSimulator(Simulator):
             breakpoint()
         '''
 
-        car.sim_states = self.advancePointMassDynamics(car.sim_states, control, dt)
+        car.sim_states = CurvilinearSimulator.advancePointMassDynamics(car.sim_states, control, dt,self.track)
 
         return self.curv2Cart(car.sim_states)

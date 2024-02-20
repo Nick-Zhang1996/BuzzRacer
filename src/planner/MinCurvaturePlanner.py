@@ -43,7 +43,7 @@ class MinCurvaturePlanner(Planner):
 
 
         self.best_solution = None
-        self.best_plan_traj_points = None
+        self.plan_traj = None
         # replan every x steps
         #self.replan_steps = 3
         # when replan, overlap previous plan x steps
@@ -158,7 +158,7 @@ class MinCurvaturePlanner(Planner):
         self.best_solution = sols[best_sol_idx]
         self.solutions = sols
         self.best_solution_index = best_sol_idx
-        self.best_plan_traj_points = self.stateTrajToCartesianTraj(self.best_solution[1])
+        self.plan_traj = self.stateTrajToCartesianTraj(self.best_solution[1])
         return True
 
     def plotDebug(self):

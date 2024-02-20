@@ -46,6 +46,7 @@
       <init_states>(3.9*0.6,3.3*0.6, radians(-90), 2.0)</init_states>
       <controller>
         <type>StanleyCarController</type>
+        <planner>Planner</planner>
       </controller>
     </car>
 

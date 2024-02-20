@@ -2,37 +2,14 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
+from planner import *
 import matplotlib.pyplot as plt
 
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
         super().__init__(car,config)
 
-        '''
-        for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
-            self.print_info(" controller.",key,'=',value_text)
-        '''
 
-        # if there's planner set it up
-        # TODO put this in a parent class constructor
-        try:
-            config_planner = config.getElementsByTagName('planner')[0]
-            planner_class = eval(config_planner.firstChild.nodeValue)
-            self.planner = planner_class(config_planner)
-            self.planner.main = self.main
-            self.planner.car = self.car
-            '''
-            self.print_ok("setting planner attributes")
-            for key,value_text in config_planner.attributes.items():
-                setattr(self.planner,key,eval(value_text))
-                self.print_info(" main.",key,'=',value_text)
-            '''
-            self.planner.init()
-        except IndexError as e:
-            self.print_info("planner not available")
-            self.planner = None
 
     def init(self):
         CarController.init(self)
@@ -46,11 +23,11 @@ class PurePursuitCarController(CarController):
         dt = self.car.main.dt
         self.throttle_pid = PidController(P,I,D,dt,1,2)
 
-        self.track.prepareDiscretizedRaceline()
-        self.track.createBoundary()
-        self.discretized_raceline = self.track.discretized_raceline
-        self.raceline_left_boundary = self.track.raceline_left_boundary
-        self.raceline_right_boundary = self.track.raceline_right_boundary
+        #self.track.prepareDiscretizedRaceline()
+        #self.track.createBoundary()
+        #self.discretized_raceline = self.track.discretized_raceline
+        #self.raceline_left_boundary = self.track.raceline_left_boundary
+        #self.raceline_right_boundary = self.track.raceline_right_boundary
 
     def control(self):
         if self.planner is None:
@@ -59,10 +36,10 @@ class PurePursuitCarController(CarController):
             raceline_speed = self.track.raceline_velocity
         else:
             self.planner.plan()
-            raceline_pnts = self.planner.best_plan_traj_points
+            raceline_pnts = self.planner.plan_traj
             # TODO 
             raceline_speed = np.ones_like(raceline_pnts[:,0])*2.0
-            self.planner.plotAllSolutions()
+            self.planner.plotDebug()
 
 
         x,y,heading,vf,vs,omega = self.car.states
