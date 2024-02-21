@@ -28,6 +28,8 @@ class iLQGamePlanner(Planner,iLQGameCarController):
 
     # create a plan, store states internally
     def plan(self):
+        if (not self.needReplan()):
+            return True
         # set all car sim_states
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
