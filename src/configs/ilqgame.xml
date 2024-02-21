@@ -22,7 +22,7 @@
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
       <controller 
         control_opponent='True' 
-        blocking_control='True'
+        blocking_control='False'
         iterations='1'
         horizon='14'
         Q1='np.diag(  [ 0,0.00,10.0,10.0])'

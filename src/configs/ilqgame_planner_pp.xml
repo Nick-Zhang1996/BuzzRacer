@@ -10,7 +10,7 @@
       <extension handle='logger'>Logger</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <extension handle='simulator' match_time='False'>KinematicSimulator</extension>
       <extension handle='lap_counter' lap_count='0'>LapCounter</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
@@ -24,17 +24,18 @@
       <controller>
         <type>PurePursuitCarController</type>
         <planner 
+          skip_count='3'
           debug='False'
-          leader_collision_ignorant='True'
           control_opponent='True' 
           blocking_control='False'
           iterations='1'
           horizon='14'
-          Q1='np.diag(  [ 0,0.00,20.0,5.0])'
-          q1='np.array([[-1,-0.2,0,0]]).T'
-          Q2='np.diag(  [ 0,0.00,20.0,5.0])'
-          q2='np.array([[-1,-0.2,0,0]]).T'
-          boundary_min_distance='0.02'
+          Q1='np.diag(  [ 0,0.00,30.0,3.0])'
+          q1='np.array([[-0.01,-0.1,0,0]]).T'
+          Q2='np.diag(  [ 0,0.00,30.0,3.0])'
+          q2='np.array([[-0.01,-0.1,0,0]]).T'
+          Kcol='0'
+          boundary_min_distance='0.03'
           >iLQGamePlanner</planner>
       </controller>
     </car>

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
 
-        self.lookahead = 0.2
+        #self.lookahead = 0.2
         self.max_speed = 2.0
         super().__init__(car,config)
         # if there's planner set it up
@@ -68,17 +68,23 @@ class PurePursuitCarController(CarController):
             self.planner.plotDebug()
 
 
+
         x,y,heading,vf,vs,omega = self.car.states
         # find control point of distance lookahead
         dist = ((raceline_pnts[:,0] - x)**2 + (raceline_pnts[:,1] - y)**2)**0.5
         idx_car = np.argmin(dist)
+        '''
         idx_lookahead = np.argmin( np.abs(dist[idx_car:] - self.lookahead) ) + idx_car
+        '''
+        idx_lookahead = int(len(raceline_pnts)*0.3)
 
         # change to local reference frame
         dx = raceline_pnts[idx_lookahead,0] - x
         dy = raceline_pnts[idx_lookahead,1] - y
         dx_body = dx*cos(heading) + dy*sin(heading)
         dy_body = -dx*sin(heading) + dy*cos(heading)
+
+        #self.print_info(f'lookahead =  {(dx**2+dy**2)**0.5:0.3}')
 
         # pure pursuit
         theta = np.arctan2(dx_body,dy_body)

@@ -83,7 +83,7 @@ class CurvilinearSimulator(Simulator):
 
         if (guess_s is None):
             # initial guess to avoid local minima
-            xx = np.linspace(0.0, track.raceline_len_m,10)
+            xx = np.linspace(0.0, track.raceline_len_m,50)
             yy = [dist(x) for x in xx]
             guess_s = xx[np.argmin(yy)]
             ds = 2*track.raceline_len_m/10

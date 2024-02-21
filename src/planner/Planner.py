@@ -13,11 +13,11 @@ class Planner(ConfigObject):
         self.plan_traj = None
         # replan every [skip_count] steps
         self.skip_count = 3
+
+        ConfigObject.__init__(self,config)
         # age of a plan in timesteps, use for asynchronous updates
         # init to skip_count so plan would happen on first step
         self.plan_age = self.skip_count
-
-        ConfigObject.__init__(self,config)
 
     def preInit(self):
         return
