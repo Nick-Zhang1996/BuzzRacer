@@ -16,6 +16,7 @@ class TrackFactory:
         # NOTE skidpad, empty, orca weren't fully tested
         mapping = {
                 'saved':TrackFactory.prepareSavedTrack,
+                'nascar_saved':TrackFactory.prepareSavedNascarTrack,
                 # RCP tracks
                 'full':TrackFactory.prepareRcpTrack,
                 'small':TrackFactory.prepareRcpTrackSmall,
@@ -56,6 +57,13 @@ class TrackFactory:
         if (track is None):
             track = Track(main=main,config=config)
         track = track.load(main=main,config=config)
+        return track
+
+    @staticmethod
+    def prepareSavedNascarTrack(main,config,track=None):
+        if (track is None):
+            track = Track(main=main,config=config)
+        track = track.load(filename='nascar.p',main=main,config=config)
         return track
 
     @staticmethod

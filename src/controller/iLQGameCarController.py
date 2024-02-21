@@ -407,11 +407,15 @@ class iLQGameCarController(CarController):
                 bAs, [bBs],
                 [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
 
+            #old_ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+
             #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
             #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
             alpha1s = new_alpha1s = blocking_alpha1s
             P1s = new_P1s = blocking_P1s
 
+            #new_ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+            #self.print_info(new_ctrl1-old_ctrl1)
 
         dx_i = xx_i[0] - self.x_i_ref[0]
         dx_j = xx_j[0] - self.x_j_ref[0]
@@ -610,12 +614,14 @@ class iLQGameCarController(CarController):
 
             ori_Q1_x +=  alpha* (2* Ii.T @ Qblk @ Ii)
             ori_q1_x +=  alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
-            ori_Qcol = self.Qcol
+            ori_Qcol1 = self.Qcol
+            ori_Qcol2 = self.Qcol
         else:
             # if chasing: less regard to collision
             Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
             q1 = (1-alpha)*self.q1 + alpha* np.array([[-4,0,0,0]]).T # -4
-            ori_Qcol = (1-alpha)*self.Qcol + alpha*(self.Qcol*0)
+            ori_Qcol1 = (1-alpha)*self.Qcol + alpha*(self.Qcol*0)
+            ori_Qcol2 = self.Qcol
 
             ori_Q1_x =  block_diag(Q1,np.zeros((n,n)))
             ori_q1_x = np.hstack([q1.T,np.zeros((1,n))])
@@ -633,7 +639,8 @@ class iLQGameCarController(CarController):
             q1_x = ori_q1_x.copy()
             Q2_x = ori_Q2_x.copy()
             q2_x = ori_q2_x.copy()
-            Q_col = ori_Qcol.copy()
+            Qcol1 = ori_Qcol1.copy()
+            Qcol2 = ori_Qcol2.copy()
 
             # barrier function: opponent collision
             delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
@@ -646,18 +653,18 @@ class iLQGameCarController(CarController):
                 if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         # agent j responsible
-                        Q2_x += 2* II.T @ Qcol @ II
-                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                        Q2_x += 2* II.T @ Qcol2 @ II
+                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol2 @ II)
                     else:
                         # agent i responsible
-                        Q1_x += 2* II.T @ Qcol @ II
-                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                        Q1_x += 2* II.T @ Qcol1 @ II
+                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol1 @ II)
                 else:
                     # if side by side both agent responsible
-                    Q1_x += 2* II.T @ Qcol @ II
-                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
-                    Q2_x += 2* II.T @ Qcol @ II
-                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol @ II)
+                    Q1_x += 2* II.T @ Qcol1 @ II
+                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol1 @ II)
+                    Q2_x += 2* II.T @ Qcol2 @ II
+                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol2 @ II)
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())

@@ -12,7 +12,7 @@ class iLQGameSoloCarController(iLQGameCarController):
         self.opponent_min_distance_n *=1.5
 
     # ego car solely responsible for evading opponent car
-    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
+    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j,alpha=0):
         Q1s = []
         Q2s = []
         q1s = []
