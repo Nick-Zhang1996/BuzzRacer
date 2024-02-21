@@ -7,7 +7,28 @@ import matplotlib.pyplot as plt
 
 class PurePursuitCarController(CarController):
     def __init__(self, car,config):
+
+        self.lookahead = 0.2
+        self.max_speed = 2.0
         super().__init__(car,config)
+        # if there's planner set it up
+        # TODO put this in a parent class constructor
+        self.no_planner_override = True
+        try:
+            config_planner = self.config.getElementsByTagName('planner')[0]
+            planner_class = eval(config_planner.firstChild.nodeValue)
+            self.planner = planner_class(config_planner)
+            self.planner.main = self.main
+            self.planner.car = self.car
+            '''
+            self.print_ok("setting planner attributes")
+            for key,value_text in config_planner.attributes.items():
+                setattr(self.planner,key,eval(value_text))
+                self.print_info(" main.",key,'=',value_text)
+            '''
+        except IndexError as e:
+            self.print_info("planner not available")
+            self.planner = None
 
 
 
@@ -28,6 +49,11 @@ class PurePursuitCarController(CarController):
         #self.discretized_raceline = self.track.discretized_raceline
         #self.raceline_left_boundary = self.track.raceline_left_boundary
         #self.raceline_right_boundary = self.track.raceline_right_boundary
+
+        try:
+            self.planner.init()
+        except IndexError as e:
+            pass
 
     def control(self):
         if self.planner is None:
@@ -56,9 +82,13 @@ class PurePursuitCarController(CarController):
 
         # pure pursuit
         theta = np.arctan2(dx_body,dy_body)
-        R = dist[idx_lookahead] / 2 / cos(theta)
+        R = np.abs(dist[idx_lookahead] / 2 / cos(theta))
         steering = np.arctan2(self.car.wheelbase,R)
         steering = np.copysign(steering,dy_body)
+        steering = (steering + np.pi)%(2*np.pi)-np.pi
+        if (self.main.breakpoint.isSet()):
+            breakpoint()
+            self.main.breakpoint.clear()
 
         '''
         # plot for sanity

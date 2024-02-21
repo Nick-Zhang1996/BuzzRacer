@@ -366,9 +366,6 @@ class iLQGameCarController(CarController):
             self.t.s('getCostMatrices')
             Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
             self.t.e('getCostMatrices')
-            if (self.main.breakpoint.isSet()):
-                breakpoint()
-                self.main.breakpoint.clear()
 
             '''
             self.t.s('solve_lq_game')
