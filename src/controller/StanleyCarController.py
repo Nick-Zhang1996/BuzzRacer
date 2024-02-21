@@ -35,16 +35,6 @@ class StanleyCarController(CarController):
         #self.throttle_pid = PidController(P,I,D,dt,1,2)
         self.throttle_pid = PidController(P,I,D,dt,1,1000)
 
-        '''
-        self.print_ok("setting controller attributes")
-        for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
-            self.print_info(" controller.",key,'=',value_text)
-        '''
-
-
-    def init(self):
-        CarController.init(self)
         # if there's planner set it up
         # TODO put this in a parent class constructor
         self.no_planner_override = True
@@ -60,10 +50,17 @@ class StanleyCarController(CarController):
                 setattr(self.planner,key,eval(value_text))
                 self.print_info(" main.",key,'=',value_text)
             '''
-            self.planner.init()
         except IndexError as e:
             self.print_info("planner not available")
             self.planner = None
+
+
+    def init(self):
+        CarController.init(self)
+        try:
+            self.planner.init()
+        except IndexError as e:
+            pass
 
 
     def control(self):

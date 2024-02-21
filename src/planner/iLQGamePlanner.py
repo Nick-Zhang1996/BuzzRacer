@@ -14,9 +14,10 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         self.oppo_traj = None
 
 
-    def postInit(self):
+    def init(self):
         iLQGameCarController.__init__(self,self.car,self.config)
         iLQGameCarController.preInit(self)
+
         for car in self.main.cars:
             car.sim_states = CurvilinearSimulator.cart2CurvTrack(car.states,self.main.track)
         iLQGameCarController.init(self)

@@ -11,6 +11,13 @@ class Planner(ConfigObject):
         self.plan_traj = None
         ConfigObject.__init__(self,config)
 
+    def preInit(self):
+        return
+    def postInit(self):
+        return
+    def init(self):
+        return
+
     # create a plan, store states internally
     # return True/False, indicating planner success/failure
     def plan(self):
