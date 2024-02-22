@@ -220,8 +220,8 @@ class CurvilinearTrack(Track):
         y_pix = int((self.y_max - self.y_min)*self.resolution)
         # height, width
         img = 255*np.ones([y_pix,x_pix,3],dtype=np.uint8)
-        img = self.drawPolyline(self.raceline_left_boundary_points,img,lineColor=(0,0,0),thickness=2)
-        img = self.drawPolyline(self.raceline_right_boundary_points,img,lineColor=(0,0,0),thickness=2)
+        img = self.drawPolyline(self.raceline_left_boundary_points,img,lineColor=(0,0,0),thickness=3)
+        img = self.drawPolyline(self.raceline_right_boundary_points,img,lineColor=(0,0,0),thickness=3)
         return img
 
     def preciseTrackBoundary(self,coord,heading):

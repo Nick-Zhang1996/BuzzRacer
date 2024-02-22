@@ -8,6 +8,7 @@ from track.OrcaTrack import OrcaTrack
 from track.CurvilinearTrack import CurvilinearTrack
 from track.NascarTrack import NascarTrack
 from track.SineTrack import SineTrack
+from track.TriangleTrack import TriangleTrack
 from math import radians
 
 
@@ -18,6 +19,8 @@ class TrackFactory:
         mapping = {
                 'saved':TrackFactory.prepareSavedTrack,
                 'nascar_saved':TrackFactory.prepareSavedNascarTrack,
+                'sine_saved':TrackFactory.prepareSavedSineTrack,
+                'triangle_saved':TrackFactory.prepareSavedTriangleTrack,
                 # RCP tracks
                 'full':TrackFactory.prepareRcpTrack,
                 'small':TrackFactory.prepareRcpTrackSmall,
@@ -26,6 +29,7 @@ class TrackFactory:
                 # curvilinear tracks
                 'nascar':TrackFactory.prepareNascarTrack,
                 'sine':TrackFactory.prepareSineTrack,
+                'triangle':TrackFactory.prepareTriangleTrack,
                 # specialized tracks
                 'skidpad':TrackFactory.prepareSkidpad,
                 'empty':TrackFactory.prepareEmptyTrack,
@@ -62,12 +66,6 @@ class TrackFactory:
         track = track.load(main=main,config=config)
         return track
 
-    @staticmethod
-    def prepareSavedNascarTrack(main,config,track=None):
-        if (track is None):
-            track = Track(main=main,config=config)
-        track = track.load(filename='nascar.p',main=main,config=config)
-        return track
 
     @staticmethod
     def prepareEmptyTrack(main,config):
@@ -176,6 +174,31 @@ class TrackFactory:
         return track
 
     @staticmethod
+    def prepareSavedNascarTrack(main,config,track=None):
+        if (track is None):
+            track = Track(main=main,config=config)
+        track = track.load(filename='nascar.p',main=main,config=config)
+        return track
+
+    @staticmethod
     def prepareSineTrack(main,config,track=None):
         track = SineTrack(main,config)
+        return track
+
+    @staticmethod
+    def prepareSavedSineTrack(main,config,track=None):
+        if (track is None):
+            track = Track(main=main,config=config)
+        track = track.load(filename='sine.p',main=main,config=config)
+        return track
+
+    @staticmethod
+    def prepareTriangleTrack(main,config,track=None):
+        track = TriangleTrack(main,config)
+        return track
+    @staticmethod
+    def prepareSavedTriangleTrack(main,config,track=None):
+        if (track is None):
+            track = Track(main=main,config=config)
+        track = track.load(filename='triangle.p',main=main,config=config)
         return track
