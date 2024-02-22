@@ -128,6 +128,13 @@ class CurvilinearTrack(Track):
         retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item()*1.5 )
         return retval
 
+    def isOutsideCurv(self,curv_coord):
+        # curv_coord: s,v,n,omega
+        offset = curv_coord[2]
+        s = curv_coord[0]
+        retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item() )
+        return retval
+
     def buildContinuousTrack(self,r):
         assert (len(r.shape) == 2)
         assert (r.shape[1] == 2)

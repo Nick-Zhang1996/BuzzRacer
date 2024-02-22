@@ -66,8 +66,9 @@ def getRandomInitialStatePair(leader=None):
     x0 = np.array((s0,v0,n0,0))
     x1 = np.array((s1,v1,n1,0))
     delta_x = x0 - x1
-    is_in_collision = np.abs(delta_x[0])<0.18 and np.abs(delta_x[2])<0.14
-    if (is_in_collision):
+    is_in_collision = np.abs(delta_x[0])<0.3 and np.abs(delta_x[2])<0.1
+    is_outside = track.isOutsideCurv(x0) or track.isOutsideCurv(x1)
+    if (is_in_collision or is_outside):
         return getRandomInitialStatePair()
     else:
         cart0 = sim.curv2Cart(x0)
