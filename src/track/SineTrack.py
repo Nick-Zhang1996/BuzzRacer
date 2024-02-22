@@ -8,6 +8,7 @@ class SineTrack(CurvilinearTrack):
     def __init__(self,main,config):
         CurvilinearTrack.__init__(self,main,config)
         self.resolution = 50
+        self.width = 0.8
 
         # NOTE track params
         self.scale = 1

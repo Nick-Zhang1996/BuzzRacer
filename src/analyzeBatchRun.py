@@ -206,5 +206,33 @@ def exploit_sine():
     printTableEntry(1.0,1.0)
     printTableEntry(1.0,0)
 
+def triangle_mpc():
+    #Qop1, Qop2
+    print(f'qop0,qop1 \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
+    def printTableEntry(a0,a1):
+        mask_a0 = [val == a0 for val in data_dict['Qop1']]
+        mask_a1 = [val == a1 for val in data_dict['Qop2']]
+        mask = np.logical_and(mask_a0,mask_a1)
+        printStats(f'q0={a0}, q1={a1}',mask)
+    printTableEntry(0,0)
+    printTableEntry(-4,0)
+    printTableEntry(4,0)
+    printTableEntry(-4,-4)
+    printTableEntry(4,4)
+
+def sine_mpc():
+    #Qop1, Qop2
+    print(f'qop0,qop1 \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
+    def printTableEntry(a0,a1):
+        mask_a0 = [val == a0 for val in data_dict['Qop1']]
+        mask_a1 = [val == a1 for val in data_dict['Qop2']]
+        mask = np.logical_and(mask_a0,mask_a1)
+        printStats(f'q0={a0}, q1={a1}',mask)
+    printTableEntry(0,0)
+    printTableEntry(-4,0)
+    printTableEntry(4,0)
+    printTableEntry(-4,-4)
+    printTableEntry(4,4)
+
 if __name__=='__main__':
     eval(name+'()')
