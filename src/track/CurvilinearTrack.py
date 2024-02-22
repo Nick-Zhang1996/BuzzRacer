@@ -233,7 +233,7 @@ class CurvilinearTrack(Track):
 
         # find offset
         # positive offset means car is to the left of the trajectory(need to turn right)
-        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+        dr = self.r[(index+2)%self.discretized_raceline_len] - self.r[index]
         track_to_car = (x-self.r[index,0], y-self.r[index,1])
         offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
         s = self.ss[index]
@@ -413,6 +413,7 @@ class CurvilinearTrack(Track):
         img_track = self.drawRaceline(img=img_track)
         img_track = self.drawBezierRaceline(img_track,P,N,break_pts)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+
         plt.imshow(img_track_rgb)
         plt.show()
 
