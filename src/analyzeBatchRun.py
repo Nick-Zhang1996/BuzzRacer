@@ -174,7 +174,37 @@ def ilqgame_single():
     printTableEntry(-4,-4)
     printTableEntry(4,4)
 
+def exploit_triangle():
+    # a0, a1, lead/follow
+    print(f'a0,a1 \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
+    def printTableEntry(a0,a1):
+        #mask = [val == controller_name for val in data_dict['controller_name']]
+        #mask = [val == blocking_control for val in data_dict['blocking_control']]
+        mask_a0 = [val == a0 for val in data_dict['a0']]
+        mask_a1 = [val == a1 for val in data_dict['a1']]
+        mask = np.logical_and(mask_a0,mask_a1)
+        printStats(f'a0={a0}, a1={a1}',mask)
+    printTableEntry(0,0)
+    printTableEntry(0.5,0)
+    printTableEntry(1.0,0.5)
+    printTableEntry(1.0,1.0)
+    printTableEntry(1.0,0)
 
+def exploit_sine():
+    # a0, a1, lead/follow
+    print(f'a0,a1 \t, follow win \t, lead win \t,overall win \t, i out\t, j out\t, col\t,total runs')
+    def printTableEntry(a0,a1):
+        #mask = [val == controller_name for val in data_dict['controller_name']]
+        #mask = [val == blocking_control for val in data_dict['blocking_control']]
+        mask_a0 = [val == a0 for val in data_dict['a0']]
+        mask_a1 = [val == a1 for val in data_dict['a1']]
+        mask = np.logical_and(mask_a0,mask_a1)
+        printStats(f'a0={a0}, a1={a1}',mask)
+    printTableEntry(0,0)
+    printTableEntry(0.5,0)
+    printTableEntry(1.0,0.5)
+    printTableEntry(1.0,1.0)
+    printTableEntry(1.0,0)
 
 if __name__=='__main__':
     eval(name+'()')

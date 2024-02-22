@@ -48,10 +48,13 @@ class Logger(Extension):
 
         self.log_no = no
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
-
         logPrefix = "debug_dict"
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
         self.logFolder = logFolder
+
+        # touch the file to "reserve it", not really race proof
+        with open(self.logFilename,'wb'):
+            os.utime(self.logFilename,None)
 
     def postUpdate(self):
         # x,y,theta are in track frame

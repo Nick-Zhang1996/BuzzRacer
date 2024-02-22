@@ -1,0 +1,132 @@
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/fromnumeric.py:3440: RuntimeWarning: Mean of empty slice.
+  return _methods._mean(a, axis=axis, dtype=dtype,
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:189: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:262: RuntimeWarning: Degrees of freedom <= 0 for slice
+  ret = _var(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:222: RuntimeWarning: invalid value encountered in true_divide
+  arrmean = um.true_divide(arrmean, div, out=arrmean, casting='unsafe',
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:254: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+[92m [Main]:   loading settings [0m
+[92m [Main]:   setting main attributes [0m
+[96m [Main]:   main. dt = 0.01 [0m
+[92m [Track]:  setting triangle_saved attributes [0m
+[92m track loaded [0m
+[92m [TriangleTrack]:  setting triangle_saved attributes [0m
+[96m [TriangleTrack]:  No custom postLoad() [0m
+[92m [iLQGameCarController]:  setting 
+         attributes [0m
+[96m [iLQGameCarController]:  
+         . control_opponent = False [0m
+[96m [iLQGameCarController]:  
+         . blocking_control = False [0m
+[96m [iLQGameCarController]:  
+         . Qop1 = 0 [0m
+[96m [iLQGameCarController]:  
+         . Qop2 = 0 [0m
+[92m [iLQGameCarController]:  setting 
+         attributes [0m
+[96m [iLQGameCarController]:  
+         . control_opponent = False [0m
+[96m [iLQGameCarController]:  
+         . blocking_control = False [0m
+[96m [iLQGameCarController]:  
+         . Qop1 = 0 [0m
+[96m [iLQGameCarController]:  
+         . Qop2 = 0 [0m
+[92m [iLQGameSoloCarController]:  setting 
+         attributes [0m
+[92m [iLQGameSoloCarController]:  setting 
+         attributes [0m
+[96m [Main]:   total cars: 2 [0m
+[92m [Main]:  setting up extensions... [0m
+[92m [Laptimer]: in use [0m
+[96m [Main]:  main.laptimer = Laptimer [0m
+[92m [Logger]: in use [0m
+[96m [Main]:  main.logger = Logger [0m
+[92m [FakeVisualization]: in use [0m
+[96m [Main]:  main.visualization = FakeVisualization [0m
+[96m [Main]:  main.visualization.car_graphics = False [0m
+[92m [CurvilinearSimulator]: in use [0m
+[96m [CurvilinearSimulator]:  real/sim time ratio = 1.0  [0m
+[96m [Main]:  main.simulator = CurvilinearSimulator [0m
+[96m [Main]:  main.simulator.match_time = False [0m
+[92m [BoundaryChecker]: in use [0m
+[96m [Main]:  main.boundary_checker = BoundaryChecker [0m
+[92m [OpponentCollisionChecker]: in use [0m
+[96m [Main]:  main.collision_checker = OpponentCollisionChecker [0m
+[92m [LapCounter]: in use [0m
+[96m [Main]:  main.lap_counter = LapCounter [0m
+[96m [Main]:  main.lap_counter.lap_count = 1 [0m
+[92m [ConfigLogger]: in use [0m
+[96m [Main]:  main.config_logger = ConfigLogger [0m
+[92m [Watchdog]: in use [0m
+[96m [Main]:  main.watchdog = Watchdog [0m
+[92m [iLQGameCarController]:  Qop1 = 0.00, Qop2 = 0.00 [0m
+[92m [iLQGameSoloCarController]:  Qop1 = 0.00, Qop2 = 0.00 [0m
+[96m [CurvilinearSimulator]:  match_time: False [0m
+[92m [LapCounter]: total 1 laps [0m
+[96m [Main]:  running ... press q to quit [0m
+[92m [BoundaryChecker]:  car 1 collision = 1 [0m
+[92m [BoundaryChecker]:  car 1 collision = 2 [0m
+[96m [Laptimer]: car0, Lap 0 laptime: 3.1100 s [0m
+[92m [LapCounter]: car0 critical lap start, total = 1 laps [0m
+[96m [Laptimer]: car1, Lap 0 laptime: 3.2000 s [0m
+[92m [LapCounter]: car1 critical lap start, total = 1 laps [0m
+[92m [BoundaryChecker]:  car 1 collision = 3 [0m
+[92m [BoundaryChecker]:  car 1 collision = 4 [0m
+[92m [BoundaryChecker]:  car 1 collision = 5 [0m
+[96m [Laptimer]: car0, Lap 1 laptime: 4.5900 s [0m
+[92m [LapCounter]: car0, 0 laps remaining [0m
+[92m [LapCounter]: car0 critical lap end [0m
+[96m [Main]:  Exiting ... [0m
+[96m [iLQGameCarController]:  ego car : [4.05059425e+01 4.00000000e+00 1.11530847e-01 8.86008475e-03] [0m
+[96m [iLQGameCarController]:  opponent car : [40.11931619  3.84048585  0.21735486  0.0493872 ] [0m
+-----Variables--------
+-------Time-----------
+update_dynamics		20.6 %
+linearize		21.6 %
+preciseTrackBoundary		12.5 %
+my_solve_lq_game		18.1 %
+avg frequency = 2.279Hz
+unaccounted time = 27.2 %
+-----Variables--------
+-------Time-----------
+setup		0.3 %
+Avbv		21.0 %
+bp		6.0 %
+lsqsq		27.8 %
+value fun		40.8 %
+reorder		1.1 %
+avg frequency = 38.474Hz
+unaccounted time = 3.2 %
+[96m [iLQGameSoloCarController]:  ego car : [40.11931619  3.84048585  0.21735486  0.0493872 ] [0m
+[96m [iLQGameSoloCarController]:  opponent car : [4.05059425e+01 4.00000000e+00 1.11530847e-01 8.86008475e-03] [0m
+-----Variables--------
+-------Time-----------
+update_dynamics		19.0 %
+linearize		19.8 %
+preciseTrackBoundary		11.8 %
+my_solve_lq_game		17.3 %
+avg frequency = 6.345Hz
+unaccounted time = 32.1 %
+-----Variables--------
+-------Time-----------
+setup		0.1 %
+Avbv		19.3 %
+bp		5.9 %
+lsqsq		30.4 %
+value fun		40.6 %
+reorder		0.6 %
+avg frequency = 37.146Hz
+unaccounted time = 3.1 %
+[96m [Laptimer]: car0, 1 laps, mean 4.5900, stddev 0.0000 (sec) [0m
+[96m [Laptimer]: car1, 0 laps, mean nan, stddev nan (sec) [0m
+[92m [Laptimer]:  saved laptime vec to ../log/sine_mpc/laptime58.p [0m
+[96m [BoundaryChecker]:  car 0, total boundary violation = 0 [0m
+[96m [BoundaryChecker]:  car 1, total boundary violation = 5 [0m
+[96m [OpponentCollisionChecker]:  total car-car collision = 0 [0m
+[92m [Logger]: saving full_state log at ../log/sine_mpc/full_state58.p [0m
+[92m [Logger]: saving debugDict log at ../log/sine_mpc/debug_dict58.p [0m
+[96m [ConfigLogger]:  text log at ../log/sine_mpc/textlog.txt [0m
