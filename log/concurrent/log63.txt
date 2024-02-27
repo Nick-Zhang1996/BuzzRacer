@@ -1,7 +1,7 @@
-/usr/local/lib/python3.8/dist-packages/scipy/interpolate/_fitpack_impl.py:226: RuntimeWarning: Setting x[0][9187]=x[0][0]
-  warnings.warn(RuntimeWarning('Setting x[%d][%d]=x[%d][0]' %
-/usr/local/lib/python3.8/dist-packages/scipy/interpolate/_fitpack_impl.py:226: RuntimeWarning: Setting x[1][9187]=x[1][0]
-  warnings.warn(RuntimeWarning('Setting x[%d][%d]=x[%d][0]' %
+Unable to init server: Could not connect: Connection refused
+Unable to init server: Could not connect: Connection refused
+
+(batchRunSingle.py:2731035): Gdk-CRITICAL **: 17:16:10.190: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
 /home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/fromnumeric.py:3440: RuntimeWarning: Mean of empty slice.
   return _methods._mean(a, axis=axis, dtype=dtype,
 /home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:189: RuntimeWarning: invalid value encountered in double_scalars
@@ -15,8 +15,10 @@
 [92m [Main]:   loading settings [0m
 [92m [Main]:   setting main attributes [0m
 [96m [Main]:   main. dt = 0.01 [0m
-[92m [SineTrack]:  setting sine attributes [0m
-[92m [SineTrack]:  setting sine attributes [0m
+[92m [Track]:  setting nascar_saved attributes [0m
+[92m track loaded [0m
+[92m [NascarTrack]:  setting nascar_saved attributes [0m
+[96m [NascarTrack]:  No custom postLoad() [0m
 [92m [iLQGameCarController]:  setting 
          attributes [0m
 [96m [iLQGameCarController]:  
@@ -38,7 +40,7 @@
 [96m [iLQGameCarController]:  
          . boundary_min_distance = 0.03 [0m
 [96m [iLQGameCarController]:  
-         . alpha = 0.5 [0m
+         . alpha = 1.0 [0m
 [92m [iLQGameCarController]:  setting 
          attributes [0m
 [96m [iLQGameCarController]:  
@@ -60,7 +62,7 @@
 [96m [iLQGameCarController]:  
          . boundary_min_distance = 0.03 [0m
 [96m [iLQGameCarController]:  
-         . alpha = 0.5 [0m
+         . alpha = 1.0 [0m
 [92m [iLQGameCarController]:  setting 
          attributes [0m
 [96m [iLQGameCarController]:  
@@ -82,7 +84,9 @@
 [96m [iLQGameCarController]:  
          . boundary_min_distance = 0.03 [0m
 [96m [iLQGameCarController]:  
-         . alpha = 0 [0m
+         . Qop1 = 0 [0m
+[96m [iLQGameCarController]:  
+         . Qop2 = 0 [0m
 [92m [iLQGameCarController]:  setting 
          attributes [0m
 [96m [iLQGameCarController]:  
@@ -104,7 +108,9 @@
 [96m [iLQGameCarController]:  
          . boundary_min_distance = 0.03 [0m
 [96m [iLQGameCarController]:  
-         . alpha = 0 [0m
+         . Qop1 = 0 [0m
+[96m [iLQGameCarController]:  
+         . Qop2 = 0 [0m
 [96m [Main]:   total cars: 2 [0m
 [92m [Main]:  setting up extensions... [0m
 [92m [Laptimer]: in use [0m
@@ -137,60 +143,60 @@
 [96m [CurvilinearSimulator]:  match_time: True [0m
 [92m [LapCounter]: total 1 laps [0m
 [96m [Main]:  running ... press q to quit [0m
-[96m [Laptimer]: car0, Lap 0 laptime: 6.9900 s [0m
+[96m [Laptimer]: car0, Lap 0 laptime: 1.3800 s [0m
 [92m [LapCounter]: car0 critical lap start, total = 1 laps [0m
-[96m [Laptimer]: car1, Lap 0 laptime: 7.1900 s [0m
+[96m [Laptimer]: car1, Lap 0 laptime: 1.5200 s [0m
 [92m [LapCounter]: car1 critical lap start, total = 1 laps [0m
-[96m [Laptimer]: car0, Lap 1 laptime: 10.6700 s [0m
+[96m [Laptimer]: car0, Lap 1 laptime: 3.8100 s [0m
 [92m [LapCounter]: car0, 0 laps remaining [0m
 [92m [LapCounter]: car0 critical lap end [0m
 [96m [Main]:  Exiting ... [0m
-[96m [iLQGameCarController]:  ego car : [8.77579261e+01 4.00000000e+00 1.51610238e-01 4.29512089e-03] [0m
-[96m [iLQGameCarController]:  opponent car : [ 8.63546237e+01  3.99975150e+00  1.97778948e-01 -3.29515751e-03] [0m
+[96m [iLQGameCarController]:  ego car : [ 3.16734515e+01  3.99999778e+00  1.77145083e-01 -2.57061391e-02] [0m
+[96m [iLQGameCarController]:  opponent car : [30.93310374  3.99327718  0.14830171  0.05805746] [0m
 -----Variables--------
 -------Time-----------
-update_dynamics		19.0 %
-linearize		19.6 %
-preciseTrackBoundary		13.7 %
-my_solve_lq_game		9.6 %
-avg frequency = 2.684Hz
-unaccounted time = 38.1 %
+update_dynamics		14.6 %
+linearize		15.0 %
+preciseTrackBoundary		18.4 %
+my_solve_lq_game		12.8 %
+avg frequency = 3.954Hz
+unaccounted time = 39.3 %
 -----Variables--------
 -------Time-----------
-setup		0.3 %
-Avbv		18.9 %
-bp		6.3 %
-lsqsq		32.0 %
-value fun		37.7 %
-reorder		1.0 %
-avg frequency = 33.951Hz
-unaccounted time = 3.8 %
-[96m [iLQGameCarController]:  ego car : [ 8.63546237e+01  3.99975150e+00  1.97778948e-01 -3.29515751e-03] [0m
-[96m [iLQGameCarController]:  opponent car : [8.77579261e+01 4.00000000e+00 1.51610238e-01 4.29512089e-03] [0m
+setup		0.1 %
+Avbv		18.2 %
+bp		6.7 %
+lsqsq		33.3 %
+value fun		38.0 %
+reorder		0.7 %
+avg frequency = 38.192Hz
+unaccounted time = 3.0 %
+[96m [iLQGameCarController]:  ego car : [30.93310374  3.99327718  0.14830171  0.05805746] [0m
+[96m [iLQGameCarController]:  opponent car : [ 3.16734515e+01  3.99999778e+00  1.77145083e-01 -2.57061391e-02] [0m
 -----Variables--------
 -------Time-----------
-update_dynamics		26.5 %
-linearize		26.9 %
-preciseTrackBoundary		9.9 %
-my_solve_lq_game		13.0 %
-avg frequency = 3.692Hz
-unaccounted time = 23.8 %
+update_dynamics		22.0 %
+linearize		21.1 %
+preciseTrackBoundary		12.4 %
+my_solve_lq_game		18.3 %
+avg frequency = 5.697Hz
+unaccounted time = 26.3 %
 -----Variables--------
 -------Time-----------
-setup		0.4 %
-Avbv		22.2 %
-bp		6.4 %
-lsqsq		27.7 %
-value fun		39.1 %
-reorder		1.0 %
-avg frequency = 28.723Hz
-unaccounted time = 3.1 %
-[96m [Laptimer]: car0, 1 laps, mean 10.6700, stddev 0.0000 (sec) [0m
+setup		0.5 %
+Avbv		20.5 %
+bp		6.2 %
+lsqsq		29.3 %
+value fun		39.8 %
+reorder		1.1 %
+avg frequency = 31.499Hz
+unaccounted time = 2.6 %
+[96m [Laptimer]: car0, 1 laps, mean 3.8100, stddev 0.0000 (sec) [0m
 [96m [Laptimer]: car1, 0 laps, mean nan, stddev nan (sec) [0m
-[92m [Laptimer]:  saved laptime vec to ../log/exploit_sine/laptime117.p [0m
+[92m [Laptimer]:  saved laptime vec to ../log/exploit_nascar_dense/laptime18.p [0m
 [96m [BoundaryChecker]:  car 0, total boundary violation = 0 [0m
 [96m [BoundaryChecker]:  car 1, total boundary violation = 0 [0m
-[96m [OpponentCollisionChecker]:  total car-car collision = 1 [0m
-[92m [Logger]: saving full_state log at ../log/exploit_sine/full_state117.p [0m
-[92m [Logger]: saving debugDict log at ../log/exploit_sine/debug_dict117.p [0m
-[96m [ConfigLogger]:  text log at ../log/exploit_sine/textlog.txt [0m
+[96m [OpponentCollisionChecker]:  total car-car collision = 0 [0m
+[92m [Logger]: saving full_state log at ../log/exploit_nascar_dense/full_state18.p [0m
+[92m [Logger]: saving debugDict log at ../log/exploit_nascar_dense/debug_dict18.p [0m
+[96m [ConfigLogger]:  text log at ../log/exploit_nascar_dense/textlog.txt [0m

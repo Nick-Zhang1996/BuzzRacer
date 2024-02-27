@@ -12,26 +12,11 @@ from track import TrackFactory
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 
-if (len(sys.argv) == 2):
-    name = sys.argv[1]
-else:
-    print_error("you must specify a folder name under configs/")
-
-
-config_folder = './configs/' + name + '/'
-config_filename = config_folder + 'master.xml'
-original_config = minidom.parse(config_filename)
-
-config_track= original_config.getElementsByTagName('track')[0]
-track = TrackFactory.build(main=None,config=config_track)
-track.init()
 
 class FakeMain():
     def __init__(self):
         self.extensions = []
         self.track = None
-sim = CurvilinearSimulator(FakeMain())
-sim.track = track
 
 # leader = 0: s0 lead, =1: s1 lead, None: even
 def getRandomInitialStatePair(leader=None):
@@ -79,40 +64,118 @@ def getRandomInitialStatePair(leader=None):
             breakpoint()
         return tuple(cart0[:4]),tuple(cart1[:4])
 
-index = 0
-#blocking_control_vec = [True,False]
-alpha_vec = [0,0.5,1.0]
-for i in range(10):
-    for alpha0 in alpha_vec:
-        for alpha1 in alpha_vec:
-            if alpha0<alpha1:
-                continue
+def configHelper(config):
+    config_extensions = config.getElementsByTagName('extensions')[0]
+    config_cars = config.getElementsByTagName('cars')[0]
+    config_car0 = config_cars.getElementsByTagName('car')[0]
+    config_car1 = config_cars.getElementsByTagName('car')[1]
+    config_car0_controller = config_car0.getElementsByTagName('controller')[0]
+    config_car1_controller = config_car1.getElementsByTagName('controller')[0]
+    return config_car0, config_car0_controller, config_car1, config_car1_controller
+
+def exploit_sine_dense():
+    index = 0
+    setup_vec = ['mpc','coordinative', 'adversarial','baseline']
+    for i in range(50):
+        for setup in setup_vec:
             s0,s1 = getRandomInitialStatePair(leader=0)
             for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
                 config = deepcopy(original_config)
-                config_extensions = config.getElementsByTagName('extensions')[0]
-                config_cars = config.getElementsByTagName('cars')[0]
-                config_car0 = config_cars.getElementsByTagName('car')[0]
-                config_car1 = config_cars.getElementsByTagName('car')[1]
-                config_car0_controller = config_car0.getElementsByTagName('controller')[0]
-                config_car1_controller = config_car1.getElementsByTagName('controller')[0]
-                #attrs = config_controller.attributes.items()
-                #config_controller.attributes['Qop1'] =  str(q0)
-                #config_controller.attributes['Qop2'] =  str(q1)
-                #config_controller.attributes['Qop1_blocking'] =  str(qop)
-                #config_controller.childNodes[1].childNodes[0].data = controller_name
-
-                config_car0_controller.attributes['blocking_control'] =  str(alpha0>0)
-                config_car0_controller.attributes['alpha'] =  str(alpha0)
-
-                config_car1_controller.attributes['blocking_control'] =  str(alpha1>0)
-                config_car1_controller.attributes['alpha'] =  str(alpha1)
-
+                config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
                 config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
                 config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+                # controller name
+                config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                config_car0_controller.attributes['blocking_control'] =  'True'
+                config_car0_controller.attributes['alpha'] =  '1.0'
+
+                if (setup == 'mpc'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+                elif (setup == 'coordinative'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '-4'
+                    config_car1_controller.attributes['Qop2'] =  '-4'
+                elif (setup == 'adversarial'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '4'
+                    config_car1_controller.attributes['Qop2'] =  '4'
+                elif (setup == 'baseline'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['Qop1'] =  '0'
+                    config_car1_controller.attributes['Qop2'] =  '0'
+                else:
+                    print('error')
 
                 with open(config_folder+'exp%d.xml'%(index),'w') as f:
                     config.writexml(f)
                 index += 1
 
-print('generated %d configs'%index)
+    print('generated %d configs'%index)
+
+def exploit_triangle_dense():
+    return exploit_sine_dense()
+def exploit_nascar_dense():
+    return exploit_sine_dense()
+
+def sine_mpc_dense():
+    index = 0
+    setup_vec = ['coordinative', 'adversarial','baseline']
+    for i in range(50):
+        for setup in setup_vec:
+            s0,s1 = getRandomInitialStatePair(leader=0)
+            for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                config = deepcopy(original_config)
+                config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+                config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+
+                if (setup == 'coordinative'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '-4'
+                    config_car0_controller.attributes['Qop2'] =  '-4'
+                elif (setup == 'adversarial'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '4'
+                    config_car0_controller.attributes['Qop2'] =  '4'
+                elif (setup == 'baseline'):
+                    config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car0_controller.attributes['Qop1'] =  '0'
+                    config_car0_controller.attributes['Qop2'] =  '0'
+                else:
+                    print('error')
+
+                # controller name
+                config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+
+                with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                    config.writexml(f)
+                index += 1
+
+    print('generated %d configs'%index)
+
+def triangle_mpc_dense():
+    return sine_mpc_dense()
+def nascar_mpc_dense():
+    return sine_mpc_dense()
+
+if __name__=='__main__':
+    if (len(sys.argv) == 2):
+        name = sys.argv[1]
+    else:
+        print_error("you must specify a folder name under configs/")
+
+
+    config_folder = './configs/' + name + '/'
+    config_filename = config_folder + 'master.xml'
+    original_config = minidom.parse(config_filename)
+
+    config_track= original_config.getElementsByTagName('track')[0]
+    track = TrackFactory.build(main=None,config=config_track)
+    track.init()
+
+    sim = CurvilinearSimulator(FakeMain())
+    sim.track = track
+
+    eval(f'{name}()')
