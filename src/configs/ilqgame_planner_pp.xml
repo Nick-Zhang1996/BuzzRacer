@@ -10,8 +10,8 @@
       <extension handle='logger'>Logger</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>KinematicSimulator</extension>
-      <extension handle='lap_counter' lap_count='0'>LapCounter</extension>
+       <extension handle='simulator' match_time='False'>KinematicSimulator</extension>
+        <extension handle='lap_counter' lap_count='0'>LapCounter</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 
@@ -19,9 +19,11 @@
     <car>
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
-      <config_name>sim_red</config_name>
+      <config_name>audi_13</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
-      <controller>
+      <controller
+        max_speed='2.0'
+        >
         <type>PurePursuitCarController</type>
         <planner 
           skip_count='3'
@@ -43,9 +45,11 @@
     <car>
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
-      <config_name>sim_green</config_name>
+      <config_name>audi_11</config_name>
       <init_states>(3.9*0.6,3.3*0.6, radians(-90), 2.0)</init_states>
-      <controller>
+      <controller
+        max_speed='2.0'
+        >
         <type>PurePursuitCarController</type>
         <planner>Planner</planner>
       </controller>

@@ -155,8 +155,11 @@ class Car(PrintObject,LogObject):
                          'ip' : '192.168.10.11',
                          'max_steering_left':radians(26.1),
                          'max_steering_right':radians(26.1),
-                         'max_throttle' : 1.0,
+                         'max_throttle' : 0.4,
                          'min_throttle' : -1.0,
+                         'max_v' : 4.0,
+                         'max_ax' : 10.0,
+                         'max_ay' : 10.0,
                          'rendering' : 'data/porsche_green.png'}
 
         audi_12 = {      'optitrack_streaming_id' : 1005,
@@ -165,14 +168,17 @@ class Car(PrintObject,LogObject):
                          'max_steering_right':radians(26.1),
                          'max_throttle' : 1.0,
                          'min_throttle' : -1.0,
-                         'rendering' : 'data/porsche_orange.png'}
+                         'rendering' : 'data/porsche_green.png'}
 
         audi_13 = {      'optitrack_streaming_id' : 1005,
                          'ip' : '192.168.10.13',
                          'max_steering_left':radians(26.1),
                          'max_steering_right':radians(26.1),
-                         'max_throttle' : 1.0,
+                         'max_throttle' : 0.4,
                          'min_throttle' : -1.0,
+                         'max_v' : 4.0,
+                         'max_ax' : 10.0,
+                         'max_ay' : 10.0,
                          'rendering' : 'data/porsche_orange.png'}
 
         sim_green = {    'optitrack_streaming_id' : 1005,

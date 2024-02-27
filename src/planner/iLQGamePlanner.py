@@ -33,6 +33,8 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         # set all car sim_states
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
+        x0[1] = 2.0
+        x1[1] = 2.0
         alpha1s, P1s, alpha2s, P2s = iLQGameCarController.lqControl(self,x0,x1)
 
         # propagate control forward

@@ -76,7 +76,7 @@ class PurePursuitCarController(CarController):
         '''
         idx_lookahead = np.argmin( np.abs(dist[idx_car:] - self.lookahead) ) + idx_car
         '''
-        idx_lookahead = int(len(raceline_pnts)*0.3)
+        idx_lookahead = int(len(raceline_pnts)*0.4)
 
         # change to local reference frame
         dx = raceline_pnts[idx_lookahead,0] - x

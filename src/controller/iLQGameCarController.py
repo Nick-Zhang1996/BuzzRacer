@@ -92,8 +92,6 @@ class iLQGameCarController(CarController):
     def init(self):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
-        self.simulator = self.main.simulator
-        #assert(isinstance(self.simulator,CurvilinearSimulator))
         assert(len(self.main.cars)==2)
         self.ego_car = self.car
         for car in self.main.cars:
@@ -121,7 +119,7 @@ class iLQGameCarController(CarController):
     def control(self):
         self.debug_dict = {}
         # s,v,n,phi
-        alpha1s, P1s, alpha2s, P2s = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
+        alpha1s, P1s, alpha2s, P2s = self.lqControl(ego_states, oppo_states)
         xx_i = self.ego_car.sim_states.reshape((self.n,1))
         xx_j = self.oppo_car.sim_states.reshape((self.n,1))
         dx_i = xx_i - self.x_i_ref[0]
@@ -239,7 +237,7 @@ class iLQGameCarController(CarController):
         x0 = x0.flatten()
         u0 = u0.flatten()
         #xop = xop.flatten()
-        k_s = self.simulator.curvature(x0[0])
+        k_s = CurvilinearSimulator.curvatureTrack(x0[0],self.main.track)
         subs_dict = {sym.k_s:k_s}
         '''
         for i in range(self.n):
