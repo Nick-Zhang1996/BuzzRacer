@@ -33,6 +33,11 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         # set all car sim_states
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
+        # NOTE
+        self.ego_car.sim_states = x0
+        self.oppo_car.sim_states = x1
+        self.print_info(f'v0: {x0[1]:.2f}, v1:{x1[1]:.2f}')
+
         x0[1] = max(2.0,x0[1])
         x1[1] = max(2.0,x1[1])
         alpha1s, P1s, alpha2s, P2s = iLQGameCarController.lqControl(self,x0,x1)
@@ -116,15 +121,37 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         #signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
         signed_curvature = 0
 
-        curv_state = CurvilinearSimulator.cart2CurvTrack(state,self.main.track)
-        v_target  = self.main.track.sToV(curv_state[0]%self.main.track.raceline_len_m)
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
-        return (raceline_point,offset,raceline_orientation,signed_curvature,v_target)
+        return (raceline_point,offset,raceline_orientation,signed_curvature,None)
 
     def localTrajectoryOpponent(self,state):
-        return self.localTrajectoryFromTraj(state,self.oppo_traj)
+        self_curv_state = self.oppo_car.sim_states
+        oppo_curv_state = self.ego_car.sim_states
+        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.oppo_traj)
+        v_target  = self.main.track.sToV(oppo_curv_state[0]%self.main.track.raceline_len_m)
+        track_len = self.main.track.raceline_len_m
+        lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
+        v_diff = self_curv_state[1] - oppo_curv_state[1]
+        # not in passing zone, too close, stil faster
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
+            self.print_info(f'oppo car keeping back lead = {lead}')
+            v_target = min(v_target,oppo_curv_state[1]) - 0.3 #- (lead+0.1)
+        return raceline_point,offset,raceline_orientation,signed_curvature,v_target
+
     def localTrajectory(self,state):
-        return self.localTrajectoryFromTraj(state,self.ego_traj)
+        self_curv_state = self.ego_car.sim_states
+        oppo_curv_state = self.oppo_car.sim_states
+
+        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.ego_traj)
+        v_target  = self.main.track.sToV(self_curv_state[0]%self.main.track.raceline_len_m)
+        track_len = self.main.track.raceline_len_m
+        lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
+        v_diff = self_curv_state[1] - oppo_curv_state[1]
+        # not in passing zone, too close, stil faster
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
+            self.print_info(f'ego car keeping back lead = {lead}')
+            v_target = min(v_target,oppo_curv_state[1]) - 0.3 #- (lead+0.1)
+        return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
 

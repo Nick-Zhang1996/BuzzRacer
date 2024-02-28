@@ -63,6 +63,10 @@ class Track(ConfigObject):
         x,y = coord
         return x<-grace or y<-grace or x>self.x_limit+grace or y>self.y_limit+grace
 
+    # determine if a car is in passing zone
+    def isInPassingZone(self,coord):
+        return True
+
     # check if vehicle is currently in collision with obstacle
     # only give index of the first obstacle if multiple obstacle is in collision
     def isInObstacle(self, state):

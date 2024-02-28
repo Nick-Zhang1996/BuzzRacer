@@ -174,7 +174,7 @@ class Car(PrintObject,LogObject):
                          'ip' : '192.168.10.13',
                          'max_steering_left':radians(26.1),
                          'max_steering_right':radians(26.1),
-                         'max_throttle' : 0.7,
+                         'max_throttle' : 0.9,
                          'min_throttle' : -0.7,
                          'max_v' : 4.0,
                          'max_ax' : 10.0,
