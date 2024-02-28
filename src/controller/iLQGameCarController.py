@@ -59,7 +59,7 @@ class iLQGameCarController(CarController):
         self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0*2
+        Kcol = 30.0*3
         self.opponent_min_distance_s = 0.3
         self.opponent_min_distance_n = 0.1
         self.Qcol = np.diag([Kcol,0,Kcol,0])
@@ -78,7 +78,7 @@ class iLQGameCarController(CarController):
 
     def preInit(self):
         self.createConstants()
-        self.overrideControlVisualization()
+        #self.overrideControlVisualization()
         if (self.control_opponent):
             self.print_ok('Controller will control opponent')
         if (self.adaptive_Qop):

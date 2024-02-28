@@ -1,1 +1,0 @@
-./configs/baseline/master.xml,./configs/baseline/master.xml,../log/./configs/baseline/master.xml/full_state1.p,1,0,0,-0.1999999047243728,-0.22993261592558412,nan,0,3.9499999999999162,0,6

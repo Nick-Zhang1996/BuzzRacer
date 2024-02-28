@@ -23,7 +23,7 @@
       <config_name>audi_13</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
       <controller
-        max_speed='2.0'
+        max_speed='3.0'
         >
         <type>PurePursuitCarController</type>
         <planner 
@@ -49,7 +49,7 @@
       <config_name>audi_11</config_name>
       <init_states>(3.9*0.6,3.3*0.6, radians(-90), 2.0)</init_states>
       <controller
-        max_speed='2.0'
+        max_speed='3.0'
         >
         <type>PurePursuitCarController</type>
         <planner>Planner</planner>

@@ -63,8 +63,9 @@ class PurePursuitCarController(CarController):
         else:
             self.planner.plan()
             raceline_pnts = self.planner.plan_traj
-            # TODO 
-            raceline_speed = np.ones_like(raceline_pnts[:,0])*2.0
+            # use velocity of reference curve or planned curve
+            raceline_point,offset,raceline_orientation,signed_curvature,v_target = self.planner.localTrajectory(self.car.states)
+            raceline_speed = np.ones_like(raceline_pnts[:,0])*v_target
             self.planner.plotDebug()
 
 

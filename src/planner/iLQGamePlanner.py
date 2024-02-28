@@ -33,8 +33,8 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         # set all car sim_states
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
-        x0[1] = 2.0
-        x1[1] = 2.0
+        x0[1] = max(2.0,x0[1])
+        x1[1] = max(2.0,x1[1])
         alpha1s, P1s, alpha2s, P2s = iLQGameCarController.lqControl(self,x0,x1)
 
         # propagate control forward
@@ -116,9 +116,11 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         #signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
         signed_curvature = 0
 
+        curv_state = CurvilinearSimulator.cart2CurvTrack(state,self.main.track)
+        v_target  = self.main.track.sToV(curv_state[0]%self.main.track.raceline_len_m)
+
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
-        # TODO velocity
-        return (raceline_point,offset,raceline_orientation,signed_curvature,2.0)
+        return (raceline_point,offset,raceline_orientation,signed_curvature,v_target)
 
     def localTrajectoryOpponent(self,state):
         return self.localTrajectoryFromTraj(state,self.oppo_traj)

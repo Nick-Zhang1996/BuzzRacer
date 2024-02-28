@@ -318,6 +318,8 @@ class RCPTrack(Track):
         self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
+        # create raceline_s
+        self.reconstructRaceline()
 
     def generateSpeedProfile(self, *, mu=0.7, acc_max_fun=lambda x:1.5, dec_max_fun=lambda x:1.5, n_steps=1000, show=False):
         '''

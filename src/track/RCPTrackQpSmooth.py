@@ -707,7 +707,11 @@ class RCPTrackQpSmooth(RCPTrack):
         '''
 
     # optimize path and save to pickle file
-    def optimizePath(self,*,max_iter=20, offset=0, visualize=False,save_gif=False,save_steps=False,):
+    # offset: min distance from track boundary
+    # mu: friction coefficient for lateral traction
+    # acc_max_fun: function that maps speed to maximum available acceleration
+    # dec_max_fun: function that maps speed to maximum available deceleration
+    def optimizePath(self,*,max_iter=20, offset=0, mu=0.8,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3, visualize=False,save_gif=False,save_steps=False,):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
@@ -827,7 +831,7 @@ class RCPTrackQpSmooth(RCPTrack):
 
         self.convertToSpline()
         #retval = self.generateSpeedProfile()
-        retval = self.generateSpeedProfile(mu=1.2,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3)
+        retval = self.generateSpeedProfile(mu=mu,acc_max_fun=acc_max_fun, dec_max_fun=dec_max_fun)
         self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']

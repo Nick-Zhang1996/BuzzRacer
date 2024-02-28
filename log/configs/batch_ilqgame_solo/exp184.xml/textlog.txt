@@ -1,1 +1,0 @@
-./configs/batch_ilqgame_solo/exp184.xml,./configs/batch_ilqgame_solo/exp184.xml,../log/./configs/batch_ilqgame_solo/exp184.xml/full_state1.p,1,2,2,-0.12175727873193054,-0.3436206553816419,nan,0,4.179999999999911,0,1

@@ -12,10 +12,9 @@ class Visualization(Extension):
     def __init__(self,main):
         super().__init__(main)
         self.update_visualization = Event()
-        self.update_freq = 100
+        #self.update_freq = 100
+        self.update_freq = 20
         self.frame_dt = 1.0/self.update_freq
-        # NOTE
-        self.frame_dt = 0.0
         self.count = 0
         # default setting, will be overridden if defined in config
         self.car_graphics = False

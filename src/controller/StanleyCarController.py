@@ -131,6 +131,7 @@ class StanleyCarController(CarController):
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        self.print_info(f'car {self.car.id} v_target = {v_target}')
         # for experiments
         #v_target = min(v_target*0.8, 2.2)
         v_target = min(v_target, self.max_speed)
