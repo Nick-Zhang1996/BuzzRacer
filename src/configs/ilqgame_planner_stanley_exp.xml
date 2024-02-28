@@ -7,9 +7,9 @@
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
-      <!--<extension handle='logger'>Logger</extension>-->
+      <extension handle='logger'>Logger</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-      <extension handle='visualization' update_freq='5' car_graphics='True'>Visualization</extension>
+      <extension handle='visualization' update_freq='1' car_graphics='False'>Visualization</extension>
         <!--<extension handle='simulator' match_time='False'>KinematicSimulator</extension>-->
           <!--<extension handle='lap_counter' lap_count='0'>LapCounter</extension>-->
       <extension handle='vi'>Optitrack</extension>
@@ -23,7 +23,7 @@
       <config_name>audi_13</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
       <controller
-        max_speed='3.0'
+        max_speed='2.0'
         >
         <type>StanleyCarController</type>
         <planner 
@@ -33,9 +33,9 @@
           blocking_control='False'
           iterations='1'
           horizon='14'
-          Q1='np.diag(  [ 0,0.00,30.0,3.0])'
+          Q1='np.diag(  [ 0,0.00,20.0,2.0])'
           q1='np.array([[-0.01,-0.1,0,0]]).T'
-          Q2='np.diag(  [ 0,0.00,30.0,3.0])'
+          Q2='np.diag(  [ 0,0.00,20.0,2.0])'
           q2='np.array([[-0.01,-0.1,0,0]]).T'
           boundary_min_distance='0.03'
           >iLQGamePlanner</planner>

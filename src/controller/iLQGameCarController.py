@@ -61,7 +61,7 @@ class iLQGameCarController(CarController):
         # cost on opponent collision
         Kcol = 30.0*3
         self.opponent_min_distance_s = 0.3
-        self.opponent_min_distance_n = 0.1
+        self.opponent_min_distance_n = 0.19
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control

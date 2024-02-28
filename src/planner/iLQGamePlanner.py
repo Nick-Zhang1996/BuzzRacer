@@ -130,13 +130,15 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         oppo_curv_state = self.ego_car.sim_states
         raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.oppo_traj)
         v_target  = self.main.track.sToV(oppo_curv_state[0]%self.main.track.raceline_len_m)
+        if (v_target > 1.0):
+            v_target = 1.0 + (v_target-1.0)*0.5
         track_len = self.main.track.raceline_len_m
         lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
         v_diff = self_curv_state[1] - oppo_curv_state[1]
         # not in passing zone, too close, stil faster
-        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
             self.print_info(f'oppo car keeping back lead = {lead}')
-            v_target = min(v_target,oppo_curv_state[1]) - 0.3 #- (lead+0.1)
+            v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
     def localTrajectory(self,state):
@@ -149,9 +151,9 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
         v_diff = self_curv_state[1] - oppo_curv_state[1]
         # not in passing zone, too close, stil faster
-        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
             self.print_info(f'ego car keeping back lead = {lead}')
-            v_target = min(v_target,oppo_curv_state[1]) - 0.3 #- (lead+0.1)
+            v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
 
