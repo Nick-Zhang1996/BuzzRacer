@@ -19,7 +19,7 @@ def wrap(val):
     '''
     return (val + np.pi) % (2*np.pi) - np.pi
 
-class CurvilinearSimulator(Simulator):
+class PointedMassFrenetSimulator(Simulator):
     '''
         point mass model
         states = x = car.sim_states = (s, v, n, phi)
@@ -40,7 +40,7 @@ class CurvilinearSimulator(Simulator):
         super().init()
 
         self.cars = self.main.cars
-        CurvilinearSimulator.dt = self.main.dt
+        PointedMassFrenetSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
         self.main.new_state_update.set()
@@ -63,7 +63,7 @@ class CurvilinearSimulator(Simulator):
         car.control_dim = 2
 
     def cart2Curv(self, cart, guess_s=None):
-        return CurvilinearSimulator.cart2CurvTrack(cart,self.track,guess_s)
+        return PointedMassFrenetSimulator.cart2CurvTrack(cart,self.track,guess_s)
 
     @staticmethod
     def cart2CurvTrack(cart, track,guess_s=None):
@@ -119,7 +119,7 @@ class CurvilinearSimulator(Simulator):
         return
 
     def curv2Cart(self,curv):
-        return CurvilinearSimulator.curv2CartTrack(curv,self.track)
+        return PointedMassFrenetSimulator.curv2CartTrack(curv,self.track)
 
     @staticmethod
     def curv2CartTrack(curv,track):
@@ -175,7 +175,7 @@ class CurvilinearSimulator(Simulator):
     @staticmethod
     def advancePointMassDynamics(curv_states, control, dt,track):
         s,v,n,phi = curv_states
-        k_s = CurvilinearSimulator.curvatureTrack(s,track)
+        k_s = PointedMassFrenetSimulator.curvatureTrack(s,track)
         ay,ax = control
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
@@ -183,7 +183,7 @@ class CurvilinearSimulator(Simulator):
         dphidt = ay/v - k_s*dsdt
 
         if (dt is None):
-            dt = CurvilinearSimulator.dt
+            dt = PointedMassFrenetSimulator.dt
 
         dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
         '''
@@ -214,6 +214,6 @@ class CurvilinearSimulator(Simulator):
             breakpoint()
         '''
 
-        car.sim_states = CurvilinearSimulator.advancePointMassDynamics(car.sim_states, control, dt,self.track)
+        car.sim_states = PointedMassFrenetSimulator.advancePointMassDynamics(car.sim_states, control, dt,self.track)
 
         return self.curv2Cart(car.sim_states)

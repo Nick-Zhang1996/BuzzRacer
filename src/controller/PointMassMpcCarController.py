@@ -12,7 +12,7 @@ class PointMassMpcCarController(CarController):
 
     def init(self):
         self.simulator = self.main.simulator
-        assert(isinstance(self.simulator,CurvilinearSimulator))
+        assert(isinstance(self.simulator,PointedMassFrenetSimulator))
 
     def control(self):
         for car in self.main.cars:

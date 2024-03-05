@@ -7,7 +7,7 @@ import sys
 from math import radians
 from track import TrackFactory
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
-from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+from extension.simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
 import matplotlib.pyplot as plt
 
 if (len(sys.argv) == 2):
@@ -26,7 +26,7 @@ class FakeMain():
     def __init__(self):
         self.extensions = []
         self.track = None
-sim = CurvilinearSimulator(FakeMain())
+sim = PointedMassFrenetSimulator(FakeMain())
 sim.track = track
 
 def getCoord(s0):

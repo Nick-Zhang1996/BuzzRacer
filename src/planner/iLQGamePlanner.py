@@ -1,7 +1,7 @@
 from common import *
 from planner.Planner import Planner
 from controller.iLQGameCarController import iLQGameCarController
-from simulator.CurvilinearSimulator import CurvilinearSimulator
+from simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
 from math import atan2,sin,cos
 
 class iLQGamePlanner(Planner,iLQGameCarController):
@@ -19,7 +19,7 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         iLQGameCarController.preInit(self)
 
         for car in self.main.cars:
-            car.sim_states = CurvilinearSimulator.cart2CurvTrack(car.states,self.main.track)
+            car.sim_states = PointedMassFrenetSimulator.cart2CurvTrack(car.states,self.main.track)
         iLQGameCarController.init(self)
 
         if (self.control_opponent):
@@ -31,8 +31,8 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         if (not self.needReplan()):
             return True
         # set all car sim_states
-        x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
-        x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
+        x0 = PointedMassFrenetSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
+        x1 = PointedMassFrenetSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
         # NOTE
         self.ego_car.sim_states = x0
         self.oppo_car.sim_states = x1
@@ -67,8 +67,8 @@ class iLQGamePlanner(Planner,iLQGameCarController):
             new_x = self.update_dynamics(xx_j[-1],u)
             xx_j.append(new_x.reshape(4,1))
         # convert to cartesian coord
-        xx_i_cart = [CurvilinearSimulator.curv2CartTrack(val,self.main.track) for val in xx_i]
-        xx_j_cart = [CurvilinearSimulator.curv2CartTrack(val,self.main.track) for val in xx_j]
+        xx_i_cart = [PointedMassFrenetSimulator.curv2CartTrack(val,self.main.track) for val in xx_i]
+        xx_j_cart = [PointedMassFrenetSimulator.curv2CartTrack(val,self.main.track) for val in xx_j]
 
         # store for use in localTrajectory
         self.ego_traj =  np.array(xx_i_cart)

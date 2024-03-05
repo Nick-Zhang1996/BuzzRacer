@@ -2,7 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+from extension.simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
 import matplotlib.pyplot as plt
 
 class DdpPointMassCarController(CarController):
@@ -33,7 +33,7 @@ class DdpPointMassCarController(CarController):
 
     def init(self):
         self.simulator = self.main.simulator
-        assert(isinstance(self.simulator,CurvilinearSimulator))
+        assert(isinstance(self.simulator,PointedMassFrenetSimulator))
         self.predicted_traj = self.x_ref
 
     def control(self):
