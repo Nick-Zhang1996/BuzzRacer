@@ -36,7 +36,7 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         # NOTE
         self.ego_car.sim_states = x0
         self.oppo_car.sim_states = x1
-        self.print_info(f'v0: {x0[1]:.2f}, v1:{x1[1]:.2f}')
+        #self.print_info(f'v0: {x0[1]:.2f}, v1:{x1[1]:.2f}')
 
         x0[1] = max(2.0,x0[1])
         x1[1] = max(2.0,x1[1])
@@ -137,7 +137,7 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         v_diff = self_curv_state[1] - oppo_curv_state[1]
         # not in passing zone, too close, stil faster
         if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
-            self.print_info(f'oppo car keeping back lead = {lead}')
+            #self.print_info(f'oppo car keeping back lead = {lead}')
             v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
@@ -152,7 +152,7 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         v_diff = self_curv_state[1] - oppo_curv_state[1]
         # not in passing zone, too close, stil faster
         if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
-            self.print_info(f'ego car keeping back lead = {lead}')
+            #self.print_info(f'ego car keeping back lead = {lead}')
             v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
