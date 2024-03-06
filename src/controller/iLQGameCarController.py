@@ -18,7 +18,7 @@ class iLQGameCarController(CarController):
         self.n = 5
         self.iterations = 3
         self.draw_prediction = True
-        self.debug = True
+        self.debug = False
         self.leader_collision_ignorant = False
         self.dynamics = KinematicBicycleFrenetSimulator
         # aggressiveness
@@ -538,8 +538,8 @@ class iLQGameCarController(CarController):
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
                 # based on current position, agent in front ignorant of collision
-                # FIXME always share collision responsibility
-                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                if (self.leader_collision_ignorant and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                    # only follower is responsible
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         # agent j responsible
                         Q2_x += 2* II.T @ Qcol2 @ II

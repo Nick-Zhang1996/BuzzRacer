@@ -44,40 +44,41 @@ class iLQGameSoloCarController(iLQGameCarController):
             q2_x[0,0] = self.Qop2
 
             # barrier function: opponent collision
+            # always assume sole responsibility for collision
             delta_x = xx_i[t] - xx_j[t]
             if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
                 #self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0]>0 else 1
                 sgn_n = -1 if delta_x[2]>0 else 1
                 Q1_x += 2* II.T @ self.Qcol @ II
-                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ self.Qcol @ II)
 
             # barrier function: track boundary
-            cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
+            cart_states_i = self.dynamics.curv2CartTrack(xx_i[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
             if (left_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0,0,0]])
             elif (right_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0,0,0]])
 
-            cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
+            cart_states_j = self.dynamics.curv2CartTrack(xx_j[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
             self.t.e('preciseTrackBoundary')
 
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0]])
+                Q2_x += 2* np.diag([0,0,0,0,0,0,0,self.boundary_cost,0,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0]])
             elif (right_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0]])
+                Q2_x += 2* np.diag([0,0,0,0,0,0,0,self.boundary_cost,0,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0]])
 
 
             # barrier function: control limit

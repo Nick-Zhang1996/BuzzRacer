@@ -9,7 +9,7 @@
       <extension handle="laptimer">Laptimer</extension>
       <extension handle="logger">Logger</extension>
       <extension car_graphics="True" handle="visualization">Visualization</extension>
-      <extension handle="simulator" match_time="False">CurvilinearSimulator</extension>
+      <extension handle="simulator" match_time="False">KinematicBicycleFrenetSimulator</extension>
       <extension handle="boundary_checker">BoundaryChecker</extension>
       <extension handle="collision_checker">OpponentCollisionChecker</extension>
       <extension handle="lap_counter" lap_count="1">LapCounter</extension>

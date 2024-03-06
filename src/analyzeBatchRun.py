@@ -253,8 +253,8 @@ def sine_mpc_dense():
     #Qop1, Qop2
     print(f'qop0,qop1 \t,flow \t,lead \t,all \t,i out\t, j out\t, col\t,adv\t,total runs')
     def printTableEntry(a0,a1):
-        mask_a0 = [val == a0 for val in data_dict['Qop1']]
-        mask_a1 = [val == a1 for val in data_dict['Qop2']]
+        mask_a0 = [val == a0 for val in data_dict['car0_Qop1']]
+        mask_a1 = [val == a1 for val in data_dict['car0_Qop2']]
         mask = np.logical_and(mask_a0,mask_a1)
         printStats(f'q0={a0}, q1={a1}',mask)
     printTableEntry(0,0)
@@ -264,6 +264,10 @@ def sine_mpc_dense():
 def triangle_mpc_dense():
     return sine_mpc_dense()
 def nascar_mpc_dense():
+    return sine_mpc_dense()
+def nascar_mpc_dense():
+    return sine_mpc_dense()
+def nascar_mpc_bicycle():
     return sine_mpc_dense()
 
 def exploit_sine_dense():
