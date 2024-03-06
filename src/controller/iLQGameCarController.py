@@ -491,7 +491,7 @@ class iLQGameCarController(CarController):
             Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,0.0,1.0,0]) # n:1
             q1 = (1-alpha)*self.q1 + alpha* np.array([[-1,0,0,0,0]]).T # -4
             # blocking reward
-            Qblk = np.diag([0,0,30.0,0])
+            Qblk = np.diag([0,0,30.0,0,0])
 
             ori_Q1_x =  block_diag(Q1,np.zeros((n,n)))
             ori_q1_x = np.hstack([q1.T,np.zeros((1,n))])
@@ -502,7 +502,7 @@ class iLQGameCarController(CarController):
             ori_q2_x[0,0] = self.Qop2
 
             ori_Q1_x +=  alpha* (2* Ii.T @ Qblk @ Ii)
-            ori_q1_x +=  alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
+            ori_q1_x +=  alpha* (-2*np.array([[0,0,opponent_n,0,0]]) @ Qblk @ Ii)
             ori_Qcol1 = self.Qcol
             ori_Qcol2 = self.Qcol
         else:
