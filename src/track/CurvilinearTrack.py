@@ -128,6 +128,13 @@ class CurvilinearTrack(Track):
         retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()*1.5 ) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item()*1.5 )
         return retval
 
+    def isOutsideCurv(self,curv_coord):
+        # curv_coord: s,v,n,omega
+        offset = curv_coord[2]
+        s = curv_coord[0]
+        retval = ( offset > splev(s,self.raceline_left_boundary_fun)[0].item()) or ( -offset > splev(s,self.raceline_right_boundary_fun)[0].item() )
+        return retval
+
     def buildContinuousTrack(self,r):
         assert (len(r.shape) == 2)
         assert (r.shape[1] == 2)
@@ -220,8 +227,8 @@ class CurvilinearTrack(Track):
         y_pix = int((self.y_max - self.y_min)*self.resolution)
         # height, width
         img = 255*np.ones([y_pix,x_pix,3],dtype=np.uint8)
-        img = self.drawPolyline(self.raceline_left_boundary_points,img,lineColor=(0,0,0),thickness=2)
-        img = self.drawPolyline(self.raceline_right_boundary_points,img,lineColor=(0,0,0),thickness=2)
+        img = self.drawPolyline(self.raceline_left_boundary_points,img,lineColor=(0,0,0),thickness=3)
+        img = self.drawPolyline(self.raceline_right_boundary_points,img,lineColor=(0,0,0),thickness=3)
         return img
 
     def preciseTrackBoundary(self,coord,heading):
@@ -233,7 +240,7 @@ class CurvilinearTrack(Track):
 
         # find offset
         # positive offset means car is to the left of the trajectory(need to turn right)
-        dr = self.r[(index+1)%self.discretized_raceline_len] - self.r[index]
+        dr = self.r[(index+2)%self.discretized_raceline_len] - self.r[index]
         track_to_car = (x-self.r[index,0], y-self.r[index,1])
         offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
         s = self.ss[index]
@@ -413,6 +420,7 @@ class CurvilinearTrack(Track):
         img_track = self.drawRaceline(img=img_track)
         img_track = self.drawBezierRaceline(img_track,P,N,break_pts)
         img_track_rgb = cv2.cvtColor(img_track.copy(),cv2.COLOR_BGR2RGB)
+
         plt.imshow(img_track_rgb)
         plt.show()
 

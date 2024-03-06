@@ -1,8 +1,12 @@
 from common import *
 from planner.Planner import Planner
 from controller.iLQGameCarController import iLQGameCarController
+<<<<<<< HEAD
 from simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
 from math import atan2,sin,cos
+=======
+from simulator.CurvilinearSimulator import CurvilinearSimulator
+>>>>>>> dev
 
 class iLQGamePlanner(Planner,iLQGameCarController):
     def __init__(self,config=None):
@@ -155,5 +159,3 @@ class iLQGamePlanner(Planner,iLQGameCarController):
             #self.print_info(f'ego car keeping back lead = {lead}')
             v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
-
-
