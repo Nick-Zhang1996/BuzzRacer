@@ -3,7 +3,7 @@ from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 
-class PointMassCarController(CarController):
+class SimpleCarController(CarController):
     ''' 
     for sanity check of point mass curvilinear model
     '''

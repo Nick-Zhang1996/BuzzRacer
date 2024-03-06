@@ -57,10 +57,8 @@ class StanleyCarController(CarController):
 
     def init(self):
         CarController.init(self)
-        try:
+        if (not self.planner is None):
             self.planner.init()
-        except IndexError as e:
-            pass
 
 
     def control(self):

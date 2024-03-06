@@ -40,9 +40,10 @@ class KinematicBicycleFrenetSimulator(Simulator):
         super().init()
 
         self.cars = self.main.cars
-        PointedMassFrenetSimulator.dt = self.main.dt
+        KinematicBicycleFrenetSimulator.dt = self.main.dt
         for car in self.cars:
             self.addCar(car)
+        KinematicBicycleFrenetSimulator.lr = self.cars[0].lr
         self.main.new_state_update.set()
 
     def addCar(self,car):
@@ -63,7 +64,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         car.control_dim = 2
 
     def cart2Curv(self, cart, guess_s=None):
-        return PointedMassFrenetSimulator.cart2CurvTrack(cart,self.track,guess_s)
+        return KinematicBicycleFrenetSimulator.cart2CurvTrack(cart,self.track,guess_s)
 
     @staticmethod
     def cart2CurvTrack(cart, track,guess_s=None):
@@ -100,7 +101,8 @@ class KinematicBicycleFrenetSimulator(Simulator):
         # ignore sideway velocity
         v = v_forward
         phi = wrap(heading - np.arctan2(dr[1],dr[0]))
-        return np.array([s,v,n,phi])
+        # assume beta=0
+        return np.array([s,v,n,phi,0])
 
     # DEBUG
     def debugPlot(self,cart):
@@ -119,7 +121,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         return
 
     def curv2Cart(self,curv):
-        return PointedMassFrenetSimulator.curv2CartTrack(curv,self.track)
+        return KinematicBicycleFrenetSimulator.curv2CartTrack(curv,self.track)
 
     @staticmethod
     def curv2CartTrack(curv,track):
@@ -128,7 +130,8 @@ class KinematicBicycleFrenetSimulator(Simulator):
             [curv]: (s,v,n,phi)
             [return]: (x,y,heading,v_forward,v_sideway,omega)
         '''
-        s,v,n,phi = curv.flatten()
+        s,v,n,phi,beta = curv.flatten()
+
         r = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=0))
         dr = np.array(splev(s%track.raceline_len_m, track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
@@ -137,7 +140,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         A = np.array([[0,-1],[1,0]])
         x,y = r + (A @ dr)*n
         ref_heading = np.arctan2(dr[1],dr[0])
-        heading = wrap(phi + ref_heading)
+        heading = wrap(phi + ref_heading - beta)
         v_forward = v
         v_sideway = 0.0
         omega = 0.0
@@ -173,9 +176,30 @@ class KinematicBicycleFrenetSimulator(Simulator):
         return np.copysign(curvature, sign)
 
     @staticmethod
+    def advanceKinematicBicycleDynamics(curv_states, control, dt,track):
+        # beta: angle between CG velocity and track tangent
+        s,v,n,phi,beta = curv_states
+        k_s = KinematicBicycleFrenetSimulator.curvatureTrack(s,track)
+        ay,ax = control
+
+        dsdt = v*cos(phi)/(1-n*k_s)
+        dvdt = cos(beta)*ax + sin(beta)*ay
+        dndt = v*sin(phi)
+        dbetadt = (-sin(beta)*ax + cos(beta) *ay)/v
+        dphidt = dbetadt + v/KinematicBicycleFrenetSimulator.lr*sin(beta)-dsdt
+
+        if (dt is None):
+            dt = KinematicBicycleFrenetSimulator.dt
+
+        dx = np.array([dsdt, dvdt, dndt, dphidt, dbetadt])*dt
+        return curv_states + dx
+
+
+
+    @staticmethod
     def advancePointMassDynamics(curv_states, control, dt,track):
         s,v,n,phi = curv_states
-        k_s = PointedMassFrenetSimulator.curvatureTrack(s,track)
+        k_s = KinematicBicycleFrenetSimulator.curvatureTrack(s,track)
         ay,ax = control
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
@@ -183,7 +207,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         dphidt = ay/v - k_s*dsdt
 
         if (dt is None):
-            dt = PointedMassFrenetSimulator.dt
+            dt = KinematicBicycleFrenetSimulator.dt
 
         dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
         '''
@@ -214,6 +238,6 @@ class KinematicBicycleFrenetSimulator(Simulator):
             breakpoint()
         '''
 
-        car.sim_states = PointedMassFrenetSimulator.advancePointMassDynamics(car.sim_states, control, dt,self.track)
+        car.sim_states = KinematicBicycleFrenetSimulator.advanceKinematicBicycleDynamics(car.sim_states, control, dt,self.track)
 
         return self.curv2Cart(car.sim_states)
