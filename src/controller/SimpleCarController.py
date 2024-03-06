@@ -18,7 +18,8 @@ class SimpleCarController(CarController):
             print(car.sim_states)
             print(f'T = {throttle} S = {steering}')
 
+            # FIXME
             car.throttle = throttle
-            car.steering = steering
+            car.steering = steering*0
         return
 

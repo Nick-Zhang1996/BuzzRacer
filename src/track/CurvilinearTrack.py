@@ -242,7 +242,7 @@ class CurvilinearTrack(Track):
         return (left,right)
 
     # optimize path and save to pickle file
-    def optimizePath(self,*,max_iter=20, offset=0, visualize=False, save_gif=False,save_steps=False,):
+    def optimizePath(self,*,max_iter=20, offset=0, mu=0.8,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3, visualize=False,save_gif=False,save_steps=False,):
         self.print_info('Minimum curvature smoothing')
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
@@ -396,7 +396,7 @@ class CurvilinearTrack(Track):
         self.raceline_right_boundary_points = self.r - lateral * self.raceline_right_boundary.T
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
 
-        retval = self.generateSpeedProfile()
+        retval = self.generateSpeedProfile(mu=mu,acc_max_fun=acc_max_fun, dec_max_fun=dec_max_fun)
         self.raceline_speed_s = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']

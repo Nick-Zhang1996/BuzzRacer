@@ -3,6 +3,7 @@
 
 import os
 import sys
+import sympy
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin,cos,tan,radians,degrees,pi,atan
@@ -12,6 +13,7 @@ from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
 from common import *
 from extension import Simulator
+from util.SymbolicDynamics import SymbolicDynamics
 
 def wrap(val):
     '''
@@ -186,7 +188,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         dvdt = cos(beta)*ax + sin(beta)*ay
         dndt = v*sin(phi)
         dbetadt = (-sin(beta)*ax + cos(beta) *ay)/v
-        dphidt = dbetadt + v/KinematicBicycleFrenetSimulator.lr*sin(beta)-dsdt
+        dphidt = dbetadt + v/KinematicBicycleFrenetSimulator.lr*sin(beta)-v*cos(phi)*k_s/(1-n*k_s)
 
         if (dt is None):
             dt = KinematicBicycleFrenetSimulator.dt
@@ -194,27 +196,6 @@ class KinematicBicycleFrenetSimulator(Simulator):
         dx = np.array([dsdt, dvdt, dndt, dphidt, dbetadt])*dt
         return curv_states + dx
 
-
-
-    @staticmethod
-    def advancePointMassDynamics(curv_states, control, dt,track):
-        s,v,n,phi = curv_states
-        k_s = KinematicBicycleFrenetSimulator.curvatureTrack(s,track)
-        ay,ax = control
-        dsdt = v*cos(phi)/(1-n*k_s)
-        dvdt = ax
-        dndt = v*sin(phi)
-        dphidt = ay/v - k_s*dsdt
-
-        if (dt is None):
-            dt = KinematicBicycleFrenetSimulator.dt
-
-        dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
-        '''
-        if (np.linalg.norm(dx[:3]) > 1.0):
-            breakpoint()
-        '''
-        return curv_states + dx
 
     def advanceDynamics(self, car_states, control, car, dt=None):
         '''
@@ -241,3 +222,81 @@ class KinematicBicycleFrenetSimulator(Simulator):
         car.sim_states = KinematicBicycleFrenetSimulator.advanceKinematicBicycleDynamics(car.sim_states, control, dt,self.track)
 
         return self.curv2Cart(car.sim_states)
+
+    @staticmethod
+    def buildSymbolicDynamics():
+        n = 5
+        m = 2
+        dt = 0.01
+        sym = SymbolicDynamics(n,m)
+        # curvature at current s
+        k_s = sym.k_s = sympy.symbols('k_s')
+        sym.xop = [sympy.symbols(f'xop{i}') for i in range(n)]
+        s = sym.x[0]
+        v = sym.x[1]
+        n = sym.x[2]
+        phi = sym.x[3]
+        beta = sym.x[4]
+
+        ay = sym.u[0]
+        ax = sym.u[1]
+        
+        dsdt = v*sympy.cos(phi)/(1-n*k_s)
+        dvdt = sympy.cos(beta)*ax + sympy.sin(beta)*ay
+        dndt = v*sympy.sin(phi)
+        dbetadt = (-sympy.sin(beta)*ax + sympy.cos(beta) *ay)/v
+        dphidt = dbetadt + v/KinematicBicycleFrenetSimulator.lr*sympy.sin(beta)-v*sympy.cos(phi)*k_s/(1-n*k_s)
+
+        new_s = s + dsdt*dt
+        new_v = v + dvdt*dt
+        new_n = n + dndt*dt
+        new_phi = phi + dphidt*dt
+        new_beta = beta + dbetadt*dt
+
+        sym.f = [new_s, new_v, new_n, new_phi, new_beta]
+
+        #l_path(x,u) = xT Q x + q x + uT R u
+        #l_op(x,xop) = (x-xop)T Qcol (x-xop) = (remove const) xT Qcol x - 2xopT Qcol x
+        #l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
+        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qcol)
+        #sym.l = l_path + l_op
+        sym.symDer()
+        print('dfdx')
+        print(sym.dfdx)
+        print('dfdu')
+        print(sym.dfdu)
+        return sym
+
+
+    def linearizeSymbolic(self,x0,u0):
+        ''' linearize dynamics symbolically '''
+        sym = self.sym
+        x0 = x0.flatten()
+        u0 = u0.flatten()
+        #xop = xop.flatten()
+        k_s = KinematicBicycleFrenetSimulator.curvatureTrack(x0[0],self.main.track)
+        subs_dict = {sym.k_s:k_s}
+        '''
+        for i in range(self.n):
+            subs_dict.update({sym.xop[i]:xop[i]})
+        '''
+
+        #fx,fu,lx,lu,lxx,luu,lux = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        fx,fu = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        return fx,fu
+
+
+    @staticmethod
+    def linearizeManual(x,u,track):
+        ''' linearize manually using equations from sympy'''
+        x0,x1,x2,x3,x4 = x.flatten()
+        u0,u1 = u.flatten()
+        k_s = KinematicBicycleFrenetSimulator.curvatureTrack(x0,track)
+
+        dfdx = [[1, 0.01*cos(x3)/(-k_s*x2 + 1), 0.01*k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -0.01*x1*sin(x3)/(-k_s*x2 + 1), 0], [0, 1, 0, 0, 0.01*u0*cos(x4) - 0.01*u1*sin(x4)], [0, 0.01*sin(x3), 1, 0.01*x1*cos(x3), 0], [0, -0.01*k_s*cos(x3)/(-k_s*x2 + 1) + 0.239463601532567*sin(x4) - 0.01*(u0*cos(x4) - u1*sin(x4))/x1**2, -0.01*k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, 0.01*k_s*x1*sin(x3)/(-k_s*x2 + 1) + 1, 0.239463601532567*x1*cos(x4) + 0.01*(-u0*sin(x4) - u1*cos(x4))/x1], [0, -0.01*(u0*cos(x4) - u1*sin(x4))/x1**2, 0, 0, 1 + 0.01*(-u0*sin(x4) - u1*cos(x4))/x1]]
+        dfdu = [[0, 0], [0.01*sin(x4), 0.01*cos(x4)], [0, 0], [0.01*cos(x4)/x1, -0.01*sin(x4)/x1], [0.01*cos(x4)/x1, -0.01*sin(x4)/x1]]
+
+
+
+        return np.array(dfdx,dtype=np.float64),np.array(dfdu,dtype=np.float64)
+

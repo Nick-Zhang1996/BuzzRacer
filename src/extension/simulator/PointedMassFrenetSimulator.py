@@ -3,6 +3,7 @@
 
 import os
 import sys
+import sympy
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin,cos,tan,radians,degrees,pi,atan
@@ -12,6 +13,7 @@ from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
 from common import *
 from extension import Simulator
+from util.SymbolicDynamics import SymbolicDynamics
 
 def wrap(val):
     '''
@@ -217,3 +219,127 @@ class PointedMassFrenetSimulator(Simulator):
         car.sim_states = PointedMassFrenetSimulator.advancePointMassDynamics(car.sim_states, control, dt,self.track)
 
         return self.curv2Cart(car.sim_states)
+
+    def buildSymbolicDynamics(self):
+        sym = SymbolicDynamics(self.n,self.m)
+        # curvature at current s
+        k_s = sym.k_s = sympy.symbols('k_s')
+        sym.xop = [sympy.symbols(f'xop{i}') for i in range(self.n)]
+        s = sym.x[0]
+        v = sym.x[1]
+        n = sym.x[2]
+        phi = sym.x[3]
+
+        ay = sym.u[0]
+        ax = sym.u[1]
+
+        dsdt = v*sympy.cos(phi)/(1-n*k_s)
+        dvdt = ax
+        dndt = v*sympy.sin(phi)
+        dphidt = ay/v - k_s*dsdt
+
+        new_s = s + dsdt*self.dt
+        new_v = v + dvdt*self.dt
+        new_n = n + dndt*self.dt
+        new_phi = phi + dphidt*self.dt
+
+        sym.f = [new_s, new_v, new_n, new_phi]
+
+        #l_path(x,u) = xT Q x + q x + uT R u
+        #l_op(x,xop) = (x-xop)T Qcol (x-xop) = (remove const) xT Qcol x - 2xopT Qcol x
+        #l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
+        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qcol)
+        #sym.l = l_path + l_op
+        sym.symDer()
+        return sym
+
+
+    def linearizeSymbolic(self,x0,u0):
+        ''' linearize dynamics symbolically '''
+        sym = self.sym
+        x0 = x0.flatten()
+        u0 = u0.flatten()
+        #xop = xop.flatten()
+        k_s = PointedMassFrenetSimulator.curvatureTrack(x0[0],self.main.track)
+        subs_dict = {sym.k_s:k_s}
+        '''
+        for i in range(self.n):
+            subs_dict.update({sym.xop[i]:xop[i]})
+        '''
+
+        #fx,fu,lx,lu,lxx,luu,lux = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        fx,fu = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
+        return fx,fu
+
+    # differentiate dynamics around nominal state and control
+    # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
+    def linearizeNumerical(self, nominal_state, nominal_ctrl):
+        nominal_state = np.array(nominal_state.flatten()).copy()
+        nominal_ctrl = np.array(nominal_ctrl.flatten()).copy()
+        epsilon = 1e-2
+
+        # A = df/dx
+        A = np.zeros((self.n,self.n),dtype=np.float)
+        # find A
+        for i in range(self.n):
+            # d x / d x_i, ith row in A
+            x_l = nominal_state.copy()
+            x_l[i] -= epsilon
+
+            x_post_l = self.update_dynamics(x_l, nominal_ctrl, self.dt)
+
+            x_r = nominal_state.copy()
+            x_r[i] += epsilon
+            x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
+
+            A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
+
+
+        # B = df/du
+        B = np.zeros((self.n,self.m),dtype=np.float)
+        # find B
+        for i in range(self.m):
+            # d x / d u_i, ith row in B
+            x0 = nominal_state.copy()
+            u_l = nominal_ctrl.copy()
+            u_l[i] -= epsilon
+            x_post_l = self.update_dynamics(x0, u_l, self.dt)
+            x_post_l = x_post_l.copy()
+
+            x0 = nominal_state.copy()
+            u_r = nominal_ctrl.copy()
+            u_r[i] += epsilon
+            x_post_r = self.update_dynamics(x0, u_r, self.dt)
+            x_post_r = x_post_r.copy()
+
+            B[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
+
+        x0 = nominal_state.copy()
+        u0 = nominal_ctrl.copy()
+        '''
+        self.sim.states = np.array(x0.copy())
+        self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
+        x_post = np.array(self.sim.states)
+        '''
+        x_post = self.update_dynamics(x0, u0, self.dt)
+
+
+        # d = x_k+1 - Ak*x_k - Bk*u_k
+        x0 = nominal_state.copy()
+        u0 = nominal_ctrl.copy()
+        d = x_post.flatten() - A @ x0 - B @ u0
+
+        return A,B,d
+
+    def linearizeManual(self,x,u):
+        ''' linearize manually using equations from sympy'''
+        x0,x1,x2,x3 = x.flatten()
+        u0,u1 = u.flatten()
+        k_s = PointedMassFrenetSimulator.curvatureTrack(x0,self.main.track)
+
+        dfdx = [[1, 0.01*cos(x3)/(-k_s*x2 + 1), 0.01*k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -0.01*x1*sin(x3)/(-k_s*x2 + 1)], [0, 1, 0, 0], [0, 0.01*sin(x3), 1, 0.01*x1*cos(x3)], [0, -0.01*k_s*cos(x3)/(-k_s*x2 + 1) - 0.01*u0/x1**2, -0.01*k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, 0.01*k_s*x1*sin(x3)/(-k_s*x2 + 1) + 1]]
+
+        dfdu = [[0, 0], [0, 0.0100000000000000], [0, 0], [0.01/x1, 0]]
+
+
+        return np.array(dfdx,dtype=np.float64),np.array(dfdu,dtype=np.float64)

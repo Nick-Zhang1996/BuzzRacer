@@ -11,7 +11,7 @@
       <extension handle='logger'>Logger</extension>
       <extension handle='snapshot'>SnapshotSaver</extension>
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
-      <extension handle='simulator' match_time='True'>CurvilinearSimulator</extension>
+      <extension handle='simulator' match_time='True'>KinematicBicycleFrenetSimulator</extension>
           <!--<extension handle='gifsaver'>Gifsaver</extension>-->
   </extensions>
 
@@ -32,8 +32,9 @@
       <config_name>sim_green</config_name>
       <init_states>(0.4,0.1, radians(0), 3)</init_states>
       <controller 
+        iterations='1'
         control_opponent='True'
-        blocking_control='True'
+        blocking_control='False'
         >
         <type>iLQGameCarController</type>
       </controller>

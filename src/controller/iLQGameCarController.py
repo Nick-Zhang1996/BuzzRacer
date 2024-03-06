@@ -4,10 +4,8 @@ from controller.CarController import CarController
 from controller.PidController import PidController
 from third_party.solve_lq_game import solve_lq_game
 from controller.LQGame import my_solve_lq_game
-from extension.simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
-from util.SymbolicDynamics import SymbolicDynamics
+from extension.simulator.KinematicBicycleFrenetSimulator import KinematicBicycleFrenetSimulator
 from scipy.linalg import block_diag
-import sympy
 from util.timeUtil import execution_timer
 import cv2
 
@@ -17,11 +15,12 @@ class iLQGameCarController(CarController):
         self.t = execution_timer(True)
         self.lqt = execution_timer(True)
         self.m = 2
-        self.n = 4
+        self.n = 5
         self.iterations = 3
         self.draw_prediction = True
-        self.debug = False
+        self.debug = True
         self.leader_collision_ignorant = False
+        self.dynamics = KinematicBicycleFrenetSimulator
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -35,13 +34,12 @@ class iLQGameCarController(CarController):
 
         self.horizon = 20
         self.dt = self.main.dt * 2
-        # symbolic dynamics
-        self.sym = self.buildSymbolicDynamics()
+
 
         # cost to apply on state
-        # state x: s,v,n,phi
-        self.Q1 = np.diag(  [ 0,0.00,1.0,1.0])
-        self.q1 = np.array([[-4,0,0,0]]).T
+        # state x: s,v,n,phi, beta
+        self.Q1 = np.diag(  [ 0,0.00,1.0,1.0, 0.0])
+        self.q1 = np.array([[-4,0,0,0, 0.0]]).T
         # aggressiveness: 0->don't care about opponent 1->J = s_i - s_j
         self.Qop1 = 0
         self.Qop1_leading = 0
@@ -49,8 +47,8 @@ class iLQGameCarController(CarController):
         self.Qop1_blocking = 0
         self.adaptive_Qop = False
 
-        self.Q2 = np.diag(  [ 0,0.00,1.0,1.0])
-        self.q2 = np.array([[-4,0,0,0]]).T
+        self.Q2 = np.diag(  [ 0,0.00,1.0,1.0,0.0])
+        self.q2 = np.array([[-4,0,0,0,0.0]]).T
         self.Qop2 = 0
 
         # cost on track boundary
@@ -62,7 +60,7 @@ class iLQGameCarController(CarController):
         Kcol = 30.0*3
         self.opponent_min_distance_s = 0.3
         self.opponent_min_distance_n = 0.19
-        self.Qcol = np.diag([Kcol,0,Kcol,0])
+        self.Qcol = np.diag([Kcol,0,Kcol,0,0])
 
         # cost on control
         self.control_barrier_cost = 0.1*10
@@ -101,6 +99,9 @@ class iLQGameCarController(CarController):
 
         delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
         self.start_lead_i_j = delta_x[0]
+        # for checking dynamics jacobians
+        #self.dynamics.buildSymbolicDynamics()
+
 
 
     def final(self):
@@ -119,7 +120,7 @@ class iLQGameCarController(CarController):
     def control(self):
         self.debug_dict = {}
         # s,v,n,phi
-        alpha1s, P1s, alpha2s, P2s = self.lqControl(ego_states, oppo_states)
+        alpha1s, P1s, alpha2s, P2s = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
         xx_i = self.ego_car.sim_states.reshape((self.n,1))
         xx_j = self.oppo_car.sim_states.reshape((self.n,1))
         dx_i = xx_i - self.x_i_ref[0]
@@ -127,7 +128,6 @@ class iLQGameCarController(CarController):
         dx = np.vstack([dx_i,dx_j])
         ctrl0 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
         ctrl1 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
-
 
         # car i
         car_i = self.ego_car
@@ -196,75 +196,10 @@ class iLQGameCarController(CarController):
         return (ay,ax),violated
 
 
-
-    def buildSymbolicDynamics(self):
-        sym = SymbolicDynamics(self.n,self.m)
-        # curvature at current s
-        k_s = sym.k_s = sympy.symbols('k_s')
-        sym.xop = [sympy.symbols(f'xop{i}') for i in range(self.n)]
-        s = sym.x[0]
-        v = sym.x[1]
-        n = sym.x[2]
-        phi = sym.x[3]
-
-        ay = sym.u[0]
-        ax = sym.u[1]
-
-        dsdt = v*sympy.cos(phi)/(1-n*k_s)
-        dvdt = ax
-        dndt = v*sympy.sin(phi)
-        dphidt = ay/v - k_s*dsdt
-
-        new_s = s + dsdt*self.dt
-        new_v = v + dvdt*self.dt
-        new_n = n + dndt*self.dt
-        new_phi = phi + dphidt*self.dt
-
-        sym.f = [new_s, new_v, new_n, new_phi]
-
-        #l_path(x,u) = xT Q x + q x + uT R u
-        #l_op(x,xop) = (x-xop)T Qcol (x-xop) = (remove const) xT Qcol x - 2xopT Qcol x
-        #l_path = sym.xQx_diag(sym.x,self.Q) + sym.product(self.q, sym.x) + self.xQx_diag(sym.u, self.R)
-        #l_op = sym.xQx_diag(sym.minus(sym.x,sym.xop), self.Qcol)
-        #sym.l = l_path + l_op
-        sym.symDer()
-        return sym
-
-
-    def linearizeSymbolic(self,x0,u0):
-        ''' linearize dynamics symbolically '''
-        sym = self.sym
-        x0 = x0.flatten()
-        u0 = u0.flatten()
-        #xop = xop.flatten()
-        k_s = PointedMassFrenetSimulator.curvatureTrack(x0[0],self.main.track)
-        subs_dict = {sym.k_s:k_s}
-        '''
-        for i in range(self.n):
-            subs_dict.update({sym.xop[i]:xop[i]})
-        '''
-
-        #fx,fu,lx,lu,lxx,luu,lux = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
-        fx,fu = self.sym.calcDer(x0=x0, u0=u0, subs_dict=subs_dict)
-        return fx,fu
-
-    def linearizeManual(self,x,u):
-        ''' linearize manually using equations from sympy'''
-        x0,x1,x2,x3 = x.flatten()
-        u0,u1 = u.flatten()
-        k_s = PointedMassFrenetSimulator.curvatureTrack(x0,self.main.track)
-
-        dfdx = [[1, 0.01*cos(x3)/(-k_s*x2 + 1), 0.01*k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -0.01*x1*sin(x3)/(-k_s*x2 + 1)], [0, 1, 0, 0], [0, 0.01*sin(x3), 1, 0.01*x1*cos(x3)], [0, -0.01*k_s*cos(x3)/(-k_s*x2 + 1) - 0.01*u0/x1**2, -0.01*k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, 0.01*k_s*x1*sin(x3)/(-k_s*x2 + 1) + 1]]
-
-        dfdu = [[0, 0], [0, 0.0100000000000000], [0, 0], [0.01/x1, 0]]
-
-
-        return np.array(dfdx,dtype=np.float64),np.array(dfdu,dtype=np.float64)
-
     def update_dynamics(self,states,controls,dt=None):
         if (dt is None):
             dt = self.dt
-        return PointedMassFrenetSimulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt,self.main.track)
+        return self.dynamics.advanceKinematicBicycleDynamics(states.flatten(),controls.flatten(),dt,self.main.track)
 
     def lqControl(self,x0_i,x0_j):
         self.t.s()
@@ -316,11 +251,11 @@ class iLQGameCarController(CarController):
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
-                    A, B = self.linearizeManual(xx_i[-1],np.zeros(self.m))
+                    A, B = self.dynamics.linearizeManual(xx_i[-1],np.zeros(self.m),self.main.track)
                 else:
-                    A, B = self.linearizeManual(xx_i[-1],u)
+                    A, B = self.dynamics.linearizeManual(xx_i[-1],u,self.main.track)
                 self.t.e('linearize')
-                xx_i.append(new_x.reshape(4,1))
+                xx_i.append(new_x.reshape(self.n,1))
                 Ais.append(A)
                 Bis.append(B)
                 uu_i.append(u)
@@ -335,15 +270,11 @@ class iLQGameCarController(CarController):
                 self.t.e('update_dynamics')
                 self.t.s('linearize')
                 if (self.linearize_around_zero_control):
-                    #A,B,d = self.linearizeNumerical(xx_j[-1],np.zeros(self.m))
-                    #A, B = self.linearizeSymbolic(xx_j[-1],np.zeros(self.m))
-                    A, B = self.linearizeManual(xx_j[-1],np.zeros(self.m))
+                    A, B = self.dynamics.linearizeManual(xx_j[-1],np.zeros(self.m),self.main.track)
                 else:
-                    #A,B,d = self.linearizeNumerical(xx_j[-1],u)
-                    #A, B = self.linearizeSymbolic(xx_j[-1],u)
-                    A, B = self.linearizeManual(xx_j[-1],u)
+                    A, B = self.dynamics.linearizeManual(xx_j[-1],u,self.main.track)
                 self.t.e('linearize')
-                xx_j.append(new_x.reshape(4,1))
+                xx_j.append(new_x.reshape(self.n,1))
                 Ajs.append(A)
                 Bjs.append(B)
                 uu_j.append(u)
@@ -423,6 +354,9 @@ class iLQGameCarController(CarController):
 
         self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
+        if (self.main.breakpoint.is_set()):
+            breakpoint()
+            self.main.breakpoint.clear()
         return alpha1s, P1s, alpha2s, P2s
 
     def createConstants(self):
@@ -491,19 +425,19 @@ class iLQGameCarController(CarController):
                 if (self.leader_collision_ignorant and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
                     if (xx_i[t][0] - xx_j[t][0] > 0):
                         Q2_x += 2* II.T @ self.Qcol @ II
-                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ self.Qcol @ II)
                     else:
                         Q1_x += 2* II.T @ self.Qcol @ II
-                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ self.Qcol @ II)
                 else:
                     # if side by side both agent responsible
                     Q1_x += 2* II.T @ self.Qcol @ II
-                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ self.Qcol @ II)
                     Q2_x += 2* II.T @ self.Qcol @ II
-                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ self.Qcol @ II)
 
             # barrier function: track boundary
-            cart_states_i = PointedMassFrenetSimulator.curv2CartTrack(xx_i[t].flatten(),self.main.track)
+            cart_states_i = self.dynamics.curv2CartTrack(xx_i[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
             #left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(s=xx_i[t][0],n=xx_i[t][2])
@@ -511,13 +445,13 @@ class iLQGameCarController(CarController):
 
             # n>0 -> left
             if (left_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0,0,0]])
             elif (right_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0,0,0]])
 
-            cart_states_j = PointedMassFrenetSimulator.curv2CartTrack(xx_j[t].flatten(),self.main.track)
+            cart_states_j = self.dynamics.curv2CartTrack(xx_j[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
             #left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(s=xx_j[t][0],n=xx_j[t][2])
@@ -525,11 +459,11 @@ class iLQGameCarController(CarController):
 
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0]])
+                Q2_x += 2* np.diag([0,0,0,0,0,0,0,self.boundary_cost,0,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0]])
             elif (right_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0]])
+                Q2_x += 2* np.diag([0,0,0,0,0,0,0,self.boundary_cost,0,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0]])
 
 
             # barrier function: control limit
@@ -627,65 +561,6 @@ class iLQGameCarController(CarController):
         return Q1s,q1s,Q2s,q2s,Rs,rs
 
 
-    # differentiate dynamics around nominal state and control
-    # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
-    def linearizeNumerical(self, nominal_state, nominal_ctrl):
-        nominal_state = np.array(nominal_state.flatten()).copy()
-        nominal_ctrl = np.array(nominal_ctrl.flatten()).copy()
-        epsilon = 1e-2
-
-        # A = df/dx
-        A = np.zeros((self.n,self.n),dtype=np.float)
-        # find A
-        for i in range(self.n):
-            # d x / d x_i, ith row in A
-            x_l = nominal_state.copy()
-            x_l[i] -= epsilon
-
-            x_post_l = self.update_dynamics(x_l, nominal_ctrl, self.dt)
-
-            x_r = nominal_state.copy()
-            x_r[i] += epsilon
-            x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
-
-            A[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
-
-
-        # B = df/du
-        B = np.zeros((self.n,self.m),dtype=np.float)
-        # find B
-        for i in range(self.m):
-            # d x / d u_i, ith row in B
-            x0 = nominal_state.copy()
-            u_l = nominal_ctrl.copy()
-            u_l[i] -= epsilon
-            x_post_l = self.update_dynamics(x0, u_l, self.dt)
-            x_post_l = x_post_l.copy()
-
-            x0 = nominal_state.copy()
-            u_r = nominal_ctrl.copy()
-            u_r[i] += epsilon
-            x_post_r = self.update_dynamics(x0, u_r, self.dt)
-            x_post_r = x_post_r.copy()
-
-            B[:,i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
-
-        x0 = nominal_state.copy()
-        u0 = nominal_ctrl.copy()
-        '''
-        self.sim.states = np.array(x0.copy())
-        self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
-        '''
-        x_post = self.update_dynamics(x0, u0, self.dt)
-
-
-        # d = x_k+1 - Ak*x_k - Bk*u_k
-        x0 = nominal_state.copy()
-        u0 = nominal_ctrl.copy()
-        d = x_post.flatten() - A @ x0 - B @ u0
-
-        return A,B,d
 
     def drawDebug(self):
         if (self.main.visualization.update_visualization.is_set()):
@@ -713,7 +588,7 @@ class iLQGameCarController(CarController):
             predicted_traj = []
             for t in range(self.horizon):
                 curvi_states = traj[t]
-                cart_states = PointedMassFrenetSimulator.curv2CartTrack(curvi_states,self.main.track)
+                cart_states = self.dynamics.curv2CartTrack(curvi_states,self.main.track)
                 predicted_traj.append(cart_states)
 
             predicted_traj = np.array(predicted_traj)
