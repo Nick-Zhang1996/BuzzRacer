@@ -1,12 +1,8 @@
 from common import *
 from planner.Planner import Planner
 from controller.iLQGameCarController import iLQGameCarController
-<<<<<<< HEAD
 from simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
 from math import atan2,sin,cos
-=======
-from simulator.CurvilinearSimulator import CurvilinearSimulator
->>>>>>> dev
 
 class iLQGamePlanner(Planner,iLQGameCarController):
     def __init__(self,config=None):

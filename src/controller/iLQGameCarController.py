@@ -556,7 +556,7 @@ class iLQGameCarController(CarController):
                     q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0,0]]) @ Qcol2 @ II)
 
             # barrier function: track boundary
-            cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
+            cart_states_i = self.dynamics.curv2CartTrack(xx_i[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
             self.t.e('preciseTrackBoundary')
@@ -569,7 +569,7 @@ class iLQGameCarController(CarController):
                 Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0,0,0])
                 q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0,0,0]])
 
-            cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
+            cart_states_j = self.dynamics.curv2CartTrack(xx_j[t].flatten(),self.main.track)
             self.t.s('preciseTrackBoundary')
             left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
             self.t.e('preciseTrackBoundary')
