@@ -121,8 +121,11 @@ class MppiFrenetCarController(CarController):
 
         cuda_code_macros.update({"COST_OPPO_MIN_S":self.opponent_min_distance_s})
         cuda_code_macros.update({"COST_OPPO_MIN_N":self.opponent_min_distance_n})
-
         cuda_code_macros.update({"COST_Q_COL":self.Qcol[0][0]})
+
+        cuda_code_macros.update({"PARAM_MAX_AX":self.car.max_ax})
+        cuda_code_macros.update({"PARAM_MAX_AY":self.car.max_ay})
+        cuda_code_macros.update({"PARAM_MAX_V":self.car.max_v})
 
         cuda_filename = "./controller/mppi_frenet/mppi_kinematic_bicycle_frenet.cu"
         self.loadCudaFile(cuda_filename, cuda_code_macros)

@@ -40,8 +40,8 @@
 #define STATE_PHI 3
 #define STATE_BETA 4
 
-#define CONTROL_THROTTLE 1
 #define CONTROL_STEERING 0
+#define CONTROL_THROTTLE 1
 
 // one discretization step is around 1cm
 #define RACELINE_SEARCH_RANGE 10
@@ -65,8 +65,11 @@
 
 #define COST_OPPO_MIN_S %(COST_OPPO_MIN_S)s
 #define COST_OPPO_MIN_N %(COST_OPPO_MIN_N)s
-
 #define COST_Q_COL %(COST_Q_COL)s
+
+#define PARAM_MAX_AX %(PARAM_MAX_AX)s
+#define PARAM_MAX_AY %(PARAM_MAX_AY)s
+#define PARAM_MAX_V %(PARAM_MAX_V)s
 
 
 // vars
@@ -96,6 +99,8 @@ __device__
 float map(float val, float in_l,float in_h,float out_low,float out_high);
 __device__
 float sqrf(float val){ return val*val; }
+__device__
+void bound_control(float* state, float* i_control, float* o_control);
 
 extern "C" {
 __global__ void init_curand_kernel(int seed){
@@ -197,13 +202,9 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     float* u = _u;
 
     // apply constrain on control input
+    bound_control(x,sampled_noise+id*HORIZON*CONTROL_DIM + i*CONTROL_DIM, u);
     for (int j=0; j<CONTROL_DIM; j++){
-      float control = sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
-      control = control < control_limit[j*CONTROL_DIM]? control_limit[j*CONTROL_DIM]:control;
-      control = control > control_limit[j*CONTROL_DIM+1]? control_limit[j*CONTROL_DIM+1]:control;
-      out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = control;
-      //out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (val - last_u[j])/DT;
-      u[j] = control;
+      out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
     }
 
     // step forward dynamics, update state x in place
@@ -359,7 +360,6 @@ float evaluate_terminal_cost( float* current_state,float* initial_state, int* la
 }
 
 // opponent_traj: opponent_count * horizon * [x,y]
-// TODO update following code
 __device__
 float evaluate_collision_cost( float* state, int step, float* opponent_traj, int opponent_id){
 
@@ -371,4 +371,22 @@ float evaluate_collision_cost( float* state, int step, float* opponent_traj, int
   }
 
   return cost;
+}
+
+__device__
+void bound_control(float* state, float* i_control, float* o_control){
+  float v = state[STATE_V];
+  float max_acc = PARAM_MAX_AX * (1-v/PARAM_MAX_V);
+  // first scale to ellipse y/aym^2+x/axm^2=1
+  // then cap ax to  (-infty,max_acc]
+  float ay_normalized = i_control[CONTROL_STEERING]/PARAM_MAX_AY;
+  float ax_normalized = i_control[CONTROL_THROTTLE]/PARAM_MAX_AX;
+  float theta = atan2f(ax_normalized,ay_normalized);
+  float r = sqrtf(sqrf(ax_normalized)+sqrf(ay_normalized));
+  if (r>1.0){
+    r = 1.0;
+    o_control[CONTROL_STEERING] = PARAM_MAX_AY*r*cosf(theta);
+    o_control[CONTROL_THROTTLE] = PARAM_MAX_AX*r*sinf(theta);
+  }
+  o_control[CONTROL_THROTTLE] = (o_control[CONTROL_THROTTLE]>max_acc)?max_acc:o_control[CONTROL_THROTTLE];
 }
