@@ -19,5 +19,5 @@ from controller.PointMassMpcCarController import PointMassMpcCarController
 from controller.DdpPointMassCarController import DdpPointMassCarController
 from controller.AggressiveCarController import AggressiveCarController
 
-#from controller.mppi_frenet.MppiCarController import MppiCarController
 from controller.mppi.MppiCarController import MppiCarController
+from controller.mppi_frenet.MppiFrenetCarController import MppiFrenetCarController
