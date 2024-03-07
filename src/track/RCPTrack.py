@@ -1199,6 +1199,39 @@ class RCPTrack(Track):
         curvature_fun, _ = splprep(curvature.reshape(1,-1), u=ss,s=0,per=1) 
         return curvature_fun
 
+    def prepareDiscretizedRaceline(self):
+        '''
+        depends on self.raceline_s, self.raceline_len_m
+        '''
+        ss = np.linspace(0,self.raceline_len_m,self.discretized_raceline_len)
+        rr = splev(ss%self.raceline_len_m,self.raceline_s,der=0)
+        drr = splev(ss%self.raceline_len_m,self.raceline_s,der=1)
+        heading_vec = np.arctan2(drr[1],drr[0])
+        vv = self.sToV(ss) 
+        top_speed = 10
+        vv[vv>top_speed] = top_speed
+
+        # parameter, distance along track
+        self.ss = ss
+        self.raceline_points = np.array(rr)
+        self.raceline_headings = heading_vec
+        self.raceline_velocity = vv
+
+        # describe track boundary as offset from raceline
+        left_boundary_fun, right_boundary_fun = self.createBoundary(self.raceline_s, self.raceline_len_m)
+        self.raceline_left_boundary = splev(ss,left_boundary_fun)[0]
+        self.raceline_right_boundary = splev(ss,right_boundary_fun)[0]
+
+        self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        '''
+        left = np.array(self.raceline_left_boundary)
+        right = np.array(self.raceline_right_boundary)
+        plt.plot(left+right)
+        plt.show()
+        breakpoint()
+        '''
+        return
+
 
     def createBoundary(self, raceline_s, raceline_len_m):
         # generate left/right boundary from self.raceline_left_boundary_*

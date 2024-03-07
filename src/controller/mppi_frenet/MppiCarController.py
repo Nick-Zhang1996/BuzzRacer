@@ -51,8 +51,8 @@ class MppiCarController(CarController):
         self.last_control = np.zeros(2,dtype=np.float32)
         self.freq_vec = []
 
-        # TODO do these in track initialization
         self.track.prepareDiscretizedRaceline()
+        self.track.createBoundary()
         self.discretized_raceline = self.track.discretized_raceline
         self.raceline_left_boundary = self.track.raceline_left_boundary
         self.raceline_right_boundary = self.track.raceline_right_boundary
