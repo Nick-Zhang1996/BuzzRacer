@@ -6,7 +6,10 @@
 
 #define CONTROL_DIM %(CONTROL_DIM)s
 #define STATE_DIM %(STATE_DIM)s
+// size of discretized raceline
 #define RACELINE_LEN %(RACELINE_LEN)s
+// curve length of raceline in meter
+#define RACELINE_LEN_M %(RACELINE_LEN_M)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
 #define OBSTACLE_RADIUS 0.1
@@ -91,6 +94,8 @@ __device__
 float tire_curve( float slip);
 __device__
 void get_curvature(float* state, int* io_idx, float* o_curvature);
+__device__
+void get_curvature_debug(float* state, int* io_idx, float* o_curvature);
 __device__
 float map(float val, float in_l,float in_h,float out_low,float out_high);
 __device__
@@ -179,15 +184,6 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
   for (int i=0; i<STATE_DIM; i++){
     x[i] = *(in_x0 + i);
   }
-  // FIXME debug
-  /*
-  if (id==0){
-    int idx_guess = -1;
-    float unused_k_s = 0.0;
-    get_curvature(x,&idx_guess,&unused_k_s);
-    evaluate_boundary_cost_debug(x,&idx_guess);
-  }
-  */
 
   // initialize cost
   float cost = 0;
@@ -198,6 +194,17 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
   for (int i=0; i<CONTROL_DIM; i++){
     last_u[i] = *(in_u0+i);
   }
+  // FIXME debug
+  /*
+  if(id==0){
+    int guess_idx=-1;
+    float curv=0.0;
+    float s = fmodf(x[STATE_S],RACELINE_LEN_M);
+    get_curvature_debug(x,&guess_idx,&curv);
+    float c = evaluate_boundary_cost_debug(x,&guess_idx);
+    printf("s= %%.2f, bdry cost = %%.2f\n",s,c);
+  }
+  */
 
   // run simulation
   // loop over time horizon
@@ -302,29 +309,39 @@ float evaluate_step_cost( float* state, float* u){
 __device__
 float evaluate_boundary_cost( float* state,  int* last_index){
   float cost = 0.0;
-  // FIXME handle bdry_min
-  if (state[STATE_N] > raceline[*last_index][RACELINE_LEFT_BOUNDARY]){
-    cost += COST_BDRY* sqrf(state[STATE_N] - raceline[*last_index][RACELINE_LEFT_BOUNDARY]);
+  const float left = max(raceline[*last_index][RACELINE_LEFT_BOUNDARY]-COST_BDRY_MIN,0.0f);
+  const float right = max(raceline[*last_index][RACELINE_RIGHT_BOUNDARY]-COST_BDRY_MIN,0.0f);
+  if (state[STATE_N] > left){
+    cost += COST_BDRY* sqrf(state[STATE_N] - left);
+    cost += COST_BDRY;
   }
 
-  if (-state[STATE_N] > raceline[*last_index][RACELINE_RIGHT_BOUNDARY]){
-    cost += COST_BDRY* sqrf(-state[STATE_N] - raceline[*last_index][RACELINE_RIGHT_BOUNDARY]);
+  if (-state[STATE_N] > right){
+    cost += COST_BDRY* sqrf(-state[STATE_N] - right);
+    cost += COST_BDRY;
   }
 
   return cost;
 }
 
+// FIXME remove
 __device__
 float evaluate_boundary_cost_debug( float* state,  int* last_index){
   float cost = 0.0;
-  if (state[STATE_N] > raceline[*last_index][RACELINE_LEFT_BOUNDARY]){
-    cost += COST_BDRY* sqrf(state[STATE_N] - raceline[*last_index][RACELINE_LEFT_BOUNDARY]);
+  const float left = max(raceline[*last_index][RACELINE_LEFT_BOUNDARY]-COST_BDRY_MIN,0.0f);
+  const float right = max(raceline[*last_index][RACELINE_RIGHT_BOUNDARY]-COST_BDRY_MIN,0.0f);
+  if (state[STATE_N] > left){
+    cost += COST_BDRY* sqrf(state[STATE_N] - left);
+    cost += COST_BDRY;
   }
 
-  if (-state[STATE_N] > raceline[*last_index][RACELINE_RIGHT_BOUNDARY]){
-    cost += COST_BDRY* sqrf(-state[STATE_N] - raceline[*last_index][RACELINE_RIGHT_BOUNDARY]);
+  if (-state[STATE_N] > right){
+    cost += COST_BDRY* sqrf(-state[STATE_N] - right);
+    cost += COST_BDRY;
   }
-  printf("s= %%.4f s_ref= %%.4f, n=%%.4f , left %%.4f, right %%.4f,cost=%%.2f\n",state[STATE_S], raceline[*last_index][RACELINE_S], state[STATE_N], raceline[*last_index][RACELINE_LEFT_BOUNDARY], raceline[*last_index][RACELINE_RIGHT_BOUNDARY],cost);
+
+
+  printf("s= %%.4f s_ref= %%.4f, n=%%.4f , left %%.4f, right %%.4f,cost=%%.2f\n",state[STATE_S], raceline[*last_index][RACELINE_S], state[STATE_N], left, right ,cost);
 
   return cost;
 }
@@ -333,7 +350,7 @@ float evaluate_boundary_cost_debug( float* state,  int* last_index){
 // if guess is -1 then the entire spectrum will be searched
 __device__
 void get_curvature(float* state, int* io_idx, float* o_curvature){
-  float s = state[STATE_S];
+  float s = fmodf(state[STATE_S],RACELINE_LEN_M);
   float val;
 
   int idx = 0;
@@ -357,6 +374,42 @@ void get_curvature(float* state, int* io_idx, float* o_curvature){
     }
   }
   *io_idx = idx;
+  *o_curvature = (s>raceline[idx][RACELINE_S])?
+    map(s,raceline[idx][RACELINE_S],raceline[(idx+1)%%RACELINE_LEN][RACELINE_S],raceline[idx][RACELINE_CURVATURE],raceline[(idx+1)%%RACELINE_LEN][RACELINE_CURVATURE])
+    :
+    map(s,raceline[(idx-1)%%RACELINE_LEN][RACELINE_S],raceline[idx][RACELINE_S],raceline[(idx-1)%%RACELINE_LEN][RACELINE_CURVATURE],raceline[idx][RACELINE_CURVATURE]);
+
+  return;
+
+}
+
+__device__
+void get_curvature_debug(float* state, int* io_idx, float* o_curvature){
+  float s = fmodf(state[STATE_S],RACELINE_LEN_M);
+  float val;
+
+  int idx = 0;
+  float current_min = 1e6;
+
+  int start, end;
+  if (*io_idx == -1){
+    start = 0;
+    end = RACELINE_LEN;
+  } else {
+    start = *io_idx - RACELINE_SEARCH_RANGE;
+    end = *io_idx + RACELINE_SEARCH_RANGE;
+  }
+
+  for (int k=start;k<end;k++){
+    int i = (k + RACELINE_LEN) %% RACELINE_LEN;
+    val = (s-raceline[i][RACELINE_S])*(s-raceline[i][RACELINE_S]);
+    if (val < current_min){
+      idx = i;
+      current_min = val;
+    }
+  }
+  *io_idx = idx;
+  printf("idx: %%d, ref_s: %%.2f, s: %%.2f\n",idx,raceline[idx][RACELINE_S],s);
   *o_curvature = (s>raceline[idx][RACELINE_S])?
     map(s,raceline[idx][RACELINE_S],raceline[(idx+1)%%RACELINE_LEN][RACELINE_S],raceline[idx][RACELINE_CURVATURE],raceline[(idx+1)%%RACELINE_LEN][RACELINE_CURVATURE])
     :

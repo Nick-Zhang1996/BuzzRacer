@@ -12,9 +12,6 @@ from pycuda.compiler import SourceModule
 from controller.CarController import CarController
 from extension.simulator.KinematicBicycleFrenetSimulator import KinematicBicycleFrenetSimulator
 
-# DEBUG FIXME
-import matplotlib.pyplot as plt
-
 class MppiFrenetCarController(CarController):
     def __init__(self,car,config):
 
@@ -102,6 +99,7 @@ class MppiFrenetCarController(CarController):
                 "CONTROL_DIM":self.m,
                 "STATE_DIM":self.state_dim,
                 "RACELINE_LEN":self.discretized_raceline.shape[0],
+                "RACELINE_LEN_M":self.track.raceline_len_m,
                 "TEMPERATURE":self.temperature,
                 "DT":self.dt
                 }
@@ -217,7 +215,7 @@ class MppiFrenetCarController(CarController):
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
         s,v,n,phi,beta = self.car.sim_states
-        self.print_info(f'car v={v}')
+        #self.print_info(f'car v={v}')
 
         # warm start from previous solution
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
@@ -268,7 +266,6 @@ class MppiFrenetCarController(CarController):
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
-        # FIXME
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
 
@@ -294,11 +291,9 @@ class MppiFrenetCarController(CarController):
         th_mean = np.mean(sampled_control[:,:,1])
         th_std = np.std(sampled_control[:,:,1])
         self.print_info("throttle mean %.2f std %.2f"%(th_mean, th_std))
-        '''
         # FIXME DEBUG plot sampled trajectory
         for i in range(0,sampled_trajectory.shape[0],50):
             self.plotTrajectory(sampled_trajectory[i])
-        '''
 
         # display expected trajectory, perf impact
         expected_trajectory = self.getDynamicTrajectory( self.car.states, control )

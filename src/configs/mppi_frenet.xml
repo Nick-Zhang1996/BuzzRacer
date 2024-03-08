@@ -22,10 +22,6 @@
       <controller 
         horizon='30' 
         samples_count='1024' 
-        Q1='np.diag(  [ 0,0,10.0,1.0,0.0])'
-        q1='np.array([[-1,0,0,0,0]]).T'
-        Qcol='np.diag(  [ 0,0,0,0,0])'
-        boundary_min_distance='0.02'
         >
         <type>MppiFrenetCarController</type>
       </controller>
