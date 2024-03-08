@@ -81,9 +81,6 @@ __device__
 float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
-// FIXME
-__device__
-float evaluate_boundary_cost_debug( float* state, int* u_estimate);
 __device__
 float evaluate_step_cost( float* state, float* u);
 __device__
@@ -94,8 +91,6 @@ __device__
 float tire_curve( float slip);
 __device__
 void get_curvature(float* state, int* io_idx, float* o_curvature);
-__device__
-void get_curvature_debug(float* state, int* io_idx, float* o_curvature);
 __device__
 float map(float val, float in_l,float in_h,float out_low,float out_high);
 __device__
@@ -169,9 +164,8 @@ __global__ void generate_control_noise(){
 // out_trajectories: output trajectories, samples*horizon*n
 // opponent_count: integer
 // opponent_traj: opponent_count * prediction_horizon * (s,v,n,phi,beta)
-// TODO remove out_traj
-__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj, float* out_trajectories){
-//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj, float* out_trajectories){
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -194,17 +188,6 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
   for (int i=0; i<CONTROL_DIM; i++){
     last_u[i] = *(in_u0+i);
   }
-  // FIXME debug
-  /*
-  if(id==0){
-    int guess_idx=-1;
-    float curv=0.0;
-    float s = fmodf(x[STATE_S],RACELINE_LEN_M);
-    get_curvature_debug(x,&guess_idx,&curv);
-    float c = evaluate_boundary_cost_debug(x,&guess_idx);
-    printf("s= %%.2f, bdry cost = %%.2f\n",s,c);
-  }
-  */
 
   // run simulation
   // loop over time horizon
@@ -224,10 +207,12 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
 
 
     // update output trajectories
-    // DEBUG TODO FIXME
+    /*
+    // DEBUG output sampled trajectory
     for (int j=0; j<STATE_DIM; j++){
       out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
     }
+    */
 
     // step forward dynamics, update state x in place
     forward_dynamics(x,u,&last_index);
@@ -320,28 +305,6 @@ float evaluate_boundary_cost( float* state,  int* last_index){
     cost += COST_BDRY* sqrf(-state[STATE_N] - right);
     cost += COST_BDRY;
   }
-
-  return cost;
-}
-
-// FIXME remove
-__device__
-float evaluate_boundary_cost_debug( float* state,  int* last_index){
-  float cost = 0.0;
-  const float left = max(raceline[*last_index][RACELINE_LEFT_BOUNDARY]-COST_BDRY_MIN,0.0f);
-  const float right = max(raceline[*last_index][RACELINE_RIGHT_BOUNDARY]-COST_BDRY_MIN,0.0f);
-  if (state[STATE_N] > left){
-    cost += COST_BDRY* sqrf(state[STATE_N] - left);
-    cost += COST_BDRY;
-  }
-
-  if (-state[STATE_N] > right){
-    cost += COST_BDRY* sqrf(-state[STATE_N] - right);
-    cost += COST_BDRY;
-  }
-
-
-  printf("s= %%.4f s_ref= %%.4f, n=%%.4f , left %%.4f, right %%.4f,cost=%%.2f\n",state[STATE_S], raceline[*last_index][RACELINE_S], state[STATE_N], left, right ,cost);
 
   return cost;
 }

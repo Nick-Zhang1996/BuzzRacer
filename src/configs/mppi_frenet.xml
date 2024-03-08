@@ -20,7 +20,7 @@
       <config_name>audi_11</config_name>
       <init_states>(0.1,-0.0, radians(0), 3)</init_states>
       <controller 
-        horizon='30' 
+        horizon='20' 
         samples_count='1024' 
         >
         <type>MppiFrenetCarController</type>

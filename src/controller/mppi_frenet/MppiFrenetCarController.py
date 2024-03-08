@@ -248,7 +248,6 @@ class MppiFrenetCarController(CarController):
 
 
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
-        # FIXME remove sampled_trajectory
         self.cuda_evaluate_control_sequence(
                 device_initial_state, 
                 device_last_control,
@@ -257,12 +256,12 @@ class MppiFrenetCarController(CarController):
                 drv.Out(sampled_control_rate),
                 opponent_count,
                 device_opponent_traj,
-                drv.Out(sampled_trajectory),
+                #drv.Out(sampled_trajectory),
                 block=self.cuda_block_size,grid=self.cuda_grid_size
                 )
 
         # copyig sampled trajectory from gpu to cpu has large negative perf impact
-        sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
@@ -291,7 +290,7 @@ class MppiFrenetCarController(CarController):
         th_mean = np.mean(sampled_control[:,:,1])
         th_std = np.std(sampled_control[:,:,1])
         self.print_info("throttle mean %.2f std %.2f"%(th_mean, th_std))
-        # FIXME DEBUG plot sampled trajectory
+        # DEBUG plot sampled trajectory
         for i in range(0,sampled_trajectory.shape[0],50):
             self.plotTrajectory(sampled_trajectory[i])
 
