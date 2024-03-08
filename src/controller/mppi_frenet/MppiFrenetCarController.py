@@ -103,6 +103,7 @@ class MppiFrenetCarController(CarController):
                 "CONTROL_DIM":self.m,
                 "STATE_DIM":self.state_dim,
                 "RACELINE_LEN":self.discretized_raceline.shape[0],
+                "RACELINE_LEN_M":self.track.raceline_len_m,
                 "TEMPERATURE":self.temperature,
                 "DT":self.dt
                 }

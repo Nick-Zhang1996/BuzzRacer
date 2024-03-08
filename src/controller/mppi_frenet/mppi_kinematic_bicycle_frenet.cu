@@ -7,6 +7,7 @@
 #define CONTROL_DIM %(CONTROL_DIM)s
 #define STATE_DIM %(STATE_DIM)s
 #define RACELINE_LEN %(RACELINE_LEN)s
+#define RACELINE_LEN_M %(RACELINE_LEN_M)s
 #define CURAND_KERNEL_N %(CURAND_KERNEL_N)s
 
 #define OBSTACLE_RADIUS 0.1
@@ -341,7 +342,7 @@ float evaluate_boundary_cost_debug( float* state,  int* last_index){
 // if guess is -1 then the entire spectrum will be searched
 __device__
 void get_curvature(float* state, int* io_idx, float* o_curvature){
-  float s = state[STATE_S];
+  float s = fmodf(state[STATE_S],RACELINE_LEN_M);
   float val;
 
   int idx = 0;
