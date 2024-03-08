@@ -73,7 +73,7 @@ class MppiFrenetCarController(CarController):
         #self.noise_mean = np.array([0,0])
 
         # sample control change rate val/sec
-        self.noise_cov = np.array([(max_ay)**2,(max_ax)**2])
+        self.noise_cov = np.array([(max_ay*5)**2,(max_ax*5)**2])
         self.noise_mean = np.array([0.0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
@@ -269,7 +269,7 @@ class MppiFrenetCarController(CarController):
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
         # FIXME
-        control_rate = self.synthesizeControlMin(costs, sampled_control_rate)
+        control_rate = self.synthesizeControl(costs, sampled_control_rate)
         control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
 
         self.last_ref_control = control.copy()
