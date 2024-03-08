@@ -165,8 +165,8 @@ __global__ void generate_control_noise(){
 // opponent_count: integer
 // opponent_traj: opponent_count * prediction_horizon * (s,v,n,phi,beta)
 // TODO remove out_traj
-__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, int opponent_count, float* in_opponent_traj, float* out_trajectories){
-//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, int opponent_count, float* in_opponent_traj){
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj, float* out_trajectories){
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_dudt, float* out_cost, float* out_dudt, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -193,6 +193,11 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_index = -1;
+  // copy to local register gives faster performance
+  float last_u[CONTROL_DIM];
+  for (int i=0; i<CONTROL_DIM; i++){
+    last_u[i] = *(in_u0+i);
+  }
 
   // run simulation
   // loop over time horizon
@@ -201,11 +206,15 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     float* u = _u;
 
     // apply constrain on control input
-    bound_control(x,sampled_noise+id*HORIZON*CONTROL_DIM + i*CONTROL_DIM, u);
     for (int j=0; j<CONTROL_DIM; j++){
-      out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
-      //out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
+      float dudt = (ref_dudt[i*CONTROL_DIM + j] + sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j]);
+      u[j] = last_u[j] + dudt * DT;
     }
+    bound_control(x,u,u);
+    for (int j=0; j<CONTROL_DIM; j++){
+      out_dudt[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = (u[j]-last_u[j])/DT;
+    }
+
 
     // update output trajectories
     // DEBUG TODO FIXME
@@ -223,14 +232,9 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
       cost += evaluate_collision_cost(x,i,in_opponent_traj,k);
     }
 
-    /*
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
-    */
-
-    u += CONTROL_DIM;
-
   }
   float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;

@@ -214,9 +214,6 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
-
-    u += CONTROL_DIM;
-
   }
   float terminal_cost = evaluate_terminal_cost(x,in_x0, &last_index);
   cost += terminal_cost;

@@ -69,12 +69,12 @@ class MppiFrenetCarController(CarController):
 
         self.control_limit = np.array([[-max_ay,max_ay],[-max_ax,max_ax]])
         # directly sample control
-        self.noise_cov = np.array([(max_ay)**2,(max_ax)**2])
-        self.noise_mean = np.array([0,0])
+        #self.noise_cov = np.array([(max_ay)**2,(max_ax)**2])
+        #self.noise_mean = np.array([0,0])
 
         # sample control change rate val/sec
-        #self.noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
-        #self.noise_mean = np.array([0.0,0])
+        self.noise_cov = np.array([(max_ay)**2,(max_ax)**2])
+        self.noise_mean = np.array([0.0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
         self.last_control = np.zeros(2,dtype=np.float32)
@@ -221,9 +221,9 @@ class MppiFrenetCarController(CarController):
 
         # warm start from previous solution
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
-
         # cold start from zero reference
-        ref_control = np.zeros([self.horizon,self.m],dtype=np.float32)
+        #ref_control = np.zeros([self.horizon,self.m],dtype=np.float32)
+        ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
 
         # generate random var
         random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
@@ -242,10 +242,10 @@ class MppiFrenetCarController(CarController):
             device_opponent_traj = self.to_device(opponent_traj)
 
         # evaluate control sequence
-        device_ref_control = self.to_device(ref_control)
+        device_ref_control_rate = self.to_device(ref_control_rate)
         device_initial_state = self.to_device(self.car.sim_states)
         costs = np.zeros((self.samples_count), dtype=np.float32)
-        sampled_control = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
         device_last_control = self.to_device(self.last_control)
 
 
@@ -254,9 +254,9 @@ class MppiFrenetCarController(CarController):
         self.cuda_evaluate_control_sequence(
                 device_initial_state, 
                 device_last_control,
-                device_ref_control, 
+                device_ref_control_rate, 
                 drv.Out(costs),
-                drv.Out(sampled_control),
+                drv.Out(sampled_control_rate),
                 opponent_count,
                 device_opponent_traj,
                 drv.Out(sampled_trajectory),
@@ -267,13 +267,18 @@ class MppiFrenetCarController(CarController):
         sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
-        sampled_control = sampled_control.reshape(self.samples_count,self.horizon,self.m)
+        sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
         # FIXME
-        control = self.synthesizeControlMin(costs, sampled_control)
+        control_rate = self.synthesizeControlMin(costs, sampled_control_rate)
+        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
+
         self.last_ref_control = control.copy()
 
-        self.car.steering = control[0,0]
-        self.car.throttle = control[0,1]
+        #self.car.steering = control[0,0]
+        #self.car.throttle = control[0,1]
+
+        self.car.steering += control_rate[0,0]*self.dt
+        self.car.throttle += control_rate[0,1]*self.dt
 
         #self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
         self.last_control = [self.car.steering,self.car.throttle]
