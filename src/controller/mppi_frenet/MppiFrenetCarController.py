@@ -69,8 +69,7 @@ class MppiFrenetCarController(CarController):
 
         self.control_limit = np.array([[-max_ay,max_ay],[-max_ax,max_ax]])
         # directly sample control
-        # FIXME
-        self.noise_cov = np.array([(max_ay*0.01)**2,(max_ax*0.01)**2])
+        self.noise_cov = np.array([(max_ay)**2,(max_ax)**2])
         self.noise_mean = np.array([0,0])
 
         # sample control change rate val/sec
@@ -271,12 +270,7 @@ class MppiFrenetCarController(CarController):
         sampled_control = sampled_control.reshape(self.samples_count,self.horizon,self.m)
         # FIXME
         control = self.synthesizeControlMin(costs, sampled_control)
-
-
         self.last_ref_control = control.copy()
-
-        #self.car.throttle += control_rate[0,0]*self.dt
-        #self.car.steering += control_rate[0,1]*self.dt
 
         self.car.steering = control[0,0]
         self.car.throttle = control[0,1]
@@ -287,6 +281,7 @@ class MppiFrenetCarController(CarController):
         self.freq_vec.append(1.0/dt)
         #self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
 
+        '''
         # DEBUG
         str_mean = np.mean(sampled_control[:,:,0])
         str_std = np.std(sampled_control[:,:,0])
@@ -295,28 +290,26 @@ class MppiFrenetCarController(CarController):
         th_std = np.std(sampled_control[:,:,1])
         self.print_info("throttle mean %.2f std %.2f"%(th_mean, th_std))
         '''
-        #FIXME DEBUG plot sampled trajectory
-        for i in range(sampled_trajectory.shape[0]):
+        # FIXME DEBUG plot sampled trajectory
+        for i in range(0,sampled_trajectory.shape[0],50):
             self.plotTrajectory(sampled_trajectory[i])
+        '''
 
         # display expected trajectory, perf impact
         expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
         self.plotTrajectory(expected_trajectory)
-        '''
 
-        # FIXME verify GPU against cpu
+        # verify GPU against cpu
         index = 50
         cpu_control = sampled_control[index,:,:]
         gpu_trajectory = sampled_trajectory[index,:]
         cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
-        #breakpoint()
 
         cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
+        '''
 
-
-        # FIXME
         if (self.main.breakpoint.is_set()):
             breakpoint()
             self.main.breakpoint.clear()
@@ -356,6 +349,8 @@ class MppiFrenetCarController(CarController):
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
             cart_traj = np.array([KinematicBicycleFrenetSimulator.curv2CartTrack(coord,self.track) for coord in curv_traj])
+            if (np.any(np.isnan(cart_traj))):
+                return
             img = self.track.drawPolyline(cart_traj[:,:2], img=img, thickness=1)
             self.main.visualization.visualization_img = img
 
