@@ -62,7 +62,7 @@ class KinematicBicycleFrenetSimulator(Simulator):
         curv = self.cart2Curv(car.states)
         car.sim_states = curv
 
-        car.state_dim = 4
+        car.state_dim = 5
         car.control_dim = 2
 
     def cart2Curv(self, cart, guess_s=None):

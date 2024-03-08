@@ -404,9 +404,10 @@ class CurvilinearTrack(Track):
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings, self.raceline_left_boundary, self.raceline_right_boundary]).T
 
         retval = self.generateSpeedProfile(mu=mu,acc_max_fun=acc_max_fun, dec_max_fun=dec_max_fun)
-        self.raceline_speed_s = speed_profile_fun = retval['speed_profile_fun']
+        self.raceline_speed_s = self.sToV = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
+
 
         self.verifySpeedProfile(speed_profile_fun = speed_profile_fun)
         if save_gif:

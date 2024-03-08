@@ -66,6 +66,13 @@ class Visualization(Extension):
     # do this last since controllers may need to alter the image
     def postUpdate(self,):
         if (self.update_visualization.is_set()):
+            img = self.visualization_img
+            for car in self.main.cars:
+                img = self.drawCar(img, car)
+            img = self.drawControlForAllCars(img)
+            self.visualization_img = img
+
+        if (self.update_visualization.is_set()):
             self.update_visualization.clear()
             self.visualization_ts = time()
             cv2.imshow('experiment',self.visualization_img)
@@ -103,11 +110,9 @@ class Visualization(Extension):
 
         if (self.update_visualization.is_set()):
             img = self.img_track.copy()
-            for car in self.main.cars:
-                img = self.drawCar(img, car)
-            img = self.drawControlForAllCars(img)
             img = self.track.plotObstacles(img)
             self.visualization_img = img
+
 
 
     def final(self):

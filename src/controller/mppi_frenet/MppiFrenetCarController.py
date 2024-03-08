@@ -1,15 +1,19 @@
 # mppi car controller, with dynamic model
-from controller.CarController import CarController
 import numpy as np
 from time import time,sleep
 from math import radians,degrees,cos,sin,ceil,floor,atan,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
-import pycuda.autoinit
+
 global drv
+import pycuda.autoinit
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
+
+from controller.CarController import CarController
+from extension.simulator.KinematicBicycleFrenetSimulator import KinematicBicycleFrenetSimulator
+
+# DEBUG FIXME
 import matplotlib.pyplot as plt
-import numpy as np
 
 class MppiFrenetCarController(CarController):
     def __init__(self,car,config):
@@ -65,7 +69,8 @@ class MppiFrenetCarController(CarController):
 
         self.control_limit = np.array([[-max_ay,max_ay],[-max_ax,max_ax]])
         # directly sample control
-        self.noise_cov = np.array([(max_ay*1.5)**2,(max_ax*1.5)**2])
+        # FIXME
+        self.noise_cov = np.array([(max_ay*0.01)**2,(max_ax*0.01)**2])
         self.noise_mean = np.array([0,0])
 
         # sample control change rate val/sec
@@ -213,6 +218,7 @@ class MppiFrenetCarController(CarController):
         # omega: angular velocity
         x,y,heading,vf,vs,omega = self.car.states
         s,v,n,phi,beta = self.car.sim_states
+        self.print_info(f'car v={v}')
 
         # warm start from previous solution
         #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
@@ -245,34 +251,27 @@ class MppiFrenetCarController(CarController):
 
 
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
+        # FIXME remove sampled_trajectory
         self.cuda_evaluate_control_sequence(
                 device_initial_state, 
                 device_last_control,
                 device_ref_control, 
                 drv.Out(costs),
                 drv.Out(sampled_control),
-                #drv.Out(sampled_trajectory),
                 opponent_count,
                 device_opponent_traj,
+                drv.Out(sampled_trajectory),
                 block=self.cuda_block_size,grid=self.cuda_grid_size
                 )
 
         # copyig sampled trajectory from gpu to cpu has large negative perf impact
-        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+        sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
         sampled_control = sampled_control.reshape(self.samples_count,self.horizon,self.m)
-        control = self.synthesizeControl(costs, sampled_control)
-        #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
+        # FIXME
+        control = self.synthesizeControlMin(costs, sampled_control)
 
-        # obselete from when we sample control time rate
-        #control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
-        '''
-        # display expected trajectory, perf impact
-        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
-        self.expected_trajectory = expected_trajectory
-        self.plotTrajectory(expected_trajectory)
-        '''
 
         self.last_ref_control = control.copy()
 
@@ -288,22 +287,39 @@ class MppiFrenetCarController(CarController):
         self.freq_vec.append(1.0/dt)
         #self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
 
+        # DEBUG
+        str_mean = np.mean(sampled_control[:,:,0])
+        str_std = np.std(sampled_control[:,:,0])
+        self.print_info("steering mean %.2f std %.2f"%(str_mean,str_std))
+        th_mean = np.mean(sampled_control[:,:,1])
+        th_std = np.std(sampled_control[:,:,1])
+        self.print_info("throttle mean %.2f std %.2f"%(th_mean, th_std))
         '''
-        display_trajectory = sampled_trajectory[:,:,0:2]
-        for i in range(display_trajectory.shape[0]):
-            self.plotTrajectory(display_trajectory[i])
-        self.print_info("steering std %.2f deg"%(180.0/np.pi*np.std(sampled_control[:,:,1])))
+        #FIXME DEBUG plot sampled trajectory
+        for i in range(sampled_trajectory.shape[0]):
+            self.plotTrajectory(sampled_trajectory[i])
+
+        # display expected trajectory, perf impact
+        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
+        self.expected_trajectory = expected_trajectory
+        self.plotTrajectory(expected_trajectory)
         '''
 
-        # verify GPU against cpu
-        '''
-        x0 = self.car.states
+        # FIXME verify GPU against cpu
         index = 50
         cpu_control = sampled_control[index,:,:]
-        cpu_trajectory = self.getTrajectory(x0, cpu_control)
         gpu_trajectory = sampled_trajectory[index,:]
+        cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
+        #breakpoint()
+
+        cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
-        '''
+
+
+        # FIXME
+        if (self.main.breakpoint.is_set()):
+            breakpoint()
+            self.main.breakpoint.clear()
         return True
 
     # select min cost control
@@ -334,3 +350,25 @@ class MppiFrenetCarController(CarController):
         return drv.to_device(np.array(data,dtype=np.float32).flatten())
     def from_device(self,data,shape,dtype=np.float32):
         return drv.from_device(data,shape,dtype)
+
+    # plot trajectory
+    def plotTrajectory(self,curv_traj):
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            cart_traj = np.array([KinematicBicycleFrenetSimulator.curv2CartTrack(coord,self.track) for coord in curv_traj])
+            img = self.track.drawPolyline(cart_traj[:,:2], img=img, thickness=1)
+            self.main.visualization.visualization_img = img
+
+    def getTrajectory(self, x0, control_vec):
+        x = x0
+        traj = []
+        for i in range(self.horizon):
+            traj.append(x)
+            new_x = KinematicBicycleFrenetSimulator.advanceKinematicBicycleDynamics(x, control_vec[i], self.dt, self.track)
+            ddt = (new_x-x)/self.dt
+            print(ddt)
+            x = new_x
+        return traj
+
+
+

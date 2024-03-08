@@ -15,13 +15,6 @@
 #define PARAM_LR (0.09-0.04824)
 #define PARAM_L 0.09
 
-#define PARAM_IZ 417757e-9
-#define PARAM_MASS 0.1667
-
-#define PARAM_B 2.3
-#define PARAM_C 1.6
-#define PARAM_D 1.1
-
 #define TEMPERATURE %(TEMPERATURE)s
 #define DT %(DT)s
 
@@ -85,12 +78,15 @@ __device__
 float evaluate_terminal_cost( float* current_state,float* initial_state, int* last_index);
 __device__
 float evaluate_boundary_cost( float* state, int* u_estimate);
+// FIXME
 __device__
-float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index);
+float evaluate_boundary_cost_debug( float* state, int* u_estimate);
+__device__
+float evaluate_step_cost( float* state, float* u);
 __device__
 float evaluate_collision_cost( float* state, int step, float* opponent_traj,int opponent_id);
 __device__
-void forward_dynamics( float* state, float* u, int* last_index);
+void forward_dynamics( float* state, float* u, int* last_index,int id);
 __device__
 float tire_curve( float slip);
 __device__
@@ -129,12 +125,9 @@ __global__ void set_noise_mean(float* in_noise_mean){
 
 __global__ void set_raceline(float* in_raceline){
   for(int i=0;i<RACELINE_LEN;i++){ 
-    raceline[i][0] = in_raceline[i*RACELINE_DIM + 0];
-    raceline[i][1] = in_raceline[i*RACELINE_DIM + 1];
-    raceline[i][2] = in_raceline[i*RACELINE_DIM + 2];
-    raceline[i][3] = in_raceline[i*RACELINE_DIM + 3];
-    raceline[i][4] = in_raceline[i*RACELINE_DIM + 4];
-    raceline[i][5] = in_raceline[i*RACELINE_DIM + 5];
+    for (int j=0;j<RACELINE_DIM;j++){
+      raceline[i][j] = in_raceline[i*RACELINE_DIM + j];
+    }
   }
 }
 
@@ -171,8 +164,9 @@ __global__ void generate_control_noise(){
 // out_trajectories: output trajectories, samples*horizon*n
 // opponent_count: integer
 // opponent_traj: opponent_count * prediction_horizon * (s,v,n,phi,beta)
-//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, float* out_trajectories){
-__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, int opponent_count, float* in_opponent_traj){
+// TODO remove out_traj
+__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, int opponent_count, float* in_opponent_traj, float* out_trajectories){
+//__global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref_u, float* out_cost, float* out_u, int opponent_count, float* in_opponent_traj){
   // get global thread id
   int id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id>=SAMPLE_COUNT){
@@ -185,15 +179,28 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
   for (int i=0; i<STATE_DIM; i++){
     x[i] = *(in_x0 + i);
   }
+  // DEBUG FIXME
+  /*
+  if (id==0){
+    int idx_guess = -1;
+    float unused_k_s = 0;
+    get_curvature(x, &idx_guess ,&unused_k_s);
+    float bdry_cost = evaluate_boundary_cost_debug(x,&idx_guess);
+    printf("state boundary cost = %%.2f\n",bdry_cost);
+    printf("k_s = %%.2f\n",unused_k_s);
+  }
+  */
 
   // initialize cost
   float cost = 0;
   // used as estimate to find closest index on raceline
   int last_index = -1;
+  /* TODO remove
   float last_u[CONTROL_DIM];
   for (int i=0; i<CONTROL_DIM; i++){
     last_u[i] = *(in_u0+i);
   }
+  */
 
   // run simulation
   // loop over time horizon
@@ -205,31 +212,30 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
     bound_control(x,sampled_noise+id*HORIZON*CONTROL_DIM + i*CONTROL_DIM, u);
     for (int j=0; j<CONTROL_DIM; j++){
       out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = u[j];
+      //out_u[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j] = sampled_noise[id*HORIZON*CONTROL_DIM + i*CONTROL_DIM + j];
     }
 
-    // step forward dynamics, update state x in place
-    forward_dynamics(x,u,&last_index);
-    /*
     // update output trajectories
+    // DEBUG TODO
     for (int j=0; j<STATE_DIM; j++){
       out_trajectories[id*HORIZON*STATE_DIM + i*STATE_DIM + j] = x[j];
     }
-    */
+
+    // step forward dynamics, update state x in place
+    forward_dynamics(x,u,&last_index,id);
 
     // evaluate step cost
-    if (i==0){
-      cost += evaluate_step_cost(x, last_u, u,&last_index);
-    } else {
-      cost += evaluate_step_cost(x, u, u,&last_index);
-    }
+    cost += evaluate_step_cost(x, u);
     cost += evaluate_boundary_cost(x,&last_index);
     for (int k=0;k<opponent_count;k++){
       cost += evaluate_collision_cost(x,i,in_opponent_traj,k);
     }
 
+    /*
     for (int k=0; k<CONTROL_DIM; k++){
       last_u[k] = u[k];
     }
+    */
 
     u += CONTROL_DIM;
 
@@ -245,7 +251,7 @@ __global__ void evaluate_control_sequence(float* in_x0, float* in_u0, float* ref
 // x: s,v,n,phi,beta
 // u: steering, throttle
 __device__
-void forward_dynamics( float* state, float* u, int* last_index){
+void forward_dynamics( float* state, float* u, int* last_index,int id){
   float s,v,n,phi,beta,ax,ay;
   float k_s,dsdt,dvdt,dndt,dbetadt,dphidt;
   s = state[STATE_S];
@@ -262,6 +268,10 @@ void forward_dynamics( float* state, float* u, int* last_index){
   dndt = v*sinf(phi);
   dbetadt = (-sinf(beta)*ax + cosf(beta) *ay)/v;
   dphidt = dbetadt + v/PARAM_LR*sinf(beta)-v*cosf(phi)*k_s/(1-n*k_s);
+  // FIXME
+  if (id==50){
+    printf("dsdt=%%.4f,dvdt=%%.4f,dndt=%%.4f,dphidt=%%.4f,dbetadt=%%.4f,\n",dsdt,dvdt,dndt,dphidt,dbetadt);
+  }
 
   // apply updates
   s += dsdt*DT;
@@ -273,14 +283,14 @@ void forward_dynamics( float* state, float* u, int* last_index){
   state[STATE_S] = s;
   state[STATE_V] = v;
   state[STATE_N] = n;
-  state[STATE_PHI] = beta;
-  state[STATE_BETA] = phi;
+  state[STATE_PHI] = phi;
+  state[STATE_BETA] = beta;
   return;
 
 }
 
 __device__
-float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index){
+float evaluate_step_cost( float* state, float* u){
   float cost = 0.0;
   cost += 0.5*COST_Q_S *state[STATE_S]*state[STATE_S];
   cost += 0.5*COST_Q_V *state[STATE_V]*state[STATE_V];
@@ -291,6 +301,7 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
   cost += COST_q_V *state[STATE_V];
   cost += COST_q_N *state[STATE_N];
   cost += COST_q_PHI *state[STATE_PHI];
+  // TODO add control cost
 
   return cost;
 }
@@ -299,12 +310,28 @@ float evaluate_step_cost( float* state, float* last_u, float* u,int* last_index)
 __device__
 float evaluate_boundary_cost( float* state,  int* last_index){
   float cost = 0.0;
-  if (state[STATE_N] > raceline[*last_index][RACELINE_LEFT_BOUNDARY]-COST_BDRY_MIN){
-    cost += COST_BDRY* sqrf(state[STATE_N] - raceline[*last_index][RACELINE_LEFT_BOUNDARY]+COST_BDRY_MIN);
+  // FIXME handle bdry_min
+  if (state[STATE_N] > raceline[*last_index][RACELINE_LEFT_BOUNDARY]){
+    cost += COST_BDRY* sqrf(state[STATE_N] - raceline[*last_index][RACELINE_LEFT_BOUNDARY]);
   }
 
-  if (-state[STATE_N] > raceline[*last_index][RACELINE_RIGHT_BOUNDARY]-COST_BDRY_MIN){
-    cost += COST_BDRY* sqrf(-state[STATE_N] - raceline[*last_index][RACELINE_RIGHT_BOUNDARY]+COST_BDRY_MIN);
+  if (-state[STATE_N] > raceline[*last_index][RACELINE_RIGHT_BOUNDARY]){
+    cost += COST_BDRY* sqrf(-state[STATE_N] - raceline[*last_index][RACELINE_RIGHT_BOUNDARY]);
+  }
+
+  return cost;
+}
+
+__device__
+float evaluate_boundary_cost_debug( float* state,  int* last_index){
+  float cost = 0.0;
+  printf("s= %%.4f s_ref= %%.4f, n=%%.4f , left %%.4f, right %%.4f",state[STATE_S], raceline[*last_index][RACELINE_S], state[STATE_N], raceline[*last_index][RACELINE_LEFT_BOUNDARY], raceline[*last_index][RACELINE_RIGHT_BOUNDARY]);
+  if (state[STATE_N] > raceline[*last_index][RACELINE_LEFT_BOUNDARY]){
+    cost += COST_BDRY* sqrf(state[STATE_N] - raceline[*last_index][RACELINE_LEFT_BOUNDARY]);
+  }
+
+  if (-state[STATE_N] > raceline[*last_index][RACELINE_RIGHT_BOUNDARY]){
+    cost += COST_BDRY* sqrf(-state[STATE_N] - raceline[*last_index][RACELINE_RIGHT_BOUNDARY]);
   }
 
   return cost;
@@ -375,7 +402,9 @@ float evaluate_collision_cost( float* state, int step, float* opponent_traj, int
 
 __device__
 void bound_control(float* state, float* i_control, float* o_control){
-  float v = state[STATE_V];
+  float v = fabsf(state[STATE_V]);
+  v = (v>PARAM_MAX_V)?PARAM_MAX_V:v;
+  v = (v<0)?0:v;
   float max_acc = PARAM_MAX_AX * (1-v/PARAM_MAX_V);
   // first scale to ellipse y/aym^2+x/axm^2=1
   // then cap ax to  (-infty,max_acc]
@@ -385,8 +414,8 @@ void bound_control(float* state, float* i_control, float* o_control){
   float r = sqrtf(sqrf(ax_normalized)+sqrf(ay_normalized));
   if (r>1.0){
     r = 1.0;
-    o_control[CONTROL_STEERING] = PARAM_MAX_AY*r*cosf(theta);
-    o_control[CONTROL_THROTTLE] = PARAM_MAX_AX*r*sinf(theta);
   }
+  o_control[CONTROL_STEERING] = PARAM_MAX_AY*r*cosf(theta);
+  o_control[CONTROL_THROTTLE] = PARAM_MAX_AX*r*sinf(theta);
   o_control[CONTROL_THROTTLE] = (o_control[CONTROL_THROTTLE]>max_acc)?max_acc:o_control[CONTROL_THROTTLE];
 }

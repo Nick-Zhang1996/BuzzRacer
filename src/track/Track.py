@@ -222,7 +222,11 @@ class Track(ConfigObject):
         self.raceline_velocity = vv
 
         # describe track boundary as offset from raceline
-        self.createBoundary()
+        left_boundary_fun, right_boundary_fun = self.createBoundary(self.raceline_s, self.raceline_len_m)
+        self.raceline_left_boundary = splev(ss,left_boundary_fun)[0]
+        self.raceline_right_boundary = splev(ss,right_boundary_fun)[0]
+        self.curvature = splev(ss,self.curvature_fun)[0]
+
         self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
         '''
         left = np.array(self.raceline_left_boundary)
