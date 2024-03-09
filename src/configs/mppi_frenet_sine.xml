@@ -4,7 +4,7 @@
   </settings>
 
     <!--<track radius='2.0' length='2.0' width='0.6' resolution='100'>nascar</track>-->
-    <track>triangle_saved</track>
+    <track>sine</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
@@ -12,6 +12,11 @@
       <extension handle='snapshot'>SnapshotSaver</extension>
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='True'>KinematicBicycleFrenetSimulator</extension>
+      <extension handle='boundary_checker'>BoundaryChecker</extension>
+      <extension handle='collision_checker'>OpponentCollisionChecker</extension>
+      <extension handle='lap_counter' lap_count='1'>LapCounter</extension>
+      <extension handle='config_logger'>ConfigLogger</extension>
+      <extension handle='watchdog'>Watchdog</extension>
           <!--<extension handle='gifsaver'>Gifsaver</extension>-->
   </extensions>
 
@@ -19,10 +24,13 @@
     <car>
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
-      <config_name>sim_red</config_name>
-      <init_states>(1.2,-0.1, radians(0), 3)</init_states>
-      <controller>
-        <type>iLQGameSoloCarController</type>
+      <config_name>sim_green</config_name>
+      <init_states>(2.1382080471108194, 0.6360548005468664, -0.47207488288130506, 2.553538775391343)</init_states>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        >
+        <type>MppiFrenetCarController</type>
       </controller>
     </car>
 
@@ -30,11 +38,16 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
-      <init_states>(1.4,0.1, radians(0), 3)</init_states>
-      <controller>
-        <type>iLQGameCarController</type>
+      <init_states>(2.5249712251011317, 0.5252683111682276, -0.5396593247435635, 2.686584063333321)</init_states>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        ibr_iter='3'
+        >
+        <type>MppiFrenetCarController</type>
       </controller>
     </car>
 
   </cars>
+
 </config>

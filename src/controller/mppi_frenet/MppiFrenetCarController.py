@@ -91,6 +91,18 @@ class MppiFrenetCarController(CarController):
         self.raceline_right_boundary = track.raceline_right_boundary
         self.initCuda()
 
+        self.ego_car = self.car
+        for car in self.main.cars:
+            if car != self.ego_car:
+                self.oppo_car = car
+                break
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        self.start_lead_i_j = delta_x[0]
+
+    def final(self):
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        self.end_lead_i_j = delta_x[0]
+
     def initCuda(self):
         self.curand_kernel_n = 1024
 
@@ -369,6 +381,11 @@ class MppiFrenetCarController(CarController):
             ddt = (new_x-x)/self.dt
             x = new_x
         return np.array(traj)
+
+    def isInCollision(self):
+        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
+        return is_in_collision
 
 
 

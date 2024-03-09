@@ -21,8 +21,12 @@
       <hardware>Offboard</hardware>
       <config_name>sim_red</config_name>
       <init_states>(1.2,-0.1, radians(0), 3)</init_states>
-      <controller>
-        <type>iLQGameSoloCarController</type>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        ibr_iter='3'
+        >
+        <type>MppiFrenetCarController</type>
       </controller>
     </car>
 
@@ -31,8 +35,11 @@
       <hardware>Offboard</hardware>
       <config_name>sim_green</config_name>
       <init_states>(1.4,0.1, radians(0), 3)</init_states>
-      <controller>
-        <type>iLQGameCarController</type>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        >
+        <type>MppiFrenetCarController</type>
       </controller>
     </car>
 

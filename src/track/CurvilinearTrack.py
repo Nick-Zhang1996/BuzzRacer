@@ -205,7 +205,7 @@ class CurvilinearTrack(Track):
         #self.upper_fun = self.buildSpline(upper)
         #self.lower_fun = self.buildSpline(lower)
 
-        self.raceline_speed_s = interp1d(ss,np.ones_like(ss),kind='cubic')
+        self.raceline_speed_s = self.sToV = interp1d(ss,np.ones_like(ss),kind='cubic')
 
         '''
         plt.plot(upper[:,0],upper[:,1])

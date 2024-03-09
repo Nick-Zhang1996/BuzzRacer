@@ -1,0 +1,1 @@
+./configs/mppi_frenet_sine.xml,./configs/mppi_frenet_sine.xml,../log/./configs/mppi_frenet_sine.xml/full_state9.p,1,0,0,-0.39490653741922355,-1.993150093998537,nan,0,10.870000000000685,0,0

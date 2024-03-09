@@ -286,7 +286,8 @@ float evaluate_step_cost( float* state, float* u){
   cost += COST_q_N *state[STATE_N];
   cost += COST_q_PHI *state[STATE_PHI];
   // TODO add control cost
-
+  float v = state[STATE_V];
+  cost += (v<0)?COST_BDRY:0;
   return cost;
 }
 // NOTE potential improvement by reusing idx result from other functions
