@@ -372,7 +372,7 @@ void get_curvature_debug(float* state, int* io_idx, float* o_curvature){
     }
   }
   *io_idx = idx;
-  printf("idx: %%d, ref_s: %%.2f, s: %%.2f\n",idx,raceline[idx][RACELINE_S],s);
+  //printf("idx: %%d, ref_s: %%.2f, s: %%.2f\n",idx,raceline[idx][RACELINE_S],s);
   *o_curvature = (s>raceline[idx][RACELINE_S])?
     map(s,raceline[idx][RACELINE_S],raceline[(idx+1)%%RACELINE_LEN][RACELINE_S],raceline[idx][RACELINE_CURVATURE],raceline[(idx+1)%%RACELINE_LEN][RACELINE_CURVATURE])
     :

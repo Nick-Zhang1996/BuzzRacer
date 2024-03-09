@@ -1,0 +1,45 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='visualization' car_graphics='True'>Visualization</extension>
+      <extension handle='simulator' match_time='True'>KinematicBicycleFrenetSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_11</config_name>
+      <init_states>(0.1,-0.0, radians(0), 3)</init_states>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        control_opponent='True'
+        ibr_iter='0'
+        >
+        <type>MppiFrenetCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_13</config_name>
+      <init_states>(0.2,-0.2, radians(0), 2)</init_states>
+      <controller 
+        horizon='20' 
+        samples_count='1024' 
+        >
+        <type>MppiFrenetCarController</type>
+      </controller>
+    </car>
+  </cars>
+</config>

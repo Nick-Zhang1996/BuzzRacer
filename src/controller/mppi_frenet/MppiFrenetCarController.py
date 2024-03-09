@@ -1,4 +1,5 @@
-# mppi car controller, with dynamic model
+# mppi car controller, with Kinematic Bicycle Frenet dynamics
+# enable_ibr only supports one opponent, some function supports multiple
 import numpy as np
 from time import time,sleep
 from math import radians,degrees,cos,sin,ceil,floor,atan,tan
@@ -20,10 +21,12 @@ class MppiFrenetCarController(CarController):
         self.control_dim = 2
         self.samples_count = None # to be set in config
         self.horizon = None       # to be set in config
+        self.control_opponent = False
+        # set to 0 disabled ibr, will use trivial prediction if opponentis exists
+        self.ibr_iter = 0
+
         self.dt = 0.01
         self.temperature = 0.01
-
-
         # cost to apply on state
         # state x: s,v,n,phi, beta
         self.Q1 = np.diag(  [ 0,0.00,1.0,1.0, 0.0])
@@ -41,7 +44,7 @@ class MppiFrenetCarController(CarController):
         self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0*3
+        Kcol = 30.0
         self.opponent_min_distance_s = 0.3
         self.opponent_min_distance_n = 0.19
         self.Qcol = np.diag([Kcol,0,Kcol,0,0])
@@ -74,8 +77,7 @@ class MppiFrenetCarController(CarController):
         self.noise_mean = np.array([0.0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
-        self.last_control = np.zeros(2,dtype=np.float32)
-        self.freq_vec = []
+        #self.car.last_control = np.zeros(2,dtype=np.float32)
 
         # TODO do these in track initialization
         track = self.track
@@ -86,8 +88,6 @@ class MppiFrenetCarController(CarController):
         self.raceline_left_boundary = track.raceline_left_boundary
         self.raceline_right_boundary = track.raceline_right_boundary
         self.initCuda()
-        # TODO may need to initialize
-        #self.predict()
 
     def initCuda(self):
         self.curand_kernel_n = 1024
@@ -186,35 +186,55 @@ class MppiFrenetCarController(CarController):
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
 
-    def getOpponentStatus(self):
-        opponent_count = 0
-        opponent_traj = []
-        for car in self.main.cars:
-            if not (car is self.car):
-                opponent_count += 1
-                predicted_traj = self.predict(car.sim_states)
-                opponent_traj.append(car.controller.predicted_traj)
-        # dim: no_opponents, horizon, states
-        opponent_traj = np.array(opponent_traj)
-        return opponent_count, opponent_traj
-
-    # TODO generate predicted trajectory for opponenet by running MPPI
-    # for now just repeat current state
-    def predict(self,states):
-        predicted_traj = [states for i in range(self.horizon)]
-        return predicted_traj
-
-
-
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 # sim_state: (s,v,n,phi,beta)
     def control(self):
+        # build opponent prediction vector for car
+        def getOppoTraj(car,prediction_dict):
+            oppo_traj = []
+            for oppo_car in self.main.cars:
+                if oppo_car==car:
+                    continue
+                oppo_traj.append(prediction_dict[oppo_car])
+            return oppo_traj
+
+        # TODO add control_opponent
+        prediction_dict = {}
+        # make trivial initial prediciton for all cars
+        # prediction dim: no_opponents, horizon, states
+        for car in self.main.cars:
+            prediction_dict[car] = [car.sim_states for i in range(self.horizon)]
+        # update control and prediction for ego car
+        control = self.mppiControl(self.car, opponent_traj=getOppoTraj(self.car,prediction_dict))
+        expected_trajectory = self.getTrajectory( self.car.sim_states, control )
+        prediction_dict[self.car] = expected_trajectory
+        self.car.steering = control[0,0]
+        self.car.throttle = control[0,1]
+
+        # Iterated Best Response
+        for i in range(self.ibr_iter):
+            # update prediction for all cars, except ego car
+            for car in self.main.cars:
+                if car == self.car:
+                    continue
+                control = self.mppiControl(car, opponent_traj=getOppoTraj(car,prediction_dict))
+                prediction_dict[car] = self.getTrajectory( car.sim_states, control )
+            # update control and prediction for ego car last
+            control = self.mppiControl(self.car, opponent_traj=getOppoTraj(self.car,prediction_dict))
+            prediction_dict[self.car] = self.getTrajectory( self.car.sim_states, control )
+            self.car.steering = control[0,0]
+            self.car.throttle = control[0,1]
+
+        return True
+
+    def mppiControl(self,car,opponent_traj=[]):
         t = time()
         # vf: forward v
         # vs: lateral v, left positive
         # omega: angular velocity
-        x,y,heading,vf,vs,omega = self.car.states
-        s,v,n,phi,beta = self.car.sim_states
+        x,y,heading,vf,vs,omega = car.states
+        s,v,n,phi,beta = car.sim_states
+        last_control = [car.steering,car.throttle]
         #self.print_info(f'car v={v}')
 
         # warm start from previous solution
@@ -232,8 +252,7 @@ class MppiFrenetCarController(CarController):
         #self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
 
         # prepare opponent info
-        opponent_count, opponent_traj = self.getOpponentStatus()
-        opponent_count = np.int32(opponent_count)
+        opponent_count = np.int32(len(opponent_traj))
         if (opponent_count == 0):
             device_opponent_traj = np.uint64(0)
         else:
@@ -241,10 +260,10 @@ class MppiFrenetCarController(CarController):
 
         # evaluate control sequence
         device_ref_control_rate = self.to_device(ref_control_rate)
-        device_initial_state = self.to_device(self.car.sim_states)
+        device_initial_state = self.to_device(car.sim_states)
         costs = np.zeros((self.samples_count), dtype=np.float32)
         sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
-        device_last_control = self.to_device(self.last_control)
+        device_last_control = self.to_device(last_control)
 
 
         sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
@@ -266,21 +285,13 @@ class MppiFrenetCarController(CarController):
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
-        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
+        control = last_control + np.cumsum( control_rate, axis=0)*self.dt
 
-        self.last_ref_control = control.copy()
+        #car.steering = control[0,0]
+        #car.throttle = control[0,1]
+        #car.steering += control_rate[0,0]*self.dt
+        #car.throttle += control_rate[0,1]*self.dt
 
-        #self.car.steering = control[0,0]
-        #self.car.throttle = control[0,1]
-
-        self.car.steering += control_rate[0,0]*self.dt
-        self.car.throttle += control_rate[0,1]*self.dt
-
-        #self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
-        self.last_control = [self.car.steering,self.car.throttle]
-        dt = time() - t
-        self.freq_vec.append(1.0/dt)
-        #self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
 
         '''
         # DEBUG
@@ -294,25 +305,21 @@ class MppiFrenetCarController(CarController):
         for i in range(0,sampled_trajectory.shape[0],50):
             self.plotTrajectory(sampled_trajectory[i])
 
-        # display expected trajectory, perf impact
-        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
-        self.expected_trajectory = expected_trajectory
-        self.plotTrajectory(expected_trajectory)
 
         # verify GPU against cpu
         index = 50
         cpu_control = sampled_control[index,:,:]
         gpu_trajectory = sampled_trajectory[index,:]
-        cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
+        cpu_trajectory = self.getTrajectory(car.sim_states, cpu_control)
 
-        cpu_trajectory = self.getTrajectory(self.car.sim_states, cpu_control)
+        cpu_trajectory = self.getTrajectory(car.sim_states, cpu_control)
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
         '''
 
         if (self.main.breakpoint.is_set()):
             breakpoint()
             self.main.breakpoint.clear()
-        return True
+        return control
 
     # select min cost control
     def synthesizeControlMin(self, cost_vec, sampled_control):
@@ -360,9 +367,8 @@ class MppiFrenetCarController(CarController):
             traj.append(x)
             new_x = KinematicBicycleFrenetSimulator.advanceKinematicBicycleDynamics(x, control_vec[i], self.dt, self.track)
             ddt = (new_x-x)/self.dt
-            print(ddt)
             x = new_x
-        return traj
+        return np.array(traj)
 
 
 
