@@ -17,7 +17,7 @@ class iLQGameCarController(CarController):
         self.lqt = execution_timer(True)
         self.m = 2
         self.n = 5
-        self.iterations = 3
+        self.iterations = 1
         self.draw_prediction = True
         self.debug = False
         self.leader_collision_ignorant = False

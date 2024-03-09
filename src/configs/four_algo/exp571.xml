@@ -1,0 +1,44 @@
+<?xml version="1.0" ?><config>
+  <settings dt="0.01">
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>triangle_saved</track>
+
+  <extensions>
+      <extension handle="laptimer">Laptimer</extension>
+      <extension handle="logger">Logger</extension>
+      <extension handle="snapshot">SnapshotSaver</extension>
+      <extension handle="visualization" car_graphics="False">FakeVisualization</extension>
+      <extension handle="simulator" match_time="True">KinematicBicycleFrenetSimulator</extension>
+      <extension handle="boundary_checker">BoundaryChecker</extension>
+      <extension handle="collision_checker">OpponentCollisionChecker</extension>
+      <extension handle="lap_counter" lap_count="1">LapCounter</extension>
+      <extension handle="config_logger">ConfigLogger</extension>
+      <extension handle="watchdog">Watchdog</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
+      <init_states>(5.789614640146892, 3.0596788641406873, 1.9747912548845772, 3.7484509008412727)</init_states>
+      <controller horizon="20" samples_count="1024" ibr_iter="3">
+        <type>MppiFrenetCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
+      <init_states>(5.430267639304677, 3.109558986298506, 2.0317851289100837, 2.854041044692124)</init_states>
+      <controller horizon="20" samples_count="1024">
+        <type>MppiFrenetCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+
+</config>

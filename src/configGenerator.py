@@ -10,7 +10,7 @@ import sys
 from math import radians
 from track import TrackFactory
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
-from extension.simulator.PointedMassFrenetSimulator import PointedMassFrenetSimulator
+from extension.simulator.KinematicBicycleFrenetSimulator import KinematicBicycleFrenetSimulator
 
 
 class FakeMain():
@@ -20,7 +20,7 @@ class FakeMain():
 
 
 # leader = 0: s0 lead, =1: s1 lead, None: even
-def getRandomInitialStatePair(leader=None):
+def getRandomInitialStatePair(leader=None,track=None):
 
     if (leader == 0):
         # s0 in front
@@ -49,18 +49,18 @@ def getRandomInitialStatePair(leader=None):
     heading1 = np.arctan2(drr0[1],drr0[0])
     '''
 
-    x0 = np.array((s0,v0,n0,0))
-    x1 = np.array((s1,v1,n1,0))
+    x0 = np.array((s0,v0,n0,0,0))
+    x1 = np.array((s1,v1,n1,0,0))
     delta_x = x0 - x1
     is_in_collision = np.abs(delta_x[0])<0.3*1.1 and np.abs(delta_x[2])<0.19*1.1
     is_outside = track.isOutsideCurv(x0) or track.isOutsideCurv(x1)
     if (is_in_collision or is_outside):
-        return getRandomInitialStatePair()
+        return getRandomInitialStatePair(leader,track)
     else:
-        cart0 = sim.curv2Cart(x0)
-        cart1 = sim.curv2Cart(x1)
-        curv0 = sim.cart2Curv(cart0)
-        curv1 = sim.cart2Curv(cart1)
+        cart0 = KinematicBicycleFrenetSimulator.curv2CartTrack(x0,track)
+        cart1 = KinematicBicycleFrenetSimulator.curv2CartTrack(x1,track)
+        curv0 = KinematicBicycleFrenetSimulator.cart2CurvTrack(cart0,track)
+        curv1 = KinematicBicycleFrenetSimulator.cart2CurvTrack(cart1,track)
         if (curv0[0] == curv1[0]):
             breakpoint()
         return tuple(cart0[:4]),tuple(cart1[:4])
@@ -79,7 +79,7 @@ def exploit_sine_dense():
     setup_vec = ['mpc','coordinative', 'adversarial','baseline']
     for i in range(50):
         for setup in setup_vec:
-            s0,s1 = getRandomInitialStatePair(leader=0)
+            s0,s1 = getRandomInitialStatePair(leader=0,track=track)
             for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
                 config = deepcopy(original_config)
                 config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
@@ -124,7 +124,7 @@ def sine_mpc_dense():
     setup_vec = ['coordinative', 'adversarial','baseline']
     for i in range(50):
         for setup in setup_vec:
-            s0,s1 = getRandomInitialStatePair(leader=0)
+            s0,s1 = getRandomInitialStatePair(leader=0,track=track)
             for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
                 config = deepcopy(original_config)
                 config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
@@ -161,6 +161,63 @@ def triangle_mpc_dense():
 def nascar_mpc_dense():
     return sine_mpc_dense()
 
+def four_algo():
+    index = 0
+    setup_vec = ['mppi-ibr_mppi','mppi_ilqr','mppi-ibr_ilqgame']
+    track_name_vec = ['nascar_saved','triangle_saved','sine']
+
+    for track_name in track_name_vec:
+        config = deepcopy(original_config)
+        config_track = config.getElementsByTagName('track')[0]
+        config_track.childNodes[0].data = track_name
+        track = TrackFactory.build(main=None,config=config_track)
+        track.init()
+        for i in range(50):
+            for setup in setup_vec:
+                s0,s1 = getRandomInitialStatePair(leader=0,track=track)
+                for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                    config = deepcopy(original_config)
+                    config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+                    config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                    config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+                    config_track = config.getElementsByTagName('track')[0]
+                    config_track.childNodes[0].data = track_name
+
+                    if (setup == 'mppi-ibr_mppi'):
+                        config_car0_controller.childNodes[1].childNodes[0].data = 'MppiFrenetCarController'
+                        config_car0_controller.attributes['horizon'] =  '20'
+                        config_car0_controller.attributes['samples_count'] =  '1024'
+                        config_car0_controller.attributes['ibr_iter'] =  '3'
+
+                        config_car1_controller.childNodes[1].childNodes[0].data = 'MppiFrenetCarController'
+                        config_car1_controller.attributes['horizon'] =  '20'
+                        config_car1_controller.attributes['samples_count'] =  '1024'
+
+                    elif (setup == 'mppi_ilqr'):
+                        config_car0_controller.childNodes[1].childNodes[0].data = 'MppiFrenetCarController'
+                        config_car0_controller.attributes['horizon'] =  '20'
+                        config_car0_controller.attributes['samples_count'] =  '1024'
+
+                        config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+
+                    elif (setup == 'mppi-ibr_ilqgame'):
+                        config_car0_controller.childNodes[1].childNodes[0].data = 'MppiFrenetCarController'
+                        config_car0_controller.attributes['horizon'] =  '20'
+                        config_car0_controller.attributes['samples_count'] =  '1024'
+                        config_car0_controller.attributes['ibr_iter'] =  '3'
+
+                        config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+
+                    else:
+                        print('error')
+
+                    with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                        config.writexml(f)
+                    index += 1
+
+    print('generated %d configs'%index)
+
+
 if __name__=='__main__':
     if (len(sys.argv) == 2):
         name = sys.argv[1]
@@ -175,8 +232,5 @@ if __name__=='__main__':
     config_track= original_config.getElementsByTagName('track')[0]
     track = TrackFactory.build(main=None,config=config_track)
     track.init()
-
-    sim = PointedMassFrenetSimulator(FakeMain())
-    sim.track = track
 
     eval(f'{name}()')

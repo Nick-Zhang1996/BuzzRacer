@@ -1,0 +1,11 @@
+four_algo,./configs/four_algo/exp3.xml,../log/four_algo/full_state18.p,1,0,0,-0.13060127923461629,-2.650148665978339,nan,0,3.7799999999999203,1,1
+four_algo,./configs/four_algo/exp9.xml,../log/four_algo/full_state21.p,1,0,0,-0.24184142297641564,-2.6914169273856956,nan,1,3.779999999999922,1,0
+four_algo,./configs/four_algo/exp8.xml,../log/four_algo/full_state19.p,1,0,0,0.24184142297641564,0.4152022390108172,4.139999999999912,0,nan,3,1
+four_algo,./configs/four_algo/exp2.xml,../log/four_algo/full_state20.p,1,0,0,0.13060127923461629,0.4165319193333943,4.139999999999912,0,nan,6,0
+four_algo,./configs/four_algo/exp4.xml,../log/four_algo/full_state26.p,1,0,0,0.17925442057372365,-2.5596522021902643,nan,0,3.769999999999939,0,0
+four_algo,./configs/four_algo/exp5.xml,../log/four_algo/full_state23.p,1,0,0,-0.17925442057372365,0.2567612425509367,4.1399999999999295,0,nan,0,3
+four_algo,./configs/four_algo/exp0.xml,../log/four_algo/full_state16.p,1,0,0,0.15706280857626176,2.0934042169974667,4.149999999999924,0,nan,0,0
+four_algo,./configs/four_algo/exp1.xml,../log/four_algo/full_state17.p,1,0,0,-0.15706280857626176,-1.4549887104225903,nan,0,4.149999999999922,0,0
+four_algo,./configs/four_algo/exp10.xml,../log/four_algo/full_state22.p,1,0,0,0.13041309997684536,0.26367919561593567,4.149999999999922,0,nan,0,3
+four_algo,./configs/four_algo/exp7.xml,../log/four_algo/full_state25.p,1,0,0,-0.24166413538909026,-1.5825608345815034,nan,0,4.139999999999912,0,0
+four_algo,./configs/four_algo/exp6.xml,../log/four_algo/full_state24.p,1,0,0,0.24166413538909026,-0.539543509450251,nan,0,4.1499999999999115,0,1

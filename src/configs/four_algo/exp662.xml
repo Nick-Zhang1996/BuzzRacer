@@ -1,0 +1,44 @@
+<?xml version="1.0" ?><config>
+  <settings dt="0.01">
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>sine</track>
+
+  <extensions>
+      <extension handle="laptimer">Laptimer</extension>
+      <extension handle="logger">Logger</extension>
+      <extension handle="snapshot">SnapshotSaver</extension>
+      <extension handle="visualization" car_graphics="False">FakeVisualization</extension>
+      <extension handle="simulator" match_time="True">KinematicBicycleFrenetSimulator</extension>
+      <extension handle="boundary_checker">BoundaryChecker</extension>
+      <extension handle="collision_checker">OpponentCollisionChecker</extension>
+      <extension handle="lap_counter" lap_count="1">LapCounter</extension>
+      <extension handle="config_logger">ConfigLogger</extension>
+      <extension handle="watchdog">Watchdog</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
+      <init_states>(-1.7889068384776994, -3.6553431288959057, 1.4096167143074023, 2.7423435804443432)</init_states>
+      <controller horizon="20" samples_count="1024">
+        <type>MppiFrenetCarController</type>
+      </controller>
+    </car>
+
+    <car>
+      <name>Green Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
+      <init_states>(-2.0716872273304614, -3.797266497558801, 1.43671296153543, 3.72851301843007)</init_states>
+      <controller>
+        <type>iLQGameSoloCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+
+</config>
