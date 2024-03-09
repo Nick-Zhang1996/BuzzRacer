@@ -22,8 +22,7 @@
       <controller 
         horizon='20' 
         samples_count='1024' 
-        control_opponent='True'
-        ibr_iter='0'
+        ibr_iter='3'
         >
         <type>MppiFrenetCarController</type>
       </controller>
@@ -33,12 +32,12 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_13</config_name>
-      <init_states>(0.2,-0.2, radians(0), 2)</init_states>
+      <init_states>(0.4,-0.1, radians(0), 2)</init_states>
       <controller 
         horizon='20' 
         samples_count='1024' 
         >
-        <type>MppiFrenetCarController</type>
+        <type>iLQGameCarController</type>
       </controller>
     </car>
   </cars>

@@ -10,12 +10,13 @@ import pycuda.autoinit
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
 
+from common import *
 from controller.CarController import CarController
 from extension.simulator.KinematicBicycleFrenetSimulator import KinematicBicycleFrenetSimulator
 
 class MppiFrenetCarController(CarController):
     def __init__(self,car,config):
-
+        super().__init__(car,config)
         # reconfigurable parameters
         self.state_dim = 5
         self.control_dim = 2
@@ -25,7 +26,7 @@ class MppiFrenetCarController(CarController):
         # set to 0 disabled ibr, will use trivial prediction if opponentis exists
         self.ibr_iter = 0
 
-        self.dt = 0.01
+        self.dt = self.car.main.dt * 2
         self.temperature = 0.01
         # cost to apply on state
         # state x: s,v,n,phi, beta
@@ -44,17 +45,17 @@ class MppiFrenetCarController(CarController):
         self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0
+        Kcol = 30.0*3
         self.opponent_min_distance_s = 0.3
         self.opponent_min_distance_n = 0.19
         self.Qcol = np.diag([Kcol,0,Kcol,0,0])
 
-        super().__init__(car,config)
         self.track = self.car.main.track
         self.n =  self.state_dim
         self.m =  self.control_dim
 
         np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
+        ConfigObject.__init__(self,config)
 
 
         '''
@@ -73,7 +74,8 @@ class MppiFrenetCarController(CarController):
         #self.noise_mean = np.array([0,0])
 
         # sample control change rate val/sec
-        self.noise_cov = np.array([(max_ay*5)**2,(max_ax*5)**2])
+        #self.noise_cov = np.array([(max_ay*5)**2,(max_ax*5)**2])
+        self.noise_cov = np.array([(max_ay*2)**2,(max_ax*2)**2])
         self.noise_mean = np.array([0.0,0])
 
         #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
@@ -224,6 +226,13 @@ class MppiFrenetCarController(CarController):
             prediction_dict[self.car] = self.getTrajectory( self.car.sim_states, control )
             self.car.steering = control[0,0]
             self.car.throttle = control[0,1]
+        '''
+        for car in self.main.cars:
+            self.plotTrajectory(prediction_dict[car])
+        if (self.main.breakpoint.is_set()):
+            breakpoint()
+            self.main.breakpoint.clear()
+        '''
 
         return True
 
@@ -287,12 +296,6 @@ class MppiFrenetCarController(CarController):
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
         control = last_control + np.cumsum( control_rate, axis=0)*self.dt
 
-        #car.steering = control[0,0]
-        #car.throttle = control[0,1]
-        #car.steering += control_rate[0,0]*self.dt
-        #car.throttle += control_rate[0,1]*self.dt
-
-
         '''
         # DEBUG
         str_mean = np.mean(sampled_control[:,:,0])
@@ -316,9 +319,6 @@ class MppiFrenetCarController(CarController):
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
         '''
 
-        if (self.main.breakpoint.is_set()):
-            breakpoint()
-            self.main.breakpoint.clear()
         return control
 
     # select min cost control

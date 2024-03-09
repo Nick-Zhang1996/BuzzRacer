@@ -402,7 +402,8 @@ float evaluate_collision_cost( float* state, int step, float* opponent_traj, int
   float ds = state[STATE_S] - opponent_traj[opponent_id*HORIZON*STATE_DIM + step*STATE_DIM + STATE_S];
   float dn = state[STATE_N] - opponent_traj[opponent_id*HORIZON*STATE_DIM + step*STATE_DIM + STATE_N];
   if (fabsf(ds) < COST_OPPO_MIN_S && fabsf(dn) < COST_OPPO_MIN_N){
-    cost += COST_Q_COL*(ds*ds+dn*dn);
+    cost += COST_Q_COL*(sqrf(ds-COST_OPPO_MIN_S)+sqrf(dn-COST_OPPO_MIN_N));
+    cost += COST_Q_COL;
   }
 
   return cost;
