@@ -1,0 +1,115 @@
+/usr/local/lib/python3.8/dist-packages/scipy/interpolate/_fitpack_impl.py:226: RuntimeWarning: Setting x[0][1024]=x[0][0]
+  warnings.warn(RuntimeWarning('Setting x[%d][%d]=x[%d][0]' %
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/fromnumeric.py:3440: RuntimeWarning: Mean of empty slice.
+  return _methods._mean(a, axis=axis, dtype=dtype,
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:189: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:262: RuntimeWarning: Degrees of freedom <= 0 for slice
+  ret = _var(a, axis=axis, dtype=dtype, out=out, ddof=ddof,
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:222: RuntimeWarning: invalid value encountered in true_divide
+  arrmean = um.true_divide(arrmean, div, out=arrmean, casting='unsafe',
+/home/zzhang615/.local/lib/python3.8/site-packages/numpy/core/_methods.py:254: RuntimeWarning: invalid value encountered in double_scalars
+  ret = ret.dtype.type(ret / rcount)
+[92m [Main]:   loading settings [0m
+[92m [Main]:   setting main attributes [0m
+[96m [Main]:   main. dt = 0.01 [0m
+[92m [Track]:  setting triangle_saved attributes [0m
+[92m track loaded [0m
+[92m [TriangleTrack]:  setting triangle_saved attributes [0m
+[96m [TriangleTrack]:  No custom postLoad() [0m
+[92m [MppiFrenetCarController]:  setting 
+         attributes [0m
+[96m [MppiFrenetCarController]:  
+         . horizon = 20 [0m
+[96m [MppiFrenetCarController]:  
+         . samples_count = 1024 [0m
+[96m [MppiFrenetCarController]:  
+         . ibr_iter = 3 [0m
+[92m [MppiFrenetCarController]:  setting 
+         attributes [0m
+[96m [MppiFrenetCarController]:  
+         . horizon = 20 [0m
+[96m [MppiFrenetCarController]:  
+         . samples_count = 1024 [0m
+[96m [MppiFrenetCarController]:  
+         . ibr_iter = 3 [0m
+[92m [iLQGameCarController]:  setting 
+         attributes [0m
+[92m [iLQGameCarController]:  setting 
+         attributes [0m
+[96m [Main]:   total cars: 2 [0m
+[92m [Main]:  setting up extensions... [0m
+[92m [Laptimer]: in use [0m
+[96m [Main]:  main.laptimer = Laptimer [0m
+[92m [Logger]: in use [0m
+[96m [Main]:  main.logger = Logger [0m
+[92m [SnapshotSaver]: in use [0m
+[96m [Main]:  main.snapshot = SnapshotSaver [0m
+[92m [FakeVisualization]: in use [0m
+[96m [Main]:  main.visualization = FakeVisualization [0m
+[96m [Main]:  main.visualization.car_graphics = False [0m
+[92m [KinematicBicycleFrenetSimulator]: in use [0m
+[96m [KinematicBicycleFrenetSimulator]:  real/sim time ratio = 1.0  [0m
+[96m [Main]:  main.simulator = KinematicBicycleFrenetSimulator [0m
+[96m [Main]:  main.simulator.match_time = True [0m
+[92m [BoundaryChecker]: in use [0m
+[96m [Main]:  main.boundary_checker = BoundaryChecker [0m
+[92m [OpponentCollisionChecker]: in use [0m
+[96m [Main]:  main.collision_checker = OpponentCollisionChecker [0m
+[92m [LapCounter]: in use [0m
+[96m [Main]:  main.lap_counter = LapCounter [0m
+[96m [Main]:  main.lap_counter.lap_count = 1 [0m
+[92m [ConfigLogger]: in use [0m
+[96m [Main]:  main.config_logger = ConfigLogger [0m
+[92m [Watchdog]: in use [0m
+[96m [Main]:  main.watchdog = Watchdog [0m
+[92m [iLQGameCarController]:  Qop1 = 0.00, Qop2 = 0.00 [0m
+[96m [KinematicBicycleFrenetSimulator]:  match_time: True [0m
+[92m [LapCounter]: total 1 laps [0m
+[96m [MppiFrenetCarController]:  loading cuda source code ... [0m
+[96m [MppiFrenetCarController]:  cuda block size 1024, grid size 1 [0m
+[96m [MppiFrenetCarController]:  registers used,  init_curand_kernel = 39 [0m
+[96m [MppiFrenetCarController]:  registers used,  generate_control_noise = 32 [0m
+[96m [MppiFrenetCarController]:  registers used,  evaluate_control_sequence = 46 [0m
+[96m [MppiFrenetCarController]:  registers used,  set_control_limit = 20 [0m
+[96m [MppiFrenetCarController]:  registers used,  set_noise_cov = 12 [0m
+[96m [MppiFrenetCarController]:  registers used,  set_noise_mean = 12 [0m
+[96m [MppiFrenetCarController]:  registers used,  set_raceline = 20 [0m
+[96m [Main]:  running ... press q to quit [0m
+[96m [Laptimer]: car0, Lap 0 laptime: 4.7500 s [0m
+[92m [LapCounter]: car0 critical lap start, total = 1 laps [0m
+[96m [Laptimer]: car1, Lap 0 laptime: 5.3100 s [0m
+[92m [LapCounter]: car1 critical lap start, total = 1 laps [0m
+[92m [BoundaryChecker]:  car 0 collision = 1 [0m
+[91m WARNING:  [Watchdog]: car outside track, terminating experiment [0m
+[96m [Main]:  Exiting ... [0m
+[96m [iLQGameCarController]:  ego car : [22.7749  3.9968  0.1595  0.0180  0.0071] [0m
+[96m [iLQGameCarController]:  opponent car : [35.6209 20.4074 -0.3820  0.0109  3.1269] [0m
+-----Variables--------
+-------Time-----------
+update_dynamics		5.7 %
+linearize		8.7 %
+preciseTrackBoundary		19.3 %
+getCostMatrices		50.8 %
+my_solve_lq_game		27.1 %
+avg frequency = 31.203Hz
+unaccounted time = -11.6 %
+-----Variables--------
+-------Time-----------
+setup		0.5 %
+Avbv		20.6 %
+bp		7.5 %
+lsqsq		26.1 %
+value fun		40.3 %
+reorder		1.5 %
+avg frequency = 117.901Hz
+unaccounted time = 3.4 %
+[96m [Laptimer]: car0, 0 laps, mean nan, stddev nan (sec) [0m
+[96m [Laptimer]: car1, 0 laps, mean nan, stddev nan (sec) [0m
+[92m [Laptimer]:  saved laptime vec to ../log/four_algo/laptime504.p [0m
+[96m [BoundaryChecker]:  car 0, total boundary violation = 1 [0m
+[96m [BoundaryChecker]:  car 1, total boundary violation = 0 [0m
+[96m [OpponentCollisionChecker]:  total car-car collision = 3 [0m
+[92m [Logger]: saving full_state log at ../log/four_algo/full_state504.p [0m
+[92m [Logger]: saving debugDict log at ../log/four_algo/debug_dict504.p [0m
+[96m [ConfigLogger]:  text log at ../log/four_algo/textlog.txt [0m
