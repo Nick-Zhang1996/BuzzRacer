@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
+
+from common import *
 from track import TrackFactory
 
 if (len(sys.argv) == 2):
@@ -33,6 +35,7 @@ with open(log,'r') as f:
     for label in labels:
         data_dict[label] = []
     #data_dict['Qop1_blocking'] = []
+    data_dict['track_name'] = []
     data_dict['car0_controller_name'] = []
     data_dict['car1_controller_name'] = []
     data_dict['blocking_control'] = []
@@ -57,6 +60,8 @@ with open(log,'r') as f:
             data_dict[label].append(datum)
         config_filename = entry[1]
         config = minidom.parse(config_filename)
+        config_track = config.getElementsByTagName('track')[0]
+        data_dict['track_name'].append(config_track.childNodes[0].data)
         config_cars = config.getElementsByTagName('cars')[0]
         config_car0 = config_cars.getElementsByTagName('car')[0]
         config_car1 = config_cars.getElementsByTagName('car')[1]
@@ -69,7 +74,10 @@ with open(log,'r') as f:
         data_dict['car0_controller_name'].append(car0_controller_name)
         data_dict['car1_controller_name'].append(car1_controller_name)
 
-        blocking = eval(config_car0_controller.attributes['blocking_control'].nodeValue)
+        try:
+            blocking = eval(config_car0_controller.attributes['blocking_control'].nodeValue)
+        except KeyError:
+            blocking = False
         data_dict['blocking_control'].append(blocking)
 
         try:
@@ -292,6 +300,30 @@ def exploit_triangle_dense():
 def exploit_nascar_dense():
     return exploit_sine_dense()
     exploit_sine_dense()
+
+def four_algo():
+    print(f'setup \t,flow \t,lead \t,all\t,i out\t, j out\t, col\t,adv\t,total runs')
+    setup_vec = ['mppi-ibr_mppi','mppi_ilqr','mppi-ibr_ilqgame']
+    track_name_vec = ['nascar_saved','triangle_saved','sine']
+    for setup in setup_vec:
+        print(setup)
+        for track_name in track_name_vec:
+            track_mask = [val == track_name for val in data_dict['track_name']]
+            if (setup == 'mppi-ibr_mppi'):
+                setup_mask1 = [val == 'MppiFrenetCarController' for val in data_dict['car0_controller_name']]
+                setup_mask2 = [val == 'MppiFrenetCarController' for val in data_dict['car1_controller_name']]
+            elif (setup == 'mppi_ilqr'):
+                setup_mask1 = [val == 'MppiFrenetCarController' for val in data_dict['car0_controller_name']]
+                setup_mask2 = [val == 'iLQGameSoloCarController' for val in data_dict['car1_controller_name']]
+            elif (setup == 'mppi-ibr_ilqgame'):
+                setup_mask1 = [val == 'MppiFrenetCarController' for val in data_dict['car0_controller_name']]
+                setup_mask2 = [val == 'iLQGameCarController' for val in data_dict['car1_controller_name']]
+            else:
+                print_error('unknown setup')
+            mask = np.logical_and(track_mask,setup_mask1)
+            mask = np.logical_and(mask,setup_mask2)
+            printStats(f'{track_name[:4]}',mask)
+
 
 if __name__=='__main__':
     eval(name+'()')
