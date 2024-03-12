@@ -216,6 +216,8 @@ def four_algo():
                     index += 1
 
     print('generated %d configs'%index)
+def four_algo_update_prediction():
+    return four_algo()
 
 
 if __name__=='__main__':

@@ -1,0 +1,25 @@
+nohup: ignoring input
+starting at Sun 10 Mar 2024 04:52:38 PM EDT
+four_algo 39 done at Sun 10 Mar 2024 04:55:36 PM EDT
+four_algo 79 done at Sun 10 Mar 2024 04:59:17 PM EDT
+four_algo 119 done at Sun 10 Mar 2024 05:02:41 PM EDT
+four_algo 159 done at Sun 10 Mar 2024 05:06:13 PM EDT
+four_algo 199 done at Sun 10 Mar 2024 05:09:50 PM EDT
+four_algo 239 done at Sun 10 Mar 2024 05:12:48 PM EDT
+four_algo 279 done at Sun 10 Mar 2024 05:15:50 PM EDT
+four_algo 319 done at Sun 10 Mar 2024 05:19:33 PM EDT
+four_algo 359 done at Sun 10 Mar 2024 05:23:33 PM EDT
+four_algo 399 done at Sun 10 Mar 2024 05:27:27 PM EDT
+four_algo 439 done at Sun 10 Mar 2024 05:31:26 PM EDT
+four_algo 479 done at Sun 10 Mar 2024 05:35:14 PM EDT
+four_algo 519 done at Sun 10 Mar 2024 05:39:21 PM EDT
+four_algo 559 done at Sun 10 Mar 2024 05:43:52 PM EDT
+four_algo 599 done at Sun 10 Mar 2024 05:47:39 PM EDT
+four_algo 639 done at Sun 10 Mar 2024 05:56:25 PM EDT
+four_algo 679 done at Sun 10 Mar 2024 06:05:07 PM EDT
+four_algo 719 done at Sun 10 Mar 2024 06:14:04 PM EDT
+four_algo 759 done at Sun 10 Mar 2024 06:23:22 PM EDT
+four_algo 799 done at Sun 10 Mar 2024 06:32:00 PM EDT
+four_algo 839 done at Sun 10 Mar 2024 06:40:57 PM EDT
+four_algo 879 done at Sun 10 Mar 2024 06:49:40 PM EDT
+four_algo 899 done at Sun 10 Mar 2024 06:54:07 PM EDT

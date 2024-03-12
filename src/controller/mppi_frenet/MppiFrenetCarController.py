@@ -200,6 +200,16 @@ class MppiFrenetCarController(CarController):
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
 
+    def getTrivialPrediction(self,states):
+        x = states
+        traj = []
+        for i in range(self.horizon):
+            traj.append(x)
+            # s = s+v*dt
+            x = (x[0]+x[1]*self.dt ,x[1],x[2],x[3],x[4])
+        return traj
+
+
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 # sim_state: (s,v,n,phi,beta)
     def control(self):
@@ -217,7 +227,8 @@ class MppiFrenetCarController(CarController):
         # make trivial initial prediciton for all cars
         # prediction dim: no_opponents, horizon, states
         for car in self.main.cars:
-            prediction_dict[car] = [car.sim_states for i in range(self.horizon)]
+            #prediction_dict[car] = [car.sim_states for i in range(self.horizon)]
+            prediction_dict[car] = self.getTrivialPrediction(car.sim_states)
         # update control and prediction for ego car
         control = self.mppiControl(self.car, opponent_traj=getOppoTraj(self.car,prediction_dict))
         expected_trajectory = self.getTrajectory( self.car.sim_states, control )
@@ -238,6 +249,7 @@ class MppiFrenetCarController(CarController):
             prediction_dict[self.car] = self.getTrajectory( self.car.sim_states, control )
             self.car.steering = control[0,0]
             self.car.throttle = control[0,1]
+
         '''
         for car in self.main.cars:
             self.plotTrajectory(prediction_dict[car])
