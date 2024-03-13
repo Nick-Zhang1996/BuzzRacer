@@ -138,7 +138,7 @@ class Main(PrintObject,LogObject):
             item.preUpdate()
             t.e(item.name)
 
-        self.new_state_update.wait()
+        self.new_state_update.wait(.1)
         self.new_state_update.clear()
 
         t.s('control')

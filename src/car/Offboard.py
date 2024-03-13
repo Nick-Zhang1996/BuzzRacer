@@ -17,11 +17,12 @@ from .Car import Car
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages
 
+
 class OffboardPacket(PrintObject):
     out_seq_no = 0
     packet_size = 64
     def __init__(self):
-        #self.print_debug_enable()
+        self.print_debug_enable()
         # actual whole packet
         self.seq_no = None
         self.type = None
@@ -30,8 +31,14 @@ class OffboardPacket(PrintObject):
         self.src_addr = None
         self.packet = None
         self.payload = None
+
+        self.lidar_front = None
+        self.lidar_left = None
+        self.lidar_right = None
+        self.lidar_back = None
         # package encoded ts
         self.ts = None
+
         return
 
     def emptyPayload(self):
@@ -47,7 +54,7 @@ class OffboardPacket(PrintObject):
         # f: float (4 Byte)
         # d: double (8 Byte)
         # x: padding (1 Byte)
-        header = pack('IIBBBB',self.seq_no,self.ts,self.dest_addr,self.src_addr,self.type,self.subtype)
+        header = pack('IIBBBBhhhh',self.seq_no,self.ts,self.dest_addr,self.src_addr,self.type,self.subtype, 0, 0, 0, 0)
         padding_size = OffboardPacket.packet_size - len(header) - len(self.payload)
         padding = pack('x'*padding_size)
         self.packet = header+self.payload+padding
@@ -56,8 +63,24 @@ class OffboardPacket(PrintObject):
 
     def parsePacket(self):
         packet = self.packet
-        header = packet[:12]
-        self.seq_no,self.ts,self.dest_addr, self.src_addr,self.type,self.subtype = unpack('IIBBBB',header)
+        header = packet[:20]
+
+        """
+        uint32_t seq_no;
+        uint32_t ts;
+        uint8_t dest_addr;
+        uint8_t src_addr;
+        uint8_t type;
+        uint8_t sub_type;
+        
+        uint16_t front_lidar;
+        uint16_t back_lidar;
+        uint16_t left_lidar;
+        uint16_t right_lidar;
+        """
+
+        self.seq_no,self.ts, self.dest_addr, self.src_addr, self.type, self.subtype, self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('IIBBBBhhhh',header)
+
         if (self.type == 0):
             # ping packet
             if (self.subtype == 0):
@@ -67,17 +90,17 @@ class OffboardPacket(PrintObject):
                 # ping response
                 pass
         if (self.type == 1):
-            self.throttle,self.steering = unpack('ff',packet[12:20])
+            self.throttle,self.steering = unpack('ff',packet[20:28])
 
         # sensor update
         if (self.type == 2):
-            self.steering_requested,self.steering_measured = unpack('ff',packet[12:20])
+            self.steering_requested,self.steering_measured = unpack('ff',packet[20:28])
             #self.print_info('sensor update',self.steering_requested, self.steering_measured)
 
         # parameter
         if (self.type == 3):
             if (self.subtype == 0):
-                sensor_update,steering_P,steering_I,steering_D = unpack('?fff',packet[12:12+4+3*4])
+                sensor_update,steering_P,steering_I,steering_D = unpack('?fff',packet[20:20+4+3*4])
                 self.print_info('parameter response')
                 self.print_info('sensor_update ', sensor_update)
                 self.print_info('steering_P ', steering_P)
@@ -92,8 +115,10 @@ class OffboardPacket(PrintObject):
 class Offboard(Car):
     available_local_port = 58998
     def __init__(self,main):
-        #self.print_debug_enable()
+        self.print_debug_enable()
         Car.__init__(self,main)
+
+        self.last_packet = None
 
     # parameter initialization, this will run immediately after self.params is set
     # put all parameters here. 
@@ -130,7 +155,7 @@ class Offboard(Car):
         self.optitrack_id = self.params['optitrack_streaming_id']
 
     def initHardware(self):
-        self.car_port = 2390
+        self.car_port = 28840
         self.initSocket()
         self.initLog()
 
@@ -152,7 +177,7 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.10.3"
+        self.local_ip = "192.168.10.100"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -178,6 +203,7 @@ class Offboard(Car):
 
     def __commThreadFunction( self, arg ):
         self.print_debug('commThread started')
+
         while not self.flag_quit.is_set():
             # send control command
             packet = self.prepareCommandPacket(self.throttle,self.steering)
@@ -252,6 +278,7 @@ class Offboard(Car):
         packet = OffboardPacket()
         packet.packet = data
         packet_type = packet.parsePacket()
+        
         self.last_response_ts = int(time_ns() / 1000) % 4294967295
 
         # sensor update
@@ -259,6 +286,8 @@ class Offboard(Car):
             self.log_t_vec.append(time())
             self.steering_requested_vec.append(packet.steering_requested)
             self.steering_measured_vec.append(packet.steering_measured)
+
+        self.last_packet = packet
             
         return packet
 

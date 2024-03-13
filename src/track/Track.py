@@ -316,6 +316,7 @@ class Track(ConfigObject):
 
         # restore save data
         print_ok('track loaded')
+        print_ok(save)
         save.main = main
         save.loadConfig(config)
         save.postLoad()
