@@ -15,7 +15,7 @@ class TofSensorStream(Extension):
         
         inf = float('inf')
         for i in self.car_id:
-            self.main.cars[i].tof_measurement = (0.2,0.2,0.2,0.2)
+            self.main.cars[i].tof_measurement = np.array([0,0,0,0])
 
     def preUpdate(self):
         # car.tof_measurement = [front, left, right, rear], in meter
