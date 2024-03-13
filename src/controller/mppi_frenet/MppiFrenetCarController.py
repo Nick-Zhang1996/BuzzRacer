@@ -222,7 +222,6 @@ class MppiFrenetCarController(CarController):
                 oppo_traj.append(prediction_dict[oppo_car])
             return oppo_traj
 
-        # TODO add control_opponent
         prediction_dict = {}
         # make trivial initial prediciton for all cars
         # prediction dim: no_opponents, horizon, states
@@ -243,6 +242,9 @@ class MppiFrenetCarController(CarController):
                 if car == self.car:
                     continue
                 control = self.mppiControl(car, opponent_traj=getOppoTraj(car,prediction_dict))
+                if (self.control_opponent):
+                    car.steering = control[0,0]
+                    car.throttle = control[0,1]
                 prediction_dict[car] = self.getTrajectory( car.sim_states, control )
             # update control and prediction for ego car last
             control = self.mppiControl(self.car, opponent_traj=getOppoTraj(self.car,prediction_dict))
