@@ -94,7 +94,8 @@ class KalmanFilter():
         self.P = None
         # dynamics noise, normalized by time
         # FIXME for more pronounced noise
-        self.q = np.diag([0.1,0.1,radians(5),0.5,0.5,radians(10)])*3
+        # self.q = np.diag([0.1,0.1,radians(5),0.5,0.5,radians(10)])*3
+        self.q = np.diag([0.3,0.3,radians(5),0.5,0.5,radians(10)])*3
         self.action_cov_mtx = np.diag([0.1]*m)
         self.dynamics = dynamics
 
@@ -137,6 +138,10 @@ class KalmanFilter():
         F = np.eye(n) + dfdx.reshape(n,n) * dt
         B = dfdu.reshape(n,m) * dt
         Q = self.q * dt
+        # print("dxdt:", dxdt)
+        # print("F:", F)
+        # print("B:", B)
+        # print("Q:", Q)
 
         action = np.array(action).reshape((self.action_dim,1))
 
@@ -210,6 +215,7 @@ class KalmanFilter():
         y = y[mask,:]
         H = H[mask,:]
         R = np.diag(np.diagonal(self.R)[mask])
+        # print(H)
 
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
