@@ -21,9 +21,10 @@
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_11</config_name>
-      <controller max_speed='0.5' horizon='30'>
+      <controller max_speed='0.5' horizon='30' use_ekf="True">
         <type>StanleyCarController</type>
         <init_states>(0.5*0.6,0.5*0.6, radians(90), 0.5)</init_states>
+        <use_ekf>True</use_ekf>
       </controller>
     </car>
 

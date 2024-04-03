@@ -8,6 +8,7 @@ class TofSensorStream(Extension):
 
         self.car_id = [0]
         self.scale = 1/1000
+        self.max_range = 1000
 
     def init(self):
         track = self.main.track
@@ -15,7 +16,7 @@ class TofSensorStream(Extension):
         
         inf = float('inf')
         for i in self.car_id:
-            self.main.cars[i].tof_measurement = np.array([0,0,0,0])
+            self.main.cars[i].tof_measurement = np.array([self.max_range,self.max_range,self.max_range,self.max_range], dtype=np.float64)
 
     def preUpdate(self):
         # car.tof_measurement = [front, left, right, rear], in meter
@@ -26,13 +27,13 @@ class TofSensorStream(Extension):
             if last_packet != None:
                 measurement = [last_packet.lidar_front, last_packet.lidar_left, last_packet.lidar_right, last_packet.lidar_back]
 
-                print(measurement)
-
                 for i, m in enumerate(measurement):
-                    if m <= 0:
-                        measurement[i] = 0
+                    if m <= 0 or m > self.max_range:
+                        measurement[i] = self.max_range
+
+                print(measurement)
                 
-                measurement = np.array(measurement) * self.scale
+                measurement = np.array(measurement, dtype=np.float64) * self.scale
 
                 car.tof_measurement = measurement
 

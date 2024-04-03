@@ -9,6 +9,7 @@ from scipy import stats
 from math import pi, sin, cos, tan, atan
 from sysid.tire import tireCurve
 
+from extension.simulator.DynamicSimulator import DynamicSimulator
 
 # hopefully not necessary
 class ParticleFilter(Extension):
@@ -16,8 +17,10 @@ class ParticleFilter(Extension):
     play nice within the greater context of the overall simulation."""
     def __init__(self, main):
         super().__init__(main)
-        self.numParticles = main.params['numberOfParticles']
+        self.numParticles = 100
         self.minEffectiveNumParticles = self.numParticles / 8
+
+        DynamicSimulator.dt = 0.01
 
     def init(self):
         self.particle_filter = particle_filter(self.numParticles, self.main.track, init_state=self.main.cars[0].states,
@@ -30,7 +33,7 @@ class ParticleFilter(Extension):
         # once here and once for the simulator
         car = self.main.cars[0]
         throttle, steering, _, _ = car.controller.ctrlCar(car.states, self.main.track)
-        newStates = self.main.simulator.advanceDynamics(car.states, (throttle, steering), car)  # output as np array
+        newStates = DynamicSimulator.advanceDynamics(car.states, (throttle, steering), car)  # output as np array
         stateChange = newStates - car.states
         stateChange = stateChange[0:3]
         oldHeading = car.states[2]
@@ -39,6 +42,8 @@ class ParticleFilter(Extension):
     def update(self):
         # take measurements from car and evaluate likelihoods of observation for each particle
         measurements = self.main.cars[0].tof_measurement#self.main.track.simulateSensorsOnlyNums(self.main.cars[0].states)
+
+        print(measurements)
         measurements = measurements.reshape(1, 4)
         pf = self.particle_filter
         measurements += pf.addMeasurementNoise()
@@ -132,6 +137,7 @@ class particle_filter(DiscreteDistribution):
                            [0, 0, 0, self.measNoiSD[1] ** 2]]
 
         if init_state is not None and uniform == False:
+            print("INIT STATE: ", init_state)
             # Starting distribution. Set up for 2D Gaussian starting distribution around starting point
             self.startMean = (init_state[0], init_state[1], init_state[2])
             self.startDistStdDev = 0.03  # 3 cm std dev

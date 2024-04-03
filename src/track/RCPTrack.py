@@ -1496,4 +1496,39 @@ class RCPTrack(Track):
             src = self.m2canvas(coord)
             img = cv2.circle(img, src, 3, color,-1)
         return img
+    
+
+    def simulateSensorsOnlyNums(self, state):
+        if type(state) is tuple:
+            state = np.array(list(state))
+
+        ndim = state.ndim
+        
+        state = np.atleast_2d(state)
+        #Front, Left, Right, Back
+        x = np.atleast_2d(state[:, 0]).T
+        y = np.atleast_2d(state[:, 1]).T
+        theta = np.atleast_2d(state[:, 2]).T
+
+        w = self.gridsize[1] * self.scale
+        h = self.gridsize[0] * self.scale
+
+        sensors = np.array([0, np.pi/2, -np.pi/2, np.pi]) + theta
+
+        d_left = -x / np.cos(sensors)
+        d_right = (w - x) / np.cos(sensors)
+
+        d_top = -y / np.sin(sensors)
+        d_bottom = (h - y) / np.sin(sensors)
+        
+        stacked = np.stack((d_left, d_right, d_top, d_bottom, np.ones(d_left.shape)*5)) #5 is max depth
+
+        stacked = np.where(stacked > 0, stacked, 1000)
+
+        result = np.min(stacked, axis=0)
+
+        if (ndim == 1):
+            result = result[0]
+
+        return np.array(result, dtype="float64")
 

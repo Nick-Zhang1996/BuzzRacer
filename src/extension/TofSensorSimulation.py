@@ -18,7 +18,9 @@ class TofSensorSimulation(Extension):
         Extension.__init__(self,main)
         self.t = execution_timer(False)
         self.simulate_tof = True
+        self.write_measurement = True
         self.debug_plot = True
+        self.max_physical_range = 1000
 
         # Configurable param
         # cars to simulate ToF readings for
@@ -33,9 +35,11 @@ class TofSensorSimulation(Extension):
         self.size = (x,y) = (track.scale*track.gridsize[1],track.scale*track.gridsize[0])
         self.max_range = np.linalg.norm(self.size)*2
         self.edges = [Edge((0,0),(0,y)), Edge((0,0),(x,0)), Edge((0,y),(x,y)), Edge((x,0),(x,y))]
-        inf = float('inf')
-        for i in self.car_id:
-            self.main.cars[i].tof_measurement = (inf,inf,inf,inf)
+
+        if self.write_measurement:
+            inf = float('inf')
+            for i in self.car_id:
+                self.main.cars[i].tof_measurement = np.array([inf, inf, inf, inf])
 
     def preUpdate(self):
         if (self.simulate_tof):
@@ -46,12 +50,14 @@ class TofSensorSimulation(Extension):
                 left = self.getTofReading(car.states,car.states[2]+np.pi/2)
                 right = self.getTofReading(car.states,car.states[2]-np.pi/2)
                 rear = self.getTofReading(car.states,car.states[2]+np.pi)
-                car.tof_measurement = (front, left, right, rear)
+                if self.write_measurement:
+                    car.tof_measurement = np.array([front, left, right, rear])
                 self.t.e()
                 if (self.debug_plot):
                     self.plotTof(car)
 
     def plotTof(self,car):
+        if self.write_measurement == False: return
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
             # front
@@ -90,7 +96,7 @@ class TofSensorSimulation(Extension):
             edge_dist = dist(coord,p)
             if (edge_dist < tof_range):
                 tof_range = edge_dist
-        return tof_range
+        return min(tof_range, self.max_physical_range/1000)
 
     def getTofReadingJacobian(self, coord, direction):
         x0 = coord[0]; y0 = coord[1]
