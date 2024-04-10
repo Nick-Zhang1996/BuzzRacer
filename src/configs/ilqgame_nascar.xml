@@ -23,6 +23,8 @@
       <init_states>(0.1,-0.0, radians(0), 3)</init_states>
       <controller 
         iterations='1'
+        blocking_control='True'
+        debug='True'
         >
         <type>iLQGameCarController</type>
       </controller>
@@ -34,7 +36,9 @@
       <config_name>sim_green</config_name>
       <init_states>(0.4,0.1, radians(0), 1)</init_states>
       <controller 
-        iterations='2'
+        iterations='1'
+        common_alpha='1'
+        debug='True'
         >
         <type>iLQGameCarController</type>
       </controller>

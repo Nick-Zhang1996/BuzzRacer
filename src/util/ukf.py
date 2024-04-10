@@ -5,13 +5,15 @@ import numpy as np
 
 class UKF(PrintObject):
 
-    def __init__(self,init_val=0):
+    def __init__(self,R,init_val=0,init_cov=100):
         # current estimate for parameter
         self.mean = init_val
         # covariance for parameter
-        self.cov = 1
+        self.cov = init_cov
         # weight for the mean
         self.W = 1/3
+        # measurement noise
+        self.R = R
 
     def getSigmaPoints(self):
         #sigma = [self.mean, self.mean+self.cov, self.mean-self.cov]
@@ -28,9 +30,8 @@ class UKF(PrintObject):
         weights = np.array([self.W, (1-self.W)/2, (1-self.W)/2])
         sigmas = np.array(self.getSigmaPoints()).reshape(-1,1)
         z_hat = zs @ weights.reshape((-1,1))
-        R = np.diag([10.0]*4)
 
-        S = np.sum([weights[i]* (zs[:,[i]]-z_hat) @ (zs[:,[i]]-z_hat).T for i in range(3)],axis=0) + R
+        S = np.sum([weights[i]* (zs[:,[i]]-z_hat) @ (zs[:,[i]]-z_hat).T for i in range(3)],axis=0) + self.R
         C = np.sum([weights[i]* (sigmas[i] - self.mean) * (zs[:,[i]]-z_hat).T for i in range(3)],axis=0)
         K = C @ np.linalg.inv(S)
         self.mean += (K @ (zx - z_hat)).item()

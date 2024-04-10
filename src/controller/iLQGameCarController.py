@@ -4,6 +4,7 @@ from scipy.linalg import block_diag
 
 from common import *
 from util.timeUtil import execution_timer
+from util.ukf import UKF
 from controller.CarController import CarController
 from controller.PidController import PidController
 from third_party.solve_lq_game import solve_lq_game
@@ -23,7 +24,8 @@ class iLQGameCarController(CarController):
         self.leader_collision_ignorant = False
         self.dynamics = KinematicBicycleFrenetSimulator
         # aggressiveness
-        self.alpha = 0
+        self.exploit_alpha = 1
+        self.common_alpha = 0
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -77,6 +79,8 @@ class iLQGameCarController(CarController):
         self.blocking_control = False
         ConfigObject.__init__(self,config)
 
+        self.ukf = UKF(R = np.diag([100.0]*self.n), init_val=0)
+
     def preInit(self):
         self.createConstants()
         #self.overrideControlVisualization()
@@ -104,6 +108,9 @@ class iLQGameCarController(CarController):
         self.start_lead_i_j = delta_x[0]
         # for checking dynamics jacobians
         #self.dynamics.buildSymbolicDynamics()
+        self.last_state = self.saveStates()
+        self.last_ego_car_state = self.ego_car.sim_states
+        self.last_oppo_car_state = self.oppo_car.sim_states
 
 
 
@@ -120,10 +127,60 @@ class iLQGameCarController(CarController):
         is_in_collision = np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n
         return is_in_collision
 
+
+    def saveStates(self):
+        # store_state
+        state = {}
+        state['x_i_ref'] = self.x_i_ref
+        state['x_j_ref'] = self.x_j_ref
+        state['u_i_ref'] = self.u_i_ref
+        state['u_j_ref'] = self.u_j_ref
+        state['blocking_control'] = self.blocking_control
+        return state
+
+    def restoreState(self,state):
+        for label in state.keys():
+            setattr(self,label,state[label])
+
+
     def control(self):
+        if (self.blocking_control):
+            # estimate opponent alpha
+            # given last game state, evaluate game state given different alphas
+            current_state = self.saveStates()
+
+            sigmas = self.ukf.getSigmaPoints()
+            
+            h_sigmas = []
+            for s in sigmas:
+                self.restoreState(self.last_state)
+                self.common_alpha = s
+                alpha1s, P1s, alpha2s, P2s = self.lqControl(self.last_ego_car_state,self.last_oppo_car_state)
+                xx_i = self.last_ego_car_state.reshape((self.n,1))
+                xx_j = self.last_oppo_car_state.reshape((self.n,1))
+                dx_i = xx_i - self.x_i_ref[0]
+                dx_j = xx_j - self.x_j_ref[0]
+                dx = np.vstack([dx_i,dx_j])
+                ctrl1 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
+                bounded_ctrl,constrained = self.boundControl(ctrl1,self.oppo_car)
+                new_x = self.update_dynamics(xx_j,np.array(bounded_ctrl),dt=self.dt)
+                h_sigmas.append(new_x)
+            self.ukf.update(np.array(h_sigmas).T,self.oppo_car.sim_states.reshape((-1,1)))
+            
+            # update prediction
+            self.common_alpha = self.ukf.mean
+
+            self.restoreState(current_state)
         self.debug_dict = {}
+
+        self.last_state = self.saveStates()
         # s,v,n,phi
         alpha1s, P1s, alpha2s, P2s = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
+
+        # save the states
+        self.last_ego_car_state = self.ego_car.sim_states
+        self.last_oppo_car_state = self.oppo_car.sim_states
+
         xx_i = self.ego_car.sim_states.reshape((self.n,1))
         xx_j = self.oppo_car.sim_states.reshape((self.n,1))
         dx_i = xx_i - self.x_i_ref[0]
@@ -296,7 +353,7 @@ class iLQGameCarController(CarController):
 
 
             self.t.s('getCostMatrices')
-            Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
+            Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=self.common_alpha)
             self.t.e('getCostMatrices')
 
             '''
@@ -340,7 +397,7 @@ class iLQGameCarController(CarController):
             bBs = B1s
             bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
 
-            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=self.alpha)
+            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=self.exploit_alpha)
 
             [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
                 bAs, [bBs],
@@ -472,7 +529,7 @@ class iLQGameCarController(CarController):
 
         self.main.visualization.drawControl = drawControl
 
-    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j,alpha=0):
+    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j,alpha):
         lead = self.ego_car.sim_states[0] - self.oppo_car.sim_states[0]
         v_diff = self.ego_car.sim_states[1] - self.oppo_car.sim_states[1]
         opponent_n = self.oppo_car.sim_states[2]

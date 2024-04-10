@@ -219,6 +219,106 @@ def four_algo():
 def four_algo_update_prediction():
     return four_algo()
 
+def exploit_nascar_ukf():
+    index = 0
+    setup_vec = ['mpc','coordinative', 'adversarial','baseline']
+    for i in range(50):
+        for setup in setup_vec:
+            s0,s1 = getRandomInitialStatePair(leader=0,track=track)
+            for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+                config = deepcopy(original_config)
+                config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+                config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+                config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+                # controller name
+                config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                config_car0_controller.attributes['blocking_control'] =  'True'
+                config_car0_controller.attributes['common_alpha'] =  '0.0'
+                config_car0_controller.attributes['exploit_alpha'] =  '1.0'
+
+                if (setup == 'mpc'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameSoloCarController'
+                elif (setup == 'coordinative'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['common_alpha'] =  '0'
+                    config_car1_controller.attributes['Qop1'] =  '-4'
+                    config_car1_controller.attributes['Qop2'] =  '-4'
+                elif (setup == 'baseline'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['common_alpha'] =  '0.5'
+                    config_car1_controller.attributes['Qop1'] =  '0'
+                    config_car1_controller.attributes['Qop2'] =  '0'
+                elif (setup == 'adversarial'):
+                    config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+                    config_car1_controller.attributes['common_alpha'] =  '1.0'
+                    config_car1_controller.attributes['Qop1'] =  '4'
+                    config_car1_controller.attributes['Qop2'] =  '4'
+                else:
+                    print('error')
+
+                with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                    config.writexml(f)
+                index += 1
+
+    print('generated %d configs'%index)
+
+def exploit_vs_exploit():
+    index = 0
+    for i in range(50):
+        s0,s1 = getRandomInitialStatePair(leader=0,track=track)
+        for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+            config = deepcopy(original_config)
+            config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+            # controller name
+            config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+            config_car0_controller.attributes['blocking_control'] =  'True'
+            config_car0_controller.attributes['common_alpha'] =  '0.0'
+            config_car0_controller.attributes['exploit_alpha'] =  '1.0'
+
+            config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+            #config_car1_controller.attributes['common_alpha'] =  '1.0'
+            #config_car1_controller.attributes['Qop1'] =  '0'
+            #config_car1_controller.attributes['Qop2'] =  '0'
+            config_car1_controller.attributes['blocking_control'] =  'True'
+            config_car1_controller.attributes['common_alpha'] =  '0.0'
+            config_car1_controller.attributes['exploit_alpha'] =  '1.0'
+
+            with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                config.writexml(f)
+            index += 1
+
+    print('generated %d configs'%index)
+
+def exploit_vs_aggressive():
+    index = 0
+    for i in range(50):
+        s0,s1 = getRandomInitialStatePair(leader=0,track=track)
+        for (car0_x0, car1_x0) in [(s0,s1),(s1,s0)]:
+            config = deepcopy(original_config)
+            config_car0, config_car0_controller, config_car1, config_car1_controller = configHelper(config)
+            config_car0.getElementsByTagName('init_states')[0].childNodes[0].data = str(car0_x0)
+            config_car1.getElementsByTagName('init_states')[0].childNodes[0].data = str(car1_x0)
+
+            # controller name
+            config_car0_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+            config_car0_controller.attributes['blocking_control'] =  'True'
+            config_car0_controller.attributes['common_alpha'] =  '0.0'
+            config_car0_controller.attributes['exploit_alpha'] =  '1.0'
+
+            config_car1_controller.childNodes[1].childNodes[0].data = 'iLQGameCarController'
+            config_car1_controller.attributes['common_alpha'] =  '1.0'
+            config_car1_controller.attributes['Qop1'] =  '0'
+            config_car1_controller.attributes['Qop2'] =  '0'
+
+            with open(config_folder+'exp%d.xml'%(index),'w') as f:
+                config.writexml(f)
+            index += 1
+
+    print('generated %d configs'%index)
 
 if __name__=='__main__':
     if (len(sys.argv) == 2):

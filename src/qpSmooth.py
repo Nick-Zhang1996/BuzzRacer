@@ -11,9 +11,10 @@ if __name__ == "__main__":
 
     # optimize and save
     track = TrackFactory.build(args.track_name)
-    track.optimizePath(offset=0.15)
+    #track.optimizePath(offset=0.15)
     #track.optimizePath(offset=0.20,mu=0.5,acc_max_fun=lambda v:8.0, dec_max_fun=lambda v:2.0)
     #track.optimizePath(offset=0.20,mu=0.9,acc_max_fun=lambda v:8.0, dec_max_fun=lambda v:6.0)
+    track.optimizePath(offset=0.0,mu=0.9,acc_max_fun=lambda v:8.0, dec_max_fun=lambda v:6.0,visualize=True)
     track.save()
 
     # verify results: load and show

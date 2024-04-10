@@ -1,0 +1,24 @@
+[92m [Main]:   loading settings [0m
+[92m [Main]:   setting main attributes [0m
+[96m [Main]:   main. dt = 0.01 [0m
+[92m [Track]:  setting nascar_saved attributes [0m
+[92m track loaded [0m
+[92m [NascarTrack]:  setting nascar_saved attributes [0m
+[96m [NascarTrack]:  No custom postLoad() [0m
+Traceback (most recent call last):
+  File "batchRunSingle.py", line 18, in <module>
+    experiment.init()
+  File "/home/zzhang615/rcvip/src/run.py", line 49, in init
+    Car.Factory(self,config_car)
+  File "/home/zzhang615/rcvip/src/car/Car.py", line 104, in Factory
+    exec('from controller import '+controller_class_text)
+  File "<string>", line 1, in <module>
+  File "/home/zzhang615/rcvip/src/controller/__init__.py", line 22, in <module>
+    from controller.mppi.MppiCarController import MppiCarController
+  File "/home/zzhang615/rcvip/src/controller/mppi/MppiCarController.py", line 7, in <module>
+    import pycuda.autoinit
+  File "/home/zzhang615/.local/lib/python3.8/site-packages/pycuda/autoinit.py", line 10, in <module>
+    context = make_default_context()
+  File "/home/zzhang615/.local/lib/python3.8/site-packages/pycuda/tools.py", line 226, in make_default_context
+    raise RuntimeError(
+RuntimeError: make_default_context() wasn't able to create a context on any of the 1 detected devices

@@ -324,6 +324,35 @@ def four_algo():
             mask = np.logical_and(mask,setup_mask2)
             printStats(f'{track_name[:4]}',mask)
 
+def exploit_nascar_ukf():
+    print(f'setup \t,folo \t,lead \t,all\t,i out\t, j out\t, col\t,adv\t,total runs')
+    setup_vec = ['mpc','coordinative', 'adversarial','baseline']
+    for setup in setup_vec:
+        print(setup)
+        if (setup == 'mpc'):
+            mask = [val == 'iLQGameSoloCarController' for val in data_dict['car1_controller_name']]
+        elif (setup == 'coordinative'):
+            mask_a0 = [val == -4 for val in data_dict['car1_Qop1']]
+            mask_a1 = [val == -4 for val in data_dict['car1_Qop2']]
+            mask = np.logical_and(mask_a0,mask_a1)
+        elif (setup == 'baseline'):
+            mask_a0 = [val == 0 for val in data_dict['car1_Qop1']]
+            mask_a1 = [val == 0 for val in data_dict['car1_Qop2']]
+            mask = np.logical_and(mask_a0,mask_a1)
+        elif (setup == 'adversarial'):
+            mask_a0 = [val == 4 for val in data_dict['car1_Qop1']]
+            mask_a1 = [val == 4 for val in data_dict['car1_Qop2']]
+            mask = np.logical_and(mask_a0,mask_a1)
+        else:
+            print_error('unknown setup')
+        printStats('',mask)
+
+def exploit_vs_exploit():
+    print(f'setup \t,folo \t,lead \t,all\t,i out\t, j out\t, col\t,adv\t,total runs')
+    printStats('',mask=[True for val in data_dict['car1_controller_name']])
+def exploit_vs_aggressive():
+    print(f'setup \t,folo \t,lead \t,all\t,i out\t, j out\t, col\t,adv\t,total runs')
+    printStats('',mask=[True for val in data_dict['car1_controller_name']])
 
 if __name__=='__main__':
     eval(name+'()')
