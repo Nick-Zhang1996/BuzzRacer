@@ -26,7 +26,7 @@ class QpSmooth(RCPTrack):
     # track: RCPTrack object
     def __init__(self):
         RCPTrack.__init__(self)
-        warnings.simplefilter("error")
+        #warnings.simplefilter("error")
         self.img_filename = None
         return
 
@@ -157,7 +157,7 @@ class QpSmooth(RCPTrack):
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
         try:
-            r = [ [B(uu%1,np.array(P[int(uu)%n,:,0])),B(uu%1,np.array(P[int(uu)%n,:,1]))] for uu in u]
+            r = [ [B(uu%1,np.array(P[int(uu[0])%n,:,0])),B(uu%1,np.array(P[int(uu[0])%n,:,1]))] for uu in u]
         except Warning as e:
             print(e)
 
