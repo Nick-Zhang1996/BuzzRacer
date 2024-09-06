@@ -13,12 +13,12 @@ import matplotlib.image as mpimg
 from scipy.ndimage import rotate
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
-from util import *
-from TimeUtil import TimeUtil
-from src.build.car_merge_kinematic_bicycle import CarMergeKinematicBicycle as cpp_CarMergeKinematicBicycle
-from ResidualGame import ResidualGame
+from common import *
+from util.TimeUtil import TimeUtil
+from controller.RD3G.src.build.car_merge_kinematic_bicycle import CarMergeKinematicBicycle as cpp_CarMergeKinematicBicycle
+from controller.RD3G.ResidualGame import ResidualGame
 
-from SymbolicDynamics import SymbolicDynamics,MultiAgentSymbolicDynamics
+from controller.RD3G.SymbolicDynamics import SymbolicDynamics,MultiAgentSymbolicDynamics
 import sympy
 
 from track.NascarTrack import NascarTrack

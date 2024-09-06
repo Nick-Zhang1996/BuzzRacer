@@ -1,5 +1,4 @@
 # universal entry point for running the car
-
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
