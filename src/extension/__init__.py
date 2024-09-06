@@ -21,10 +21,9 @@ from extension.ConfigLogger import ConfigLogger
 from extension.SpeedTracker import SpeedTracker
 from extension.OpponentCollisionChecker import OpponentCollisionChecker
 
-
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
-from extension.simulator.CopgSimulator import CopgSimulator
-
+# this cause segfault in cv2
+#from extension.simulator.CopgSimulator import CopgSimulator
 from extension.Replay import Replay

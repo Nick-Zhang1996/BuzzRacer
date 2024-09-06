@@ -1,5 +1,5 @@
-from common import *
 from track.Track import Track
+from common import *
 #from track.RCPTrack import RCPTrack
 from track.RCPTrackQpSmooth import RCPTrackQpSmooth as RCPTrack
 from track.EmptyTrack import EmptyTrack

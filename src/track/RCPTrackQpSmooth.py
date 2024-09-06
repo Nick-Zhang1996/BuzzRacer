@@ -13,7 +13,16 @@ from math import pi,isclose,radians,cos,sin,atan2,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
 from PIL import Image
+# FIXME due to cv2 and pyplot depending on different and conflicting version of GTK, they can't be used together, here's hacks to force initialization of cv2
+'''
+img = cv2.imread("./data/porsche_orange.png")
+cv2.imshow("Face",img)
+cv2.waitKey(20)
+'''
+
 import matplotlib.pyplot as plt
+# uncomment the following line to force initialize plt, againt, only one can work until we can make both modules depend on same version of gtk
+# plt.show()
 
 from time import time
 from common import *
@@ -153,7 +162,7 @@ class RCPTrackQpSmooth(RCPTrack):
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
         try:
-            r = [ [B(uu%1,np.array(P[int(uu)%n,:,0])),B(uu%1,np.array(P[int(uu)%n,:,1]))] for uu in u]
+            r = [ [B(uu[0]%1,np.array(P[int(uu[0])%n,:,0])),B(uu[0]%1,np.array(P[int(uu[0])%n,:,1]))] for uu in u]
         except Warning as e:
             print(e)
 

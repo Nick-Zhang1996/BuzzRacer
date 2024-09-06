@@ -1,11 +1,14 @@
 # universal entry point for running the car
+
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
 from time import time,sleep
 
 from util.timeUtil import execution_timer
+
 from track import TrackFactory
+
 
 from car.Car import Car
 
@@ -16,6 +19,7 @@ import sys
 import os.path
 import os
 os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
+
 
 class Main(PrintObject,LogObject):
     def __init__(self,config_filename):
@@ -91,6 +95,7 @@ class Main(PrintObject,LogObject):
 
         for item in self.extensions:
             item.init()
+
         for car in self.cars:
             car.init()
 
