@@ -5,7 +5,7 @@ from time import sleep,time
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 import matplotlib.pyplot as plt
 
 import pycuda.autoinit

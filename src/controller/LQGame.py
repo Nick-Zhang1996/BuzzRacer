@@ -1,5 +1,5 @@
 import numpy as np
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 
 def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, ds, t):
     '''

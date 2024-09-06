@@ -2,7 +2,7 @@ from car import Car
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi,atan
 import numpy as np
 from time import time,sleep
-from timeUtil import execution_timer
+from TimeUtil import TimeUtil
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 import matplotlib.pyplot as plt
 
@@ -22,7 +22,7 @@ class ctrlMppiWrapper(Car):
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
-        self.p = execution_timer(True)
+        self.p = TimeUtil(True)
         return
 
     # if running on real platform, set sim to None so that default values for car dimension/properties will be used

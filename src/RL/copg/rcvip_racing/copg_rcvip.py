@@ -51,8 +51,8 @@ from common import *
 import rcvip_simulator.VehicleModel as VehicleModel
 import rcvip_simulator.Track as Track
 from rcvip_env_function import getfreezeTimecollosionReachedreward
-from util.timeUtil import execution_timer
-t = execution_timer(True)
+from util.TimeUtil import TimeUtil
+t = TimeUtil(True)
 
 
 folder_location = 'trained_model/'

@@ -1,8 +1,7 @@
 # for quick and dirty code profiling
 from time import time
 
-class execution_timer:
-    
+class TimeUtil:
     def __init__(self, enable = False):
         self.enabled = enable
         # sectional time start time
@@ -136,7 +135,7 @@ if __name__ == '__main__':
     # Initialize with True to enable all functions
     # When you're done analyzing, simply change the argument to False or 
     # initialize without an argument, that will cause all methods to return instantly
-    t = execution_timer(True)
+    t = TimeUtil(True)
 
     # A typical scenario is to find average execution
     # time during several iterations, average exe time will be 

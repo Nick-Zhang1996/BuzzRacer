@@ -9,7 +9,7 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
 from common import *
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 from controller.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
 from controller.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
 from extension.simulator.KinematicSimulator import KinematicSimulator
@@ -43,7 +43,7 @@ class CCMPPI:
         elif (self.model == DynamicSimulator):
             self.cc = CCMPPI_DYNAMIC(self.dt, self.T,  self.noise_cov,self.track)
 
-        self.p = execution_timer(True)
+        self.p = TimeUtil(True)
         self.debug_dict = {}
 
         self.old_ref_control = np.zeros([self.T,self.m],dtype=np.float32)
