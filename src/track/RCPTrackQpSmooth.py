@@ -13,16 +13,7 @@ from math import pi,isclose,radians,cos,sin,atan2,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
 
 from PIL import Image
-# FIXME due to cv2 and pyplot depending on different and conflicting version of GTK, they can't be used together, here's hacks to force initialization of cv2
-'''
-img = cv2.imread("./data/porsche_orange.png")
-cv2.imshow("Face",img)
-cv2.waitKey(20)
-'''
-
 import matplotlib.pyplot as plt
-# uncomment the following line to force initialize plt, againt, only one can work until we can make both modules depend on same version of gtk
-# plt.show()
 
 from time import time
 from common import *
@@ -162,7 +153,7 @@ class RCPTrackQpSmooth(RCPTrack):
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
         try:
-            r = [ [B(uu[0]%1,np.array(P[int(uu[0])%n,:,0])),B(uu[0]%1,np.array(P[int(uu[0])%n,:,1]))] for uu in u]
+            r = [ [B(uu%1,np.array(P[int(uu[0])%n,:,0])),B(uu%1,np.array(P[int(uu[0])%n,:,1]))] for uu in u]
         except Warning as e:
             print(e)
 
@@ -716,7 +707,11 @@ class RCPTrackQpSmooth(RCPTrack):
         '''
 
     # optimize path and save to pickle file
-    def optimizePath(self,*,max_iter=20, offset=0, visualize=False,save_gif=False,save_steps=False,):
+    # offset: min distance from track boundary
+    # mu: friction coefficient for lateral traction
+    # acc_max_fun: function that maps speed to maximum available acceleration
+    # dec_max_fun: function that maps speed to maximum available deceleration
+    def optimizePath(self,*,max_iter=20, offset=0, mu=0.8,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3, visualize=False,save_gif=False,save_steps=False,):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
@@ -836,7 +831,7 @@ class RCPTrackQpSmooth(RCPTrack):
 
         self.convertToSpline()
         #retval = self.generateSpeedProfile()
-        retval = self.generateSpeedProfile(mu=1.2,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3)
+        retval = self.generateSpeedProfile(mu=mu,acc_max_fun=acc_max_fun, dec_max_fun=dec_max_fun)
         self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']

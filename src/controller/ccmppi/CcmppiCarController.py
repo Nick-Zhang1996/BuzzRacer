@@ -13,7 +13,7 @@ from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,e
 import random
 
 from common import *
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 from controller.ccmppi.ccmppi import CCMPPI
 from CarController import CarController
 from extension.simulator.KinematicSimulator import KinematicSimulator
@@ -40,7 +40,7 @@ class CcmppiCarController(CarController):
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
-        self.p = execution_timer(True)
+        self.p = TimeUtil(True)
 
         self.opponents = []
         self.opponent_prediction = []

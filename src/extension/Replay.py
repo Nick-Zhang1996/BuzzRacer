@@ -15,12 +15,12 @@ import torch
 sys.path.append('/home/nickzhang/rcvip/src/sysid/gaussian_process')
 from time import time
 from extension.simulator.DynamicSimulator import DynamicSimulator
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 
 class Replay(Simulator):
     def __init__(self,main):
         super().__init__(main)
-        self.t = execution_timer(True)
+        self.t = TimeUtil(True)
         self.car_count = 0
         self.timestep = 0
         self.curvilinear = None

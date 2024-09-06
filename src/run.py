@@ -1,11 +1,10 @@
 # universal entry point for running the car
-
 from common import *
 from threading import Event,Lock
 from math import pi,radians,degrees
 from time import time,sleep
 
-from util.timeUtil import execution_timer
+from util.TimeUtil import TimeUtil
 
 from track import TrackFactory
 
@@ -54,7 +53,7 @@ class Main(PrintObject,LogObject):
         self.cars = Car.cars
         self.print_info(" total cars: %d"%(len(self.cars)))
 
-        self.timer = execution_timer(True)
+        self.timer = TimeUtil(True)
         self.new_state_update = Event()
         # flag to quit all child threads gracefully
         self.exit_request = Event()

@@ -7,7 +7,7 @@ from math import pi,radians,degrees
 
 from KinematicSimulator import KinematicSimulator
 
-from timeUtil import execution_timer
+from TimeUtil import TimeUtil
 from TrackFactory import TrackFactory
 
 from Car import Car
@@ -29,7 +29,7 @@ from StepCounter import StepCounter
 
 class Main():
     def __init__(self,params={}):
-        self.timer = execution_timer(True)
+        self.timer = TimeUtil(True)
         # state update rate
         self.dt = 0.02
         self.params = params

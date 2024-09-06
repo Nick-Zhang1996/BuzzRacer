@@ -84,7 +84,8 @@ class ConfigObject(PrintObject):
         if config is None:
             self.print_warning('no config available')
             return
-        self.print_ok("setting " + config.firstChild.nodeValue + " attributes")
+        if (len(config.attributes.keys())>0):
+            self.print_ok(f"setting attributes")
         # load config parameters
         for key,value_text in config.attributes.items():
             try:

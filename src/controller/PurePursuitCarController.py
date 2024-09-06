@@ -2,7 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
+from planner import *
 import matplotlib.pyplot as plt
 
 class PurePursuitCarController(CarController):
@@ -31,7 +31,7 @@ class PurePursuitCarController(CarController):
             '''
             self.planner.init()
         except IndexError as e:
-            self.print_info("planner not available")
+            self.print_info(f"planner not available: {e}")
             self.planner = None
 
     def init(self):

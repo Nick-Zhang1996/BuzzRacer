@@ -1,0 +1,97 @@
+from common import *
+from planner.Planner import Planner
+from controller.ResidualGameCarController import ResidualGameCarController
+from simulator.CurvilinearSimulator import CurvilinearSimulator
+from math import sin,cos,atan2
+
+class ResidualGamePlanner(Planner,ResidualGameCarController):
+    def __init__(self,config=None):
+        self.config = config
+        self.car = None
+        self.main = None
+        Planner.__init__(self,config)
+        self.ego_traj = None
+        self.oppo_traj = None
+
+
+    def init(self):
+        ResidualGameCarController.__init__(self,self.car,self.config)
+        ResidualGameCarController.preInit(self)
+        ResidualGameCarController.init(self)
+
+        #self.simulator = CurvilinearSimulator(self.main)
+        #self.simulator.init()
+        return
+
+    # create a plan, store states internally
+    def plan(self):
+        x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states, self.main.track)
+        x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states, self.main.track)
+        # TODO start here
+        xi_ref, xj_ref, has_converged = ResidualGameCarController.solveGame(self,x0,x1)
+
+        # convert to cartesian coord
+        xx_i_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xi_ref]
+        xx_j_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xj_ref]
+
+        # store for use in localTrajectory
+        self.ego_traj =  np.array(xx_i_cart)
+        self.oppo_traj = np.array(xx_j_cart)
+        # TODO maybe depend on has_converged
+        return True
+
+    def plotDebug(self):
+        #plot debug information
+        if (self.main.visualization.update_visualization.is_set()):
+            img = self.main.visualization.visualization_img
+            ego_path = [val[:2] for val in self.ego_traj]
+            oppo_path = [val[:2] for val in self.oppo_traj]
+            img = self.main.track.drawPolyline(ego_path,img)
+            img = self.main.track.drawPolyline(oppo_path,img)
+            self.main.visualization.visualization_img = img
+        return
+
+    def localTrajectoryFromTraj(self,state,traj):
+        #(local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        #(_,offset,orientation,_,v_target) = retval
+        x = state[0]
+        y = state[1]
+        heading = state[2]
+        vf = state[3]
+        vs = state[4]
+        omega = state[5]
+
+        # find the coordinate of center of front axle
+        wheelbase = 0.1
+        x += wheelbase*cos(heading)
+        y += wheelbase*sin(heading)
+
+        dxx = traj[:-1,0]-x
+        dyy = traj[:-1,1]-y
+        index = np.argmin(dxx**2+dyy**2)
+        raceline_point = (traj[index,:2])
+
+        # find offset
+        # positive offset means car is to the left of the trajectory(need to turn right)
+        dr = traj[index+1,:2] - traj[index,:2]
+        track_to_car = (x-traj[index,0], y-traj[index,1])
+        offset = np.cross(dr/np.linalg.norm(dr),track_to_car).item()
+
+        raceline_orientation = atan2(dr[1],dr[0])
+
+        #signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
+        signed_curvature = 0
+
+
+        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
+        return (raceline_point,offset,raceline_orientation,signed_curvature,None)
+
+    def localTrajectory(self,state):
+        self_curv_state = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
+        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.ego_traj)
+        v_target  = self.main.track.sToV(self_curv_state[0]%self.main.track.raceline_len_m)
+        return raceline_point,offset,raceline_orientation,signed_curvature,v_target
+
+
+
+

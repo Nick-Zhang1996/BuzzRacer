@@ -2,7 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
+from planner import *
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
@@ -35,49 +35,51 @@ class StanleyCarController(CarController):
         #self.throttle_pid = PidController(P,I,D,dt,1,2)
         self.throttle_pid = PidController(P,I,D,dt,1,1000)
 
-        '''
-        self.print_ok("setting controller attributes")
-        for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
-            self.print_info(" controller.",key,'=',value_text)
-        '''
-
         # if there's planner set it up
         # TODO put this in a parent class constructor
         self.no_planner_override = True
+        self.planner_skip_count = 0
+        self.planner_skip_cycle = 5
         try:
-            config_planner = config.getElementsByTagName('planner')[0]
+            config_planner = self.config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
             self.planner = planner_class(config_planner)
             self.planner.main = self.main
             self.planner.car = self.car
+            self.print_info(f'planner {self.planner.__class__.__name__} is instantiated')
             '''
             self.print_ok("setting planner attributes")
             for key,value_text in config_planner.attributes.items():
                 setattr(self.planner,key,eval(value_text))
                 self.print_info(" main.",key,'=',value_text)
             '''
-            self.planner.init()
         except IndexError as e:
-            self.print_info("planner not available")
+            self.print_info(f"planner not specified")
             self.planner = None
+
+
+    def init(self):
+        CarController.init(self)
+        if (self.planner is not None):
+            self.planner.init()
 
 
     def control(self):
         # TODO do this more carefully
-        if (self.planner is not None):
+        if (self.planner is not None and self.planner_skip_count % self.planner_skip_cycle == 0):
+        #if (self.planner is not None):
             retval = self.planner.plan()
             if (retval):
-                self.planner.plotAllSolutions()
+                self.planner.plotDebug()
                 self.no_planner_override = False
             else:
                 self.no_planner_override = True
                 self.print_info('planner failed, override')
 
+        self.planner_skip_count += 1
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -86,6 +88,7 @@ class StanleyCarController(CarController):
             self.car.throttle = 0.0
             self.car.steering = 0.0
         #self.predict()
+        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output
@@ -131,6 +134,7 @@ class StanleyCarController(CarController):
 
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+        #self.print_info(f'car {self.car.id} v_target = {v_target}')
         # for experiments
         #v_target = min(v_target*0.8, 2.2)
         v_target = min(v_target, self.max_speed)
