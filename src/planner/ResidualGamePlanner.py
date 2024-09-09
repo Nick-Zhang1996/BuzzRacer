@@ -27,35 +27,11 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         x0 = self.simulator.cart2Curv(self.ego_car.states)
         x1 = self.simulator.cart2Curv(self.oppo_car.states)
         # TODO start here
-        alpha1s, P1s, alpha2s, P2s = ResidualGameCarController.solveGame(self,x0,x1)
+        xi_ref, xj_ref = ResidualGameCarController.solveGame(self,x0,x1)
 
-        # propagate control forward
-        xx_i =[x0.reshape((self.n,1))]
-        xx_j =[x1.reshape((self.n,1))]
-        for t in range(self.horizon):
-            #for ego agent i
-            # x+ = A x + B u + d, for x~x_ref
-            # ~x = x - x_ref
-            # ~x+ = A~x + B~u
-            dx_i = xx_i[-1] - self.x_i_ref[t]
-            dx_j = xx_j[-1] - self.x_j_ref[t]
-            dx = np.vstack([dx_i,dx_j])
-
-            # NOTE ignoring control constraint
-            #for ego agent i
-            u = self.u_i_ref[t] - P1s[t] @ dx + alpha1s[t]
-            u = np.array(u).reshape(-1,1)
-            new_x = self.update_dynamics(xx_i[-1],u)
-            xx_i.append(new_x.reshape(4,1))
-
-            # for agent j
-            u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
-            u = np.array(u).reshape(-1,1)
-            new_x = self.update_dynamics(xx_j[-1],u)
-            xx_j.append(new_x.reshape(4,1))
         # convert to cartesian coord
-        xx_i_cart = [self.simulator.curv2Cart(val) for val in xx_i]
-        xx_j_cart = [self.simulator.curv2Cart(val) for val in xx_j]
+        xx_i_cart = [self.simulator.curv2Cart(val) for val in xi_ref]
+        xx_j_cart = [self.simulator.curv2Cart(val) for val in xj_ref]
 
         # store for use in localTrajectory
         self.ego_traj = xx_i_cart

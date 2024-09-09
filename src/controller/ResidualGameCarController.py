@@ -80,7 +80,19 @@ class ResidualGameCarController(CarController):
         self.start_lead_i_j = delta_x[0]
 
     def solveGame(self, x0, x1):
-        # TODO start here
+        #return: xi_ref, xj_ref, both list of curvilinear states
+        g = self.residual_game
+        g.guess = np.zeros((g.T, g.N, g.m))
+        # x0 dim: N*n
+        g.x0 = np.vstack([x0.flatten(), x1.flatten()])
+        assert(g.x0.shape == (g.N,g.n))
+        g.init() # reset parameters, which change between iterations
+        u_ref, full_x_ref, has_converged = g.solve(save_gif=False, visualize=False, animate=False)
+        if (not has_converged):
+            self.print_warning(f'no convergence')
+        x0 = full_x_ref[:,0,:]
+        x1 = full_x_ref[:,1,:]
+        return x0,x1
 
     def final(self):
         delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
