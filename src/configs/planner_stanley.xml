@@ -15,8 +15,8 @@
   <cars>
     <car>
       <name>Red Porsche</name>
-      <hardware>OldOffboard</hardware>
-      <config_name>porsche</config_name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
       <init_states>(3.7*0.6,4.2*0.6, radians(-90), 0.1)</init_states>
       <controller>
         <type>StanleyCarController</type>
@@ -26,14 +26,14 @@
           same_side_passing_threshold='1.0' 
           dt='0.1'
           skip_count='3'
-          >Planner</planner>
+          >MinCurvaturePlanner</planner>
       </controller>
     </car>
 
     <car>
       <name>Green Porsche</name>
-      <hardware>OldOffboard</hardware>
-      <config_name>lambo</config_name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>
@@ -42,8 +42,8 @@
 
     <car>
       <name>Green Porsche</name>
-      <hardware>OldOffboard</hardware>
-      <config_name>lambo</config_name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
       <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>
@@ -52,8 +52,8 @@
 
     <car>
       <name>Green Porsche</name>
-      <hardware>OldOffboard</hardware>
-      <config_name>lambo</config_name>
+      <hardware>Offboard</hardware>
+      <config_name>sim_green</config_name>
       <init_states>(2.8*0.6,1.3*0.6, radians(90), 0.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>

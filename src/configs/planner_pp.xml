@@ -25,7 +25,7 @@
           opponent_lookahead_time='1.0' 
           same_side_passing_threshold='0.5' 
           dt='0.1'
-          >Planner</planner>
+          >MinCurvaturePlanner</planner>
       </controller>
     </car>
 

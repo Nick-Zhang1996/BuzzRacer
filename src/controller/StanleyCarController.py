@@ -2,7 +2,7 @@ from common import *
 from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
+from planner import *
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
