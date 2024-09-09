@@ -20,8 +20,8 @@ class iLQGameCarController(CarController):
         self.n = 4
         self.iterations = 3
         self.draw_prediction = True
-        # aggressiveness
-        self.alpha = 0
+        self.debug = False
+        self.leader_collision_ignorant = False
 
         # for ego agent i -> car 0
         # horizon*m*1
@@ -59,9 +59,9 @@ class iLQGameCarController(CarController):
         self.boundary_cost = 30.0*3
 
         # cost on opponent collision
-        Kcol = 30.0*2
+        Kcol = 30.0*3
         self.opponent_min_distance_s = 0.3
-        self.opponent_min_distance_n = 0.1
+        self.opponent_min_distance_n = 0.19
         self.Qcol = np.diag([Kcol,0,Kcol,0])
 
         # cost on control
@@ -69,7 +69,7 @@ class iLQGameCarController(CarController):
         self.circular_control_barrier = True
         self.linearize_around_zero_control = False
         # ratio of new control to use, 1->use new 0->use old
-        self.new_control_ratio = 1.0
+        self.alpha = 1.0
         # if true, this controller will control opponent
         self.control_opponent = False
         # if true, add another layer of optimization for ego agent (i)
@@ -77,7 +77,8 @@ class iLQGameCarController(CarController):
         ConfigObject.__init__(self,config)
 
     def preInit(self):
-        self.overrideControlVisualization()
+        self.createConstants()
+        #self.overrideControlVisualization()
         if (self.control_opponent):
             self.print_ok('Controller will control opponent')
         if (self.adaptive_Qop):
@@ -91,8 +92,6 @@ class iLQGameCarController(CarController):
     def init(self):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
-        self.simulator = self.main.simulator
-        assert(isinstance(self.simulator,CurvilinearSimulator))
         assert(len(self.main.cars)==2)
         self.ego_car = self.car
         for car in self.main.cars:
@@ -120,7 +119,15 @@ class iLQGameCarController(CarController):
     def control(self):
         self.debug_dict = {}
         # s,v,n,phi
-        ctrl0, ctrl1 = self.lqControl(self.ego_car.sim_states, self.oppo_car.sim_states)
+        alpha1s, P1s, alpha2s, P2s = self.lqControl(ego_states, oppo_states)
+        xx_i = self.ego_car.sim_states.reshape((self.n,1))
+        xx_j = self.oppo_car.sim_states.reshape((self.n,1))
+        dx_i = xx_i - self.x_i_ref[0]
+        dx_j = xx_j - self.x_j_ref[0]
+        dx = np.vstack([dx_i,dx_j])
+        ctrl0 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
+        ctrl1 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
+
 
         # car i
         car_i = self.ego_car
@@ -130,20 +137,19 @@ class iLQGameCarController(CarController):
         bounded_ctrl,constrained = self.boundControl(ctrl0,car_i)
         car_i.steering = bounded_ctrl[0]
         car_i.throttle = bounded_ctrl[1]
-        '''
-        car0_coord = car_i.states[0:2]
-        car0_heading = car_i.states[2]
-        left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
-        ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
-        ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
-        if (left<0 or right<0):
-            self.print_warning(ctrl0_text+' ---- out of track ')
-        else:
-            if (constrained):
-                self.print_ok(ctrl0_text+' C')
+        if (self.debug):
+            car0_coord = car_i.states[0:2]
+            car0_heading = car_i.states[2]
+            left, right = self.main.track.preciseTrackBoundary(car0_coord, car0_heading)
+            ctrl0_normalized = np.linalg.norm([ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
+            ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
+            if (left<0 or right<0):
+                self.print_warning(ctrl0_text+' ---- out of track ')
             else:
-                self.print_info(ctrl0_text)
-        '''
+                if (constrained):
+                    self.print_ok(ctrl0_text+' C')
+                else:
+                    self.print_info(ctrl0_text)
 
         # car j
         if (self.control_opponent):
@@ -151,20 +157,19 @@ class iLQGameCarController(CarController):
             car_j.steering = bounded_ctrl[0]
             car_j.throttle = bounded_ctrl[1]
 
-            '''
-            car1_coord = car_j.states[0:2]
-            car1_heading = car_j.states[2]
-            left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
-            ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
-            ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
-            if (left<0 or right<0):
-                self.print_warning(ctrl1_text+' ---- out of track ')
-            else:
-                if (constrained):
-                    self.print_ok(ctrl1_text+' C')
+            if (self.debug):
+                car1_coord = car_j.states[0:2]
+                car1_heading = car_j.states[2]
+                left, right = self.main.track.preciseTrackBoundary(car1_coord, car1_heading)
+                ctrl1_normalized = np.linalg.norm([ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
+                ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
+                if (left<0 or right<0):
+                    self.print_warning(ctrl1_text+' ---- out of track ')
                 else:
-                    self.print_info(ctrl1_text)
-            '''
+                    if (constrained):
+                        self.print_ok(ctrl1_text+' C')
+                    else:
+                        self.print_info(ctrl1_text)
         if (self.draw_prediction):
             self.drawPredictedTrajectory()
         #self.drawDebug()
@@ -232,7 +237,7 @@ class iLQGameCarController(CarController):
         x0 = x0.flatten()
         u0 = u0.flatten()
         #xop = xop.flatten()
-        k_s = self.simulator.curvature(x0[0])
+        k_s = CurvilinearSimulator.curvatureTrack(x0[0],self.main.track)
         subs_dict = {sym.k_s:k_s}
         '''
         for i in range(self.n):
@@ -247,7 +252,7 @@ class iLQGameCarController(CarController):
         ''' linearize manually using equations from sympy'''
         x0,x1,x2,x3 = x.flatten()
         u0,u1 = u.flatten()
-        k_s = self.simulator.curvature(x0)
+        k_s = CurvilinearSimulator.curvatureTrack(x0,self.main.track)
 
         dfdx = [[1, 0.01*cos(x3)/(-k_s*x2 + 1), 0.01*k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -0.01*x1*sin(x3)/(-k_s*x2 + 1)], [0, 1, 0, 0], [0, 0.01*sin(x3), 1, 0.01*x1*cos(x3)], [0, -0.01*k_s*cos(x3)/(-k_s*x2 + 1) - 0.01*u0/x1**2, -0.01*k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, 0.01*k_s*x1*sin(x3)/(-k_s*x2 + 1) + 1]]
 
@@ -259,7 +264,7 @@ class iLQGameCarController(CarController):
     def update_dynamics(self,states,controls,dt=None):
         if (dt is None):
             dt = self.dt
-        return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
+        return CurvilinearSimulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt,self.main.track)
 
     def lqControl(self,x0_i,x0_j):
         self.t.s()
@@ -275,6 +280,7 @@ class iLQGameCarController(CarController):
         self.u_j_ref = np.zeros((self.horizon, self.m,1))
         car_i = self.ego_car
         car_j = self.oppo_car
+
 
         # iterations
         for iteration in range(self.iterations):
@@ -319,7 +325,7 @@ class iLQGameCarController(CarController):
                 Bis.append(B)
                 uu_i.append(u)
 
-                #for ego agent j
+                #for oppo agent j
                 u = self.u_j_ref[t] - P2s[t] @ dx + alpha2s[t]
                 # NOTE ignoring control constraint
                 #u,constrained = self.boundControl(u.flatten(),car_j)
@@ -355,10 +361,9 @@ class iLQGameCarController(CarController):
             B2s = [np.vstack([np.zeros((n,m)),Bj]) for Bj in Bjs]
 
 
+            self.t.s('getCostMatrices')
             Q1s,q1s,Q2s,q2s,Rs,rs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
-            if (self.main.breakpoint.isSet()):
-                breakpoint()
-                self.main.breakpoint.clear()
+            self.t.e('getCostMatrices')
 
             '''
             self.t.s('solve_lq_game')
@@ -386,12 +391,11 @@ class iLQGameCarController(CarController):
                 P1s = new_P1s
                 P2s = new_P2s
             else:
-                # momentum
-                r = self.new_control_ratio
-                alpha1s = alpha1s* (1-r) + r *new_alpha1s
-                alpha2s = alpha2s* (1-r) + r *new_alpha2s
-                P1s = P1s* (1-r) + r *new_P1s
-                P2s = P2s* (1-r) + r *new_P2s
+                alpha = self.alpha
+                alpha1s = alpha1s* (1-alpha) + alpha *new_alpha1s
+                alpha2s = alpha2s* (1-alpha) + alpha *new_alpha2s
+                P1s = P1s* (1-alpha) + alpha *new_P1s
+                P2s = P2s* (1-alpha) + alpha *new_P2s
 
         # additional layer of optimization
         if (self.blocking_control):
@@ -401,31 +405,227 @@ class iLQGameCarController(CarController):
             bBs = B1s
             bds = [ (B2s[k] @ alpha2s[k]).flatten() for k in range(K)]
 
-            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j,alpha=self.alpha)
+            original_Qop = self.Qop1
+            self.Qop1 = self.Qop1_blocking
+            bQ1s,bq1s,_,_,bRs,brs = self.getCostMatrices(xx_i,uu_i,xx_j,uu_j)
 
             [blocking_P1s], [blocking_alpha1s] = my_solve_lq_game(
                 bAs, [bBs],
                 [bQ1s], [bq1s], [Rs[0][0]],[rs[0]],bds,self.lqt)
 
-            #old_ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
-
+            self.Qop1 = original_Qop
             #self.print_info(np.linalg.norm(blocking_P1s-new_P1s))
             #self.print_info(np.linalg.norm(blocking_alpha1s-new_alpha1s))
             alpha1s = new_alpha1s = blocking_alpha1s
             P1s = new_P1s = blocking_P1s
 
-            #new_ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
-            #self.print_info(new_ctrl1-old_ctrl1)
 
-        dx_i = xx_i[0] - self.x_i_ref[0]
-        dx_j = xx_j[0] - self.x_j_ref[0]
-        dx = np.vstack([dx_i,dx_j])
-        ctrl1 = (self.u_i_ref[0] - P1s[0] @ dx + alpha1s[0]).flatten()
-        ctrl2 = (self.u_j_ref[0] - P2s[0] @ dx + alpha2s[0]).flatten()
 
         self.debug_dict.update({'u_ref':np.array(self.u_i_ref), 'x_ref':np.array(self.x_i_ref), 'x_j_ref':np.array(self.x_j_ref), 'u_j_ref':np.array(self.u_j_ref)})
         self.t.e()
-        return ctrl1,ctrl2
+        return alpha1s, P1s, alpha2s, P2s
+
+    def createConstants(self):
+        n = self.n
+        m = self.m
+        self.II = np.hstack([np.eye(n),-np.eye(n)])
+        self.R0 = np.zeros((m,m))
+        self.Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
+        self.q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+        self.Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
+        self.q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+        self.R1 = 0.005*np.diag([1.0,1.0])
+        self.R2 = 0.005*np.diag([1.0,1.0])
+
+    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j):
+        Q1s = []
+        Q2s = []
+        q1s = []
+        q2s = []
+
+        R11s = []
+        R22s = []
+
+        R12s = []
+        R21s = []
+
+        r1s = []
+        r2s = []
+
+        n = self.n
+        m = self.m
+        #II = np.hstack([np.eye(n),-np.eye(n)])
+        #R0 = np.zeros((m,m))
+        II = self.II
+        R0 = self.R0
+
+        for t in range(self.horizon):
+            delta_x = xx_i[t] - xx_j[t]
+            # these cost matrices work on the stacked agent state x, not state perturbation dx
+            # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
+            #Q1_x =  block_diag(self.Q1,np.zeros((n,n)))
+            #q1_x = np.hstack([self.q1.T,np.zeros((1,n))])
+            Q1_x =  self.Q1_x.copy()
+            q1_x = self.q1_x.copy()
+            if (self.adaptive_Qop):
+                if (delta_x[0]>0):
+                    q1_x[0,n] = self.Qop1_leading
+                else:
+                    q1_x[0,n] = self.Qop1_following
+
+            else:
+                q1_x[0,n] = self.Qop1
+
+            #Q2_x =  block_diag(np.zeros((n,n)),self.Q2)
+            #q2_x = np.hstack([np.zeros((1,n)),self.q2.T])
+            Q2_x =  self.Q2_x.copy()
+            q2_x = self.q2_x.copy()
+            q2_x[0,0] = self.Qop2
+
+            # barrier function: opponent collision
+            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
+                #self.print_info('collision avoidance')
+                sgn_s = -1 if delta_x[0]>0 else 1
+                sgn_n = -1 if delta_x[2]>0 else 1
+                # based on current position, agent in front ignorant of collision
+                if (self.leader_collision_ignorant and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
+                    if (xx_i[t][0] - xx_j[t][0] > 0):
+                        Q2_x += 2* II.T @ self.Qcol @ II
+                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                    else:
+                        Q1_x += 2* II.T @ self.Qcol @ II
+                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                else:
+                    # if side by side both agent responsible
+                    Q1_x += 2* II.T @ self.Qcol @ II
+                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                    Q2_x += 2* II.T @ self.Qcol @ II
+                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+
+            # barrier function: track boundary
+            cart_states_i = CurvilinearSimulator.curv2CartTrack(xx_i[t].flatten(),self.main.track)
+            self.t.s('preciseTrackBoundary')
+            left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
+            #left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(s=xx_i[t][0],n=xx_i[t][2])
+            self.t.e('preciseTrackBoundary')
+
+            # n>0 -> left
+            if (left_boundary_i < self.boundary_min_distance):
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+            elif (right_boundary_i < self.boundary_min_distance):
+                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
+                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
+
+            cart_states_j = CurvilinearSimulator.curv2CartTrack(xx_j[t].flatten(),self.main.track)
+            self.t.s('preciseTrackBoundary')
+            left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
+            #left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(s=xx_j[t][0],n=xx_j[t][2])
+            self.t.e('preciseTrackBoundary')
+
+            # n>0 -> left
+            if (left_boundary_j < self.boundary_min_distance):
+                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0]])
+            elif (right_boundary_j < self.boundary_min_distance):
+                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
+                q2_x += 2* np.array([[0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0]])
+
+
+            # barrier function: control limit
+            # with ax, ay being a control this is more difficult
+            car_i = self.ego_car
+            car_j = self.oppo_car
+            # cost on control u (ay,ax)
+            # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
+            #R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
+            #R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
+            #R1 = 0.005*np.diag([1.0,1.0])
+            #R2 = 0.005*np.diag([1.0,1.0])
+            R1 = self.R1
+            R2 = self.R2
+            r1_x = np.zeros((1,self.m))
+            r2_x = np.zeros((1,self.m))
+
+            if (self.circular_control_barrier):
+                # normalized ay,ax for agent i
+                bounded_ctrl,constrained = self.boundControl(uu_i[t].flatten(),car_i)
+                if ( constrained ):
+                    #self.print_info('car 0 control barrier')
+                    # the point on traction circle that's closest to current (ay,ax)
+                    by = bounded_ctrl[0]
+                    bx = bounded_ctrl[1]
+                    R1 = self.control_barrier_cost * np.diag([2, 2])
+                    r1_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
+
+                # normalized ay,ax for agent j
+                bounded_ctrl,constrained = self.boundControl(uu_j[t].flatten(),car_j)
+                if ( constrained ):
+                    by = bounded_ctrl[0]
+                    bx = bounded_ctrl[1]
+                    #self.print_info('car 1 control barrier')
+                    R2 = self.control_barrier_cost * np.diag([2, 2])
+                    r2_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
+            else:
+                self.print_error('this has shown to be uneffective')
+                # linear control barrier
+                ayi_n = uu_i[t][0]/car_i.max_ay
+                axi_n = uu_i[t][1]/car_i.max_ax
+                if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
+                    ax = uu_i[t][1].item()
+                    ay = uu_i[t][0].item()
+                    axm = car_i.max_ax
+                    aym = car_i.max_ay
+                    theta = np.arctan2(ax/axm, ay/aym)
+                    p = [aym*np.cos(theta), axm*np.sin(theta)]
+                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    R1 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
+                    r1_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
+
+                # normalized ay,ax for agent i
+                ayj_n = uu_j[t][0]/car_j.max_ay
+                axj_n = uu_j[t][1]/car_j.max_ax
+                if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                    ax = uu_j[t][1].item()
+                    ay = uu_j[t][0].item()
+                    axm = car_j.max_ax
+                    aym = car_j.max_ay
+                    theta = np.arctan2(ax/axm, ay/aym)
+                    p = [aym*np.cos(theta), axm*np.sin(theta)]
+                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    R2 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
+                    r2_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
+
+            xx_ref = np.vstack([xx_i[t], xx_j[t]])
+            # these work on state perturbation dx
+            Q1 = Q1_x
+            q1 = xx_ref.T @ Q1_x + q1_x
+
+            Q2 = Q2_x
+            q2 = xx_ref.T @ Q2_x + q2_x
+
+            Q1s.append(Q1)
+            Q2s.append(Q2)
+            q1s.append(q1.T)
+            q2s.append(q2.T)
+
+            R11s.append(R1)
+            R22s.append(R2)
+
+            R12s.append(R0)
+            R21s.append(R0)
+
+            r1 = ( uu_i[t].T@ R1 + r1_x).T
+            r2 = ( uu_j[t].T@ R2 + r2_x).T
+
+            r1s.append( r1 )
+            r2s.append( r2 )
+
+        Rs = [[R11s, R12s], [R21s, R22s]]
+        rs = [r1s, r2s]
+
+        return Q1s,q1s,Q2s,q2s,Rs,rs
+
 
     # differentiate dynamics around nominal state and control
     # return: A, B, d, s.t. x_k+1 = Ax + Bu + d
@@ -513,7 +713,7 @@ class iLQGameCarController(CarController):
             predicted_traj = []
             for t in range(self.horizon):
                 curvi_states = traj[t]
-                cart_states = self.simulator.curv2Cart(curvi_states)
+                cart_states = CurvilinearSimulator.curv2CartTrack(curvi_states,self.main.track)
                 predicted_traj.append(cart_states)
 
             predicted_traj = np.array(predicted_traj)
@@ -581,207 +781,3 @@ class iLQGameCarController(CarController):
             return img
 
         self.main.visualization.drawControl = drawControl
-
-    def getCostMatrices(self,xx_i,uu_i,xx_j,uu_j,alpha=0):
-        lead = self.ego_car.sim_states[0] - self.oppo_car.sim_states[0]
-        v_diff = self.ego_car.sim_states[1] - self.oppo_car.sim_states[1]
-        opponent_n = self.oppo_car.sim_states[2]
-
-        Q1s = [];Q2s = [];q1s = [];q2s = [];R11s = [];R22s = [];R12s = [];R21s = [];r1s = [];r2s = [];
-
-        n = self.n
-        m = self.m
-        Ii = np.hstack([np.eye(n),np.zeros((n,n))])
-        II = np.hstack([np.eye(n),-np.eye(n)])
-        R0 = np.zeros((m,m))
-
-        Q1 = self.Q1; q1 = self.q1;Q2 = self.Q2;q2 = self.q2;Qcol = self.Qcol;
-
-        if (lead > 0 and v_diff < 0):
-            # if leading: block opponent by penalizing (n_i-n_j)**2
-            Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,0.0,1.0]) # n:1
-            q1 = (1-alpha)*self.q1 + alpha* np.array([[-1,0,0,0]]).T # -4
-            # blocking reward
-            Qblk = np.diag([0,0,30.0,0])
-
-            ori_Q1_x =  block_diag(Q1,np.zeros((n,n)))
-            ori_q1_x = np.hstack([q1.T,np.zeros((1,n))])
-            ori_q1_x[0,n] = self.Qop1
-
-            ori_Q2_x =  block_diag(np.zeros((n,n)),Q2)
-            ori_q2_x = np.hstack([np.zeros((1,n)),q2.T])
-            ori_q2_x[0,0] = self.Qop2
-
-            ori_Q1_x +=  alpha* (2* Ii.T @ Qblk @ Ii)
-            ori_q1_x +=  alpha* (-2*np.array([[0,0,opponent_n,0]]) @ Qblk @ Ii)
-            ori_Qcol1 = self.Qcol
-            ori_Qcol2 = self.Qcol
-        else:
-            # if chasing: less regard to collision
-            Q1 = (1-alpha)*self.Q1 + alpha* np.diag(  [ 0,0.00,2.0,1.0]) # n:1
-            q1 = (1-alpha)*self.q1 + alpha* np.array([[-4,0,0,0]]).T # -4
-            ori_Qcol1 = (1-alpha)*self.Qcol + alpha*(self.Qcol*0)
-            ori_Qcol2 = self.Qcol
-
-            ori_Q1_x =  block_diag(Q1,np.zeros((n,n)))
-            ori_q1_x = np.hstack([q1.T,np.zeros((1,n))])
-            ori_q1_x[0,n] = self.Qop1
-
-            ori_Q2_x =  block_diag(np.zeros((n,n)),Q2)
-            ori_q2_x = np.hstack([np.zeros((1,n)),q2.T])
-            ori_q2_x[0,0] = self.Qop2
-
-
-        for t in range(self.horizon):
-            # these cost matrices work on the stacked agent state x, not state perturbation dx
-            # cost_i = 1/2 x.T @ Qi_x @ x + qi_x.T @ x + 1/2 ui.T @ R @ ui + ri.T @ ui
-            Q1_x = ori_Q1_x.copy()
-            q1_x = ori_q1_x.copy()
-            Q2_x = ori_Q2_x.copy()
-            q2_x = ori_q2_x.copy()
-            Qcol1 = ori_Qcol1.copy()
-            Qcol2 = ori_Qcol2.copy()
-
-            # barrier function: opponent collision
-            delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
-            if (np.abs(delta_x[0])<self.opponent_min_distance_s and np.abs(delta_x[2])<self.opponent_min_distance_n):
-                #self.print_info('collision avoidance')
-                sgn_s = -1 if delta_x[0]>0 else 1
-                sgn_n = -1 if delta_x[2]>0 else 1
-                # based on current position, agent in front ignorant of collision
-                # FIXME always share collision responsibility
-                if (False and np.abs(xx_i[t][0]-xx_j[t][0]) > self.opponent_min_distance_s):
-                    if (xx_i[t][0] - xx_j[t][0] > 0):
-                        # agent j responsible
-                        Q2_x += 2* II.T @ Qcol2 @ II
-                        q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol2 @ II)
-                    else:
-                        # agent i responsible
-                        Q1_x += 2* II.T @ Qcol1 @ II
-                        q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol1 @ II)
-                else:
-                    # if side by side both agent responsible
-                    Q1_x += 2* II.T @ Qcol1 @ II
-                    q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol1 @ II)
-                    Q2_x += 2* II.T @ Qcol2 @ II
-                    q2_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0, sgn_n*2*self.opponent_min_distance_n, 0]]) @ Qcol2 @ II)
-
-            # barrier function: track boundary
-            cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
-            self.t.s('preciseTrackBoundary')
-            left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(cart_states_i[:2],cart_states_i[2])
-            self.t.e('preciseTrackBoundary')
-
-            # n>0 -> left
-            if (left_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,-self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
-            elif (right_boundary_i < self.boundary_min_distance):
-                Q1_x += 2* np.diag([0,0,self.boundary_cost,0,0,0,0,0])
-                q1_x += 2* np.array([[0,0,+self.boundary_cost*2*self.boundary_min_distance,0,0,0,0,0]])
-
-            cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
-            self.t.s('preciseTrackBoundary')
-            left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(cart_states_j[:2],cart_states_j[2])
-            self.t.e('preciseTrackBoundary')
-
-            # n>0 -> left
-            if (left_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,-self.boundary_cost*2*self.boundary_min_distance,0]])
-            elif (right_boundary_j < self.boundary_min_distance):
-                Q2_x += 2* np.diag([0,0,0,0,0,0,self.boundary_cost,0])
-                q2_x += 2* np.array([[0,0,0,0,0,0,+self.boundary_cost*2*self.boundary_min_distance,0]])
-
-
-            # barrier function: control limit
-            # with ax, ay being a control this is more difficult
-            car_i = self.ego_car
-            car_j = self.oppo_car
-            # cost on control u (ay,ax)
-            # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
-            #R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
-            #R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
-            R1 = 0.005*np.diag([1.0,1.0])
-            R2 = 0.005*np.diag([1.0,1.0])
-            r1_x = np.zeros((1,self.m))
-            r2_x = np.zeros((1,self.m))
-
-            if (self.circular_control_barrier):
-                # normalized ay,ax for agent i
-                bounded_ctrl,constrained = self.boundControl(uu_i[t].flatten(),car_i)
-                if ( constrained ):
-                    #self.print_info('car 0 control barrier')
-                    # the point on traction circle that's closest to current (ay,ax)
-                    by = bounded_ctrl[0]
-                    bx = bounded_ctrl[1]
-                    R1 = self.control_barrier_cost * np.diag([2, 2])
-                    r1_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
-
-                # normalized ay,ax for agent j
-                bounded_ctrl,constrained = self.boundControl(uu_j[t].flatten(),car_j)
-                if ( constrained ):
-                    by = bounded_ctrl[0]
-                    bx = bounded_ctrl[1]
-                    #self.print_info('car 1 control barrier')
-                    R2 = self.control_barrier_cost * np.diag([2, 2])
-                    r2_x = self.control_barrier_cost * np.array([[-2*by, -2*bx]])
-            else:
-                self.print_error('this has shown to be uneffective')
-                # linear control barrier
-                ayi_n = uu_i[t][0]/car_i.max_ay
-                axi_n = uu_i[t][1]/car_i.max_ax
-                if ( (axi_n)**2 + (ayi_n)**2 > 1.0):
-                    ax = uu_i[t][1].item()
-                    ay = uu_i[t][0].item()
-                    axm = car_i.max_ax
-                    aym = car_i.max_ay
-                    theta = np.arctan2(ax/axm, ay/aym)
-                    p = [aym*np.cos(theta), axm*np.sin(theta)]
-                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
-                    R1 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
-                    r1_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
-
-                # normalized ay,ax for agent i
-                ayj_n = uu_j[t][0]/car_j.max_ay
-                axj_n = uu_j[t][1]/car_j.max_ax
-                if ( (uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
-                    ax = uu_j[t][1].item()
-                    ay = uu_j[t][0].item()
-                    axm = car_j.max_ax
-                    aym = car_j.max_ay
-                    theta = np.arctan2(ax/axm, ay/aym)
-                    p = [aym*np.cos(theta), axm*np.sin(theta)]
-                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
-                    R2 = self.control_barrier_cost*2*np.array([[ay**2/aym**4,ax*ay/(axm**2*aym**2)], [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
-                    r2_x = self.control_barrier_cost * C*np.array([[2*ay/aym**2, 2*ax/axm**2]])
-
-            xx_ref = np.vstack([xx_i[t], xx_j[t]])
-            # these work on state perturbation dx
-            Q1 = Q1_x
-            q1 = xx_ref.T @ Q1_x + q1_x
-
-            Q2 = Q2_x
-            q2 = xx_ref.T @ Q2_x + q2_x
-
-            Q1s.append(Q1)
-            Q2s.append(Q2)
-            q1s.append(q1.T)
-            q2s.append(q2.T)
-
-            R11s.append(R1)
-            R22s.append(R2)
-
-            R12s.append(R0)
-            R21s.append(R0)
-
-            r1 = ( uu_i[t].T@ R1 + r1_x).T
-            r2 = ( uu_j[t].T@ R2 + r2_x).T
-
-            r1s.append( r1 )
-            r2s.append( r2 )
-
-        Rs = [[R11s, R12s], [R21s, R22s]]
-        rs = [r1s, r2s]
-
-        return Q1s,q1s,Q2s,q2s,Rs,rs

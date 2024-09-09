@@ -17,17 +17,11 @@
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_11</config_name>
-      <init_states>(3.7*0.6,4.2*0.6, radians(-90), 0.1)</init_states>
+      <init_states>(3.7*0.6,4.2*0.6, radians(-90), 1.1)</init_states>
       <controller max_speed='1.0'>
-        <type>ResidualGameCarController</type>
+        <type>StanleyCarController</type>
         <planner 
-          N='20' 
-          opponent_lookahead_time='1.0' 
-          same_side_passing_threshold='1.0' 
-          dt='0.1'
-          skip_count='3'
-          boundary_offset='0.05'
-          >Planner</planner>
+          >ResidualGamePlanner</planner>
       </controller>
     </car>
 
@@ -35,7 +29,7 @@
       <name>Green Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_12</config_name>
-      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 1.1)</init_states>
       <controller max_speed='1.0'>
         <type>StanleyCarController</type>
       </controller>

@@ -19,9 +19,9 @@ from controller.RD3G.src.build.car_merge_kinematic_bicycle import CarMergeKinema
 from controller.RD3G.ResidualGame import ResidualGame
 
 from controller.RD3G.SymbolicDynamics import SymbolicDynamics,MultiAgentSymbolicDynamics
+from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 import sympy
 
-from track.NascarTrack import NascarTrack
 def wrap(val):
     '''
     wrap angle to [-pi,pi]
@@ -79,20 +79,17 @@ class CarRacing(ResidualGame):
         self.h_Qh = np.diag([-1,0,-1,0])
         self.car_size = 0.2
 
-        self.track = NascarTrack()
-        self.img_track = self.track.drawTrack()
+        self.track = None
+        self.img_track = None
 
-        # NOTE potentially useless parameters carried over from CarMerge
-        self.track_width = 2.2
-        self.track_length = 20
         # bounds for visualization
-        self.visual_x_lim = [-1.5,3.5]
-        self.visual_y_lim = [-0.5,2.5]
+        #self.visual_x_lim = [-1.5,3.5]
+        #self.visual_y_lim = [-0.5,2.5]
 
 
         #if (self.sprite_visualization):
-        self.car_scale = 0.0005/2
-        self.car_img_vec = [mpimg.imread('./resources/porsche_green.png'),mpimg.imread('./resources/porsche_orange.png'),mpimg.imread('./resources/porsche_blue.png')]
+        #self.car_scale = 0.0005/2
+        #self.car_img_vec = [mpimg.imread('./resources/porsche_green.png'),mpimg.imread('./resources/porsche_orange.png'),mpimg.imread('./resources/porsche_blue.png')]
 
 
         # initial state,
@@ -106,7 +103,7 @@ class CarRacing(ResidualGame):
         self.J_R = np.eye(self.m)*0.1
         self.guess = np.zeros((self.T,self.N,self.m))
 
-        self.print_debug_enable()
+        #self.print_debug_enable()
 
 
     def setup(self):
@@ -118,6 +115,8 @@ class CarRacing(ResidualGame):
             #elf.cpp.set_x0(self.x0)
 
     def _visualize(self,U,X=None):
+        # NOTE not needed
+        return
         if (X is None):
             X = np.vstack([self.x0[np.newaxis,:,:],self.rollout(self.x0,U)])
         fig, ax = plt.subplots()
@@ -372,7 +371,8 @@ class CarRacing(ResidualGame):
         # x_i = [s, v, n, phi]
         s,v,n,phi = x
         ay,ax = u
-        k_s = self.track.curvature_fun(s%self.track.raceline_len_m)
+        #k_s = self.track.curvature_fun(s%self.track.raceline_len_m)
+        k_s = CurvilinearSimulator.curvatureTrack(s,self.main.track)
 
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
@@ -385,7 +385,8 @@ class CarRacing(ResidualGame):
     def df_dx(self,x,u,i):
         x0,x1,x2,x3 = x
         u0, u1 = u
-        k_s = self.track.curvature_fun(x0%self.track.raceline_len_m)
+        #k_s = self.track.curvature_fun(x0%self.track.raceline_len_m)
+        k_s = CurvilinearSimulator.curvatureTrack(x0,self.main.track)
 
         dfdx = np.array([[0, cos(x3)/(-k_s*x2 + 1), k_s*x1*cos(x3)/(-k_s*x2 + 1)**2, -x1*sin(x3)/(-k_s*x2 + 1)], [0, 0, 0, 0], [0, sin(x3), 0, x1*cos(x3)], [0, -k_s*cos(x3)/(-k_s*x2 + 1) - u0/x1**2, -k_s**2*x1*cos(x3)/(-k_s*x2 + 1)**2, k_s*x1*sin(x3)/(-k_s*x2 + 1)]])
         val = np.eye(4) + dfdx*self.dt
