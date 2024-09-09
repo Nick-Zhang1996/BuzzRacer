@@ -31,7 +31,7 @@ class PurePursuitCarController(CarController):
             '''
             self.planner.init()
         except IndexError as e:
-            self.print_info("planner not available")
+            self.print_info(f"planner not available: {e}")
             self.planner = None
 
     def init(self):
