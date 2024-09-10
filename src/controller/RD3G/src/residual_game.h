@@ -730,10 +730,10 @@ class ResidualGame {
                 index += T*m;
 
                 // Dynamics for f(x0,u0) = x1
-                r.template block<n,1>(index, 0) = f(x0.row(i).transpose(), u[0].row(i).transpose()) - x[0].row(i).transpose();
+                r.template block<n,1>(index, 0) = f(x0.row(i).transpose(), u[0].row(i).transpose(), i) - x[0].row(i).transpose();
 
                 for (int k = 1; k < T; ++k) {
-                    r.template block<n,1>(index+k*n,0) = f(x[k - 1].row(i).transpose(), u[k].row(i).transpose()) - x[k].row(i).transpose();
+                    r.template block<n,1>(index+k*n,0) = f(x[k - 1].row(i).transpose(), u[k].row(i).transpose(),i) - x[k].row(i).transpose();
                 }
                 index += n * T;
 
@@ -1037,7 +1037,7 @@ class ResidualGame {
         }
 
         // ---- virtual functions, they should be overridden in derived class
-        virtual Matrix f(const Matrix x, const Matrix u){
+        virtual Matrix f(const Matrix x, const Matrix u, const int i){
             throw std::runtime_error("abstract function f() shouldn't be called");
             return x;
         }

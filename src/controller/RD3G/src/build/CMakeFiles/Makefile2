@@ -65,6 +65,7 @@ CMAKE_BINARY_DIR = /home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build
 # The main recursive "all" target.
 all: CMakeFiles/unstructured_driving.dir/all
 all: CMakeFiles/car_merge_kinematic_bicycle.dir/all
+all: CMakeFiles/car_racing.dir/all
 all: pybind11/all
 .PHONY : all
 
@@ -75,6 +76,7 @@ preinstall: pybind11/preinstall
 # The main recursive "clean" target.
 clean: CMakeFiles/unstructured_driving.dir/clean
 clean: CMakeFiles/car_merge_kinematic_bicycle.dir/clean
+clean: CMakeFiles/car_racing.dir/clean
 clean: pybind11/clean
 .PHONY : clean
 
@@ -100,7 +102,7 @@ pybind11/clean:
 CMakeFiles/unstructured_driving.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/unstructured_driving.dir/build.make CMakeFiles/unstructured_driving.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/unstructured_driving.dir/build.make CMakeFiles/unstructured_driving.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build/CMakeFiles --progress-num=3,4 "Built target unstructured_driving"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build/CMakeFiles --progress-num=5,6 "Built target unstructured_driving"
 .PHONY : CMakeFiles/unstructured_driving.dir/all
 
 # Build rule for subdir invocation for target.
@@ -144,6 +146,32 @@ car_merge_kinematic_bicycle: CMakeFiles/car_merge_kinematic_bicycle.dir/rule
 CMakeFiles/car_merge_kinematic_bicycle.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_merge_kinematic_bicycle.dir/build.make CMakeFiles/car_merge_kinematic_bicycle.dir/clean
 .PHONY : CMakeFiles/car_merge_kinematic_bicycle.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/car_racing.dir
+
+# All Build rule for target.
+CMakeFiles/car_racing.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build/CMakeFiles --progress-num=3,4 "Built target car_racing"
+.PHONY : CMakeFiles/car_racing.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/car_racing.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/car_racing.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/nick/dcsl/RC-VIP/src/controller/RD3G/src/build/CMakeFiles 0
+.PHONY : CMakeFiles/car_racing.dir/rule
+
+# Convenience name for target.
+car_racing: CMakeFiles/car_racing.dir/rule
+.PHONY : car_racing
+
+# clean rule for target.
+CMakeFiles/car_racing.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/clean
+.PHONY : CMakeFiles/car_racing.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

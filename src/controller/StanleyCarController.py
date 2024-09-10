@@ -38,6 +38,8 @@ class StanleyCarController(CarController):
         # if there's planner set it up
         # TODO put this in a parent class constructor
         self.no_planner_override = True
+        self.planner_skip_count = 0
+        self.planner_skip_cycle = 5
         try:
             config_planner = self.config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
@@ -64,7 +66,8 @@ class StanleyCarController(CarController):
 
     def control(self):
         # TODO do this more carefully
-        if (self.planner is not None):
+        if (self.planner is not None and self.planner_skip_count % self.planner_skip_cycle == 0):
+        #if (self.planner is not None):
             retval = self.planner.plan()
             if (retval):
                 self.planner.plotDebug()
@@ -73,10 +76,10 @@ class StanleyCarController(CarController):
                 self.no_planner_override = True
                 self.print_info('planner failed, override')
 
+        self.planner_skip_count += 1
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -85,6 +88,7 @@ class StanleyCarController(CarController):
             self.car.throttle = 0.0
             self.car.steering = 0.0
         #self.predict()
+        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output

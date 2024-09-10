@@ -44,7 +44,6 @@ class KinematicSimulator(Simulator):
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
-        
         '''
         throttle = np.clip(throttle, -1.0, 1.0)
         steering = np.clip(throttle, -radians(27), radians(27))

@@ -142,6 +142,19 @@ car_merge_kinematic_bicycle/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_merge_kinematic_bicycle.dir/build.make CMakeFiles/car_merge_kinematic_bicycle.dir/build
 .PHONY : car_merge_kinematic_bicycle/fast
 
+#=============================================================================
+# Target rules for targets named car_racing
+
+# Build rule for target.
+car_racing: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 car_racing
+.PHONY : car_racing
+
+# fast build rule for target.
+car_racing/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/build
+.PHONY : car_racing/fast
+
 car_merge_kinematic_bicycle.o: car_merge_kinematic_bicycle.cpp.o
 .PHONY : car_merge_kinematic_bicycle.o
 
@@ -165,6 +178,30 @@ car_merge_kinematic_bicycle.s: car_merge_kinematic_bicycle.cpp.s
 car_merge_kinematic_bicycle.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_merge_kinematic_bicycle.dir/build.make CMakeFiles/car_merge_kinematic_bicycle.dir/car_merge_kinematic_bicycle.cpp.s
 .PHONY : car_merge_kinematic_bicycle.cpp.s
+
+car_racing.o: car_racing.cpp.o
+.PHONY : car_racing.o
+
+# target to build an object file
+car_racing.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/car_racing.cpp.o
+.PHONY : car_racing.cpp.o
+
+car_racing.i: car_racing.cpp.i
+.PHONY : car_racing.i
+
+# target to preprocess a source file
+car_racing.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/car_racing.cpp.i
+.PHONY : car_racing.cpp.i
+
+car_racing.s: car_racing.cpp.s
+.PHONY : car_racing.s
+
+# target to generate assembly for a file
+car_racing.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/car_racing.dir/build.make CMakeFiles/car_racing.dir/car_racing.cpp.s
+.PHONY : car_racing.cpp.s
 
 unstructured_driving.o: unstructured_driving.cpp.o
 .PHONY : unstructured_driving.o
@@ -199,10 +236,14 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... car_merge_kinematic_bicycle"
+	@echo "... car_racing"
 	@echo "... unstructured_driving"
 	@echo "... car_merge_kinematic_bicycle.o"
 	@echo "... car_merge_kinematic_bicycle.i"
 	@echo "... car_merge_kinematic_bicycle.s"
+	@echo "... car_racing.o"
+	@echo "... car_racing.i"
+	@echo "... car_racing.s"
 	@echo "... unstructured_driving.o"
 	@echo "... unstructured_driving.i"
 	@echo "... unstructured_driving.s"

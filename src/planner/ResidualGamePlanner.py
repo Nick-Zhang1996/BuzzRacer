@@ -19,20 +19,20 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         ResidualGameCarController.preInit(self)
         ResidualGameCarController.init(self)
 
-        self.simulator = CurvilinearSimulator(self.main)
-        self.simulator.init()
+        #self.simulator = CurvilinearSimulator(self.main)
+        #self.simulator.init()
         return
+
     # create a plan, store states internally
     def plan(self):
-        # set all car sim_states
-        x0 = self.simulator.cart2Curv(self.ego_car.states)
-        x1 = self.simulator.cart2Curv(self.oppo_car.states)
+        x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states, self.main.track)
+        x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states, self.main.track)
         # TODO start here
         xi_ref, xj_ref, has_converged = ResidualGameCarController.solveGame(self,x0,x1)
 
         # convert to cartesian coord
-        xx_i_cart = [self.simulator.curv2Cart(val) for val in xi_ref]
-        xx_j_cart = [self.simulator.curv2Cart(val) for val in xj_ref]
+        xx_i_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xi_ref]
+        xx_j_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xj_ref]
 
         # store for use in localTrajectory
         self.ego_traj =  np.array(xx_i_cart)
@@ -87,7 +87,7 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         return (raceline_point,offset,raceline_orientation,signed_curvature,None)
 
     def localTrajectory(self,state):
-        self_curv_state = self.ego_car.sim_states
+        self_curv_state = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
         raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.ego_traj)
         v_target  = self.main.track.sToV(self_curv_state[0]%self.main.track.raceline_len_m)
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target

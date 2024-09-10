@@ -140,4 +140,5 @@ set(CMAKE_MAKEFILE_PRODUCTS
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/unstructured_driving.dir/DependInfo.cmake"
   "CMakeFiles/car_merge_kinematic_bicycle.dir/DependInfo.cmake"
+  "CMakeFiles/car_racing.dir/DependInfo.cmake"
   )

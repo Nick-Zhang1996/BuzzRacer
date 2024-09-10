@@ -39,11 +39,12 @@ class ResidualGameCarController(CarController):
 
         self.residual_game = CarRacing()
         self.residual_game.main = self.main
+        self.residual_game.track = self.track = self.main.track
+        self.residual_game.setup()
 
         # if true, this controller will control opponent
         self.control_opponent = False
 
-        self.track = self.main.track
         # NOTE we also need self.track.curvature_fun
         ConfigObject.__init__(self,config)
 

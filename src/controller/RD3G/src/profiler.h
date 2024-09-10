@@ -41,6 +41,17 @@ class Profiler {
             }
             search -> second.push_back(std::move(time));
         }
+        // reject current timing loop. e.g. when algorithm is in an unrepresentative state
+        // like throwing error
+        void reject(){
+            for (auto& val : start_time){
+                auto& start = val.second;
+                auto& end = end_time[val.first];
+                if (start.size() != end.size()){
+                    start.pop_back();
+                }
+            }
+        }
 
         void summary(){
             if (!enabled){return;}

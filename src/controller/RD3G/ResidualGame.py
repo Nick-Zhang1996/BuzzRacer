@@ -92,11 +92,11 @@ class ResidualGame(PrintObject,ABC):
         ''' main entry point for solver, will call cpp version if available, will fallback to python if cpp does not provide a solution,
             I forgot why I did the fallback
         '''
-        #TODO does cpp lscg fallback to cpp sparseQR?
+        if (self.USE_CPP or self.CPP_DEBUG):
+            self.cpp.set_x0(self.x0)
 
-
-        self.print_ok(f'USE_CPP: {self.USE_CPP}')
-        self.print_ok(f'FORCE_PYTHON_SOLVER: {self.FORCE_PYTHON_SOLVER}')
+        self.print_debug(f'USE_CPP: {self.USE_CPP}')
+        self.print_debug(f'FORCE_PYTHON_SOLVER: {self.FORCE_PYTHON_SOLVER}')
 
         N = self.N; T = self.T; n = self.n; m = self.m
         # y: x(T*N*n) ,u(T*N*m), lambda(T,N,n),mu(T,N,N)
@@ -113,7 +113,7 @@ class ResidualGame(PrintObject,ABC):
         t = self.profiler
         has_converged = False
         for i in range(self.iterations):
-            self.print_info(f'------ iter {i+1} ------')
+            self.print_debug(f'------ iter {i+1} ------')
             t.s()
             if (self.USE_CPP and not self.FORCE_PYTHON_SOLVER):
                 t.s('cpp step')

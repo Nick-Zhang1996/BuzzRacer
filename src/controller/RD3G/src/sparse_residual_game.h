@@ -56,7 +56,7 @@ void checksum(const MatrixBase<Derived>& mtx){
 
 }
 
-inline double sqr(const double a){
+inline Scalar sqr(const Scalar a){
     return a*a;
 }
 
@@ -915,10 +915,10 @@ class ResidualGame {
                 index += T*m;
 
                 // Dynamics for f(x0,u0) = x1
-                r.template block<n,1>(index, 0) = f(x0.row(i).transpose(), u[0].row(i).transpose()) - x[0].row(i).transpose();
+                r.template block<n,1>(index, 0) = f(x0.row(i).transpose(), u[0].row(i).transpose(), i) - x[0].row(i).transpose();
 
                 for (int k = 1; k < T; ++k) {
-                    r.template block<n,1>(index+k*n,0) = f(x[k - 1].row(i).transpose(), u[k].row(i).transpose()) - x[k].row(i).transpose();
+                    r.template block<n,1>(index+k*n,0) = f(x[k - 1].row(i).transpose(), u[k].row(i).transpose(), i) - x[k].row(i).transpose();
                 }
                 index += n * T;
 
@@ -1045,14 +1045,20 @@ class ResidualGame {
             //cout << "compute" << endl;
 
             if (solver.info() != Eigen::Success){
+                profiler.reject();
                 throw std::runtime_error(" solver initialization failed");
                 //return std::vector<std::vector<Matrix>>();
             }
 
             Matrix dy_reduced = solver.solve(-r0);
             if (solver.info() != Eigen::Success){
-                throw std::runtime_error(" solver solve() failed");
-                //return std::vector<std::vector<Matrix>>();
+                std::cout << "LSCG solver failed, trying SparseQR" << std::endl;
+                try {
+                    dy_reduced = sp_SparseQR(Dr_reduced, -r0);
+                } catch (const std::runtime_error& e){
+                    profiler.reject();
+                    throw e;
+                }
             }
             profiler.e("solve");
 
@@ -1172,13 +1178,29 @@ class ResidualGame {
             Eigen::SparseQR<SpMatrix, Eigen::COLAMDOrdering<int>> solver;
             solver.compute(A.sparseView());
             if (solver.info() != Eigen::Success){
-                throw std::runtime_error(" solver initialization failed");
+                throw std::runtime_error(" SparseQR solver initialization failed");
                 return Matrix{};
             }
 
             Matrix x = solver.solve(B);
             if (solver.info() != Eigen::Success){
-                throw std::runtime_error(" solver solve() failed");
+                throw std::runtime_error(" SparseQR solver solve() failed");
+                return Matrix{};
+            }
+            return x;
+        }
+
+        Matrix sp_SparseQR(const SpMatrix& sp_A, const Matrix& B){
+            Eigen::SparseQR<SpMatrix, Eigen::COLAMDOrdering<int>> solver;
+            solver.compute(sp_A);
+            if (solver.info() != Eigen::Success){
+                throw std::runtime_error(" SparseQR solver initialization failed");
+                return Matrix{};
+            }
+
+            Matrix x = solver.solve(B);
+            if (solver.info() != Eigen::Success){
+                throw std::runtime_error(" SparseQR solver solve() failed");
                 return Matrix{};
             }
             return x;
@@ -1188,7 +1210,7 @@ class ResidualGame {
             Eigen::LeastSquaresConjugateGradient<SpMatrix> solver;
             solver.compute(A.sparseView());
             if (solver.info() != Eigen::Success){
-                throw std::runtime_error(" solver initialization failed");
+                throw std::runtime_error(" LSCG solver initialization failed");
                 return Matrix{};
             }
 
@@ -1196,7 +1218,7 @@ class ResidualGame {
             // solver.setTolerance
             Matrix x = solver.solve(B);
             if (solver.info() != Eigen::Success){
-                throw std::runtime_error(" solver solve() failed");
+                throw std::runtime_error(" LSCG solver solve() failed");
                 return Matrix{};
             }
             return x;
@@ -1229,7 +1251,7 @@ class ResidualGame {
         }
 
         // ---- virtual functions, they should be overridden in derived class
-        virtual Matrix f(const Matrix x, const Matrix u){
+        virtual Matrix f(const Matrix x, const Matrix u, const int i){
             throw std::runtime_error("abstract function f() shouldn't be called");
             return x;
         }
