@@ -77,7 +77,7 @@ class CarRacing(ResidualGame):
         # collision definition
         # (x-x)T h_Qh (x-x) < C
         self.h_Qh = np.diag([-1,0,-1,0])
-        self.car_size = 0.2
+        self.car_size = 0.15
 
         self.track = None
         self.img_track = None
@@ -100,10 +100,9 @@ class CarRacing(ResidualGame):
         # NOTE this lambda fun needs to be implemented in c++
         # s,v,n,phi
         self.J_x_ref_fun = lambda i:np.array([0,1.0,0,0])
-        self.target_y = np.array([0,0,0,0]) # useless, too lazy to change constructor signature
-        self.J_Qr = np.diag([0,0.4,0,0])
+        self.J_Qr = np.diag([0,0.1,0,0])
         self.J_Q = np.diag([0,0,0.4,0.4])
-        self.J_R = np.eye(self.m)*0.01
+        self.J_R = np.eye(self.m)*0.001
         self.guess = np.zeros((self.T,self.N,self.m))
 
         #self.print_debug_enable()
@@ -113,11 +112,10 @@ class CarRacing(ResidualGame):
         # subclass responsible for loading cpp/eigen module
         # and setting x0
         if (self.USE_CPP or self.CPP_DEBUG):
-            self.cpp = cpp_CarRacing(self.N, self.T, self.dt, self.rho, self.rho_b, self.bc_a, self.bc_b, self.tolerance, self.backtracking_max_iter, self.J_Qr, self.J_Q, self.J_R, self.h_Qh, self.target_y)
+            self.cpp = cpp_CarRacing(self.N, self.T, self.dt, self.rho, self.rho_b, self.bc_a, self.bc_b, self.tolerance, self.backtracking_max_iter, self.J_Qr, self.J_Q, self.J_R, self.h_Qh, self.car_size)
             ss = np.linspace(0, self.track.raceline_len_m, 1024)
             #curvature_vec = self.track.curvature_fun(ss)
             curvature_vec = np.array(splev(ss%self.track.raceline_len_m, self.track.curvature_fun, der=0)).flatten()
-
             self.cpp.set_curvature_vector(np.vstack([ss,curvature_vec]).T)
 
     def _visualize(self,U,X=None):

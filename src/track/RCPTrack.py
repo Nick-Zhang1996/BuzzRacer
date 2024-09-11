@@ -1526,7 +1526,7 @@ class RCPTrack(Track):
         nondim= np.array(np.array(coord[:2])/self.scale//1,dtype=int)
         nondim[0] = np.clip(nondim[0],0,len(self.track)-1).astype(int)
         nondim[1] = np.clip(nondim[1],0,len(self.track[0])-1).astype(int)
-        if (nondim[0] == 3 and nondim[1] != 0 and nondim[1] != 5):
+        if (nondim[0] == 3 and not nondim[1] in [0,1,5] ):
             return True
         else:
             return False

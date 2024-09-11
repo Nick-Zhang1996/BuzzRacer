@@ -6,15 +6,15 @@ constexpr int m = 2;
 
 class CarRacing : public ResidualGame<n,m> {
     private:
-        Matrix A,B,J_Qr,J_Q,J_R,h_Qh,target_y;
+        Matrix A,B,J_Qr,J_Q,J_R,h_Qh;
         std::vector<std::tuple<Scalar,Scalar>> curvature_vec;
         Scalar car_size;
     public:
         CarRacing(const int _N, const int _T,
                 const Scalar _dt, const Scalar _rho, const Scalar _rho_b, const Scalar _bc_a, const Scalar _bc_b,
                 const Scalar _tolerance, const int _backtracking_max_iter,
-                const Matrix _J_Qr, const Matrix _J_Q, const Matrix _J_R, const Matrix _h_Qh, const Matrix _target_y):
-            ResidualGame(_N, _T, _dt, _rho, _rho_b, _bc_a, _bc_b, _tolerance, _backtracking_max_iter),J_Qr(_J_Qr), J_Q(_J_Q), J_R(_J_R), h_Qh(_h_Qh), target_y(_target_y),car_size(0.2) {
+                const Matrix _J_Qr, const Matrix _J_Q, const Matrix _J_R, const Matrix _h_Qh, const Scalar _car_size):
+            ResidualGame(_N, _T, _dt, _rho, _rho_b, _bc_a, _bc_b, _tolerance, _backtracking_max_iter),J_Qr(_J_Qr), J_Q(_J_Q), J_R(_J_R), h_Qh(_h_Qh),car_size(car_size) {
                 /*
                 cout << "N = " << N;
                 cout << "T = " << T;

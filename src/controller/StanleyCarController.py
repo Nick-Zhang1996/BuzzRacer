@@ -3,6 +3,7 @@ from math import isnan,pi,degrees,radians,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 from planner import *
+from simulator.CurvilinearSimulator import CurvilinearSimulator
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
@@ -34,6 +35,7 @@ class StanleyCarController(CarController):
         # integral limit, lpf curoff freq
         #self.throttle_pid = PidController(P,I,D,dt,1,2)
         self.throttle_pid = PidController(P,I,D,dt,1,1000)
+        self.localTrajectory = self.main.track.localTrajectory
 
         # if there's planner set it up
         # TODO put this in a parent class constructor
@@ -56,17 +58,22 @@ class StanleyCarController(CarController):
             self.planner = None
 
 
+
     def init(self):
         CarController.init(self)
         if (self.planner is not None):
             self.planner.init()
-
+            self.planner.oppo_car.localTrajectory = self.planner.oppoLocalTrajectory
 
     def control(self):
         # TODO do this more carefully
         if (self.planner is not None and self.planner.has_new_plan.is_set()):
-            self.planner.plotDebug()
-            self.no_planner_override = False
+            if (self.main.track.isInPassingZone(self.car.states)):
+                #self.planner.plan()
+                self.planner.plotDebug()
+                self.no_planner_override = False
+            else:
+                self.no_planner_override = True
 
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
@@ -116,15 +123,26 @@ class StanleyCarController(CarController):
 
         # inquire information about desired trajectory close to the vehicle
         if self.planner is None or self.no_planner_override:
-            retval = track.localTrajectory(state)
+            retval = self.localTrajectory(state)
         else:
             retval = self.planner.localTrajectory(state)
         if retval is None:
             return (0,0,False,{'offset':0})
             #return ret
 
+
         # parse return value from localTrajectory
         (local_ctrl_pnt,offset,orientation,curvature,v_target) = retval
+
+        if (not self.planner is None):
+            self_curv_state = CurvilinearSimulator.cart2CurvTrack(self.planner.ego_car.states,self.main.track)
+            oppo_curv_state = CurvilinearSimulator.cart2CurvTrack(self.planner.oppo_car.states,self.main.track)
+            track_len = self.main.track.raceline_len_m
+            lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
+            if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
+                v_target = min(v_target,oppo_curv_state[1]) - 0.3
+                self.print_info(f'oppo car keeping back lead = {lead}')
+
         #self.print_info(f'car {self.car.id} v_target = {v_target}')
         # for experiments
         #v_target = min(v_target*0.8, 2.2)
@@ -132,7 +150,6 @@ class StanleyCarController(CarController):
 
         if isnan(orientation):
             return (0,0,False,{'offset':0})
-            
         if reverse:
             offset = -offset
             orientation += pi
@@ -179,7 +196,7 @@ class StanleyCarController(CarController):
     def calcThrottle(self,state,v_target):
         vf = state[3]
         # forgot how we got this
-        #throttle = (acc_target + 1.01294228)/4.95445214 
+        #throttle = (acc_target + 1.01294228)/4.95445214
 
         # PID control for throttle
         throttle = self.throttle_pid.control(v_target,vf) + self.steadyStateThrottle(v_target)

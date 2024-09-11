@@ -61,10 +61,13 @@ class ResidualGameCarController(CarController):
                 self.oppo_car = car
                 break
 
-    def solveGame(self, x0, x1):
+    def solveGame(self, x0, x1, u_ref = None):
         #return: xi_ref, xj_ref, both list of curvilinear states
         g = self.residual_game
-        g.guess = np.zeros((g.T, g.N, g.m))
+        if (u_ref is None):
+            g.guess = np.zeros((g.T, g.N, g.m))
+        else:
+            g.guess = u_ref
         # x0 dim: N*n
         g.x0 = np.vstack([x0.flatten(), x1.flatten()])
         assert(g.x0.shape == (g.N,g.n))
@@ -74,7 +77,7 @@ class ResidualGameCarController(CarController):
             self.print_warning(f'no convergence')
         x0 = full_x_ref[:,0,:]
         x1 = full_x_ref[:,1,:]
-        return x0,x1, has_converged
+        return x0,x1, u_ref, has_converged
 
     def final(self):
         delta_x = self.ego_car.sim_states - self.oppo_car.sim_states

@@ -23,6 +23,7 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         ResidualGameCarController.__init__(self,self.car,self.config)
         ResidualGameCarController.preInit(self)
         ResidualGameCarController.init(self)
+        self.u_ref = self.residual_game.guess
         self.planner_thread = Thread(name='planner', target=self._threadPlan)
         self.planner_thread.start()
 
@@ -36,7 +37,8 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         while not self.main.exit_request.is_set():
             t0 = time()
             self.retval = self.plan()
-            self.has_new_plan.set()
+            if (self.retval):
+                self.has_new_plan.set()
             t_vec.append(time()-t0)
             self.print_info(f'mean planner update freq {1/np.mean(t_vec)}')
 
@@ -44,11 +46,23 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
     def plan(self):
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states, self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states, self.main.track)
-        xi_ref, xj_ref, has_converged = ResidualGameCarController.solveGame(self,x0,x1)
+        xi_ref, xj_ref, u_ref, has_converged = ResidualGameCarController.solveGame(self,x0,x1, u_ref = self.u_ref)
+        self.guess = u_ref
 
         # convert to cartesian coord
         xx_i_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xi_ref]
         xx_j_cart = [CurvilinearSimulator.curv2CartTrack(val, self.main.track) for val in xj_ref]
+
+        # catch crazy trajectories
+        ego_traj =  np.array(xx_i_cart)
+        oppo_traj = np.array(xx_j_cart)
+        ego_traj_omega = (np.diff(np.arctan2( np.diff(ego_traj[:,1]),np.diff(ego_traj[:,0]) )) + np.pi ) % (2*np.pi) - np.pi
+        oppo_traj_omega = (np.diff(np.arctan2( np.diff(oppo_traj[:,1]),np.diff(oppo_traj[:,0]) )) + np.pi ) % (2*np.pi) - np.pi
+
+        if (np.any(np.abs(ego_traj_omega) > 0.3) or np.any(np.abs(oppo_traj_omega) > 0.3) ):
+            self.print_info('---------------- bad plan -----------')
+            return True
+
 
         # store for use in localTrajectory
         self.ego_traj =  np.array(xx_i_cart)
@@ -97,15 +111,34 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
 
         #signed_curvature = splev(self.ss[index],self.curvature_fun)[0].item()
         signed_curvature = 0
-
-
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed, ccw+), recommended velocity
         return (raceline_point,offset,raceline_orientation,signed_curvature,None)
 
     def localTrajectory(self,state):
         self_curv_state = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
+        oppo_curv_state = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
         raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.ego_traj)
         v_target  = self.main.track.sToV(self_curv_state[0]%self.main.track.raceline_len_m)
+        track_len = self.main.track.raceline_len_m
+
+        lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
+        # not in passing zone, too close, stil faster
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
+            v_target = min(v_target,oppo_curv_state[1]) - 0.3
+            self.print_info(f'oppo car keeping back lead = {lead}')
+        return raceline_point,offset,raceline_orientation,signed_curvature,v_target
+
+    def oppoLocalTrajectory(self,state):
+        self_curv_state = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states,self.main.track)
+        oppo_curv_state = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states,self.main.track)
+        raceline_point,offset,raceline_orientation,signed_curvature,_ = self.localTrajectoryFromTraj(state,self.oppo_traj)
+        v_target  = self.main.track.sToV(self_curv_state[0]%self.main.track.raceline_len_m)
+        track_len = self.main.track.raceline_len_m
+
+        if (not self.main.track.isInPassingZone(state)):
+            raceline_point,offset,raceline_orientation,signed_curvature,_ = self.track.localTrajectory(state)
+
+
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
 
 

@@ -151,7 +151,7 @@ class iLQGamePlanner(Planner,iLQGameCarController):
         lead = (self_curv_state[0] - oppo_curv_state[0] + track_len/2)%track_len - track_len/2
         v_diff = self_curv_state[1] - oppo_curv_state[1]
         # not in passing zone, too close, stil faster
-        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.4):
+        if (not self.main.track.isInPassingZone(state) and lead < 0 and lead > -0.3):
             self.print_info(f'ego car keeping back lead = {lead}')
             v_target = min(v_target,oppo_curv_state[1]) - 0.3
         return raceline_point,offset,raceline_orientation,signed_curvature,v_target
