@@ -38,8 +38,6 @@ class StanleyCarController(CarController):
         # if there's planner set it up
         # TODO put this in a parent class constructor
         self.no_planner_override = True
-        self.planner_skip_count = 0
-        self.planner_skip_cycle = 5
         try:
             config_planner = self.config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
@@ -66,17 +64,10 @@ class StanleyCarController(CarController):
 
     def control(self):
         # TODO do this more carefully
-        if (self.planner is not None and self.planner_skip_count % self.planner_skip_cycle == 0):
-        #if (self.planner is not None):
-            retval = self.planner.plan()
-            if (retval):
-                self.planner.plotDebug()
-                self.no_planner_override = False
-            else:
-                self.no_planner_override = True
-                self.print_info('planner failed, override')
+        if (self.planner is not None and self.planner.has_new_plan.is_set()):
+            self.planner.plotDebug()
+            self.no_planner_override = False
 
-        self.planner_skip_count += 1
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)

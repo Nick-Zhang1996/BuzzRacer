@@ -3,6 +3,8 @@ from planner.Planner import Planner
 from controller.ResidualGameCarController import ResidualGameCarController
 from simulator.CurvilinearSimulator import CurvilinearSimulator
 from math import sin,cos,atan2
+from threading import Event,Thread,Lock
+from time import time
 
 class ResidualGamePlanner(Planner,ResidualGameCarController):
     def __init__(self,config=None):
@@ -12,22 +14,36 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         Planner.__init__(self,config)
         self.ego_traj = None
         self.oppo_traj = None
+        self.planner_thread = None
+        self.has_new_plan = Event()
+        self.retval = False
 
 
     def init(self):
         ResidualGameCarController.__init__(self,self.car,self.config)
         ResidualGameCarController.preInit(self)
         ResidualGameCarController.init(self)
+        self.planner_thread = Thread(name='planner', target=self._threadPlan)
+        self.planner_thread.start()
 
         #self.simulator = CurvilinearSimulator(self.main)
         #self.simulator.init()
         return
 
+    # read latest states, do planning, and update the reference trajectory
+    def _threadPlan(self):
+        t_vec = []
+        while not self.main.exit_request.is_set():
+            t0 = time()
+            self.retval = self.plan()
+            self.has_new_plan.set()
+            t_vec.append(time()-t0)
+            self.print_info(f'mean planner update freq {1/np.mean(t_vec)}')
+
     # create a plan, store states internally
     def plan(self):
         x0 = CurvilinearSimulator.cart2CurvTrack(self.ego_car.states, self.main.track)
         x1 = CurvilinearSimulator.cart2CurvTrack(self.oppo_car.states, self.main.track)
-        # TODO start here
         xi_ref, xj_ref, has_converged = ResidualGameCarController.solveGame(self,x0,x1)
 
         # convert to cartesian coord
