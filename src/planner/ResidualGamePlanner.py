@@ -3,8 +3,9 @@ from planner.Planner import Planner
 from controller.ResidualGameCarController import ResidualGameCarController
 from simulator.CurvilinearSimulator import CurvilinearSimulator
 from math import sin,cos,atan2
-from threading import Event,Thread,Lock
-from time import time
+import threading 
+import multiprocessing
+from time import time,sleep
 
 class ResidualGamePlanner(Planner,ResidualGameCarController):
     def __init__(self,config=None):
@@ -15,7 +16,7 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         self.ego_traj = None
         self.oppo_traj = None
         self.planner_thread = None
-        self.has_new_plan = Event()
+        self.has_new_plan = threading.Event()
         self.retval = False
 
 
@@ -24,23 +25,40 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         ResidualGameCarController.preInit(self)
         ResidualGameCarController.init(self)
         self.u_ref = self.residual_game.guess
-        self.planner_thread = Thread(name='planner', target=self._threadPlan)
+        self.planner_thread = threading.Thread(name='planner', target=self._threadPlan)
         self.planner_thread.start()
 
-        #self.simulator = CurvilinearSimulator(self.main)
-        #self.simulator.init()
         return
 
     # read latest states, do planning, and update the reference trajectory
     def _threadPlan(self):
         t_vec = []
         while not self.main.exit_request.is_set():
+            if (not self.main.track.isInPassingZone(self.car.states)):
+                sleep(0.1)
+                continue
             t0 = time()
-            self.retval = self.plan()
-            if (self.retval):
+            parent_pipe, child_pipe = multiprocessing.Pipe()
+            process = multiprocessing.Process(name='planner_process', target=self._processPlan, args=(child_pipe,))
+            process.start()
+            while (not parent_pipe.poll(0.1) and not self.main.exit_request.is_set):
+                True
+            if (parent_pipe.poll(0.1)):
+                xx_i_traj, xx_j_traj, has_converged = parent_pipe.recv()
+            process.join()
+            #self.retval = self.plan()
+            self.retval = has_converged
+            if (has_converged):
+                self.ego_traj =  xx_i_traj
+                self.oppo_traj = xx_j_traj
                 self.has_new_plan.set()
             t_vec.append(time()-t0)
             self.print_info(f'mean planner update freq {1/np.mean(t_vec)}')
+
+    def _processPlan(self, out_pipe):
+        retval = self.plan()
+        out_pipe.send(retval)
+        return
 
     # create a plan, store states internally
     def plan(self):
@@ -59,16 +77,18 @@ class ResidualGamePlanner(Planner,ResidualGameCarController):
         ego_traj_omega = (np.diff(np.arctan2( np.diff(ego_traj[:,1]),np.diff(ego_traj[:,0]) )) + np.pi ) % (2*np.pi) - np.pi
         oppo_traj_omega = (np.diff(np.arctan2( np.diff(oppo_traj[:,1]),np.diff(oppo_traj[:,0]) )) + np.pi ) % (2*np.pi) - np.pi
 
+        '''
         if (np.any(np.abs(ego_traj_omega) > 0.3) or np.any(np.abs(oppo_traj_omega) > 0.3) ):
             self.print_info('---------------- bad plan -----------')
-            return True
+            return np.array(xx_i_cart), np.array(xx_j_cart), False
+        '''
 
 
         # store for use in localTrajectory
+        # NOTE that when this function is run in a separate process this cannot be counted on
         self.ego_traj =  np.array(xx_i_cart)
         self.oppo_traj = np.array(xx_j_cart)
-        # TODO maybe depend on has_converged
-        return True
+        return np.array(xx_i_cart), np.array(xx_j_cart), True
 
     def plotDebug(self):
         #plot debug information

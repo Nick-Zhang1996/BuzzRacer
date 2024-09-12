@@ -25,7 +25,7 @@ if __name__ == "__main__":
     track = TrackFactory.build(args.track_name)
 
 
-    track.optimizePath(offset=0.15)
+    track.optimizePath(offset=0.20)
     track.save()
 
     # verify results: load and show

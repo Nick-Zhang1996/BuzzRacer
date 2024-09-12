@@ -53,7 +53,6 @@ class ResidualGameCarController(CarController):
             self.print_ok('Controller will control opponent')
 
     def init(self):
-        self.simulator = self.main.simulator
         assert(len(self.main.cars)==2)
         self.ego_car = self.car
         for car in self.main.cars:
@@ -118,13 +117,6 @@ class ResidualGameCarController(CarController):
         return
 
 
-
-
-    def update_dynamics(self,states,controls,dt=None):
-        if (dt is None):
-            dt = self.dt
-        return self.simulator.advancePointMassDynamics(states.flatten(),controls.flatten(),dt)
-
     def drawDebug(self):
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -151,7 +143,7 @@ class ResidualGameCarController(CarController):
             predicted_traj = []
             for t in range(self.horizon):
                 curvi_states = traj[t]
-                cart_states = self.simulator.curv2Cart(curvi_states)
+                cart_states = CurvilinearSimulator.cart2CurvTrack(curvi_states, self.main.track)
                 predicted_traj.append(cart_states)
 
             predicted_traj = np.array(predicted_traj)

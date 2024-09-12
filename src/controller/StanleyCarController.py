@@ -72,8 +72,8 @@ class StanleyCarController(CarController):
                 #self.planner.plan()
                 self.planner.plotDebug()
                 self.no_planner_override = False
-            else:
-                self.no_planner_override = True
+        else:
+            self.no_planner_override = True
 
         throttle,steering,valid,debug_dict = self.ctrlCar(self.car.states,self.track)
         self.debug_dict = debug_dict
@@ -86,7 +86,7 @@ class StanleyCarController(CarController):
             self.car.throttle = 0.0
             self.car.steering = 0.0
         #self.predict()
-        self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         return valid
 
 # given state of the vehicle and an instance of track, provide throttle and steering output

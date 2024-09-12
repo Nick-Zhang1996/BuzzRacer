@@ -711,7 +711,7 @@ class RCPTrackQpSmooth(RCPTrack):
     # mu: friction coefficient for lateral traction
     # acc_max_fun: function that maps speed to maximum available acceleration
     # dec_max_fun: function that maps speed to maximum available deceleration
-    def optimizePath(self,*,max_iter=20, offset=0, mu=0.8,acc_max_fun=lambda x:8.0, dec_max_fun=lambda x:3.3, visualize=False,save_gif=False,save_steps=False,):
+    def optimizePath(self,*,max_iter=20, offset=0, mu=0.7,acc_max_fun=lambda x:3.0, dec_max_fun=lambda x:3.3, visualize=False,save_gif=False,save_steps=False,):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)

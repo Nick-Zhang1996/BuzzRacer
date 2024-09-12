@@ -65,14 +65,14 @@ class CarRacing(ResidualGame):
         # Problem formulation
         # decision variables:
         self.N = 2
-        self.T = 30
+        self.T = 25
         self.dt = dt = 0.05
         # dimension of x and u for single agent
         self.n = 4
         self.m = 2
 
-        self.tolerance = 5e-4
-        self.iterations = 30
+        self.tolerance = 5e-4 * 10
+        self.iterations = 15
 
         # collision definition
         # (x-x)T h_Qh (x-x) < C
@@ -101,7 +101,7 @@ class CarRacing(ResidualGame):
         # s,v,n,phi
         self.J_x_ref_fun = lambda i:np.array([0,1.0,0,0])
         self.J_Qr = np.diag([0,0.1,0,0])
-        self.J_Q = np.diag([0,0,0.4,0.4])
+        self.J_Q = np.diag([0,0,0.2,0.4])
         self.J_R = np.eye(self.m)*0.001
         self.guess = np.zeros((self.T,self.N,self.m))
 

@@ -72,7 +72,7 @@ class ResidualGame(PrintObject,ABC):
         # solver variables
         self.frame_vec = []
         #self.print_debug_enable()
-        self.tolerance = 5e-4
+        self.tolerance = 5e-4 * 10
         self.residual_vec = []
 
     def setup(self):
