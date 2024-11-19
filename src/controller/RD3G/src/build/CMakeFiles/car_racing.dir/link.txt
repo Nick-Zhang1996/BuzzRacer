@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -DNDEBUG -O2 -flto -fno-fat-lto-objects -shared  -o car_racing.cpython-38-x86_64-linux-gnu.so CMakeFiles/car_racing.dir/car_racing.cpp.o 

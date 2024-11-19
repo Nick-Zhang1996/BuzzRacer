@@ -171,7 +171,7 @@ class Car(PrintObject,LogObject):
                          'rendering' : 'data/porsche_green.png'}
 
         audi_13 = {      'optitrack_streaming_id' : 1005,
-                         'ip' : '192.168.10.13',
+                         'ip' : '192.168.10.12',
                          'max_steering_left':radians(26.1),
                          'max_steering_right':radians(26.1),
                          'max_throttle' : 0.8,
