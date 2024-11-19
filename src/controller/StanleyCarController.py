@@ -59,7 +59,7 @@ class StanleyCarController(CarController):
         CarController.init(self)
         try:
             self.planner.init()
-        except IndexError as e:
+        except AttributeError as e:
             pass
 
 

@@ -8,6 +8,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('track_name', choices = TrackFactory.availableTrackNames())
     args = parser.parse_args()
+    plt.plot([1,2])
+    plt.show()
 
     # optimize and save
     track = TrackFactory.build(args.track_name)
