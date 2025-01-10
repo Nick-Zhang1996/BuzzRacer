@@ -47,9 +47,10 @@ Next thing to do is installing necessary dependencies. The codebase is developed
 The code is written for python 3.8+ and requires the following packages:
 `scipy, numpy, opencv-python, xml-python, cvxopt, Pillow, matplotlib, torch, pyserial, pickle5, gymnasium, pygame, json`
 
-Please install these packages using pip or conda. Note the list may be inconclusive.
+Please install these packages using pip or conda. Note the list may not be exhaustive.
+A `requirements.txt` is  provided containing necessary pip packages. 
 
-If you wish to work on GPU-accelerated algorithms, please also install pycuda. 
+If you wish to work on GPU-accelerated algorithms, please also install `pycuda`. 
 
 ### Generate Raceline
 

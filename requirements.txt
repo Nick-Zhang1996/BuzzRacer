@@ -1,0 +1,14 @@
+scipy
+numpy
+opencv-python
+xml-python
+cvxopt
+Pillow
+matplotlib
+torch
+pyserial
+gymnasium
+pygame
+
+# Replay extension
+gpytorch
