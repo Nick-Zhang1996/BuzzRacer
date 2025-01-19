@@ -1,6 +1,9 @@
 from common import *
 import serial
 from math import atan2,radians,degrees,sin,cos,pi,tan,copysign,asin,acos,isnan,exp,pi
+# from controller import iLQGameCarController
+import importlib
+
 class Car(PrintObject,LogObject):
     car_count = 0
     cars = []
@@ -84,9 +87,13 @@ class Car(PrintObject,LogObject):
     @classmethod
     def Factory(cls, main, config):
         # TODO error handling, it's ok there's no hardware
+        # NOTE: For some reason having some scope issue w/ dynamic importing. So have to manually pass in local variables dict. Original statements are
+        # commented out for easier revert.
+        local_dict = locals()
         try:
             hardware_class_text = config.getElementsByTagName('hardware')[0].firstChild.nodeValue
-            exec('from car import '+hardware_class_text)
+            exec('from car import '+hardware_class_text, globals(), local_dict)
+            # exec('from car import '+hardware_class_text)
         except IndexError:
             self.print_warning('no hardware specified')
 
@@ -101,11 +108,14 @@ class Car(PrintObject,LogObject):
             init_states = (*main.track.start_pos, main.track.start_dir,0.1)
 
         config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
-        exec('from controller import '+controller_class_text)
-        controller = eval(controller_class_text)
+        exec('from controller import '+controller_class_text, globals(), local_dict)
+        controller = eval(controller_class_text, globals(), local_dict)
+        # exec('from controller import '+controller_class_text)
+        # controller = eval(controller_class_text)
         config_name = config_name
 
-        car = eval(hardware_class_text)(main)
+        car = eval(hardware_class_text, globals(), local_dict)(main)
+        # car = eval(hardware_class_text)(main)
 
         # (x,y,theta,vforward,vsideway=0,omega)
         x,y,heading,v_forward = init_states

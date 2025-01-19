@@ -25,6 +25,9 @@ class Main(PrintObject,LogObject):
         self.experiment_name = config_filename
 
     def init(self):
+        # NOTE: For some reason having some scope issue w/ dynamic importing. So have to manually pass in local variables dict. Original statements are
+        # commented out for easier revert.
+        local_dict = locals()
         self.print_ok(" loading settings")
         config = minidom.parse(self.config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
@@ -67,9 +70,12 @@ class Main(PrintObject,LogObject):
         config_extensions = config.getElementsByTagName('extensions')[0]
         for config_extension in config_extensions.getElementsByTagName('extension'):
             extension_class_name = config_extension.firstChild.nodeValue
-            exec('from extension import '+extension_class_name)
+            # exec('from extension import '+extension_class_name)
+            # exec('from extension import Laptimer', globals(), locals())
+            exec('from extension import '+extension_class_name, globals(), local_dict)
             #ext = eval(extension_class_name+'(self)')
-            ext = eval(extension_class_name)(self)
+            # ext = eval(extension_class_name)(self)
+            ext = eval(extension_class_name, globals(), local_dict)(self)
             handle_name = ''
             for key,raw in config_extension.attributes.items():
                 if key == 'handle':
@@ -138,7 +144,7 @@ class Main(PrintObject,LogObject):
             item.preUpdate()
             t.e(item.name)
 
-        self.new_state_update.wait(.1)
+        self.new_state_update.wait()
         self.new_state_update.clear()
 
         t.s('control')
@@ -148,14 +154,14 @@ class Main(PrintObject,LogObject):
         t.e('control')
 
         # -- Extension update -- 
+        t.s('update')
         for item in self.extensions:
-            t.s(item.name)
             item.update()
-            t.e(item.name)
+        t.e('update')
+        t.s('post')
         for item in self.extensions:
-            t.s(item.name)
             item.postUpdate()
-            t.e(item.name)
+        t.e('post')
         t.e()
         
 if __name__ == '__main__':
