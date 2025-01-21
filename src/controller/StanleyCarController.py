@@ -11,6 +11,7 @@ class StanleyCarController(CarController):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.use_ekf = False
+        self.use_pf = True
 
         # load config etc
         super().__init__(car,config)
@@ -80,6 +81,8 @@ class StanleyCarController(CarController):
 
         if self.use_ekf:
             states = np.squeeze(self.car.tof_kf.X)
+        if self.use_pf:
+            states = np.squeeze(self.car.tof_pf.X)
 
         throttle,steering,valid,debug_dict = self.ctrlCar(states,self.track)
         self.debug_dict = debug_dict

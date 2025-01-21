@@ -153,9 +153,13 @@ class RCPTrackQpSmooth(RCPTrack):
         B = lambda t,p: (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(1-t)**3*p[2] + 10*t**3*(1-t)**2*p[3] + 5*t**4*(1-t)*p[4] + t**5*p[5]
 
         try:
-            r = [ [B(uu%1,np.array(P[int(uu)%n,:,0])),B(uu%1,np.array(P[int(uu)%n,:,1]))] for uu in u]
+            r = [ 
+                [
+                    B(uu%1,np.array(P[int(uu.item())%n,:,0])),
+                    B(uu%1,np.array(P[int(uu.item())%n,:,1]))
+                ] for uu in u]
         except Warning as e:
-            print(e)
+            print("Warning: ", e)
 
         return np.array(r)
 
