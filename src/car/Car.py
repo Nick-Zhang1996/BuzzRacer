@@ -189,6 +189,17 @@ class Car(PrintObject,LogObject):
                          'max_ay' : 9.0,
                          'rendering' : 'data/porsche_orange.png'}
 
+        v2_tof = {      'optitrack_streaming_id' : 1006,
+                         'ip' : '192.168.10.102',
+                         'max_steering_left':9.0, # TODo tune this
+                         'max_steering_right':9.0,
+                         'max_throttle' : 0.3,
+                         'min_throttle' : 0.0,
+                         'max_v' : 4.0,
+                         'max_ax' : 13.0,
+                         'max_ay' : 9.0,
+                         'rendering' : 'data/porsche_orange.png'}
+
         car.params = eval(config_name)
         #print_error("Unrecognized car config")
 

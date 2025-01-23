@@ -25,6 +25,7 @@ from extension.TofSensorStream import TofSensorStream
 from extension.TofLocalization import TofLocalization
 from extension.ParticleFilter import ParticleFilter
 from extension.TofLocalizationChan import TofLocalizationChan
+from extension.TofSensorVisualization import TofSensorVisualization
 
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
