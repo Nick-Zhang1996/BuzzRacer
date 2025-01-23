@@ -14,6 +14,7 @@
         <!--<extension handle='gifsaver'>Gifsaver</extension>-->
       <extension handle='tof_simulator' simulate_tof='True'>TofSensorSimulation</extension>
       <extension handle='tof_pf'>TofLocalizationPf</extension>
+      <!-- <extension>ParticleFilter</extension> -->
   </extensions>
 
   <cars>

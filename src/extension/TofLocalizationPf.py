@@ -3,6 +3,8 @@ from track import RCPTrack
 from common import *
 from time import time
 from math import sin,cos,tan,radians,degrees,atan
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 
 
@@ -15,6 +17,7 @@ class TofLocalizationPf(Extension):
         assert(isinstance(self.main.track, RCPTrack))
         # Cars for which Tof localization is enabled
         self.car_ids = [0]
+        self.particle_count = 50
 
     def time(self):
         if (self.main.experiment_type == ExperimentType.Simulation):
@@ -34,10 +37,9 @@ class TofLocalizationPf(Extension):
             car = self.main.cars[car_id]
             car.tof_pf = ParticleFilter(Dynamics(car))
             car.tof_pf.tof_simulator = self.main.tof_simulator
-            # NOTE: Current particle count: 100
-            # TODO: May be more robust to attach particle count to car for easier testing
-            car.tof_pf.init(car.states, self.time(), 100)
+            car.tof_pf.init(car.states, self.time(), self.particle_count)
             car.tof_states = car.states
+            # self.visualizer = ParticleFilterVisualizer(car.tof_pf, self.main.track, car.states)
 
     def preUpdate(self):
         for car_id in self.car_ids:
@@ -51,39 +53,39 @@ class TofLocalizationPf(Extension):
     def update(self):
         for car_id in self.car_ids:
             car = self.main.cars[car_id]
-            self.tofReadingUpdateCallback(car)
+            self.tofReadingUpdateCallback(car,self.main.track)
             self.main.new_state_update.set()
-        self.drawDebug
+        # self.visualizer.update_plot()
 
-    def tofReadingUpdateCallback(self, car, timestamp=None):
+    def tofReadingUpdateCallback(self, car, track, timestamp=None):
         if timestamp is None:
             timestamp = self.time()
-        car.tof_pf.update(car.tof_measurement, timestamp)
+        car.tof_pf.update(car.tof_measurement, self.main.track, timestamp)
 
-    def drawDebug(self):
-        # visualization NOTE very slow
-        if (self.main.visualization.update_visualization.isSet()):
-            img = self.main.visualization.visualization_img
-            for car_id in self.car_ids:
-                car = self.main.cars[car_id]
-                px = car.tof_kf.P[0,0]
-                py = car.tof_kf.P[1,1]
-                p0 = car.tof_kf.X[:2,0]
-                d = car.tof_kf.X[2,0]
+    # def drawDebug(self):
+    #     # visualization NOTE very slow
+    #     if (self.main.visualization.update_visualization.isSet()):
+    #         img = self.main.visualization.visualization_img
+    #         for car_id in self.car_ids:
+    #             car = self.main.cars[car_id]
+    #             px = car.tof_kf.P[0,0]
+    #             py = car.tof_kf.P[1,1]
+    #             p0 = car.tof_kf.X[:2,0]
+    #             d = car.tof_kf.X[2,0]
 
-                # draw state
-                coord = self.main.track.m2canvas(p0)
-                img = self.main.visualization.overlayCarRenderingRaw(img,car,coord,d)
-                img = self.main.track.drawCircle(img, p0, 0.03)
+    #             # draw state
+    #             coord = self.main.track.m2canvas(p0)
+    #             img = self.main.visualization.overlayCarRenderingRaw(img,car,coord,d)
+    #             img = self.main.track.drawCircle(img, p0, 0.03)
 
-                # draw covariance
-                p1 = p0 + np.array([px*cos(d),px*sin(d)])
-                img = self.main.track.drawPolyline([p0,p1],img)
-                p2 = p0 + np.array([py*cos(d+np.pi/2),py*sin(d+np.pi/2)])
-                img = self.main.track.drawPolyline([p0,p2],img)
+    #             # draw covariance
+    #             p1 = p0 + np.array([px*cos(d),px*sin(d)])
+    #             img = self.main.track.drawPolyline([p0,p1],img)
+    #             p2 = p0 + np.array([py*cos(d+np.pi/2),py*sin(d+np.pi/2)])
+    #             img = self.main.track.drawPolyline([p0,p2],img)
 
-            self.main.visualization.visualization_img = img
-        return
+    #         self.main.visualization.visualization_img = img
+    #     return
 
     def postUpdate(self):
         pass
@@ -93,6 +95,68 @@ class TofLocalizationPf(Extension):
         pass
     def postFinal(self):
         pass
+
+
+# class TofLocalizationPf(Extension):
+    
+#     def __init__(self, main):
+#         super().__init__(main)
+#         assert(isinstance(self.main.track, RCPTrack))
+#         # Cars for which Tof localization is enabled
+#         self.car_ids = [0]
+#         self.particle_count = 100
+        
+#         # Set up real-time visualization
+#         plt.ion()  # Turn on interactive mode
+#         self.fig, self.ax = plt.subplots(figsize=(10, 8))
+
+#     def time(self):
+#         if (self.main.experiment_type == ExperimentType.Simulation):
+#             timestamp = self.main.sim_t
+#         else:
+#             timestamp = time()
+#         return timestamp
+
+#     def preInit(self):
+#         pass
+
+#     def init(self):
+#         pass
+
+#     def postInit(self):
+#         for car_id in self.car_ids:
+#             car = self.main.cars[car_id]
+#             car.tof_pf = RealTimeParticleFilter(Dynamics(car))
+#             car.tof_pf.tof_simulator = self.main.tof_simulator
+#             car.tof_pf.init(car.states, self.time(), self.particle_count)
+#             car.tof_states = car.states
+
+#     def preUpdate(self):
+#         for car_id in self.car_ids:
+#             car = self.main.cars[car_id]
+#             t = self.time()
+#             action = (car.steering, car.throttle)
+#             car.tof_pf.predict(action, timestamp=t)
+
+#     def update(self):
+#         for car_id in self.car_ids:
+#             car = self.main.cars[car_id]
+#             self.tofReadingUpdateCallback(car, self.main.track)
+#             self.main.new_state_update.set()
+
+#     def tofReadingUpdateCallback(self, car, track, timestamp=None):
+#         if timestamp is None:
+#             timestamp = self.time()
+#         car.tof_pf.update(car.tof_measurement, self.main.track, timestamp)
+
+#     def postUpdate(self):
+#         pass
+#     def preFinal(self):
+#         pass
+#     def final(self):
+#         pass
+#     def postFinal(self):
+#         pass
 
 
 class ParticleFilter():
@@ -110,14 +174,14 @@ class ParticleFilter():
         self.X = None
         # State covariance, dim: (n, n)
         self.P = None
-        self.var = 0.1
+        self.var = 0.00025
         # Dynamics noise, normalized by time
-        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])*3
-        self.action_cov_mtx = np.diag([0.1] * m)
+        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/100000
+        self.action_cov_mtx = np.diag([0.1] * m)/100
         self.dynamics = dynamics
 
         # Measurement error, dim: (h, h)
-        self.R = np.diag([0.2] * h)
+        self.R = np.diag([0.1] * h)/100
 
     def init(self, car_state, timestamp, particle_count):
         self.X = np.array(car_state).reshape(self.state_dim,1)
@@ -134,12 +198,45 @@ class ParticleFilter():
         self.advanceParticles(action,timestamp)
         self.state_ts = timestamp
     
-    def update(self,measurements,timestamp):
-        self.updateWeights(measurements)
+    def update(self,measurements,track,timestamp):
+        self.updateWeights(measurements,track)
         self.resampleParticles()
 
         self.state_ts = timestamp
+        # self.plotParticles(track, self.X)
         self.X = np.average(self.particle_array,axis=0,weights=self.weights)
+
+        # plt.scatter(self.particle_array[:, 0], self.particle_array[:, 1], c=self.weights, cmap='viridis')
+        # plt.show()
+
+    def plotParticles(self, track, car_state):
+        plt.figure(figsize=(8, 8))
+        plt.axis("equal")
+
+        # Plot the track boundary
+        # track.plotBoundary()
+
+        # Plot the true car state
+        plt.scatter(car_state[0], car_state[1], c='red', s=100, label='True State')
+
+        # Plot the particles
+        weights_normalized = self.weights / np.max(self.weights)
+        plt.scatter(
+            self.particle_array[:, 0],  # x-coordinates
+            self.particle_array[:, 1],  # y-coordinates
+            c=weights_normalized,       # color by weight
+            cmap='viridis',
+            s=20,                       # particle size
+            label='Particles'
+        )
+
+        plt.colorbar(label='Normalized Weight')
+        plt.legend()
+        plt.title('Particle Filter Visualization')
+        plt.xlabel('X Position')
+        plt.ylabel('Y Position')
+        plt.grid(True)
+        plt.show()
     
     def advanceParticles(self,action,timestamp):
         # Advance particles with noisy dynamics
@@ -149,34 +246,46 @@ class ParticleFilter():
         if (dt < 1e-10):
             pass # TODO: Better handling for too small time step edge case
 
-        for i in range(len(self.particle_array)):
-            particle = self.particle_array[i].reshape(n,1)
-            noisy_action = action + np.random.multivariate_normal(
-                mean = np.zeros(m),
-                cov = self.action_cov_mtx
-            )
+        noisy_actions = action + np.random.multivariate_normal(
+            mean=np.zeros(self.action_dim),
+            cov=self.action_cov_mtx,
+            size=len(self.particle_array)
+        )
 
-            dynamics_noise = np.random.multivariate_normal(
-                mean = np.zeros(n),
-                cov = self.q
-            ).reshape(n,1)
+        dynamics_noise = np.random.multivariate_normal(
+            mean=np.zeros(self.state_dim),
+            cov=self.q,
+            size=len(self.particle_array)
+        )
 
-            dxdt = self.dynamics.f(particle, noisy_action, dt).reshape(n,1) + dynamics_noise
-            self.particle_array[i] += (dxdt * dt).flatten()
+        dxdt = np.array([
+            self.dynamics.f(particle.reshape(self.state_dim, 1), noisy_actions[i], dt).flatten()
+            # self.dynamics.f(particle.reshape(self.state_dim, 1), noisy_actions[i]).flatten()
+            for i, particle in enumerate(self.particle_array)
+        ])
 
+        self.particle_array += dxdt * dt + dynamics_noise
         self.state_ts = timestamp
 
-    def updateWeights(self,measurements):
-        for i, particle in enumerate(self.particle_array):
-            # Calculate likelihood
-            predicted_measurements = self.getTofRange(particle)
-            residual = measurements - predicted_measurements.flatten()
 
-            likelihood = np.exp(-0.5 * (residual @ np.linalg.inv(self.R) @ residual.T))
-            likelihood /= np.sqrt((np.pi ** 2) ** self.measure_dim * np.linalg.det(self.R))
+    def updateWeights(self,measurements,track):
+        R_inv = np.linalg.inv(self.R)
+        normalizing_factor = np.sqrt((np.pi ** 2) ** self.measure_dim * np.linalg.det(self.R))
+        
+        predicted_measurements = np.array([
+            self.getTofRange(self.particle_array[i]).flatten()
+            for i in range(len(self.particle_array))
+        ])
 
-            self.weights[i] = likelihood
-        self.weights /= np.sum(self.weights)
+        residuals = measurements - predicted_measurements
+        self.weights = np.exp(-0.5 * np.sum(residuals @ R_inv * residuals, axis=1)) / normalizing_factor
+        # if self.weights > 0:
+        if True:
+            self.weights /= np.sum(self.weights)
+        # TODO: numerical instability / degenerate case?
+        # else:
+        #     print('degenerate!')
+        #     self.weights = np.ones(len(self.weights)) / len(self.weights)
 
     def getTofRange(self,state):
         x,y,d,*_ = state
@@ -187,18 +296,69 @@ class ParticleFilter():
         rear = self.tof_simulator.getTofReading((x,y), d + np.pi)
 
         tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
-
+        # print(tof_range.flatten())
         return tof_range
     
     def resampleParticles(self):
-        mask = np.random.choice(
-            range(len(self.particle_array)),
-            size = len(self.particle_array),
-            p = self.weights
-        )
+        ess = 1.0 / np.sum(self.weights ** 2)
 
-        self.particle_array = self.particle_array[mask]
-        self.weights = np.ones(len(self.particle_array)) / len(self.particle_array)
+        ess_threshold = 0.25 * len(self.particle_array)
+
+        if ess < ess_threshold:
+        # if True:
+            mask = np.random.choice(
+                range(len(self.particle_array)),
+                size = len(self.particle_array),
+                p = self.weights
+            )
+
+            self.particle_array = self.particle_array[mask]
+            self.weights = np.ones(len(self.particle_array)) / len(self.particle_array)
+
+class RealTimeParticleFilter(ParticleFilter):
+    def __init__(self, dynamics):
+        super().__init__(dynamics)
+        plt.ion()  # Turn on interactive mode
+        self.fig, self.ax = plt.subplots(figsize=(10, 8))
+        self.scatter = None
+        self.true_state_plot = None
+        
+    def update(self, measurements, track, timestamp):
+        # Perform standard particle filter update
+        super().update(measurements, track, timestamp)
+        
+        # Real-time visualization
+        self.ax.clear()
+        self.ax.set_title('Particle Filter Visualization')
+        
+        # Plot particles
+        weights_normalized = self.weights / np.max(self.weights)
+        self.scatter = self.ax.scatter(
+            self.particle_array[:, 0], 
+            self.particle_array[:, 1], 
+            c=weights_normalized, 
+            cmap='viridis', 
+            s=20, 
+            alpha=0.7
+        )
+        
+        # Plot true state
+        self.true_state_plot = self.ax.scatter(
+            self.X[0], 
+            self.X[1], 
+            c='red', 
+            s=100, 
+            marker='x', 
+            label='True State'
+        )
+        
+        self.ax.set_xlabel('X Position')
+        self.ax.set_ylabel('Y Position')
+        self.ax.legend()
+        self.ax.grid(True)
+        
+        # Refresh the plot
+        plt.pause(0.01)
 
 
 class Dynamics():
@@ -350,3 +510,65 @@ class Dynamics():
         dfdu = np.zeros((self.n,self.m))
         return dfdx, dfdu
     pass
+
+# class Dynamics:
+#     def __init__(self,car):
+#         self.n = 6
+#         self.m = 2
+#         self.car = car
+#         return
+
+#     def tireCurve(self,slip):
+#         C = 1.6
+#         B = 2.3
+#         D = 1.1
+#         # C: tail shape
+#         retval = D * np.sin( C * np.arctan(B *slip))
+#         return retval
+
+#     def f(self, state, control):
+#         lf = self.car.lf
+#         lr = self.car.lr
+#         L = self.car.L
+
+#         Iz = self.car.Iz
+#         m = self.car.m
+
+#         # NOTE here vx = vf, vy = vs, different convention
+#         x,y,heading,vx,vy,omega = np.array(state).flatten()
+#         steering, throttle = np.array(control).flatten()
+
+#         # for small longitudinal velocity use kinematic model
+#         if (vx<0.05):
+#             beta = atan(lr/L*tan(steering))
+#             norm = lambda a,b:(a**2+b**2)**0.5
+#             # motor model
+#             d_vx = 6.17*(throttle - vx/15.2 -0.333)
+#             d_vy = 0
+#             d_omega = 0.0
+
+#         else:
+#             slip_f = -np.arctan((omega*lf + vy)/vx) + steering
+#             slip_r = np.arctan((omega*lr - vy)/vx)
+
+#             Ffy = self.tireCurve(slip_f) * m * 9.8 *lr/(lr+lf)
+#             Fry = 1.15*self.tireCurve(slip_r) * m * 9.8 *lf/(lr+lf)
+
+#             # Dynamics
+#             #d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
+#             d_vx = 6.17*(throttle - vx/15.2 -0.333)
+#             d_vy = 1.0/m * (Fry + Ffy * np.cos( steering ) - m * vx * omega)
+#             d_omega = 1.0/Iz * (Ffy * lf * np.cos( steering ) - Fry * lr)
+
+#         # back to global frame
+#         vxg = vx*cos(heading)-vy*sin(heading)
+#         vyg = vx*sin(heading)+vy*cos(heading)
+
+#         return np.array([vxg, vyg, omega, d_vx, d_vy, d_omega])
+
+#     # Jacobian of dynamics f(x,u), df/dx, df/du
+#     # TODO calculate this
+#     def df(self, x,u):
+#         dfdx = np.zeros((self.n,self.n))
+#         dfdu = np.zeros((self.n,self.m))
+#         return dfdx, dfdu
