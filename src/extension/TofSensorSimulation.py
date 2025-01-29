@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 from math import sin,cos
 import matplotlib.pyplot as plt
+import time as time
 
 from common import *
 from util.timeUtil import execution_timer
@@ -20,7 +21,7 @@ class TofSensorSimulation(Extension):
         self.simulate_tof = True
         self.write_measurement = True
         self.debug_plot = True
-        self.max_physical_range = 1000
+        self.max_physical_range = 5000
 
         # Configurable param
         # cars to simulate ToF readings for
@@ -64,22 +65,22 @@ class TofSensorSimulation(Extension):
             if (not car.tof_measurement[0] is None):
                 x = car.states[0] + car.tof_measurement[0] * np.cos(car.states[2])
                 y = car.states[1] + car.tof_measurement[0] * np.sin(car.states[2])
-                self.main.track.drawCircle(img, (x,y), 0.05)
+                self.main.track.drawCircle(img, (x,y), 0.04)
             # left
             if (not car.tof_measurement[1] is None):
                 x = car.states[0] + car.tof_measurement[1] * np.cos(car.states[2] + np.pi/2)
                 y = car.states[1] + car.tof_measurement[1] * np.sin(car.states[2] + np.pi/2)
-                self.main.track.drawCircle(img, (x,y), 0.05)
+                self.main.track.drawCircle(img, (x,y), 0.04)
             # right
             if (not car.tof_measurement[2] is None):
                 x = car.states[0] + car.tof_measurement[2] * np.cos(car.states[2] - np.pi/2)
                 y = car.states[1] + car.tof_measurement[2] * np.sin(car.states[2] - np.pi/2)
-                self.main.track.drawCircle(img, (x,y), 0.05)
+                self.main.track.drawCircle(img, (x,y), 0.04)
             # rear
             if (not car.tof_measurement[3] is None):
                 x = car.states[0] + car.tof_measurement[3] * np.cos(car.states[2] + np.pi)
                 y = car.states[1] + car.tof_measurement[3] * np.sin(car.states[2] + np.pi)
-                self.main.track.drawCircle(img, (x,y), 0.05)
+                self.main.track.drawCircle(img, (x,y), 0.04)
             self.main.visualization.visualization_img = img
 
     def getTofReading(self,coord,direction):

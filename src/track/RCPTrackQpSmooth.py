@@ -11,6 +11,7 @@ import os.path
 from scipy.interpolate import interp1d
 from math import pi,isclose,radians,cos,sin,atan2,tan
 from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+import warnings
 
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -381,7 +382,7 @@ class RCPTrackQpSmooth(RCPTrack):
         # boundary/wall width / grid side length
         # for a flush fit in visualization
         # use 0.087*2
-        #deadzone = 0.087 * 3.5
+        # deadzone = 0.087 * 3.5
         deadzone = 0.087 * 2
         straights = ['WE','NS']
         turns = ['SE','SW','NE','NW']
@@ -432,6 +433,10 @@ class RCPTrackQpSmooth(RCPTrack):
 
         # if the point given already violates constrain, then F, R may <0
         # NOTE maybe raise a warning?
+        # if F-offset < 0:
+            # warnings.warn("Warning: negative F dist w/ offset")
+        # if R-offset < 0:
+            # warnings.warn("Warning: negative R dist w/ offset")
         F = max(F-offset,0)
         R = max(R-offset,0)
 

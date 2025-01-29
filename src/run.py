@@ -73,7 +73,7 @@ class Main(PrintObject,LogObject):
             # exec('from extension import '+extension_class_name)
             # exec('from extension import Laptimer', globals(), locals())
             exec('from extension import '+extension_class_name, globals(), local_dict)
-            #ext = eval(extension_class_name+'(self)')
+            # ext = eval(extension_class_name+'(self)')
             # ext = eval(extension_class_name)(self)
             ext = eval(extension_class_name, globals(), local_dict)(self)
             handle_name = ''

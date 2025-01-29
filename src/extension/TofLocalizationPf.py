@@ -176,12 +176,16 @@ class ParticleFilter():
         self.P = None
         self.var = 0.00025
         # Dynamics noise, normalized by time
-        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/100000
+        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/10000
         self.action_cov_mtx = np.diag([0.1] * m)/100
         self.dynamics = dynamics
 
         # Measurement error, dim: (h, h)
         self.R = np.diag([0.1] * h)/100
+        
+        # offset from car cg to tof sensor in each direction
+        self.car_x_offset = 0.04
+        self.car_y_offset = 0.01
 
     def init(self, car_state, timestamp, particle_count):
         self.X = np.array(car_state).reshape(self.state_dim,1)
@@ -290,10 +294,10 @@ class ParticleFilter():
     def getTofRange(self,state):
         x,y,d,*_ = state
 
-        front = self.tof_simulator.getTofReading((x,y), d)
-        left = self.tof_simulator.getTofReading((x,y), d + np.pi/2)
-        right = self.tof_simulator.getTofReading((x,y), d - np.pi/2)
-        rear = self.tof_simulator.getTofReading((x,y), d + np.pi)
+        front = self.tof_simulator.getTofReading((x,y), d,self.car_x_offset)
+        left = self.tof_simulator.getTofReading((x,y), d + np.pi/2,self.car_y_offset)
+        right = self.tof_simulator.getTofReading((x,y), d - np.pi/2,self.car_y_offset)
+        rear = self.tof_simulator.getTofReading((x,y), d + np.pi,self.car_x_offset)
 
         tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
         # print(tof_range.flatten())
