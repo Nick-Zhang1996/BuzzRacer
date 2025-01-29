@@ -1,27 +1,28 @@
 <config>
   <settings dt='0.01'>
-    <experiment_type>Simulation</experiment_type>
+    <experiment_type>Realworld</experiment_type>
   </settings>
 
   <track>saved</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
-      <!-- <extension handle='logger'>Logger</extension> -->
-        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='logger'>Logger</extension>
+      <extension handle='snapshot'>SnapshotSaver</extension>
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
       <extension handle='simulator' match_time='True'>DynamicSimulator</extension>
-        <!--<extension handle='gifsaver'>Gifsaver</extension>-->
-      <extension handle='tof_simulator' simulate_tof='True'>TofSensorSimulation</extension>
+      <extension handle='gifsaver'>Gifsaver</extension>
+      <extension handle='tof_stream' max_range='500' simulate_tof='True'>TofSensorStream</extension>
+      <extension handle='tof_simulator' simulate_tof='True' write_measurement='False'>TofSensorSimulation</extension>
+      <extension handle='snapshot'>SnapshotSaver</extension>
       <extension handle='tof_pf'>TofLocalizationPf</extension>
-      <!-- <extension>ParticleFilter</extension> -->
   </extensions>
 
   <cars>
     <car>
       <name>2002 toyota corolla 3 previous owners 4 accidents rebuilt title $7000 obo</name>
       <hardware>Offboard</hardware>
-      <config_name>audi_11</config_name>
+      <config_name>audi_12</config_name>
       <controller max_speed='0' horizon='30'>
         <type>StanleyCarController</type>
         <init_states>(0.5*0.6,0.5*0.6, radians(90), 0.5)</init_states>

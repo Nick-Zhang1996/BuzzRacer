@@ -17,7 +17,7 @@ class TofLocalizationPf(Extension):
         assert(isinstance(self.main.track, RCPTrack))
         # Cars for which Tof localization is enabled
         self.car_ids = [0]
-        self.particle_count = 50
+        self.particle_count = 100
 
     def time(self):
         if (self.main.experiment_type == ExperimentType.Simulation):
@@ -176,12 +176,14 @@ class ParticleFilter():
         self.P = None
         self.var = 0.00025
         # Dynamics noise, normalized by time
-        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/10000
-        self.action_cov_mtx = np.diag([0.1] * m)/100
+        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/100
+        # self.q = np.diag([0.5, 0.5, radians(5), 0.25, 0.25, radians(5)])/10
+
+        self.action_cov_mtx = np.diag([0.1] * m)/1000
         self.dynamics = dynamics
 
         # Measurement error, dim: (h, h)
-        self.R = np.diag([0.1] * h)/100
+        self.R = np.diag([0.05] * h)
         
         # offset from car cg to tof sensor in each direction
         self.car_x_offset = 0.04
@@ -294,10 +296,10 @@ class ParticleFilter():
     def getTofRange(self,state):
         x,y,d,*_ = state
 
-        front = self.tof_simulator.getTofReading((x,y), d,self.car_x_offset)
-        left = self.tof_simulator.getTofReading((x,y), d + np.pi/2,self.car_y_offset)
-        right = self.tof_simulator.getTofReading((x,y), d - np.pi/2,self.car_y_offset)
-        rear = self.tof_simulator.getTofReading((x,y), d + np.pi,self.car_x_offset)
+        front = self.tof_simulator.getTofReading((x,y), d)
+        left = self.tof_simulator.getTofReading((x,y), d + np.pi/2)
+        right = self.tof_simulator.getTofReading((x,y), d - np.pi/2)
+        rear = self.tof_simulator.getTofReading((x,y), d + np.pi)
 
         tof_range = np.array([front, left, right, rear]).reshape((self.measure_dim,1))
         # print(tof_range.flatten())
@@ -306,7 +308,7 @@ class ParticleFilter():
     def resampleParticles(self):
         ess = 1.0 / np.sum(self.weights ** 2)
 
-        ess_threshold = 0.25 * len(self.particle_array)
+        ess_threshold = 0.40 * len(self.particle_array)
 
         if ess < ess_threshold:
         # if True:
