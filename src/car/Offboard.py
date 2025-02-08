@@ -1,17 +1,17 @@
 # code to communicate with offboard miniz
 # An updated version of this file can be found at:
-# https://github.com/Nick-Zhang1996/miniz-board/blob/main/Offboard.py
-from common import *
-import socket
-from struct import pack, unpack
-import numpy as np
-#from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
-from time import  time,sleep,time_ns
-from math import degrees,radians
-
-from threading import Thread,Event,Lock
-import select
 import queue
+import select
+import socket
+from math import degrees, radians
+from struct import pack, unpack
+from threading import Event, Lock, Thread
+from time import sleep, time, time_ns
+
+import numpy as np
+
+from common import *
+
 from .Car import Car
 
 # NOTE ideas to try for performance
@@ -79,7 +79,7 @@ class OffboardPacket(PrintObject):
         uint16_t right_lidar;
         """
 
-        self.seq_no,self.ts, self.dest_addr, self.src_addr, self.type, self.subtype, self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('IIBBBBhhhh',header)
+        self.seq_no,self.ts, self.dest_addr, self.src_addr, self.type, self.subtype = unpack('IIBBBB',header)
 
         if (self.type == 0):
             # ping packet
@@ -89,13 +89,16 @@ class OffboardPacket(PrintObject):
             elif (self.subtype == 1):
                 # ping response
                 pass
+            
         if (self.type == 1):
             self.throttle,self.steering = unpack('ff',packet[20:28])
 
         # sensor update
         if (self.type == 2):
-            self.steering_requested,self.steering_measured = unpack('ff',packet[20:28])
-            #self.print_info('sensor update',self.steering_requested, self.steering_measured)
+            if (self.subtype == 0):
+                self.steering_requested,self.steering_measured = unpack('ff',packet[20:28])
+            elif (self.subtype == 1):
+                self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('hhhh', packet[20:28])
 
         # parameter
         if (self.type == 3):
@@ -110,6 +113,7 @@ class OffboardPacket(PrintObject):
                 self.steering_P = steering_P
                 self.steering_I = steering_I
                 self.steering_D = steering_D
+                
         return self.type
 
 class Offboard(Car):
