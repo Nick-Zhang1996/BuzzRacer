@@ -3,12 +3,10 @@
 import queue
 import select
 import socket
-from math import degrees, radians
 from struct import pack, unpack
-from threading import Event, Lock, Thread
-from time import sleep, time, time_ns
+from threading import Event, Thread
+from time import time_ns
 
-import numpy as np
 
 from common import *
 
@@ -54,7 +52,7 @@ class OffboardPacket(PrintObject):
         # f: float (4 Byte)
         # d: double (8 Byte)
         # x: padding (1 Byte)
-        header = pack('IIBBBBhhhh',self.seq_no,self.ts,self.dest_addr,self.src_addr,self.type,self.subtype, 0, 0, 0, 0)
+        header = pack('IIBBBB',self.seq_no,self.ts,self.dest_addr,self.src_addr,self.type,self.subtype)
         padding_size = OffboardPacket.packet_size - len(header) - len(self.payload)
         padding = pack('x'*padding_size)
         self.packet = header+self.payload+padding
@@ -63,23 +61,11 @@ class OffboardPacket(PrintObject):
 
     def parsePacket(self):
         packet = self.packet
-        header = packet[:20]
 
-        """
-        uint32_t seq_no;
-        uint32_t ts;
-        uint8_t dest_addr;
-        uint8_t src_addr;
-        uint8_t type;
-        uint8_t sub_type;
-        
-        uint16_t front_lidar;
-        uint16_t back_lidar;
-        uint16_t left_lidar;
-        uint16_t right_lidar;
-        """
+        HEADER_LEN = 12
+        header = packet[:HEADER_LEN]
 
-        self.seq_no,self.ts, self.dest_addr, self.src_addr, self.type, self.subtype = unpack('IIBBBB',header)
+        self.seq_no, self.ts, self.dest_addr, self.src_addr, self.type, self.subtype = unpack('IIBBBB',header)
 
         if (self.type == 0):
             # ping packet
@@ -91,19 +77,19 @@ class OffboardPacket(PrintObject):
                 pass
             
         if (self.type == 1):
-            self.throttle,self.steering = unpack('ff',packet[20:28])
+            self.throttle,self.steering = unpack('ff',packet[HEADER_LEN:HEADER_LEN + 8])
 
         # sensor update
         if (self.type == 2):
             if (self.subtype == 0):
-                self.steering_requested,self.steering_measured = unpack('ff',packet[20:28])
+                self.steering_requested,self.steering_measured = unpack('ff',packet[HEADER_LEN:HEADER_LEN + 8])
             elif (self.subtype == 1):
-                self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('hhhh', packet[20:28])
+                self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('hhhh', packet[HEADER_LEN:HEADER_LEN + 8])
 
         # parameter
         if (self.type == 3):
             if (self.subtype == 0):
-                sensor_update,steering_P,steering_I,steering_D = unpack('?fff',packet[20:20+4+3*4])
+                sensor_update,steering_P,steering_I,steering_D = unpack('?fff',packet[HEADER_LEN:HEADER_LEN+4+3*4])
                 self.print_info('parameter response')
                 self.print_info('sensor_update ', sensor_update)
                 self.print_info('steering_P ', steering_P)
@@ -181,7 +167,7 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.10.100"
+        self.local_ip = "192.168.10.101"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -286,10 +272,10 @@ class Offboard(Car):
         self.last_response_ts = int(time_ns() / 1000) % 4294967295
 
         # sensor update
-        if (packet_type == 2):
-            self.log_t_vec.append(time())
-            self.steering_requested_vec.append(packet.steering_requested)
-            self.steering_measured_vec.append(packet.steering_measured)
+        # if (packet_type == 2):
+        #     self.log_t_vec.append(time())
+        #     self.steering_requested_vec.append(packet.steering_requested)
+        #     self.steering_measured_vec.append(packet.steering_measured)
 
         self.last_packet = packet
             

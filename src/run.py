@@ -1,20 +1,16 @@
 # universal entry point for running the car
-from common import *
-from threading import Event,Lock
-from math import pi,radians,degrees
-from time import time,sleep
-
-from util.timeUtil import execution_timer
-from track import TrackFactory
+import os
+import os.path
+import sys
+from threading import Event
+from time import time
+from xml.dom import minidom
 
 from car.Car import Car
+from common import *
+from track import TrackFactory
+from util.timeUtil import execution_timer
 
-from xml.dom import minidom
-import xml.etree.ElementTree as ET
-
-import sys
-import os.path
-import os
 os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
 
 class Main(PrintObject,LogObject):
@@ -136,11 +132,15 @@ class Main(PrintObject,LogObject):
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
     # client (this function) need to unset that event
     def update(self,):
+        # self.print_debug_enable()
+        self.print_debug("enter update loop")
+
         t = self.timer
         # -- Extension update -- 
         t.s()
         for item in self.extensions:
             t.s(item.name)
+            self.print_debug(f"preupdate {item.name}")
             item.preUpdate()
             t.e(item.name)
 

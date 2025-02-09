@@ -48,18 +48,21 @@ class TofLocalizationPf(Extension):
             action = (car.steering, car.throttle)
             car.tof_pf.predict(action,timestamp=t)
             # NOTE: coordinate definition: x = forward in car fixed body frame
-        # self.main.new_state_update.set()
+
+        self.main.new_state_update.set()
 
     def update(self):
         for car_id in self.car_ids:
             car = self.main.cars[car_id]
             self.tofReadingUpdateCallback(car,self.main.track)
-            self.main.new_state_update.set()
+
+        self.main.new_state_update.set()
         # self.visualizer.update_plot()
 
     def tofReadingUpdateCallback(self, car, track, timestamp=None):
         if timestamp is None:
             timestamp = self.time()
+            
         car.tof_pf.update(car.tof_measurement, self.main.track, timestamp)
 
     # def drawDebug(self):
