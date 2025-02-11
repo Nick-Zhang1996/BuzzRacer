@@ -24,7 +24,7 @@
       <name>2002 toyota corolla 3 previous owners 4 accidents rebuilt title $7000 obo</name>
       <hardware>Offboard</hardware>
       <config_name>amz_lidar</config_name>
-      <controller max_speed='0' horizon='30'>
+      <controller max_speed='0.5' horizon='30'>
         <type>StanleyCarController</type>
         <init_states>(0.5*0.6,0.5*0.6, radians(90), 0.5)</init_states>
       </controller>

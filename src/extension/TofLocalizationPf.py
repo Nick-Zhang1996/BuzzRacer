@@ -179,7 +179,7 @@ class ParticleFilter():
         self.P = None
         self.var = 0.00025
         # Dynamics noise, normalized by time
-        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/100
+        self.q = np.diag([0.5, 0.5, radians(10), 0.5, 0.5, radians(10)])/1000
         # self.q = np.diag([0.5, 0.5, radians(5), 0.25, 0.25, radians(5)])/10
 
         self.action_cov_mtx = np.diag([0.1] * m)/1000
