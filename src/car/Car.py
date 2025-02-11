@@ -218,13 +218,13 @@ class Car(PrintObject, LogObject):
         }
 
         amz_lidar = {
-            "ip": "192.168.10.100",
+            "ip": "192.168.10.14",
             "max_steering_left": radians(20),
             "max_steering_right": radians(20),
             "max_throttle": 1.0,
             "min_throttle": -1.0,
             "rendering": "data/porsche_blue.png",
-            "optitrack_streaming_id": "placeholder",
+            "optitrack_streaming_id": 1007,
         }
 
         car.params = eval(config_name)
