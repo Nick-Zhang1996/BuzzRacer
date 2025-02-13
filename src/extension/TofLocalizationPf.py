@@ -288,13 +288,12 @@ class ParticleFilter():
 
         residuals = measurements - predicted_measurements
         self.weights = np.exp(-0.5 * np.sum(residuals @ R_inv * residuals, axis=1)) / normalizing_factor
-        # if self.weights > 0:
-        if True:
+        if np.sum(self.weights) > 0:
             self.weights /= np.sum(self.weights)
         # TODO: numerical instability / degenerate case?
-        # else:
-        #     print('degenerate!')
-        #     self.weights = np.ones(len(self.weights)) / len(self.weights)
+        else:
+            print('degenerate!')
+            self.weights = np.ones(len(self.weights)) / len(self.weights)
 
     def getTofRange(self,state):
         x,y,d,*_ = state
