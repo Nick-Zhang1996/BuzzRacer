@@ -1,8 +1,7 @@
 from common import *
-from math import isnan,pi,degrees,radians,sin,cos
+from math import isnan,pi,sin,cos
 from controller.CarController import CarController
 from controller.PidController import PidController
-from planner import Planner
 
 class StanleyCarController(CarController):
     def __init__(self, car,config):
@@ -11,7 +10,7 @@ class StanleyCarController(CarController):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.use_ekf = False
-        self.use_pf = True
+        self.use_pf = False 
 
         # load config etc
         super().__init__(car,config)
