@@ -84,7 +84,7 @@ class OffboardPacket(PrintObject):
             if (self.subtype == 0):
                 self.steering_requested,self.steering_measured = unpack('ff',packet[HEADER_LEN:HEADER_LEN + 8])
             elif (self.subtype == 1):
-                self.lidar_front, self.lidar_back, self.lidar_left, self.lidar_right = unpack('hhhh', packet[HEADER_LEN:HEADER_LEN + 8])
+                self.lidar_front, self.lidar_left, self.lidar_right, self.lidar_back = unpack('hhhh', packet[HEADER_LEN:HEADER_LEN + 8])
 
         # parameter
         if (self.type == 3):
@@ -167,9 +167,12 @@ class Offboard(Car):
         self.setup()
 
     def initSocket(self):
-        self.local_ip = "192.168.10.101"
+        self.local_ip = "192.168.10.100"
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
+
+        print(f"binding to port {self.local_ip} on port {self.local_port}")
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # non-blocking
         sock.setblocking(0)
