@@ -14,3 +14,5 @@ __pycache__/
 tags
 *.mp4
 nohup.out
+
+src/configs/**/exp*.xml
