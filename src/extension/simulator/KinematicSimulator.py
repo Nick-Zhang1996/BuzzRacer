@@ -1,18 +1,19 @@
 # refer to paper
 # The Kinematic Bicycle Model: a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles?
+from threading import Event
+from common import *
+from math import radians
+import numpy as np
+from extension import Simulator
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from extension import Simulator
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
 
-import numpy as np
-from math import radians
-from common import *
-from threading import Event
 
 class KinematicSimulator(Simulator):
 
-    def __init__(self,main):
+    def __init__(self, main):
         super().__init__(main)
 
         # for when a specific car instance is not speciied
@@ -33,23 +34,22 @@ class KinematicSimulator(Simulator):
 
     # add a car to be KinematicSimulator
     # car needs to have .lf, .lr, .L .states (x,y,heading,v_forward,v_sideways,omega)
-    def addCar(self,car):
-        x,y,heading,v_forward,v_sideways,omega = car.states
+    def addCar(self, car):
+        x, y, heading, v_forward, v_sideways, omega = car.states
         return
 
-
     @staticmethod
-    def advanceDynamics(car_states,control, car):
-        ''' advance dynamics using kinematics model '''
+    def advanceDynamics(car_states, control, car):
+        """advance dynamics using kinematics model."""
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
-        
+
         '''
         throttle = np.clip(throttle, -1.0, 1.0)
         steering = np.clip(throttle, -radians(27), radians(27))
         '''
-        x,y,heading,v_forward,v_sideway,omega = car_states
+        x, y, heading, v_forward, v_sideway, omega = car_states
         v = v_forward
         # slow down if car is in collision
         '''
@@ -59,9 +59,9 @@ class KinematicSimulator(Simulator):
         throttle = control[1]
         steering = control[0]
 
-        beta = np.arctan( np.tan(steering) * lr / (lf+lr))
-        dXdt = v * np.cos( heading + beta )
-        dYdt = v * np.sin( heading + beta )
+        beta = np.arctan(np.tan(steering) * lr / (lf+lr))
+        dXdt = v * np.cos(heading + beta)
+        dYdt = v * np.sin(heading + beta)
         try:
             if KinematicSimulator.simple_throttle_model:
                 if (v > KinematicSimulator.max_v):
@@ -69,9 +69,9 @@ class KinematicSimulator(Simulator):
                 else:
                     dvdt = throttle
             else:
-                dvdt = 6.17*(throttle - v/15.2 -0.333)
+                dvdt = 6.17*(throttle - v/15.2 - 0.333)
         except AttributeError:
-            dvdt = 6.17*(throttle - v/15.2 -0.333)
+            dvdt = 6.17*(throttle - v/15.2 - 0.333)
         omega = dheadingdt = v/lr*np.sin(beta)
 
         x += dt * dXdt
@@ -81,7 +81,8 @@ class KinematicSimulator(Simulator):
 
         v_forward = v
         v_sideway = 0
-        car_states = x,y,heading,v_forward,v_sideway,omega
+        car_states = x, y, heading, v_forward, v_sideway, omega
         return np.array(car_states)
+
 
 KinematicSimulator.simple_throttle_model = False

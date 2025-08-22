@@ -54,8 +54,9 @@ def prepare_data():
     wR2 = states[4:5, N0:Nf - 1:25]
     throttle2 = controls[1:, N0:Nf - 1:25]
 
-    training_inputs = np.hstack((np.vstack((throttle1[0,:-1], wR1[0,:-1])), np.vstack((throttle2[0,:-1], wR2[0,:-1]))))
-    training_outputs = np.hstack((wR1[0,1:], wR2[0,1:])).reshape((1,-1))
+    training_inputs = np.hstack((np.vstack(
+        (throttle1[0, :-1], wR1[0, :-1])), np.vstack((throttle2[0, :-1], wR2[0, :-1]))))
+    training_outputs = np.hstack((wR1[0, 1:], wR2[0, 1:])).reshape((1, -1))
 
     return training_inputs, training_outputs
 
@@ -82,13 +83,13 @@ def train_model():
 
     dyn_model.load_state_dict(torch.load('throttle_model2.pth'))
     dwR = dyn_model(input_tensor)
-    wR = dwR * 0.25 + input_tensor[:,1:]
+    wR = dwR * 0.25 + input_tensor[:, 1:]
     # print(deltas)
     wR = wR.detach().numpy()
     plt.figure()
     N = len(wR)
     time = np.arange(N)
-    plt.plot(time, training_outputs[0,:], '.')
+    plt.plot(time, training_outputs[0, :], '.')
     plt.plot(time, wR, '.')
     plt.show()
 
@@ -110,10 +111,11 @@ def run_model():
     state1 = wR[:, 0:1]
     for ii in range(len(time)):
         nn_states[ii] = state1
-        input_tensor = torch.from_numpy(np.hstack((throttle[:,ii:ii+1], state1))).float()
+        input_tensor = torch.from_numpy(
+            np.hstack((throttle[:, ii:ii+1], state1))).float()
         state1 += dyn_model(input_tensor).detach().numpy() * 0.01
     plt.figure()
-    plt.plot(time, wR[0,:])
+    plt.plot(time, wR[0, :])
     plt.plot(time, nn_states)
     # plt.plot(time, throttle.T)
     plt.xlabel('time')
@@ -133,7 +135,8 @@ def run_model():
     state1 = wR[:, 2:3].copy()
     for ii in range(len(time)):
         nn_states[ii] = state1.copy()
-        input_tensor = torch.from_numpy(np.hstack((throttle[:, ii:ii + 1], state1))).float()
+        input_tensor = torch.from_numpy(
+            np.hstack((throttle[:, ii:ii + 1], state1))).float()
         state1 += dyn_model(input_tensor).detach().numpy() * 0.01
     plt.figure()
     plt.plot(time[2:], wR[0, 2:])
@@ -176,7 +179,8 @@ def run_model():
     state1 = wR[:, 2:3].copy()
     for ii in range(len(time)):
         nn_states[ii] = state1.copy()
-        input_tensor = torch.from_numpy(np.hstack((throttle[:, ii:ii + 1], state1/factor))).float()
+        input_tensor = torch.from_numpy(
+            np.hstack((throttle[:, ii:ii + 1], state1/factor))).float()
         state1 += dyn_model(input_tensor).detach().numpy() * 0.01
     plt.figure()
     plt.plot(time[2:], wR[0, 2:])
@@ -194,20 +198,21 @@ def run_model():
     # plt.plot(time[200:], (nn_states[200:]))
     # plt.show()
 
+
 def update_dynamics(state, input, nn=None):
-    m_Vehicle_m = 21.7562#1270
-    m_Vehicle_Iz = 1.124#2000
-    m_Vehicle_lF = 0.34#1.015
-    lFR = 0.57#3.02
+    m_Vehicle_m = 21.7562  # 1270
+    m_Vehicle_Iz = 1.124  # 2000
+    m_Vehicle_lF = 0.34  # 1.015
+    lFR = 0.57  # 3.02
     m_Vehicle_lR = lFR-m_Vehicle_lF
-    m_Vehicle_IwF = 0.1#8
+    m_Vehicle_IwF = 0.1  # 8
     m_Vehicle_IwR = .0373
-    m_Vehicle_rF = 0.095#0.325
-    m_Vehicle_rR = 0.090#0.325
-    m_Vehicle_h = 0.12#.54
+    m_Vehicle_rF = 0.095  # 0.325
+    m_Vehicle_rR = 0.090  # 0.325
+    m_Vehicle_h = 0.12  # .54
     m_g = 9.80665
 
-    tire_B = 4.0#10
+    tire_B = 4.0  # 10
     tire_C = 1.0
     tire_D = 1.0
     tire_E = 1.0
@@ -246,19 +251,23 @@ def update_dynamics(state, input, nn=None):
     vRy = vy - wz * m_Vehicle_lR
 
     sEF = -(vFx - wF * m_Vehicle_rF) / (vFx) + tire_Sh
-    muFx = tire_D * sin(tire_C * atan(tire_B * sEF - tire_E * (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
+    muFx = tire_D * sin(tire_C * atan(tire_B * sEF - tire_E *
+                        (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
     sEF = -(vRx - wR * m_Vehicle_rR) / (vRx) + tire_Sh
-    muRx = tire_D * sin(tire_C * atan(tire_B * sEF - tire_E * (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
+    muRx = tire_D * sin(tire_C * atan(tire_B * sEF - tire_E *
+                        (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
 
     sEF = atan(vFy / abs(vFx)) + tire_Sh
     alpha = -sEF
-    muFy = -tire_D * sin(tire_C * atan(tire_B * sEF - tire_E * (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
+    muFy = -tire_D * sin(tire_C * atan(tire_B * sEF - tire_E *
+                         (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
     sEF = atan(vRy / abs(vRx)) + tire_Sh
     alphaR = -sEF
-    muRy = -tire_D * sin(tire_C * atan(tire_B * sEF - tire_E * (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
+    muRy = -tire_D * sin(tire_C * atan(tire_B * sEF - tire_E *
+                         (tire_B * sEF - atan(tire_B * sEF)))) + tire_Sv
 
     fFz = m_Vehicle_m * m_g * (m_Vehicle_lR - m_Vehicle_h * muRx) / (
-            m_Vehicle_lF + m_Vehicle_lR + m_Vehicle_h * (muFx * cos(delta) - muFy * sin(delta) - muRx))
+        m_Vehicle_lF + m_Vehicle_lR + m_Vehicle_h * (muFx * cos(delta) - muFy * sin(delta) - muRx))
     # fFz = m_Vehicle_m * m_g * (m_Vehicle_lR / 0.57)
     fRz = m_Vehicle_m * m_g - fFz
 
@@ -269,15 +278,18 @@ def update_dynamics(state, input, nn=None):
 
     ax = ((fFx * cos(delta) - fFy * sin(delta) + fRx) / m_Vehicle_m + vy * wz)
 
-    dot_X =cos(psi)*vx - sin(psi)*vy
+    dot_X = cos(psi)*vx - sin(psi)*vy
     dot_Y = sin(psi)*vx + cos(psi)*vy
 
     next_state = zeros_like(state)
-    next_state[:, 0] = vx + deltaT * ((fFx * cos(delta) - fFy * sin(delta) + fRx) / m_Vehicle_m + vy * wz)
-    next_state[:, 1] = vy + deltaT * ((fFx * sin(delta) + fFy * cos(delta) + fRy) / m_Vehicle_m - vx * wz)
-    next_state[:, 1] = vy + deltaT * ((fFx * sin(delta) + fFy * cos(delta) + fRy) / m_Vehicle_m - vx * wz)
+    next_state[:, 0] = vx + deltaT * \
+        ((fFx * cos(delta) - fFy * sin(delta) + fRx) / m_Vehicle_m + vy * wz)
+    next_state[:, 1] = vy + deltaT * \
+        ((fFx * sin(delta) + fFy * cos(delta) + fRy) / m_Vehicle_m - vx * wz)
+    next_state[:, 1] = vy + deltaT * \
+        ((fFx * sin(delta) + fFy * cos(delta) + fRy) / m_Vehicle_m - vx * wz)
     next_state[:, 2] = wz + deltaT * (
-                (fFy * cos(delta) + fFx * sin(delta)) * m_Vehicle_lF - fRy * m_Vehicle_lR) / m_Vehicle_Iz
+        (fFy * cos(delta) + fFx * sin(delta)) * m_Vehicle_lF - fRy * m_Vehicle_lR) / m_Vehicle_Iz
     next_state[:, 3] = wF - deltaT * m_Vehicle_rF / m_Vehicle_IwF * fFx
     input_tensor = torch.from_numpy(np.hstack((T, wR))).float()
     next_state[:, 4] = wR + deltaT * (nn(input_tensor).detach().numpy())
@@ -364,7 +376,7 @@ def run_full_model():
         # state2[:, 0:2] = states[ii, 0:2]
     plt.figure()
     for ii in range(states.shape[1]):
-        plt.subplot(4,2,ii+1)
+        plt.subplot(4, 2, ii+1)
         plt.plot(time, states[:, ii])
         # plt.plot(time, analytic_states[:, ii])
         plt.plot(time, nn_states[:, ii])
@@ -375,9 +387,9 @@ def run_full_model():
 def trace_model():
     dyn_model = Net()
     dyn_model.load_state_dict(torch.load('throttle_model1.pth'))
-    sample = torch.zeros((1,2))
-    sample[0,0] = 0.5
-    sample[0,1] = 50
+    sample = torch.zeros((1, 2))
+    sample[0, 0] = 0.5
+    sample[0, 1] = 50
     traced_script_module = torch.jit.trace(dyn_model, sample)
     # traced_script_module.save('traced_throttle_model.pt')
     traced_script_module(sample)

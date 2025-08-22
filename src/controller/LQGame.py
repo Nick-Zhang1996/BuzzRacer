@@ -1,6 +1,7 @@
 import numpy as np
 from util.timeUtil import execution_timer
 
+
 def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     '''
     solve a linear quadratic game defined as follows:
@@ -42,22 +43,22 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     N = len(Bs)
     n = As[0].shape[0]
     m = Bs[0][0].shape[1]
-    assert(As[0].shape == (n,n))
-    assert(Bs[0][0].shape == (n,m))
-    assert(Qs[0][0].shape == (n,n))
-    assert(qs[0][0].shape == (n,1))
-    assert(Rs[0][0].shape == (m,m))
-    assert(rs[0][0].shape == (m,1))
-    assert(len(Bs) == N)
-    assert(len(Bs[0]) == (K+1))
-    assert(len(Qs) == N)
-    assert(len(Qs[0]) == (K+1))
-    assert(len(qs) == N)
-    assert(len(qs[0]) == (K+1))
-    assert(len(Rs) == N)
-    assert(len(Rs[0]) == (K+1))
-    assert(len(rs) == N)
-    assert(len(rs[0]) == (K+1))
+    assert (As[0].shape == (n, n))
+    assert (Bs[0][0].shape == (n, m))
+    assert (Qs[0][0].shape == (n, n))
+    assert (qs[0][0].shape == (n, 1))
+    assert (Rs[0][0].shape == (m, m))
+    assert (rs[0][0].shape == (m, 1))
+    assert (len(Bs) == N)
+    assert (len(Bs[0]) == (K+1))
+    assert (len(Qs) == N)
+    assert (len(Qs[0]) == (K+1))
+    assert (len(qs) == N)
+    assert (len(qs[0]) == (K+1))
+    assert (len(Rs) == N)
+    assert (len(Rs[0]) == (K+1))
+    assert (len(rs) == N)
+    assert (len(rs[0]) == (K+1))
     A = As
     B = Bs
     Q = Qs
@@ -69,63 +70,64 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     # Vk(x) = 1/2 x.T @ Q_bar_k x + L_bar_k @ x + C_bar_k
 
     # corresponds to Q_bar_{k+1} in derivation
-    Q_bar = [np.zeros((n,n)) for i in range(N)]
-    L_bar = [np.zeros((1,n)) for i in range(N)]
-    C_bar = [np.zeros((1,1)) for i in range(N)]
+    Q_bar = [np.zeros((n, n)) for i in range(N)]
+    L_bar = [np.zeros((1, n)) for i in range(N)]
+    C_bar = [np.zeros((1, 1)) for i in range(N)]
 
     vs = []
     Ps = []
     t.e('setup')
 
-    for k in range(K,-1,-1):
+    for k in range(K, -1, -1):
         # v = [v1_k, v2_k, ..., vN_k] (N*m * 1 vector)
         # Av @ v = bv
         # construct Av, bv
         t.s('Avbv')
-        Av = np.zeros((N*m,N*m))
-        bv = np.zeros((N*m,1))
-        for i in range(0,N):
+        Av = np.zeros((N*m, N*m))
+        bv = np.zeros((N*m, 1))
+        for i in range(0, N):
             # Q,q corresbonds to Q+, q+ in derivation, due to index starting from 1
             # we use Q[i][k] for Q+_i
             # Av_i @ v_i + sum Av_j @ v_j = bv_i
-            Av_i = R[i][k] + B[i][k].T @ Q[i][k] @ B[i][k] + B[i][k].T @ Q_bar[i] @ B[i][k]
-            Av[i*m:(i+1)*m,i*m:(i+1)*m] = Av_i
-            bv_i = - ( B[i][k].T @ q[i][k] + r[i][k] + B[i][k].T @ L_bar[i].T )
+            Av_i = R[i][k] + B[i][k].T @ Q[i][k] @ B[i][k] + \
+                B[i][k].T @ Q_bar[i] @ B[i][k]
+            Av[i*m:(i+1)*m, i*m:(i+1)*m] = Av_i
+            bv_i = - (B[i][k].T @ q[i][k] + r[i][k] + B[i][k].T @ L_bar[i].T)
             bv[i*m:(i+1)*m] = bv_i
-            for j in range(0,N):
-                if (j==i):
+            for j in range(0, N):
+                if (j == i):
                     continue
                 Av_j = B[i][k].T @ (Q[i][k] + Q_bar[i]) @ B[j][k]
-                Av[i*m:(i+1)*m,j*m:(j+1)*m] = Av_j
-            #TODO check that only the first i*m rows are non-zero
+                Av[i*m:(i+1)*m, j*m:(j+1)*m] = Av_j
+            # TODO check that only the first i*m rows are non-zero
         t.e('Avbv')
 
         # P = np.vstack([P1_k, P2_k, .. PN_k]) (m*N * n matrix)
         # Ap @ P = bp
         # NOTE Ap = -Av
         t.s('bp')
-        #Ap = np.zeros((m*N,m*N))
+        # Ap = np.zeros((m*N,m*N))
         Ap = -Av
-        bp = np.zeros((m*N,n))
-        for i in range(0,N):
-            #Ap_i = -( R[i][k] + B[i][k].T @ Q[i][k] @ B[i][k] + B[i][k].T @ Q_bar[i] @ B[i][k] )
-            #Ap[i*m:(i+1)*m,i*m:(i+1)*m] = Ap_i
-            bp_i = - ( B[i][k].T @ (Q[i][k]+Q_bar[i]) @ A[k] )
+        bp = np.zeros((m*N, n))
+        for i in range(0, N):
+            # Ap_i = -( R[i][k] + B[i][k].T @ Q[i][k] @ B[i][k] + B[i][k].T @ Q_bar[i] @ B[i][k] )
+            # Ap[i*m:(i+1)*m,i*m:(i+1)*m] = Ap_i
+            bp_i = - (B[i][k].T @ (Q[i][k]+Q_bar[i]) @ A[k])
             bp[i*m:(i+1)*m] = bp_i
-            for j in range(0,N):
-                if (j==i):
+            for j in range(0, N):
+                if (j == i):
                     continue
-                #Ap_j = -(B[i][k].T @ (Q_bar[i]+Q[i][k]) @ B[j][k])
-                #Ap[i*m:(i+1)*m,j*m:(j+1)*m] = Ap_j
-            #TODO check that only the first i*m rows are non-zero
+                # Ap_j = -(B[i][k].T @ (Q_bar[i]+Q[i][k]) @ B[j][k])
+                # Ap[i*m:(i+1)*m,j*m:(j+1)*m] = Ap_j
+            # TODO check that only the first i*m rows are non-zero
         t.e('bp')
         t.s('lsqsq')
         v_k, residuals_v, rank_v, s_v = np.linalg.lstsq(a=Av, b=bv, rcond=None)
         P_k, residuals_p, rank_p, s_p = np.linalg.lstsq(a=Ap, b=bp, rcond=None)
         t.e('lsqsq')
 
-        v_k = v_k.reshape(N,m)
-        P_k = P_k.reshape(N,m,n)
+        v_k = v_k.reshape(N, m)
+        P_k = P_k.reshape(N, m, n)
 
         vs.append(v_k)
         Ps.append(P_k)
@@ -134,31 +136,32 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
         Fk = (A[k] - sum([B[j][k] @ P_k[j] for j in range(N)]))
         Mk = sum([B[j][k] @ v_k[j] for j in range(N)])
         # update Q_bar, L_bar,C_bar for backpropagate value function
-        temp_Q = sum([P_k[j].T @ R[j][k] @ P_k[j] for j in range(N)]) 
-        temp_L = sum([v_k[j].T @ R[j][k] @ P_k[j] + r[j][k].T @ P_k[j] for j in range(N)])
-        for i in range(0,N):
+        temp_Q = sum([P_k[j].T @ R[j][k] @ P_k[j] for j in range(N)])
+        temp_L = sum([v_k[j].T @ R[j][k] @ P_k[j] + r[j][k].T @ P_k[j]
+                     for j in range(N)])
+        for i in range(0, N):
             # value due to V(k+1,x+)
             Qv = Fk.T @ Q_bar[i] @ Fk
             Lv = Mk.T @ Q_bar[i] @ Fk + L_bar[i] @ Fk
-            #Cv = 0.5*Mk.T @ Q_bar[i] @ Mk + L_bar[i] @ Mk + C_bar[i]
-            #Cv = Cv.reshape(1,1)
+            # Cv = 0.5*Mk.T @ Q_bar[i] @ Mk + L_bar[i] @ Mk + C_bar[i]
+            # Cv = Cv.reshape(1,1)
 
             # value due to g(k,x+,u)
-            #Qg = Fk.T @ Q[i][k] @ Fk + sum([P_k[j].T @ R[j][k] @ P_k[j] for j in range(N)]) 
-            #Lg = Mk.T @ Q[i][k] @ Fk + q[i][k].T @ Fk - sum([v_k[j].T @ R[j][k] @ P_k[j] + r[j][k].T @ P_k[j] for j in range(N)])
-            #Cg = 0.5*Mk.T @ Q[i][k] @ Mk + q[i][k].T @ Mk + 0.5*sum([v_k[j].T @ R[j][k] @ v_k[j] + 2*r[j][k].T @ v_k[j] for j in range(N)])
-            #Cg = Cg.reshape(1,1)
+            # Qg = Fk.T @ Q[i][k] @ Fk + sum([P_k[j].T @ R[j][k] @ P_k[j] for j in range(N)])
+            # Lg = Mk.T @ Q[i][k] @ Fk + q[i][k].T @ Fk - sum([v_k[j].T @ R[j][k] @ P_k[j] + r[j][k].T @ P_k[j] for j in range(N)])
+            # Cg = 0.5*Mk.T @ Q[i][k] @ Mk + q[i][k].T @ Mk + 0.5*sum([v_k[j].T @ R[j][k] @ v_k[j] + 2*r[j][k].T @ v_k[j] for j in range(N)])
+            # Cg = Cg.reshape(1,1)
 
             Qg = Fk.T @ Q[i][k] @ Fk + temp_Q
             Lg = Mk.T @ Q[i][k] @ Fk + q[i][k].T @ Fk - temp_L
 
             Q_bar[i] = Qv + Qg
             L_bar[i] = Lv + Lg
-            #C_bar[i] = Cv + Cg
+            # C_bar[i] = Cv + Cg
 
-            assert(Q_bar[i].shape == (n,n))
-            assert(L_bar[i].shape == (1,n))
-            assert(C_bar[i].shape == (1,1))
+            assert (Q_bar[i].shape == (n, n))
+            assert (L_bar[i].shape == (1, n))
+            assert (C_bar[i].shape == (1, 1))
         t.e('value fun')
 
     t.s('reorder')
@@ -167,11 +170,11 @@ def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):
     # after: vs[i][k] => vi_k
     new_vs = []
     new_Ps = []
-    for i in range(0,N):
+    for i in range(0, N):
         v_i = []
         P_i = []
         for k in range(K+1):
-            v_i.append(vs[K-k][i].reshape(m,1))
+            v_i.append(vs[K-k][i].reshape(m, 1))
             P_i.append(Ps[K-k][i])
         new_vs.append(v_i)
         new_Ps.append(P_i)

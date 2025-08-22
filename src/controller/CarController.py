@@ -3,7 +3,9 @@ from common import *
 import numpy as np
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from extension.simulator.DynamicSimulator import DynamicSimulator
-class CarController(ConfigObject,LogObject):
+
+
+class CarController(ConfigObject, LogObject):
     def __init__(self, car, config):
         LogObject.__init__(self)
         self.config = config
@@ -19,6 +21,7 @@ class CarController(ConfigObject,LogObject):
 
     def preInit(self):
         return
+
     def postInit(self):
         return
 
@@ -29,7 +32,7 @@ class CarController(ConfigObject,LogObject):
         return
 
     def final(self):
-        ''' called at end of program, override to show statistics '''
+        """called at end of program, override to show statistics."""
         return
 
     # return control signals
@@ -45,19 +48,21 @@ class CarController(ConfigObject,LogObject):
     def predict(self):
         # DEBUG plotting
         control = np.array((self.car.steering, self.car.throttle))
-        control = np.repeat(np.reshape(control,(1,-1)),self.horizon,0)
+        control = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
         # kinematic
-        expected_trajectory = self.getKinematicTrajectory( self.car.states, control )
+        expected_trajectory = self.getKinematicTrajectory(
+            self.car.states, control)
         self.plotTrajectory(expected_trajectory)
         self.predicted_traj = expected_trajectory
         return self.predicted_traj
 
-    def plotTrajectory(self,trajectory):
+    def plotTrajectory(self, trajectory):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
         img = self.car.main.visualization.visualization_img
         for coord in trajectory:
-            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
+            img = self.car.main.track.drawCircle(
+                img, coord, 0.02, color=(0, 0, 0))
         self.car.main.visualization.visualization_img = img
         return
 
@@ -66,13 +71,16 @@ class CarController(ConfigObject,LogObject):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = KinematicSimulator.advanceDynamics( state, control[i], self.car)
+            state = KinematicSimulator.advanceDynamics(
+                state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)
+
     def getDynamicTrajectory(self, x0, control):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = DynamicSimulator.advanceDynamics( state, control[i], self.car)
+            state = DynamicSimulator.advanceDynamics(
+                state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)

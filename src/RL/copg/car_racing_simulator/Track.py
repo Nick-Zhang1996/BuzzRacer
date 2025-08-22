@@ -1,41 +1,42 @@
+from track.TrackFactory import TrackFactory
 from xml.dom import minidom
 import numpy as np
 from numpy import linalg as LA
 import math
 import torch
 import sys
-sys.path.insert(0,'../..') # inorder to run within the folder
-from track.TrackFactory import TrackFactory
+sys.path.insert(0, '../..')  # inorder to run within the folder
+
 
 class Track:
 
     def __init__(self):
         return
 
-    def loadOrcaTrack(self,config):
+    def loadOrcaTrack(self, config):
         self.path = config['data_dir']
         self.N = config['n_track']
         # ref point location
-        self.X = np.loadtxt(self.path + "x_center.txt")[:, 0]
-        self.Y = np.loadtxt(self.path + "x_center.txt")[:, 1]
+        self.X = np.loadtxt(self.path + 'x_center.txt')[:, 0]
+        self.Y = np.loadtxt(self.path + 'x_center.txt')[:, 1]
         # ??
-        self.s = np.loadtxt(self.path + "s_center.txt")
-        self.phi = np.loadtxt(self.path + "phi_center.txt")
-        self.kappa = np.loadtxt(self.path + "kappa_center.txt")
+        self.s = np.loadtxt(self.path + 's_center.txt')
+        self.phi = np.loadtxt(self.path + 'phi_center.txt')
+        self.kappa = np.loadtxt(self.path + 'kappa_center.txt')
         self.diff_s = np.mean(np.diff(self.s))
 
-        self.d_upper = np.loadtxt(self.path + "con_inner.txt")
-        self.d_lower = np.loadtxt(self.path + "con_outer.txt")
+        self.d_upper = np.loadtxt(self.path + 'con_inner.txt')
+        self.d_lower = np.loadtxt(self.path + 'con_outer.txt')
         self.d_upper[520:565] = np.clip(self.d_upper[520:565], 0.2, 1)
         # self.d_lower[520:565] = np.clip(self.d_lower[520:565], -1, -0.2)
-        self.border_angle_upper = np.loadtxt(self.path + "con_angle_inner.txt")
-        self.border_angle_lower = np.loadtxt(self.path + "con_angle_outer.txt")
+        self.border_angle_upper = np.loadtxt(self.path + 'con_angle_inner.txt')
+        self.border_angle_lower = np.loadtxt(self.path + 'con_angle_outer.txt')
 
     def loadRcpTrack(self):
         config = minidom.parse('config.xml')
-        config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(None,config_track,'full')
-        N,X,Y,s,phi,kappa,diff_s,d_upper,d_lower,border_angle_upper,border_angle_lower = self.track.getOrcaStyleTrack()
+        config_track = config.getElementsByTagName('track')[0]
+        self.track = TrackFactory(None, config_track, 'full')
+        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.getOrcaStyleTrack()
 
         self.N = N
         self.X = X
@@ -73,11 +74,11 @@ class Track:
         else:
             next_index = index + 1
 
-        if name == "s":
+        if name == 's':
             return self.s[index] + (rela_proj * (self.s[next_index] - self.s[index]))
-        if name == "phi":
+        if name == 'phi':
             return self.phi[index] + (rela_proj * (self.phi[next_index] - self.phi[index]))
-        if name == "kappa":
+        if name == 'kappa':
             return self.kappa[index] + (rela_proj * (self.kappa[next_index] - self.kappa[index]))
 
     def fromStoPos(self, s):
@@ -94,7 +95,7 @@ class Track:
             s = s + self.s[-1]
 
         s = max(s, 0)
-        s = min(s, self.s[-1] )
+        s = min(s, self.s[-1])
 
         index = math.floor(s / self.diff_s)
         rela_proj = (s - self.s[index]) / self.diff_s
@@ -108,8 +109,9 @@ class Track:
         mu = x_local[2]
 
         [index, rela_proj] = self.fromStoIndex(s)
-        pos_center = [self.X[index], self.Y[index]] + self.vecTrack(index) * rela_proj
-        phi = self.interpol("phi", index, rela_proj)
+        pos_center = [self.X[index], self.Y[index]] + \
+            self.vecTrack(index) * rela_proj
+        phi = self.interpol('phi', index, rela_proj)
 
         pos_global = pos_center + d * np.array([-np.sin(phi), np.cos(phi)])
         heading = phi + mu
@@ -121,5 +123,3 @@ class Track:
         elif mu > np.pi:
             mu = mu - 2 * np.pi
         return mu
-
-

@@ -2,18 +2,18 @@
 from common import *
 import cv2
 import numpy as np
-from math import cos,sin,pi,atan2,radians,degrees,tan
-from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from math import cos, sin, pi, atan2, radians, degrees, tan
+from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 
 from track.Track import Track
-#from track.car import Car
+# from track.car import Car
+
 
 class Skidpad(Track):
-    def __init__(self,main,config):
-        #super(Skidpad,self).__init__()
-        Track.__init__(self,main,config)
-
+    def __init__(self, main, config):
+        # super(Skidpad,self).__init__()
+        Track.__init__(self, main, config)
 
         # default parameters, to be override
         self.radius = 2.0
@@ -23,13 +23,13 @@ class Skidpad(Track):
         # reference velocity, obsolete
         self.velocity = 1.0
 
-        ConfigObject.__init__(self,config)
+        ConfigObject.__init__(self, config)
 
         # setup
-        theta_vec = np.linspace(0,2*np.pi,1000)
+        theta_vec = np.linspace(0, 2*np.pi, 1000)
         ss = theta_vec*self.radius
         rr = [np.cos(theta_vec)*self.radius, np.sin(theta_vec)*self.radius]
-        tck, u = splprep(rr, u=ss,s=0,per=1) 
+        tck, u = splprep(rr, u=ss, s=0, per=1)
         self.raceline_s = tck
 
         self.raceline_len_m = 2*np.pi*self.radius
@@ -37,12 +37,12 @@ class Skidpad(Track):
         self.start_dir = np.pi/2
         return
 
-    def drawRaceline(self,img):
+    def drawRaceline(self, img):
         return img
 
-    #state: x,y,theta,vf,vs,omega
+    # state: x,y,theta,vf,vs,omega
     # x,y referenced from skidpad frame
-    def localTrajectory(self,state,ccw=True):
+    def localTrajectory(self, state, ccw=True):
         x = state[0]
         y = state[1]
         heading = state[2]
@@ -51,7 +51,7 @@ class Skidpad(Track):
         omega = state[5]
 
         # find the coordinate of center of front axle
-        #wheelbase = 98e-3
+        # wheelbase = 98e-3
         wheelbase = 108e-3
         x += wheelbase*cos(heading)
         y += wheelbase*sin(heading)
@@ -64,8 +64,8 @@ class Skidpad(Track):
             offset = - offset
 
         # find closest point on track
-        phase = atan2(y,x)
-        raceline_point = (self.radius*cos(phase),self.radius*sin(phase))
+        phase = atan2(y, x)
+        raceline_point = (self.radius*cos(phase), self.radius*sin(phase))
 
         # line orientation
         if ccw:
@@ -76,32 +76,37 @@ class Skidpad(Track):
             signed_curvature = -1.0/self.radius
 
         # reference point on raceline,lateral offset, tangent line orientation, curvature(signed)
-        #print(phase,offset)
-        return (raceline_point,offset,raceline_orientation,signed_curvature,self.velocity)
+        # print(phase,offset)
+        return (raceline_point, offset, raceline_orientation, signed_curvature, self.velocity)
 
     # prepare a picture of the track
     def drawTrack(self):
         # resolution : pixels per meter
         res = self.resolution
-        canvas = 255*np.ones([int(res*self.radius*3),int(res*self.radius*3),3],dtype='uint8')
+        canvas = 255*np.ones([int(res*self.radius*3),
+                             int(res*self.radius*3), 3], dtype='uint8')
         self.canvas_size = canvas.shape
-        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int(self.radius*res),(255,0,0),1)
-        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int((self.radius-self.width/2)*res),(255,0,0),3)
-        canvas = cv2.circle(canvas,self.m2canvas((0,0)),int((self.radius+self.width/2)*res),(255,0,0),3)
+        canvas = cv2.circle(canvas, self.m2canvas((0, 0)),
+                            int(self.radius*res), (255, 0, 0), 1)
+        canvas = cv2.circle(canvas, self.m2canvas((0, 0)), int(
+            (self.radius-self.width/2)*res), (255, 0, 0), 3)
+        canvas = cv2.circle(canvas, self.m2canvas((0, 0)), int(
+            (self.radius+self.width/2)*res), (255, 0, 0), 3)
         return canvas
 
 # conver a world coordinate in meters to canvas coordinate
-    def m2canvas(self,coord):
+    def m2canvas(self, coord):
         x_new = int(coord[0]*self.resolution + self.canvas_size[0]/2)
-        y_new = self.canvas_size[1] - int(coord[1]*self.resolution + self.canvas_size[1]/2)
-        if (y_new<0 or y_new>=self.canvas_size[1]) or (x_new<0 or x_new>=self.canvas_size[0]):
+        y_new = self.canvas_size[1] - \
+            int(coord[1]*self.resolution + self.canvas_size[1]/2)
+        if (y_new < 0 or y_new >= self.canvas_size[1]) or (x_new < 0 or x_new >= self.canvas_size[0]):
             return None
         else:
-            return (x_new,y_new)
+            return (x_new, y_new)
 
-    def preciseTrackBoundary(self,coord,heading):
+    def preciseTrackBoundary(self, coord, heading):
         r = (coord[0]**2 + coord[1]**2)**0.5
-        phase = np.arctan2(coord[1],coord[0])
+        phase = np.arctan2(coord[1], coord[0])
         rel_heading = heading - phase
         if (rel_heading > 0 and rel_heading < np.pi):
             # ccw
@@ -111,10 +116,10 @@ class Skidpad(Track):
             # cw
             right = r - (self.radius-self.width/2)
             left = (self.radius+self.width/2) - r
-        return (left,right)
+        return (left, right)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pass
 '''
 if __name__ == "__main__":

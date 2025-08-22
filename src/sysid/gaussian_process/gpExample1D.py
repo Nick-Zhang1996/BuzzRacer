@@ -1,29 +1,34 @@
+import os
 import math
 import torch
 import gpytorch
 import matplotlib.pyplot as plt
 
-train_x = torch.linspace(0,1,100)
-train_y = torch.sin(train_x * (2*math.pi)) + torch.randn(train_x.size())*math.sqrt(0.05)
+train_x = torch.linspace(0, 1, 100)
+train_y = torch.sin(train_x * (2*math.pi)) + \
+    torch.randn(train_x.size())*math.sqrt(0.05)
 
 # We will use the simplest form of GP model, exact inference
+
+
 class ExactGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood):
         super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+        self.covar_module = gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.RBFKernel())
 
     def forward(self, x):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
+
 # initialize likelihood and model
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
 model = ExactGPModel(train_x, train_y, likelihood)
 
 # this is for running the notebook in our testing framework
-import os
 smoke_test = ('CI' in os.environ)
 training_iter = 2 if smoke_test else 50
 
@@ -33,7 +38,8 @@ model.train()
 likelihood.train()
 
 # Use the adam optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
+# Includes GaussianLikelihood parameters
+optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
 
 # "Loss" for GPs - the marginal log likelihood
 mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)

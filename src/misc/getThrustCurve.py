@@ -6,7 +6,7 @@ Cm2 = 0.96769
 Cr = -0.20375
 Cd = 0.00000
 
-vv = np.linspace(0,10)
+vv = np.linspace(0, 10)
 dvv = (Cm1-Cm2*vv)*0.7 - Cr - Cd*vv*vv
-plt.plot(vv,dvv)
+plt.plot(vv, dvv)
 plt.show()

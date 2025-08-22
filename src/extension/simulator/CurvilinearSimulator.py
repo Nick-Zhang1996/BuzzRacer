@@ -5,19 +5,21 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin,cos,tan,radians,degrees,pi,atan
-from threading import Event,Lock
-from scipy.optimize import minimize_scalar,minimize,brentq
-from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from math import sin, cos, tan, radians, degrees, pi, atan
+from threading import Event, Lock
+from scipy.optimize import minimize_scalar, minimize, brentq
+from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 
 from common import *
 from extension import Simulator
+
 
 def wrap(val):
     '''
     wrap angle to [-pi,pi]
     '''
     return (val + np.pi) % (2*np.pi) - np.pi
+
 
 class CurvilinearSimulator(Simulator):
     '''
@@ -32,7 +34,8 @@ class CurvilinearSimulator(Simulator):
         ay: acceleration in lateral direction (left positive)
         ay is before ax to follow convention of steering before throttle
     '''
-    def __init__(self,main):
+
+    def __init__(self, main):
         super().__init__(main)
         self.track = self.main.track
 
@@ -45,7 +48,7 @@ class CurvilinearSimulator(Simulator):
             self.addCar(car)
         self.main.new_state_update.set()
 
-    def addCar(self,car):
+    def addCar(self, car):
         '''
         initialize a car
         car.states =  (x,y,heading,v_forward,v_sideway,omega)
@@ -55,7 +58,7 @@ class CurvilinearSimulator(Simulator):
         n: lateral offset from ref curve, left positive
         phi: heading from ref curve tangend, ccw positive
         '''
-        x,y,heading,v_forward,v_sideway,omega = car.states
+        x, y, heading, v_forward, v_sideway, omega = car.states
         curv = self.cart2Curv(car.states)
         car.sim_states = curv
 
@@ -63,102 +66,116 @@ class CurvilinearSimulator(Simulator):
         car.control_dim = 2
 
     def cart2Curv(self, cart, guess_s=None):
-        '''
-            transform cartesian states to curvilinear states
-            relies on self.track.raceline_s
-            [cart]: (x,y,heading,v_forward,v_sideway,omega)
-            [guess_s]: estimated s
-            [return]: (s,v,n,phi)
-        '''
-        x,y,heading,v_forward,v_sideway,omega = cart
+        """transform cartesian states to curvilinear states relies on
+        self.track.raceline_s.
 
-        #dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
+        [cart]: (x,y,heading,v_forward,v_sideway,omega)
+        [guess_s]: estimated s
+        [return]: (s,v,n,phi)
+
+        """
+        x, y, heading, v_forward, v_sideway, omega = cart
+
+        # dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
         def dist(s):
-            val = np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)).flatten() - np.array([x,y]))
+            val = np.linalg.norm(np.array(splev(
+                s % self.track.raceline_len_m, self.track.raceline_s, der=0)).flatten() - np.array([x, y]))
             return val
 
         if (guess_s is None):
             # initial guess to avoid local minima
-            xx = np.linspace(0.0, self.track.raceline_len_m,10)
+            xx = np.linspace(0.0, self.track.raceline_len_m, 10)
             yy = [dist(x) for x in xx]
             guess_s = xx[np.argmin(yy)]
             ds = 2*self.track.raceline_len_m/10
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-ds,guess_s+ds),))
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-ds, guess_s+ds),))
         else:
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B', bounds=((guess_s-0.2,guess_s+0.2),))
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-0.2, guess_s+0.2),))
 
         s = fit.x[0]
 
-        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
-        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
+        r = np.array(splev(s % self.track.raceline_len_m,
+                     self.track.raceline_s, der=0))
+        dr = np.array(splev(s % self.track.raceline_len_m,
+                      self.track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
-        n = np.cross(dr, np.array([x,y]) - r)
+        n = np.cross(dr, np.array([x, y]) - r)
         # ignore sideway velocity
         v = v_forward
-        phi = wrap(heading - np.arctan2(dr[1],dr[0]))
-        return np.array([s,v,n,phi])
+        phi = wrap(heading - np.arctan2(dr[1], dr[0]))
+        return np.array([s, v, n, phi])
 
     # DEBUG
-    def debugPlot(self,cart):
-        x,y,heading,v_forward,v_sideway,omega = cart
-        def dist(s):
-            val = np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)).flatten() - np.array([x,y]))
-            return val
-        xx = np.linspace(-1.0, self.track.raceline_len_m,1000)
-        yy = [dist(x) for x in xx]
-        plt.plot(xx,yy)
+    def debugPlot(self, cart):
+        x, y, heading, v_forward, v_sideway, omega = cart
 
-        xx = np.linspace(-1.0, self.track.raceline_len_m,10)
+        def dist(s):
+            val = np.linalg.norm(np.array(splev(
+                s % self.track.raceline_len_m, self.track.raceline_s, der=0)).flatten() - np.array([x, y]))
+            return val
+        xx = np.linspace(-1.0, self.track.raceline_len_m, 1000)
         yy = [dist(x) for x in xx]
-        plt.plot(xx,yy,'o')
+        plt.plot(xx, yy)
+
+        xx = np.linspace(-1.0, self.track.raceline_len_m, 10)
+        yy = [dist(x) for x in xx]
+        plt.plot(xx, yy, 'o')
         plt.show()
         return
 
     def curv2Cart(self, curv):
-        '''
-            transform curvilinear states to cartesian states
-            [curv]: (s,v,n,phi)
-            [return]: (x,y,heading,v_forward,v_sideway,omega)
-        '''
-        s,v,n,phi = curv.flatten()
-        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
-        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
+        """transform curvilinear states to cartesian states.
+
+        [curv]: (s,v,n,phi)
+        [return]: (x,y,heading,v_forward,v_sideway,omega)
+
+        """
+        s, v, n, phi = curv.flatten()
+        r = np.array(splev(s % self.track.raceline_len_m,
+                     self.track.raceline_s, der=0))
+        dr = np.array(splev(s % self.track.raceline_len_m,
+                      self.track.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
 
         # ccw 90 deg
-        A = np.array([[0,-1],[1,0]])
-        x,y = r + (A @ dr)*n
-        ref_heading = np.arctan2(dr[1],dr[0])
+        A = np.array([[0, -1], [1, 0]])
+        x, y = r + (A @ dr)*n
+        ref_heading = np.arctan2(dr[1], dr[0])
         heading = wrap(phi + ref_heading)
         v_forward = v
         v_sideway = 0.0
         omega = 0.0
-        return np.array([x,y,heading, v_forward, v_sideway, omega])
+        return np.array([x, y, heading, v_forward, v_sideway, omega])
 
-    def curvature(self,s):
-        '''
-        get signed curvature of raceline at s, ccw positive
-        '''
+    def curvature(self, s):
+        """get signed curvature of raceline at s, ccw positive."""
         # TODO if this is a bottleneck, fit curvature(s) as a cubic fun
         # curvature = interp1d(ss,curvature(ss),kind='cubic')
 
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        r = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=0))
-        dr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=1))
-        ddr = np.array(splev(s%self.track.raceline_len_m, self.track.raceline_s, der=2))
-        _norm = lambda x:np.linalg.norm(x)
+        r = np.array(splev(s % self.track.raceline_len_m,
+                     self.track.raceline_s, der=0))
+        dr = np.array(splev(s % self.track.raceline_len_m,
+                      self.track.raceline_s, der=1))
+        ddr = np.array(splev(s % self.track.raceline_len_m,
+                       self.track.raceline_s, der=2))
+
+        def _norm(x): return np.linalg.norm(x)
         dr_norm = _norm(dr)
-        curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr)**2 - np.sum(dr*ddr,axis=0)**2)**0.5)
-        sign = np.cross(dr.T,ddr.T)
+        curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr) **
+                         2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+        sign = np.cross(dr.T, ddr.T)
         if (np.isnan(curvature)):
-            #self.print_warning('curvature is nan, likely because curvature is exactly 0')
+            # self.print_warning('curvature is nan, likely because curvature is exactly 0')
             curvature = 0.0
         return np.copysign(curvature, sign)
 
     def advancePointMassDynamics(self, curv_states, control, dt):
-        s,v,n,phi = curv_states
+        s, v, n, phi = curv_states
         k_s = self.curvature(s)
-        ay,ax = control
+        ay, ax = control
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
         dndt = v*sin(phi)
@@ -175,10 +192,13 @@ class CurvilinearSimulator(Simulator):
         return curv_states + dx
 
     def advanceDynamics(self, car_states, control, car, dt=None):
-        '''
-        ignore car_states, update car.sim_states with control and optional [dt]
-        [return] cartesian states corresponding to updated car.sim_states
-        '''
+        """ignore car_states, update car.sim_states with control and optional
+        [dt]
+
+        [return] cartesian states corresponding to updated
+        car.sim_states
+
+        """
 
         # DEBUG
         '''
@@ -196,6 +216,7 @@ class CurvilinearSimulator(Simulator):
             breakpoint()
         '''
 
-        car.sim_states = self.advancePointMassDynamics(car.sim_states, control, dt)
+        car.sim_states = self.advancePointMassDynamics(
+            car.sim_states, control, dt)
 
         return self.curv2Cart(car.sim_states)

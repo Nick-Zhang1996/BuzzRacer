@@ -6,9 +6,9 @@ newlog = '../log/batch_ilqgame_solo/new_textlog.txt'
 print('opening log ' + log)
 failed_runs_count = 0
 new_textlog = []
-with open(log,'r') as f:
+with open(log, 'r') as f:
     text = f.readlines()
-    #text = text[1:]
+    # text = text[1:]
     for line in text:
         entry = line.split(',')
         # open config in position 1
@@ -29,7 +29,5 @@ with open(log,'r') as f:
         entry[7] = str(-eval(entry[7]))
         new_textlog.append(','.join(entry))
 
-with open(newlog,'w') as f:
+with open(newlog, 'w') as f:
     f.writelines(new_textlog)
-
-

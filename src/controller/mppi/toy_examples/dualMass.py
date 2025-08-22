@@ -1,17 +1,18 @@
+from mppi import MPPI
+import matplotlib.pyplot as plt
+import numpy as np
+from math import sin
 import os
 import sys
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
-from math import sin
-import numpy as np
-import matplotlib.pyplot as plt
-from mppi import MPPI
 # dual mass simulator
+
 
 class dualMass:
 
-    def __init__(self,x0=[0,0,0,0]):
+    def __init__(self, x0=[0, 0, 0, 0]):
         self.m1 = 1
         self.m2 = 1
         self.k1 = 1
@@ -19,19 +20,20 @@ class dualMass:
         self.c1 = 1.4
         self.c2 = 1.4
 
-        self.x = np.array(x0,dtype=np.double)
+        self.x = np.array(x0, dtype=np.double)
         self.t = 0
         self.x_hist = []
         self.t_hist = []
         self.u_hist = []
 
-    def step(self,dt,u):
+    def step(self, dt, u):
         x1 = self.x[0]
         dx1 = self.x[1]
         x2 = self.x[2]
         dx2 = self.x[3]
 
-        ddx1 = -(self.k1*x1 + self.c1*dx1 + self.k2*(x1-x2) + self.c2*(dx1-dx2)-u[0])/self.m1
+        ddx1 = -(self.k1*x1 + self.c1*dx1 + self.k2 *
+                 (x1-x2) + self.c2*(dx1-dx2)-u[0])/self.m1
         ddx2 = -(self.k2*(x2-x1) + self.c2*(dx2-dx1)-u[1])/self.m2
 
         x1 += dx1*dt
@@ -58,24 +60,25 @@ class dualMass:
 
         fig = plt.figure()
         ax = fig.gca()
-        ax.plot(tt,xx[:,0],label="x1")
-        ax.plot(tt,xx[:,1],label="dx1")
-        ax.plot(tt,xx[:,2],label="x2")
-        ax.plot(tt,xx[:,3],label="dx2")
+        ax.plot(tt, xx[:, 0], label='x1')
+        ax.plot(tt, xx[:, 1], label='dx1')
+        ax.plot(tt, xx[:, 2], label='x2')
+        ax.plot(tt, xx[:, 3], label='dx2')
         ax.legend()
         plt.show()
 
 
-if __name__=="__main__x":
-    main = dualMass(x0=[0,0,0,0])
+if __name__ == '__main__x':
+    main = dualMass(x0=[0, 0, 0, 0])
     # target: 1,0,3,0
 
     dt = 0.1
     for i in range(int(20/dt)):
-        main.step(dt,[-1,2])
+        main.step(dt, [-1, 2])
     main.plot()
 
-def dynamics(state,control,dt):
+
+def dynamics(state, control, dt):
     m1 = 1
     m2 = 1
     k1 = 1
@@ -104,17 +107,18 @@ def dynamics(state,control,dt):
 
     return state
 
-def cost(state,u):
-    R = np.diag([1,0.1,1,0.1])
+
+def cost(state, u):
+    R = np.diag([1, 0.1, 1, 0.1])
     R = R**2
-    x = np.array(state) - np.array([1,0,3,0])
+    x = np.array(state) - np.array([1, 0, 3, 0])
     return x.T @ R @ x
 
 
-if __name__=="__main__":
+if __name__ == '__main__':
     dt = 0.3
 
-    main = dualMass(x0=[0,0,0,0])
+    main = dualMass(x0=[0, 0, 0, 0])
 
     noise = 2
 
@@ -124,20 +128,19 @@ if __name__=="__main__":
     temperature = 1
     noise_cov = np.eye(control_dim)*noise*noise
 
-    mppi = MPPI(samples_count,horizon_steps,control_dim,temperature,dt,noise_cov)
+    mppi = MPPI(samples_count, horizon_steps,
+                control_dim, temperature, dt, noise_cov)
     # define dynamics
     mppi.applyDiscreteDynamics = dynamics
     mppi.evaluateCost = cost
 
-    while (main.t<20):
-        print(" sim t = %.2f"%(main.t))
+    while (main.t < 20):
+        print(' sim t = %.2f' % (main.t))
         # state, ref_control, control limit
-        uu = mppi.control_single(main.x,[[-1,2]]*horizon_steps,[[-50,50]]*2)
-        main.step(dt,uu[0,:])
-        #main.step(dt,np.array([-1,2]))
+        uu = mppi.control_single(
+            main.x, [[-1, 2]]*horizon_steps, [[-50, 50]]*2)
+        main.step(dt, uu[0, :])
+        # main.step(dt,np.array([-1,2]))
 
-    #mppi.p.summary()
+    # mppi.p.summary()
     main.plot()
-
-
-

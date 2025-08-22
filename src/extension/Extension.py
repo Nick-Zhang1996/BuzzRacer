@@ -1,13 +1,15 @@
 from common import *
+
+
 class Extension(PrintObject):
-    def __init__(self,main):
+    def __init__(self, main):
         Extension.main = main
-        print_ok(self.prefix() + "in use")
+        print_ok(self.prefix() + 'in use')
         main.extensions.append(self)
         self.name = self.__class__.__name__
 
-
     # optional initialization
+
     def preInit(self):
         pass
 
@@ -28,8 +30,9 @@ class Extension(PrintObject):
 
     def preFinal(self):
         pass
+
     def final(self):
         pass
+
     def postFinal(self):
         pass
-

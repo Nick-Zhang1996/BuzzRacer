@@ -13,12 +13,12 @@ b = np.random.randn(m)
 # Construct the problem.
 t = time()
 x = cp.Variable(n)
-#objective = cp.Minimize(cp.sum_squares(A @ x - b))
-objective = cp.Minimize(cp.quad_form(x,np.eye(n)))
+# objective = cp.Minimize(cp.sum_squares(A @ x - b))
+objective = cp.Minimize(cp.quad_form(x, np.eye(n)))
 constraints = [0 <= x, x <= 1]
 prob = cp.Problem(objective, constraints)
 
-print("Optimal value", prob.solve())
-print("Optimal var")
-print(x.value) # A numpy ndarray.
+print('Optimal value', prob.solve())
+print('Optimal var')
+print(x.value)  # A numpy ndarray.
 print(time()-t)

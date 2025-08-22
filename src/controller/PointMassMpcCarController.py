@@ -1,18 +1,18 @@
 from common import *
-from math import isnan,pi,degrees,radians,sin,cos
+from math import isnan, pi, degrees, radians, sin, cos
 from controller.CarController import CarController
 from controller.PidController import PidController
 
+
 class PointMassMpcCarController(CarController):
-    ''' 
-    for sanity check of point mass curvilinear model
-    '''
-    def __init__(self, car,config):
-        super().__init__(car,config)
+    """for sanity check of point mass curvilinear model."""
+
+    def __init__(self, car, config):
+        super().__init__(car, config)
 
     def init(self):
         self.simulator = self.main.simulator
-        assert(isinstance(self.simulator,CurvilinearSimulator))
+        assert (isinstance(self.simulator, CurvilinearSimulator))
 
     def control(self):
         for car in self.main.cars:
@@ -25,4 +25,3 @@ class PointMassMpcCarController(CarController):
             car.throttle = throttle
             car.steering = steering
         return
-

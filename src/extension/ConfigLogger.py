@@ -5,9 +5,10 @@ from extension.Extension import Extension
 from xml.dom import minidom
 import os
 
+
 class ConfigLogger(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
+    def __init__(self, main):
+        Extension.__init__(self, main)
 
     def init(self):
         config = minidom.parse(self.main.config_filename)
@@ -32,7 +33,7 @@ class ConfigLogger(Extension):
         # laptime_stddev
         # boundary violation
         # obstacle violation
-        labels = "experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary violation , obstacle violation"
+        labels = 'experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary violation , obstacle violation'
         entry.append(self.main.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
@@ -46,36 +47,33 @@ class ConfigLogger(Extension):
         config_controller = config_car.getElementsByTagName('controller')[0]
         attrs = config_controller.attributes.items()
 
-
-
         # start position (delta s)
         # aggressiveness
-        #entry.append( config_controller.getAttribute('Qop1') )
-        #entry.append( config_controller.getAttribute('Qop2') )
-        entry.append( self.main.cars[0].controller.Qop1 )
-        entry.append( self.main.cars[0].controller.Qop2 )
-        entry.append( self.main.cars[0].controller.start_lead_i_j)
-        entry.append( self.main.cars[0].controller.end_lead_i_j)
-
+        # entry.append( config_controller.getAttribute('Qop1') )
+        # entry.append( config_controller.getAttribute('Qop2') )
+        entry.append(self.main.cars[0].controller.Qop1)
+        entry.append(self.main.cars[0].controller.Qop2)
+        entry.append(self.main.cars[0].controller.start_lead_i_j)
+        entry.append(self.main.cars[0].controller.end_lead_i_j)
 
         # these may not be available if watchdog is triggered
         if (not self.main.watchdog.triggered):
-            entry.append( self.main.car_laptime_mean[0])
-            entry.append( self.main.cars[0].total_boundary_collision )
-            entry.append( self.main.car_laptime_mean[1])
-            entry.append( self.main.cars[1].total_boundary_collision )
-            entry.append( self.main.opponent_collision_count)
+            entry.append(self.main.car_laptime_mean[0])
+            entry.append(self.main.cars[0].total_boundary_collision)
+            entry.append(self.main.car_laptime_mean[1])
+            entry.append(self.main.cars[1].total_boundary_collision)
+            entry.append(self.main.opponent_collision_count)
         else:
-            entry.append(-1 )
-            entry.append(-1 )
-            entry.append(-1 )
-            entry.append(-1 )
-            entry.append(-1 )
+            entry.append(-1)
+            entry.append(-1)
+            entry.append(-1)
+            entry.append(-1)
+            entry.append(-1)
 
-        log_name = os.path.join(self.main.logger.logFolder,'textlog.txt')
-        with open(log_name,'a') as f:
-            #f.write(labels)
-            #f.write('\n')
+        log_name = os.path.join(self.main.logger.logFolder, 'textlog.txt')
+        with open(log_name, 'a') as f:
+            # f.write(labels)
+            # f.write('\n')
             self.print_info('text log at '+log_name)
             text_entry = [str(item) for item in entry]
             f.write(','.join(text_entry))

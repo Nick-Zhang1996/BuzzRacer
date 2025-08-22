@@ -1,14 +1,13 @@
-from sympy import symbols,sin,cos,diff
+from sympy import symbols, sin, cos, diff
 import numpy as np
 
-class SymbolicDynamics:
-    ''' 
-    helper for calculation jacobian and hessians in a control problem
-    After instantiating class, user should define
-    self.f as a function of self.x, self.u
-    '''
 
-    def __init__(self,n,m):
+class SymbolicDynamics:
+    """helper for calculation jacobian and hessians in a control problem After
+    instantiating class, user should define self.f as a function of self.x,
+    self.u."""
+
+    def __init__(self, n, m):
         self.n = n
         self.m = m
         self.x = [symbols(f'x{i}') for i in range(n)]
@@ -20,7 +19,6 @@ class SymbolicDynamics:
         self.f = None
         self.l = None
         return
-
 
     def symDer(self):
         ''' calculate jacobian of f(x,u)
@@ -34,7 +32,7 @@ class SymbolicDynamics:
         f = self.f
         x = self.x
         u = self.u
-        assert(len(f) == n)
+        assert (len(f) == n)
         for i in range(n):
             dfi_dx = []
             for j in range(n):
@@ -81,7 +79,7 @@ class SymbolicDynamics:
         '''
         return
 
-    def calcDer(self,x0,u0,subs_dict={}):
+    def calcDer(self, x0, u0, subs_dict={}):
         ''' calculate fx,fu,lx,lu,lxx,luu,lux numerically
         e.g. fx = dfdx = df(x,u) / dx 
         user should call symDer() before calling this function
@@ -91,14 +89,16 @@ class SymbolicDynamics:
         '''
         x0 = np.array(x0).flatten()
         u0 = np.array(u0).flatten()
-        assert(len(x0) == self.n)
-        assert(len(u0) == self.m)
+        assert (len(x0) == self.n)
+        assert (len(u0) == self.m)
         for i in range(self.n):
-            subs_dict.update({self.x[i]:x0[i]})
+            subs_dict.update({self.x[i]: x0[i]})
         for i in range(self.m):
-            subs_dict.update({self.u[i]:u0[i]})
-        dfdx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdx], dtype=np.float64)
-        dfdu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row] for row in self.dfdu], dtype=np.float64)
+            subs_dict.update({self.u[i]: u0[i]})
+        dfdx_val = np.array([[eq.evalf(subs=subs_dict) for eq in row]
+                            for row in self.dfdx], dtype=np.float64)
+        dfdu_val = np.array([[eq.evalf(subs=subs_dict) for eq in row]
+                            for row in self.dfdu], dtype=np.float64)
 
         '''
         dldx_val = np.array([eq.evalf(subs=subs_dict) for eq in self.lx])
@@ -110,50 +110,48 @@ class SymbolicDynamics:
         '''
         return dfdx_val, dfdu_val
 
-    def xQx_diag(self,x,Q):
+    def xQx_diag(self, x, Q):
         ''' calculate x.T @ Q @ x, with x being a vector of symbolic variables
         x = [x0,x1,...] dim n
         Q = np.array, dim n*n
         only consider diagonal terms
         '''
-        assert(len(x) == Q.shape[0])
-        assert(Q.shape[0] == Q.shape[1])
+        assert (len(x) == Q.shape[0])
+        assert (Q.shape[0] == Q.shape[1])
         result = 0
         for i in range(x):
-            result += x[i]*x[i]*Q[i,i]
+            result += x[i]*x[i]*Q[i, i]
         return result
 
-    def product(self,a,b):
-        ''' calculate inner of two vectors '''
-        assert(len(a)==len(b))
+    def product(self, a, b):
+        """calculate inner of two vectors."""
+        assert (len(a) == len(b))
         result = 0
         for i in range(len(a)):
             result += a[i]*b[i]
         return result
 
-    def minus(self,a,b):
-        assert(len(a)==len(b))
+    def minus(self, a, b):
+        assert (len(a) == len(b))
         return [a[i]-b[i] for i in range(len(a))]
 
 
-if __name__=="__main__":
-    test = SymbolicDynamics(3,2)
+if __name__ == '__main__':
+    test = SymbolicDynamics(3, 2)
     x0 = test.x[0]
     x1 = test.x[1]
     x2 = test.x[2]
     u0 = test.u[0]
     u1 = test.u[1]
 
-    f0 = x0 +x0*x2 + x2*u0 + x0**2*u1
+    f0 = x0 + x0*x2 + x2*u0 + x0**2*u1
     f1 = x1*cos(u0)
     f2 = (10+x0)*u1**2
-    test.f = [f0,f1,f2]
+    test.f = [f0, f1, f2]
     test.l = x0+x1+x2+u0+u1*x0
 
     test.symDer()
-    fx,fu,lx,lu,lxx,luu,lux = test.calcDer(x0=[1,2,3], u0=[4,5])
+    fx, fu, lx, lu, lxx, luu, lux = test.calcDer(x0=[1, 2, 3], u0=[4, 5])
     print(lxx)
     print(luu)
     print(lux)
-
-

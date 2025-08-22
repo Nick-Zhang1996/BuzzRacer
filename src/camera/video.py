@@ -4,47 +4,49 @@ import pickle
 import numpy as np
 import cv2 as cv
 
+
 class Video:
     def __init__(self):
         # time in video that corresponds to start of log
         self.time_offset = 10.45
         self.fps = 30
         # load transformation
-        with open('resources/transform.p','rb') as f:
+        with open('resources/transform.p', 'rb') as f:
             self.mat = pickle.load(f)
 
         # load state
         # time, x, y, heading, vx, vy, omega, throttle, steering
         # timestep, car_id, data_index
-        with open('resources/full_state3.p','rb') as f:
+        with open('resources/full_state3.p', 'rb') as f:
             self.log = np.array(pickle.load(f))
-        self.log[:,:,0] -= self.log[0,0,0]
+        self.log[:, :, 0] -= self.log[0, 0, 0]
 
         self.cap = cv.VideoCapture('resources/IMG_6754.MOV')
         fourcc = cv.VideoWriter_fourcc(*'XVID')
-        self.out = cv.VideoWriter('outputs/output.avi', fourcc, 30.0, (1920,1080))
+        self.out = cv.VideoWriter(
+            'outputs/output.avi', fourcc, 30.0, (1920, 1080))
         if not self.cap.isOpened():
             print('output error')
             exit()
         if not self.cap.isOpened():
-            print("Cannot open camera")
+            print('Cannot open camera')
             exit()
 
-    def getStateAtTime(self,t):
+    def getStateAtTime(self, t):
         # TODO add interpolation
         try:
-            index = np.searchsorted(self.log[:,0,0], t)
+            index = np.searchsorted(self.log[:, 0, 0], t)
             return self.log[index]
         except IndexError:
             return self.log[-1]
 
-    def render(self,frame,t):
+    def render(self, frame, t):
         # only for car 0
         log = self.getStateAtTime(t)
-        car_pos = log[0,1:3].reshape(1,1,-1).astype(np.float32)
-        dst = cv.perspectiveTransform(car_pos,self.mat)
+        car_pos = log[0, 1:3].reshape(1, 1, -1).astype(np.float32)
+        dst = cv.perspectiveTransform(car_pos, self.mat)
         dst = tuple(dst.flatten().astype(int))
-        cv.circle(frame, dst, 55, (0,0,255), 3)
+        cv.circle(frame, dst, 55, (0, 0, 255), 3)
         return frame
 
     def drawPolyline(self, points, frame):
@@ -73,7 +75,7 @@ class Video:
             if not ret:
                 print("Can't receive frame (stream end?). Exiting ...")
                 break
-            frame = self.render(frame,video_t-self.time_offset)
+            frame = self.render(frame, video_t-self.time_offset)
             self.out.write(frame)
 
             # Display the resulting frame
@@ -85,6 +87,7 @@ class Video:
         self.out.release()
         cv.destroyAllWindows()
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     main = Video()
     main.main()

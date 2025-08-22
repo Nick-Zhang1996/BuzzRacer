@@ -3,9 +3,11 @@ from common import *
 from extension.Extension import Extension
 
 # count number of times car is in collision with boundary
+
+
 class BoundaryChecker(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
+    def __init__(self, main):
+        Extension.__init__(self, main)
         # running sum of collision count, reset every lap
         self.collision_count = [0] * len(self.main.cars)
 
@@ -21,40 +23,44 @@ class BoundaryChecker(Extension):
                 if (not car.in_collision):
                     car.in_collision = True
                     self.collision_count[i] += 1
-                    print_ok(self.prefix(), "car %d collision = %d"%(i,self.collision_count[i]))
+                    print_ok(self.prefix(), 'car %d collision = %d' %
+                             (i, self.collision_count[i]))
             else:
                 if (car.in_collision):
                     car.in_collision = False
 
     def final(self):
         for i in range(len(self.main.cars)):
-            self.print_info("car %d, total boundary violation = %d"%(i,self.collision_count[i]))
+            self.print_info('car %d, total boundary violation = %d' %
+                            (i, self.collision_count[i]))
             self.main.cars[i].total_boundary_collision = self.collision_count[i]
 
-    def isOutOfBoundary(self,car):
+    def isOutOfBoundary(self, car):
         car_coord = car.states[0:2]
         car_heading = car.states[2]
-        left, right = self.main.track.preciseTrackBoundary(car_coord, car_heading)
-        out = left<0 or right<0
+        left, right = self.main.track.preciseTrackBoundary(
+            car_coord, car_heading)
+        out = left < 0 or right < 0
         return out
 
-    def isOutOfBoundaryDiscrete(self,car):
-        x,y,heading,vf,vs,omega = car.states
-        ref_points = self.discretized_raceline[:,0:2]
-        ref_heading = self.discretized_raceline[:,2]
-        left_bdry = self.discretized_raceline[:,3]
-        right_bdry = self.discretized_raceline[:,4]
-        #self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
-        dx_vec = ref_points[:,0]-x
-        dy_vec = ref_points[:,1]-y
+    def isOutOfBoundaryDiscrete(self, car):
+        x, y, heading, vf, vs, omega = car.states
+        ref_points = self.discretized_raceline[:, 0:2]
+        ref_heading = self.discretized_raceline[:, 2]
+        left_bdry = self.discretized_raceline[:, 3]
+        right_bdry = self.discretized_raceline[:, 4]
+        # self.discretized_raceline = np.vstack([self.raceline_points,self.raceline_headings,vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        dx_vec = ref_points[:, 0]-x
+        dy_vec = ref_points[:, 1]-y
         dist_vec = ((dx_vec)**2 + (dy_vec)**2)**0.5
         idx = np.argmin(dist_vec)
         dist = dist_vec[idx]
         dx = dx_vec[idx]
         dy = dy_vec[idx]
 
-        raceline_to_point_angle = np.arctan2(dy,dx)
-        heading_diff = np.mod(raceline_to_point_angle - ref_heading[idx] + np.pi, 2*np.pi) - np.pi
+        raceline_to_point_angle = np.arctan2(dy, dx)
+        heading_diff = np.mod(raceline_to_point_angle -
+                              ref_heading[idx] + np.pi, 2*np.pi) - np.pi
         margin = 0.05
         if (heading_diff > 0):
             out = dist + margin > left_bdry[idx]
@@ -80,4 +86,3 @@ class BoundaryChecker(Extension):
     cost = (dist +0.05> raceline[idx][RACELINE_RIGHT_BOUNDARY])? 1:0;
   }
         '''
-

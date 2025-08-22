@@ -1,16 +1,18 @@
 # FIXME adapt to extension
 import numpy as np
-from math import sin,cos,tan,radians,degrees,pi
+from math import sin, cos, tan, radians, degrees, pi
 import matplotlib.pyplot as plt
 
 # advanced dynamic simulator of mini z
+
+
 class advCarSim:
-    def __init__(self,x,y,heading,noise=False,noise_cov=None):
+    def __init__(self, x, y, heading, noise=False, noise_cov=None):
         # front tire cornering stiffness
         g = 9.81
         self.m = 0.1667
         self.Caf = 5*0.25*self.m*g
-        #self.Car = 5*0.25*self.m*g
+        # self.Car = 5*0.25*self.m*g
         self.Car = self.Caf
         # longitudinal speed
         self.Vx = 1.0
@@ -28,15 +30,16 @@ class advCarSim:
         self.d_x = self.Vx*cos(self.psi)-self.Vy*sin(self.psi)
         self.d_y = self.Vx*sin(self.psi)+self.Vy*cos(self.psi)
         self.d_psi = 0
-        self.states = np.array([self.x,self.d_x,self.y,self.d_y,self.psi,self.d_psi])
+        self.states = np.array(
+            [self.x, self.d_x, self.y, self.d_y, self.psi, self.d_psi])
 
         self.state_dim = 6
         self.control_dim = 2
-        
+
         self.noise = noise
         if noise:
             self.noise_cov = noise_cov
-            assert np.array(noise_cov).shape == (6,6)
+            assert np.array(noise_cov).shape == (6, 6)
 
         self.states_hist = []
         self.local_states_hist = []
@@ -46,11 +49,10 @@ class advCarSim:
         self.steering = 0
         self.t = 0
 
-
     # update vehicle state
     # NOTE vx != 0
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    def updateCar(self,dt,sim_states,throttle,steering):
+    def updateCar(self, dt, sim_states, throttle, steering):
         # simulator carries internal state and doesn't really need these
         '''
         x = sim_states['coord'][0]
@@ -70,76 +72,85 @@ class advCarSim:
         self.Vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
 
         A = np.array([[0, 1, 0, 0, 0, 0],
-                    [0, 0, 0, 0, 0, 0],
-                    [0, 0, 0, 1, 0, 0],
-                    [0, 0, 0, -(2*self.Caf+2*self.Car)/(self.m*self.Vx), 0, -self.Vx-(2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*self.Vx)],
-                    [0, 0, 0, 0, 0, 1],
-                    [0, 0, 0, -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*self.Vx), 0, -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*self.Vx)]])
-        B = np.array([[0,1,0,0,0,0],[0,0,0,2*self.Caf/self.m,0,2*self.lf*self.Caf/self.Iz]]).T
+                      [0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 1, 0, 0],
+                      [0, 0, 0, -(2*self.Caf+2*self.Car)/(self.m*self.Vx), 0, -self.Vx -
+                       (2*self.Caf*self.lf-2*self.Car*self.lr)/(self.m*self.Vx)],
+                      [0, 0, 0, 0, 0, 1],
+                      [0, 0, 0, -(2*self.lf*self.Caf-2*self.lr*self.Car)/(self.Iz*self.Vx), 0, -(2*self.lf**2*self.Caf+2*self.lr**2*self.Car)/(self.Iz*self.Vx)]])
+        B = np.array([[0, 1, 0, 0, 0, 0], [0, 0, 0, 2*self.Caf /
+                     self.m, 0, 2*self.lf*self.Caf/self.Iz]]).T
 
-        u = np.array([throttle,steering])
+        u = np.array([throttle, steering])
         # active roattion matrix of angle(rad)
-        R = lambda angle: np.array([[cos(angle), 0,-sin(angle),0,0,0],
-                        [0, cos(angle), 0,-sin(angle),0,0],
-                        [sin(angle),0,cos(angle),0,0,0],
-                        [0,sin(angle),0,cos(angle),0,0],
-                        [0,0,0,0,1,0],
-                        [0,0,0,0,0,1]])
+
+        def R(angle): return np.array([[cos(angle), 0, -sin(angle), 0, 0, 0],
+                                       [0, cos(angle), 0, -sin(angle), 0, 0],
+                                       [sin(angle), 0, cos(angle), 0, 0, 0],
+                                       [0, sin(angle), 0, cos(angle), 0, 0],
+                                       [0, 0, 0, 0, 1, 0],
+                                       [0, 0, 0, 0, 0, 1]])
         self.old_states = self.states.copy()
         # A and B work in vehicle frame
         # we use R() to convert state to vehicle frame
         # before we apply A,B
         # then we convert state back to track/world frame
         if (self.noise):
-            plant_noise = np.random.multivariate_normal([0.0]*self.state_dim, self.noise_cov, size=1).flatten()
-            self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u + plant_noise)*dt
+            plant_noise = np.random.multivariate_normal(
+                [0.0]*self.state_dim, self.noise_cov, size=1).flatten()
+            self.states = self.states + \
+                R(psi) @ (A @ R(-psi) @ self.states + B @ u + plant_noise)*dt
         else:
-            self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
+            self.states = self.states + \
+                R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
         self.states_hist.append(self.states)
         self.local_states_hist.append(R(-psi)@self.states)
 
         self.throttle = throttle
         self.steering = steering
 
-        coord = (self.states[0],self.states[2])
+        coord = (self.states[0], self.states[2])
         heading = self.states[4]
         # longitidunal,velocity forward positive
-        Vx = self.states[1] *cos(heading) + self.states[3] *sin(heading)
+        Vx = self.states[1] * cos(heading) + self.states[3] * sin(heading)
         # lateral, sideway velocity, left positive
-        Vy = -self.states[1] *sin(heading) + self.states[3] *cos(heading)
+        Vy = -self.states[1] * sin(heading) + self.states[3] * cos(heading)
         omega = self.states[5]
-        sim_states = {'coord':coord,'heading':heading,'vf':Vx,'vs':Vy,'omega':omega}
+        sim_states = {'coord': coord, 'heading': heading,
+                      'vf': Vx, 'vs': Vy, 'omega': omega}
         return sim_states
 
     def debug(self):
         data = np.array(self.states_hist)
         data_local = np.array(self.local_states_hist)
 
-        print("x,y")
-        plt.plot(data[:,0],data[:,2])
+        print('x,y')
+        plt.plot(data[:, 0], data[:, 2])
         plt.gca().set_aspect('equal', adjustable='box')
         plt.show()
 
-        print("dx")
-        plt.plot(data_local[:,1])
+        print('dx')
+        plt.plot(data_local[:, 1])
         plt.show()
-        print("dy")
-        plt.plot(data_local[:,3])
+        print('dy')
+        plt.plot(data_local[:, 3])
         plt.show()
 
-        print("psi")
-        plt.plot(data[:,4]/pi*180.0)
+        print('psi')
+        plt.plot(data[:, 4]/pi*180.0)
         plt.show()
-        print("omega")
-        plt.plot(data[:,5])
+        print('omega')
+        plt.plot(data[:, 5])
         plt.show()
 # dynamic simulator
-    def initDynamicSimulation(self,car,init_state = (0.3*0.6,1.7*0.6,radians(90))):
+
+    def initDynamicSimulation(self, car, init_state=(0.3*0.6, 1.7*0.6, radians(90))):
         car.new_state_update = Event()
         car.new_state_update.set()
-        
-        x,y,heading = init_state
-        car.simulator = advCarSim(x,y,heading,self.sim_noise,self.sim_noise_cov)
+
+        x, y, heading = init_state
+        car.simulator = advCarSim(
+            x, y, heading, self.sim_noise, self.sim_noise_cov)
         # for keep track of time difference between simulation and reality
         # this allows a real-time simulation
         # here we only instantiate the variable, the actual value will be assigned in updateVisualization, since it takes quite a while to initialize the rest of the program
@@ -148,32 +159,32 @@ class advCarSim:
         car.steering = steering = 0
         car.throttle = throttle = 0
 
-        car.states = (x,y,heading,0,0,0)
-        car.sim_states = {'coord':(x,y),'heading':heading,'vf':throttle,'vs':0,'omega':0}
+        car.states = (x, y, heading, 0, 0, 0)
+        car.sim_states = {
+            'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
-    def updateDynamicSimulation(self,car):
+    def updateDynamicSimulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.updateCar(self.sim_dt,car.sim_states,car.throttle,car.steering)
+        sim_states = car.sim_states = car.simulator.updateCar(
+            self.sim_dt, car.sim_states, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = np.array([sim_states['coord'][0],sim_states['coord'][1],sim_states['heading'],sim_states['vf'],sim_states['vs'],sim_states['omega']])
+        car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
+                              sim_states['heading'], sim_states['vf'], sim_states['vs'], sim_states['omega']])
         if isnan(sim_states['heading']):
-            print("error")
-        #print(car.states)
-        #print("v = %.2f"%(sim_states['vf']))
+            print('error')
+        # print(car.states)
+        # print("v = %.2f"%(sim_states['vf']))
         car.new_state_update.set()
 
-    def stopDynamicSimulation(self,car):
+    def stopDynamicSimulation(self, car):
         return
 
 
-if __name__=='__main__':
-    sim = advCarSim(0,0,radians(90))
+if __name__ == '__main__':
+    sim = advCarSim(0, 0, radians(90))
     for i in range(200):
         throttle = 0
         steering = radians(10)
-        sim.updateCar(0.005,None,throttle,steering)
+        sim.updateCar(0.005, None, throttle, steering)
     sim.debug()
-
-        
-

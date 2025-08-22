@@ -1,5 +1,5 @@
 # Buzzracer
-This repository contains various resources for the Buzzracer platform developed by DCSL at Georgia Tech. Buzzracer is a 1/24 scale autonomous vehicle platform for education and research. It allows easy portation between lsimulation and hardware, and supports multiple vehicles
+This repository contains various resources for the Buzzracer platform developed by DCSL at Georgia Tech. Buzzracer is a 1/24 scale autonomous vehicle platform for education and research. It allows easy portation between simulation and hardware, and supports multiple vehicles to run simultaneously
 
 ![Buzzracer](docs/topology.png)
 
@@ -39,6 +39,8 @@ git clone git@github.gatech.edu:zzhang615/RC-VIP.git'
 ```
 
 depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your URL will be different. 
+
+Note that ssh does not work with `github.gatech.edu` unless you are using campus network or connected to the GT VPN.
 
 ### Install Dependencies
 

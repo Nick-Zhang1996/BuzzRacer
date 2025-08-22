@@ -1,8 +1,8 @@
 # universal entry point for running the car
 from common import *
-from threading import Event,Lock
-from math import pi,radians,degrees
-from time import time,sleep
+from threading import Event, Lock
+from math import pi, radians, degrees
+from time import time, sleep
 
 from util.timeUtil import execution_timer
 from track import TrackFactory
@@ -15,40 +15,43 @@ import xml.etree.ElementTree as ET
 import sys
 import os.path
 import os
-os.environ["PATH"] = os.environ["PATH"]+":/usr/local/cuda/bin/" # enables cuda
+os.environ['PATH'] = os.environ['PATH']+':/usr/local/cuda/bin/'  # enables cuda
 
-class Main(PrintObject,LogObject):
-    def __init__(self,config_filename):
+
+class Main(PrintObject, LogObject):
+    def __init__(self, config_filename):
         LogObject.__init__(self)
-        self.basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.basedir = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config_filename
         self.experiment_name = config_filename
 
     def init(self):
-        self.print_ok(" loading settings")
+        self.print_ok(' loading settings')
         config = minidom.parse(self.config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
-        self.print_ok(" setting main attributes")
-        for key,value_text in config_settings.attributes.items():
-            setattr(self,key,eval(value_text))
-            self.print_info(" main.",key,'=',value_text)
+        self.print_ok(' setting main attributes')
+        for key, value_text in config_settings.attributes.items():
+            setattr(self, key, eval(value_text))
+            self.print_info(' main.', key, '=', value_text)
 
-        config_experiment_text = config_settings.getElementsByTagName('experiment_type')[0].firstChild.nodeValue
+        config_experiment_text = config_settings.getElementsByTagName('experiment_type')[
+            0].firstChild.nodeValue
         self.experiment_type = eval('ExperimentType.'+config_experiment_text)
 
         # prepare track
-        #config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
-        config_track= config.getElementsByTagName('track')[0]
-        self.track = TrackFactory.build(main=self,config=config_track)
+        # config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
+        config_track = config.getElementsByTagName('track')[0]
+        self.track = TrackFactory.build(main=self, config=config_track)
         self.track.init()
 
         # prepare cars
         Car.reset()
         config_cars = config.getElementsByTagName('cars')[0]
         for config_car in config_cars.getElementsByTagName('car'):
-            Car.Factory(self,config_car)
+            Car.Factory(self, config_car)
         self.cars = Car.cars
-        self.print_info(" total cars: %d"%(len(self.cars)))
+        self.print_info(' total cars: %d' % (len(self.cars)))
 
         self.timer = execution_timer(True)
         self.new_state_update = Event()
@@ -62,28 +65,30 @@ class Main(PrintObject,LogObject):
         self.slowdown_ts = 0
 
         # --- Extensions ---
-        self.print_ok("setting up extensions...")
+        self.print_ok('setting up extensions...')
         self.extensions = []
         config_extensions = config.getElementsByTagName('extensions')[0]
         for config_extension in config_extensions.getElementsByTagName('extension'):
             extension_class_name = config_extension.firstChild.nodeValue
             exec('from extension import '+extension_class_name)
-            #ext = eval(extension_class_name+'(self)')
+            # ext = eval(extension_class_name+'(self)')
             ext = eval(extension_class_name)(self)
             handle_name = ''
-            for key,raw in config_extension.attributes.items():
+            for key, raw in config_extension.attributes.items():
                 if key == 'handle':
                     handle_name = raw
-                    setattr(self,handle_name,ext)
-                    self.print_info('main.'+handle_name+' = '+ext.__class__.__name__)
+                    setattr(self, handle_name, ext)
+                    self.print_info('main.'+handle_name +
+                                    ' = '+ext.__class__.__name__)
                 else:
                     try:
                         value = eval(raw)
-                    except (NameError,SyntaxError):
+                    except (NameError, SyntaxError):
                         value = raw
                     # all other attributes will be set to extension
-                    setattr(ext,key,value)
-                    self.print_info('main.'+handle_name+'.'+key+' = '+str(value))
+                    setattr(ext, key, value)
+                    self.print_info('main.'+handle_name +
+                                    '.'+key+' = '+str(value))
         for item in self.extensions:
             item.preInit()
         for car in self.cars:
@@ -101,12 +106,12 @@ class Main(PrintObject,LogObject):
 
     # run experiment until user press q in visualization window
     def run(self):
-        self.print_info("running ... press q to quit")
+        self.print_info('running ... press q to quit')
         while not self.exit_request.is_set():
             ts = time()
             self.update()
         # exit point
-        self.print_info("Exiting ...")
+        self.print_info('Exiting ...')
         for car in self.cars:
             car.controller.final()
         for item in self.extensions:
@@ -122,16 +127,16 @@ class Main(PrintObject,LogObject):
         else:
             return time()
 
-
     # run the control/visualization update
     # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
     # in simulation, this is called with evenly spaced time
     # in real experiment, this is called after a new vicon update is pulled
     # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
     # client (this function) need to unset that event
+
     def update(self,):
         t = self.timer
-        # -- Extension update -- 
+        # -- Extension update --
         t.s()
         for item in self.extensions:
             t.s(item.name)
@@ -147,7 +152,7 @@ class Main(PrintObject,LogObject):
             car.control()
         t.e('control')
 
-        # -- Extension update -- 
+        # -- Extension update --
         t.s('update')
         for item in self.extensions:
             item.update()
@@ -157,7 +162,8 @@ class Main(PrintObject,LogObject):
             item.postUpdate()
         t.e('post')
         t.e()
-        
+
+
 if __name__ == '__main__':
     if (len(sys.argv) == 2):
         name = sys.argv[1]
@@ -174,6 +180,6 @@ if __name__ == '__main__':
     experiment.init()
     experiment.run()
     experiment.timer.summary()
-    #experiment.cars[0].controller.p.summary()
+    # experiment.cars[0].controller.p.summary()
 
-    print_info("program complete")
+    print_info('program complete')

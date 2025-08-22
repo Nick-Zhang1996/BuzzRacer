@@ -5,7 +5,7 @@ import copy
 
 
 class VehicleModel():
-    def __init__(self,n_batch,device,config,track='orca'):
+    def __init__(self, n_batch, device, config, track='orca'):
 
         self.device = device
         self.track = Track.Track()
@@ -14,20 +14,28 @@ class VehicleModel():
         elif (track == 'rcp'):
             self.track.loadRcpTrack()
 
-        self.track_s = torch.from_numpy(self.track.s).type(torch.FloatTensor).to(self.device)
-        self.track_kappa = torch.from_numpy(self.track.kappa).type(torch.FloatTensor).to(self.device)
-        self.track_phi = torch.from_numpy(self.track.phi).type(torch.FloatTensor).to(self.device)
-        self.track_X = torch.from_numpy(self.track.X).type(torch.FloatTensor).to(self.device)
-        self.track_Y = torch.from_numpy(self.track.Y).type(torch.FloatTensor).to(self.device)
+        self.track_s = torch.from_numpy(self.track.s).type(
+            torch.FloatTensor).to(self.device)
+        self.track_kappa = torch.from_numpy(self.track.kappa).type(
+            torch.FloatTensor).to(self.device)
+        self.track_phi = torch.from_numpy(self.track.phi).type(
+            torch.FloatTensor).to(self.device)
+        self.track_X = torch.from_numpy(self.track.X).type(
+            torch.FloatTensor).to(self.device)
+        self.track_Y = torch.from_numpy(self.track.Y).type(
+            torch.FloatTensor).to(self.device)
 
-        self.track_d_upper = torch.from_numpy(self.track.d_upper).type(torch.FloatTensor).to(self.device)
-        self.track_d_lower = torch.from_numpy(self.track.d_lower).type(torch.FloatTensor).to(self.device)
-        self.track_angle_upper = torch.from_numpy(self.track.border_angle_upper).type(torch.FloatTensor).to(self.device)
-        self.track_angle_lower = torch.from_numpy(self.track.border_angle_lower).type(torch.FloatTensor).to(self.device)
-
+        self.track_d_upper = torch.from_numpy(
+            self.track.d_upper).type(torch.FloatTensor).to(self.device)
+        self.track_d_lower = torch.from_numpy(
+            self.track.d_lower).type(torch.FloatTensor).to(self.device)
+        self.track_angle_upper = torch.from_numpy(
+            self.track.border_angle_upper).type(torch.FloatTensor).to(self.device)
+        self.track_angle_lower = torch.from_numpy(
+            self.track.border_angle_lower).type(torch.FloatTensor).to(self.device)
 
         self.n_full_state = config['n_state']
-        self.n_control = config["n_control"]
+        self.n_control = config['n_control']
         self.n_batch = n_batch
 
         # Model Parameters
@@ -57,7 +65,6 @@ class VehicleModel():
 
         self.Ts = 0.03
 
-
     def dynModel(self, x, u):
 
         k1 = self.dx(x, u)
@@ -72,7 +79,7 @@ class VehicleModel():
     # advance dynamics in cartesian frame
     def dx(self, x, u):
 
-        f = torch.empty(self.n_batch, self.n_full_state,device=self.device)
+        f = torch.empty(self.n_batch, self.n_full_state, device=self.device)
 
         phi = x[:, 2]
         v_x = x[:, 3]
@@ -88,9 +95,12 @@ class VehicleModel():
         f[:, 0] = v_x * torch.cos(phi) - v_y * torch.sin(phi)
         f[:, 1] = v_x * torch.sin(phi) + v_y * torch.cos(phi)
         f[:, 2] = r
-        f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
-        f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
-        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+        f[:, 3] = 1 / self.mass_long * \
+            (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+        f[:, 4] = 1 / self.mass * \
+            (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
+        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) -
+                                  F_ry * self.l_r + self.tv_p * (r_tar - r))
         return f
 
     def slipAngle(self, x, u):
@@ -129,105 +139,117 @@ class VehicleModel():
         k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
         k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
 
-        x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        x_next = x + self.Ts * (k1 / 6. + k2 / 3. +
+                                k3 / 3. + k4 / 6.).to(self.device)
 
         return x_next
 
     def dynModelBlend(self, x, u):
 
-        blend_ratio = (x[:,3] - 0.3)/(0.2)
+        blend_ratio = (x[:, 3] - 0.3)/(0.2)
 
-        lambda_blend = np.min([np.max([blend_ratio,0]),1])
+        lambda_blend = np.min([np.max([blend_ratio, 0]), 1])
         # blend_max = torch.max(torch.cat([blend_ratio.view(-1,1), torch.zeros(blend_ratio.size(0),1)],dim=1),dim=1)
         # blend_min = torch.min(torch.cat([blend_max.values.view(-1, 1), torch.ones(blend_max.values.size(0), 1)], dim=1), dim=1)
         # lambda_blend = blend_min.values
 
-        if lambda_blend <1:
-            v_x = x[:,3]
+        if lambda_blend < 1:
+            v_x = x[:, 3]
             v_y = x[:, 4]
-            x_kin = torch.cat([x[:,0:3], torch.sqrt(v_x*v_x + v_y*v_y).reshape(-1,1)],dim =1)
+            x_kin = torch.cat([x[:, 0:3], torch.sqrt(
+                v_x*v_x + v_y*v_y).reshape(-1, 1)], dim=1)
 
             k1 = self.dxkin(x_kin, u).to(self.device)
             k2 = self.dxkin(x_kin + self.Ts / 2. * k1, u).to(self.device)
             k3 = self.dxkin(x_kin + self.Ts / 2. * k2, u).to(self.device)
             k4 = self.dxkin(x_kin + self.Ts * k3, u).to(self.device)
 
-            x_kin_state = x_kin + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+            x_kin_state = x_kin + self.Ts * \
+                (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
             delta = u[:, 1]
-            beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
-            v_x_state = x_kin_state[:,3] * torch.cos(beta) # V*cos(beta)
-            v_y_state = x_kin_state[:,3] * torch.sin(beta) # V*sin(beta)
+            beta = torch.atan(self.l_r * torch.tan(delta) /
+                              (self.l_f + self.l_r))
+            v_x_state = x_kin_state[:, 3] * torch.cos(beta)  # V*cos(beta)
+            v_y_state = x_kin_state[:, 3] * torch.sin(beta)  # V*sin(beta)
             yawrate_state = v_x_state * torch.tan(delta)/(self.l_f + self.l_r)
 
-            x_kin_full = torch.cat([x_kin_state[:,0:3],v_x_state.view(-1,1),v_y_state.view(-1,1), yawrate_state.view(-1,1)],dim =1)
+            x_kin_full = torch.cat([x_kin_state[:, 0:3], v_x_state.view(
+                -1, 1), v_y_state.view(-1, 1), yawrate_state.view(-1, 1)], dim=1)
 
-            if lambda_blend ==0:
+            if lambda_blend == 0:
                 return x_kin_full
 
-        if lambda_blend >0:
+        if lambda_blend > 0:
 
             k1 = self.dxCurve(x, u).to(self.device)
             k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
             k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
             k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
 
-            x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
-            if lambda_blend ==1:
+            x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. +
+                                   k3 / 3. + k4 / 6.).to(self.device)
+            if lambda_blend == 1:
                 return x_dyn
 
-        return  x_dyn*lambda_blend + (1-lambda_blend)*x_kin_full
+        return x_dyn*lambda_blend + (1-lambda_blend)*x_kin_full
 
     def dynModelBlendBatch(self, x, u_unclipped):
 
-        blend_ratio = (x[:,3] - 0.3)/(0.2)
+        blend_ratio = (x[:, 3] - 0.3)/(0.2)
 
         # lambda_blend = np.min([np.max([blend_ratio,0]),1])
-        blend_max = torch.max(torch.cat([blend_ratio.view(-1,1), torch.zeros(blend_ratio.size(0),1)],dim=1),dim=1)
-        blend_min = torch.min(torch.cat([blend_max.values.view(-1, 1), torch.ones(blend_max.values.size(0), 1)], dim=1), dim=1)
+        blend_max = torch.max(torch.cat(
+            [blend_ratio.view(-1, 1), torch.zeros(blend_ratio.size(0), 1)], dim=1), dim=1)
+        blend_min = torch.min(torch.cat(
+            [blend_max.values.view(-1, 1), torch.ones(blend_max.values.size(0), 1)], dim=1), dim=1)
         lambda_blend = blend_min.values
         # print(lambda_blend)
         u = u_unclipped
         # u[:,0] = torch.clamp(u_unclipped[:,0],-0.2,1) #
         # u[:,1] = torch.clamp(u_unclipped[:,1],-0.35,0.35) # steering angle
-        u[:,0] = torch.clamp(u_unclipped[:,0],-1,1) #
-        u[:,1] = torch.clamp(u_unclipped[:,1],-1,1) # steering angle
+        u[:, 0] = torch.clamp(u_unclipped[:, 0], -1, 1)
+        u[:, 1] = torch.clamp(u_unclipped[:, 1], -1, 1)  # steering angle
         # u[:, 0] = u[:, 0]*1.2/2 + 0.4 #(-0.2,1)
         # u[:, 1] = u[:, 1] * 0.35 #(-0.35,035)
 
-        v_x = x[:,3]
+        v_x = x[:, 3]
         v_y = x[:, 4]
-        x_kin = torch.cat([x[:,0:3], torch.sqrt(v_x*v_x + v_y*v_y).reshape(-1,1)],dim =1)
+        x_kin = torch.cat([x[:, 0:3], torch.sqrt(
+            v_x*v_x + v_y*v_y).reshape(-1, 1)], dim=1)
 
         k1 = self.dxkin(x_kin, u).to(self.device)
         k2 = self.dxkin(x_kin + self.Ts / 2. * k1, u).to(self.device)
         k3 = self.dxkin(x_kin + self.Ts / 2. * k2, u).to(self.device)
         k4 = self.dxkin(x_kin + self.Ts * k3, u).to(self.device)
 
-        x_kin_state = x_kin + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        x_kin_state = x_kin + self.Ts * \
+            (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
         delta = u[:, 1]
         beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
-        v_x_state = x_kin_state[:,3] * torch.cos(beta) # V*cos(beta)
-        v_y_state = x_kin_state[:,3] * torch.sin(beta) # V*sin(beta)
+        v_x_state = x_kin_state[:, 3] * torch.cos(beta)  # V*cos(beta)
+        v_y_state = x_kin_state[:, 3] * torch.sin(beta)  # V*sin(beta)
         yawrate_state = v_x_state * torch.tan(delta)/(self.l_f + self.l_r)
 
-        x_kin_full = torch.cat([x_kin_state[:,0:3],v_x_state.view(-1,1),v_y_state.view(-1,1), yawrate_state.view(-1,1)],dim =1)
+        x_kin_full = torch.cat([x_kin_state[:, 0:3], v_x_state.view(-1, 1),
+                               v_y_state.view(-1, 1), yawrate_state.view(-1, 1)], dim=1)
 
         k1 = self.dxCurve(x, u).to(self.device)
         k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
         k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
         k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
 
-        x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.).to(self.device)
+        x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 /
+                               3. + k4 / 6.).to(self.device)
 
-        return  (x_dyn.transpose(0,1)*lambda_blend + x_kin_full.transpose(0,1)*(1-lambda_blend)).transpose(0,1)
+        return (x_dyn.transpose(0, 1)*lambda_blend + x_kin_full.transpose(0, 1)*(1-lambda_blend)).transpose(0, 1)
 
     def dxkin(self, x, u):
 
         fkin = torch.empty(x.size(0), 4)
 
-        s = x[:,0] #progress
-        d = x[:,1] #horizontal displacement
-        mu = x[:, 2] #orientation
+        s = x[:, 0]  # progress
+        d = x[:, 1]  # horizontal displacement
+        mu = x[:, 2]  # orientation
         v = x[:, 3]
 
         delta = u[:, 1]
@@ -237,16 +259,18 @@ class VehicleModel():
         beta = torch.atan(self.l_r*torch.tan(delta)/(self.l_f + self.l_r))
 
         fkin[:, 0] = (v*torch.cos(beta + mu))/(1.0 - kappa*d)   # s_dot
-        fkin[:, 1] = v*torch.sin(beta + mu) # d_dot
-        fkin[:, 2] = v*torch.sin(beta)/self.l_r - kappa*(v*torch.cos(beta + mu))/(1.0 - kappa*d)
-        slow_ind =  v<=0.1
+        fkin[:, 1] = v*torch.sin(beta + mu)  # d_dot
+        fkin[:, 2] = v*torch.sin(beta)/self.l_r - \
+            kappa*(v*torch.cos(beta + mu))/(1.0 - kappa*d)
+        slow_ind = v <= 0.1
         D_0 = (self.Cr0 + self.Cr2*v*v)/(self.Cm1 - self.Cm2 * v)
-        D_slow  = torch.max(D_0,u[:,0])
-        D_fast = u[:,0]
+        D_slow = torch.max(D_0, u[:, 0])
+        D_fast = u[:, 0]
 
         D = D_slow*slow_ind + D_fast*(~slow_ind)
 
-        fkin[:, 3] = 1 / self.mass_long * (self.Cm1 * D - self.Cm2 * v * D - self.Cr0 - self.Cr2*v*v)
+        fkin[:, 3] = 1 / self.mass_long * \
+            (self.Cm1 * D - self.Cm2 * v * D - self.Cr0 - self.Cr2*v*v)
 
         return fkin
 
@@ -254,12 +278,12 @@ class VehicleModel():
 
         f = torch.empty(self.n_batch, self.n_full_state)
 
-        s = x[:,0] #progress
-        d = x[:,1] #horizontal displacement
-        mu = x[:, 2] #orientation
+        s = x[:, 0]  # progress
+        d = x[:, 1]  # horizontal displacement
+        mu = x[:, 2]  # orientation
         v_x = x[:, 3]
         v_y = x[:, 4]
-        r = x[:, 5] #yawrate
+        r = x[:, 5]  # yawrate
 
         delta = u[:, 1]
 
@@ -267,51 +291,59 @@ class VehicleModel():
 
         blend_ratio = (v_x - 0.3)/(0.2)
 
-        lambda_blend = np.min([np.max([blend_ratio,0]),1])
+        lambda_blend = np.min([np.max([blend_ratio, 0]), 1])
         kappa = self.getCurvature(s)
 
-        if lambda_blend<1:
+        if lambda_blend < 1:
             fkin = torch.empty(self.n_batch, self.n_full_state)
 
             v = np.sqrt(v_x*v_x + v_y*v_y)
             beta = torch.tan(self.l_r*torch.atan(delta/(self.l_f + self.lr)))
 
-            fkin[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)   # s_dot
-            fkin[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu) # d_dot
-            fkin[:, 2] = v*torch.sin(beta)/self.l_r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-            v_dot = 1 / self.mass_long * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
+            fkin[:, 0] = (v_x * torch.cos(mu) - v_y *
+                          torch.sin(mu))/(1.0 - kappa*d)   # s_dot
+            fkin[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu)  # d_dot
+            fkin[:, 2] = v*torch.sin(beta)/self.l_r - kappa * \
+                ((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
+            v_dot = 1 / self.mass_long * \
+                (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
 
-            fkin[:, 3] = 1 / self.mass_long * (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
+            fkin[:, 3] = 1 / self.mass_long * \
+                (self.Cm1 * u[:, 0] - self.Cm2 * v_x * u[:, 0])
             fkin[:, 4] = delta * fkin[:, 3] * self.l_r / (self.l_r + self.l_f)
             fkin[:, 5] = delta * fkin[:, 3] / (self.l_r + self.l_f)
-            if lambda_blend ==0:
+            if lambda_blend == 0:
                 return fkin
 
-        if lambda_blend>0:
+        if lambda_blend > 0:
             [F_rx, F_ry, F_fy] = self.forceModel(x, u)
 
-            f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
-            f[:, 1] =  v_x * torch.sin(mu) + v_y * torch.cos(mu)
-            f[:, 2] = r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-            f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
-            f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
-            f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
-            if lambda_blend ==1:
+            f[:, 0] = (v_x * torch.cos(mu) - v_y *
+                       torch.sin(mu))/(1.0 - kappa*d)
+            f[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu)
+            f[:, 2] = r - kappa * \
+                ((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
+            f[:, 3] = 1 / self.mass_long * \
+                (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+            f[:, 4] = 1 / self.mass * \
+                (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
+            f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) -
+                                      F_ry * self.l_r + self.tv_p * (r_tar - r))
+            if lambda_blend == 1:
                 return f
 
         return f*lambda_blend + (1-lambda_blend)*fkin
-
 
     def dxCurve(self, x, u):
 
         f = torch.empty(x.size(0), self.n_full_state)
 
-        s = x[:,0] #progress
-        d = x[:,1] #horizontal displacement
-        mu = x[:, 2] #orientation
+        s = x[:, 0]  # progress
+        d = x[:, 1]  # horizontal displacement
+        mu = x[:, 2]  # orientation
         v_x = x[:, 3]
         v_y = x[:, 4]
-        r = x[:, 5] #yawrate
+        r = x[:, 5]  # yawrate
 
         delta = u[:, 1]
 
@@ -322,14 +354,18 @@ class VehicleModel():
         kappa = self.getCurvature(s)
 
         f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
-        f[:, 1] =  v_x * torch.sin(mu) + v_y * torch.cos(mu)
-        f[:, 2] = r - kappa*((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
-        f[:, 3] = 1 / self.mass_long * (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
-        f[:, 4] = 1 / self.mass * (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
-        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r + self.tv_p * (r_tar - r))
+        f[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu)
+        f[:, 2] = r - kappa * \
+            ((v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d))
+        f[:, 3] = 1 / self.mass_long * \
+            (F_rx - F_fy * torch.sin(delta) + self.mass * v_y * r)
+        f[:, 4] = 1 / self.mass * \
+            (F_ry + F_fy * torch.cos(delta) - self.mass * v_x * r)
+        f[:, 5] = 1 / self.I_z * (F_fy * self.l_f * torch.cos(delta) -
+                                  F_ry * self.l_r + self.tv_p * (r_tar - r))
         return f
 
-    def fromStoIndexBatch(self,s_in):
+    def fromStoIndexBatch(self, s_in):
 
         s = s_in
 
@@ -342,7 +378,7 @@ class VehicleModel():
         # s[i_nan] = torch.zeros(torch.sum(i_nan))
         k = 0
         if torch.max(s) > self.track_s[-1] or torch.min(s) < 0:
-            s = torch.fmod(s,self.track_s[-1])
+            s = torch.fmod(s, self.track_s[-1])
             # i_wrapdown = (s > self.track_s[-1]).type(torch.FloatTensor)
             i_wrapup = (s < 0).type(torch.FloatTensor)
 
@@ -362,51 +398,59 @@ class VehicleModel():
 
         next_index = index + 1
         i_index_wrap = (next_index < self.track.N).type(torch.LongTensor)
-        next_index = torch.fmod(next_index,self.track.N)# * i_index_wrap
+        next_index = torch.fmod(next_index, self.track.N)  # * i_index_wrap
 
         return index, next_index, rela_proj
 
     def getCurvature(self, s):
         index, next_index, rela_proj = self.fromStoIndexBatch(s)
 
-        kappa = self.track_kappa[index] + rela_proj * (self.track_kappa[next_index] - self.track_kappa[index])
+        kappa = self.track_kappa[index] + rela_proj * \
+            (self.track_kappa[next_index] - self.track_kappa[index])
 
         return kappa
 
-    def getTrackHeading(self,s):
+    def getTrackHeading(self, s):
         index, next_index, rela_proj = self.fromStoIndexBatch(s)
-        phi = self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
+        phi = self.track_phi[index] + rela_proj * \
+            (self.track_phi[next_index] - self.track_phi[index])
         return phi
 
-    def getLocalBounds(self,s):
+    def getLocalBounds(self, s):
         index, next_index, rela_proj = self.fromStoIndexBatch(s)
         d_upper = self.track_d_upper[index] + \
-                  rela_proj * (self.track_d_upper[next_index] - self.track_d_upper[index])
+            rela_proj * \
+            (self.track_d_upper[next_index] - self.track_d_upper[index])
         d_lower = self.track_d_lower[index] +\
-                  rela_proj * (self.track_d_lower[next_index] - self.track_d_lower[index])
+            rela_proj * \
+            (self.track_d_lower[next_index] - self.track_d_lower[index])
 
         angle_upper = self.track_angle_upper[index] + \
-                      rela_proj * (self.track_angle_upper[next_index] - self.track_angle_upper[index])
+            rela_proj * \
+            (self.track_angle_upper[next_index] -
+             self.track_angle_upper[index])
         angle_lower = self.track_angle_lower[index] + \
-                      rela_proj * (self.track_angle_lower[next_index] - self.track_angle_lower[index])
+            rela_proj * \
+            (self.track_angle_lower[next_index] -
+             self.track_angle_lower[index])
 
-        return d_upper, d_lower,angle_upper,angle_lower
+        return d_upper, d_lower, angle_upper, angle_lower
 
-
-
-    def fromLocalToGlobal(self,state_local,phi_ref):
-        s = state_local[:,0]
-        d = state_local[:,1]
-        mu = state_local[:,2]
+    def fromLocalToGlobal(self, state_local, phi_ref):
+        s = state_local[:, 0]
+        d = state_local[:, 1]
+        mu = state_local[:, 2]
         v_x = state_local[:, 3]
         v_y = state_local[:, 4]
         r = state_local[:, 5]
         index, next_index, rela_proj = self.fromStoIndexBatch(s)
-        vec_track = torch.empty(self.n_batch,2)
-        vec_track[:, 0] = (self.track_X[next_index] - self.track_X[index])* rela_proj
-        vec_track[:, 1] = (self.track_Y[next_index] - self.track_Y[index])* rela_proj
+        vec_track = torch.empty(self.n_batch, 2)
+        vec_track[:, 0] = (self.track_X[next_index] -
+                           self.track_X[index]) * rela_proj
+        vec_track[:, 1] = (self.track_Y[next_index] -
+                           self.track_Y[index]) * rela_proj
 
-        pos_index = torch.empty(self.n_batch,2)
+        pos_index = torch.empty(self.n_batch, 2)
         pos_index[:, 0] = self.track_X[index]
         pos_index[:, 1] = self.track_Y[index]
 
@@ -417,7 +461,7 @@ class VehicleModel():
         phi = phi_0
         # phi = self.getTrackHeading(s)#self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
 
-        pos_global = torch.empty(self.n_batch,2)
+        pos_global = torch.empty(self.n_batch, 2)
         pos_global[:, 0] = pos_center[:, 0] - d * torch.sin(phi)
         pos_global[:, 1] = pos_center[:, 1] + d * torch.cos(phi)
 
@@ -425,15 +469,19 @@ class VehicleModel():
 
         # heading = torch.fmod(heading,2*np.pi)
 
-        upwrap_index = ((phi_ref - heading)>1.5*np.pi).type(torch.FloatTensor)
-        downwrap_index = ((phi_ref - heading)<-1.5*np.pi).type(torch.FloatTensor)
+        upwrap_index = ((phi_ref - heading) > 1.5 *
+                        np.pi).type(torch.FloatTensor)
+        downwrap_index = ((phi_ref - heading) < -1.5 *
+                          np.pi).type(torch.FloatTensor)
         heading = heading - 2*np.pi*downwrap_index + 2*np.pi*upwrap_index
 
-        upwrap_index = ((phi_ref - heading) > 1.5 * np.pi).type(torch.FloatTensor)
-        downwrap_index = ((phi_ref - heading) < -1.5 * np.pi).type(torch.FloatTensor)
+        upwrap_index = ((phi_ref - heading) > 1.5 *
+                        np.pi).type(torch.FloatTensor)
+        downwrap_index = ((phi_ref - heading) < -1.5 *
+                          np.pi).type(torch.FloatTensor)
         heading = heading - 2 * np.pi * downwrap_index + 2 * np.pi * upwrap_index
 
-        x_global = torch.empty(self.n_batch,self.n_full_state)
+        x_global = torch.empty(self.n_batch, self.n_full_state)
         x_global[:, 0] = pos_global[:, 0]
         x_global[:, 1] = pos_global[:, 1]
         x_global[:, 2] = heading
@@ -445,7 +493,7 @@ class VehicleModel():
 
     def fromStoIndex(self, s):
 
-        s = torch.fmod(s,self.track_s[-1])
+        s = torch.fmod(s, self.track_s[-1])
         # if s > self.track_kappa[-1]:
         #     s = s - self.track_kappa[-1]
         if s < 0:
@@ -463,4 +511,3 @@ class VehicleModel():
         elif mu > np.pi:
             mu = mu - 2 * np.pi
         return mu
-

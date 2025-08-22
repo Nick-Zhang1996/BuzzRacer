@@ -3,9 +3,11 @@ from common import *
 from extension.Extension import Extension
 
 # check collision with opponents, for iLQGameCarController
+
+
 class OpponentCollisionChecker(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
+    def __init__(self, main):
+        Extension.__init__(self, main)
         self.collision_count = 0
         self.last_collision_ts = -1e3
         self.lockout_timestep = 10
@@ -24,6 +26,6 @@ class OpponentCollisionChecker(Extension):
                 self.last_collision_ts = self.timestep
 
     def final(self):
-        self.print_info("total car-car collision = %d"%(self.collision_count))
+        self.print_info('total car-car collision = %d' %
+                        (self.collision_count))
         self.main.opponent_collision_count = self.collision_count
-

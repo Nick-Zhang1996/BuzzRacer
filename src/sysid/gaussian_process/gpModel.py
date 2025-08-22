@@ -8,7 +8,9 @@ from gpytorch.models.deep_gps import DeepGPLayer, DeepGP
 from gpytorch.mlls import DeepApproximateMLL, VariationalELBO
 from gpytorch.likelihoods import MultitaskGaussianLikelihood
 
-## GENERATING GP SIMILAR TO THAT IN TUTORIAL (not deep)
+# GENERATING GP SIMILAR TO THAT IN TUTORIAL (not deep)
+
+
 class DGPHiddenLayer(DeepGPLayer):
     def __init__(self, input_dims, output_dims, num_inducing=128, linear_mean=True):
         inducing_points = torch.randn(output_dims, num_inducing, input_dims)
@@ -26,9 +28,11 @@ class DGPHiddenLayer(DeepGPLayer):
         )
 
         super().__init__(variational_strategy, input_dims, output_dims)
-        self.mean_module = LinearMean(input_dims) if linear_mean else ConstantMean()
+        self.mean_module = LinearMean(
+            input_dims) if linear_mean else ConstantMean()
         self.covar_module = ScaleKernel(
-            MaternKernel(nu=2.5, batch_shape=batch_shape, ard_num_dims=input_dims),
+            MaternKernel(nu=2.5, batch_shape=batch_shape,
+                         ard_num_dims=input_dims),
             batch_shape=batch_shape, ard_num_dims=None
         )
 
@@ -36,6 +40,7 @@ class DGPHiddenLayer(DeepGPLayer):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return MultivariateNormal(mean_x, covar_x)
+
 
 class MultitaskDeepGP(DeepGP):
     def __init__(self, train_x_shape, num_tasks):
@@ -64,6 +69,7 @@ class MultitaskDeepGP(DeepGP):
             # To compute the marginal predictive NLL of each data point,
             # we will call `to_data_independent_dist`,
             # which removes the data cross-covariance terms from the distribution.
-            preds = self.likelihood(self.forward(test_x)).to_data_independent_dist()
+            preds = self.likelihood(self.forward(
+                test_x)).to_data_independent_dist()
 
         return preds.mean.mean(0), preds.variance.mean(0)

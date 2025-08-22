@@ -42,6 +42,7 @@ Author(s): David Fridovich-Keil ( dfk@eecs.berkeley.edu )
 import numpy as np
 from collections import deque
 
+
 def solve_lq_game(As, Bs, Qs, ls, Rs):
     """
     Solve a time-varying, finite horizon LQ game (finds closed-loop Nash
