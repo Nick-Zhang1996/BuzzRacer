@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if (len(sys.argv) != 2):
-    #print("please specify a filename")
+    # print("please specify a filename")
     filename = '../../log/2022_3_14_exp/full_state2.p'
 
 else:
@@ -16,35 +16,35 @@ with open(filename, 'rb') as f:
 # data dimension: [time_steps, cars, entries]
 # for example data[100,3,:] denote the state at 1.0s(100th time step), for car no.4
 # the states are listed below
-data = np.array(data)[:,0,:]
+data = np.array(data)[:, 0, :]
 
-t = data[:,0]
+t = data[:, 0]
 t = t-t[0]
-x = data[:,1]
-y = data[:,2]
-heading = data[:,3]
-v_forward = data[:,4]
-v_sideway = data[:,5]
+x = data[:, 1]
+y = data[:, 2]
+heading = data[:, 3]
+v_forward = data[:, 4]
+v_sideway = data[:, 5]
 # angular speed
-omega = data[:,6]
-steering = data[:,7]
-throttle = data[:,8]
+omega = data[:, 6]
+steering = data[:, 7]
+throttle = data[:, 8]
 
-print("control")
+print('control')
 plt.plot(throttle)
 plt.plot(steering)
 plt.show()
 
-print("trajectory")
-plt.plot(x,y)
+print('trajectory')
+plt.plot(x, y)
 plt.show()
 
-print("heading")
+print('heading')
 plt.plot(heading)
 plt.plot(omega)
 plt.show()
 
-print("velocity")
+print('velocity')
 plt.plot(v_forward)
 plt.plot(v_sideway)
 plt.show()

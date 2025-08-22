@@ -1,35 +1,36 @@
 # mppi car controller, with dynamic model
+import matplotlib.pyplot as plt
+from pycuda.compiler import SourceModule
+import pycuda.driver as drv
 from controller.CarController import CarController
 import numpy as np
-from time import time,sleep
-from math import radians,degrees,cos,sin,ceil,floor,atan,tan
-from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from time import time, sleep
+from math import radians, degrees, cos, sin, ceil, floor, atan, tan
+from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import pycuda.autoinit
 global drv
-import pycuda.driver as drv
-from pycuda.compiler import SourceModule
-import matplotlib.pyplot as plt
-import numpy as np
+
 
 class MppiCarController(CarController):
-    def __init__(self,car,config):
+    def __init__(self, car, config):
 
         # reconfigurable parameters
         self.state_dim = 6
         self.control_dim = 2
-        self.samples_count = None # to be set in config
+        self.samples_count = None  # to be set in config
         self.horizon = None       # to be set in config
         self.dt = 0.02
         self.temperature = 0.01
-        self.control_limit = np.array([[-1.0,1.0],[-radians(27.1),radians(27.1)]])
+        self.control_limit = np.array(
+            [[-1.0, 1.0], [-radians(27.1), radians(27.1)]])
 
-        super().__init__(car,config)
+        super().__init__(car, config)
         self.track = self.car.main.track
-        self.n =  self.state_dim
-        self.m =  self.control_dim
+        self.n = self.state_dim
+        self.m = self.control_dim
 
-        np.set_printoptions(formatter={'float': lambda x: "{0:7.4f}".format(x)})
-
+        np.set_printoptions(
+            formatter={'float': lambda x: '{0:7.4f}'.format(x)})
 
         '''
         for key,value_text in config.attributes.items():
@@ -39,16 +40,17 @@ class MppiCarController(CarController):
 
     def init(self):
         # directly sample control
-        self.print_ok("max throttle = %.2f"%(self.car.max_throttle))
-        #self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
-        #self.noise_mean = np.array([0.207,0])
+        self.print_ok('max throttle = %.2f' % (self.car.max_throttle))
+        # self.noise_cov = np.array([(self.car.max_throttle*1.5)**2,radians(30.0)**2])
+        # self.noise_mean = np.array([0.207,0])
 
         # sample control change rate val/sec
-        self.noise_cov = np.array([(self.car.max_throttle*2/0.4)**2,(radians(27.0)*2/0.2)**2])
-        self.noise_mean = np.array([0.0,0])
+        self.noise_cov = np.array(
+            [(self.car.max_throttle*2/0.4)**2, (radians(27.0)*2/0.2)**2])
+        self.noise_mean = np.array([0.0, 0])
 
-        #self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
-        self.last_control = np.zeros(2,dtype=np.float32)
+        # self.old_ref_control = np.zeros( (self.samples_count,self.control_dim) )
+        self.last_control = np.zeros(2, dtype=np.float32)
         self.freq_vec = []
 
         self.track.prepareDiscretizedRaceline()
@@ -59,79 +61,85 @@ class MppiCarController(CarController):
 
         self.initCuda()
 
-
-
     def initCuda(self):
         self.curand_kernel_n = 1024
 
         # prepare constants
         cuda_code_macros = {
-                "SAMPLE_COUNT":self.samples_count,
-                "HORIZON":self.horizon, 
-                "CONTROL_DIM":self.m,
-                "STATE_DIM":self.state_dim,
-                "RACELINE_LEN":self.discretized_raceline.shape[0],
-                "TEMPERATURE":self.temperature,
-                "DT":self.dt
-                }
-        cuda_code_macros.update({"CURAND_KERNEL_N":self.curand_kernel_n})
-        cuda_filename = "./controller/mppi/mppi_racecar.cu"
+            'SAMPLE_COUNT': self.samples_count,
+            'HORIZON': self.horizon,
+            'CONTROL_DIM': self.m,
+            'STATE_DIM': self.state_dim,
+            'RACELINE_LEN': self.discretized_raceline.shape[0],
+            'TEMPERATURE': self.temperature,
+            'DT': self.dt
+        }
+        cuda_code_macros.update({'CURAND_KERNEL_N': self.curand_kernel_n})
+        cuda_filename = './controller/mppi/mppi_racecar.cu'
         self.loadCudaFile(cuda_filename, cuda_code_macros)
         self.setBlockGrid()
 
-        self.cuda_init_curand_kernel = self.getFunctionSafe("init_curand_kernel")
-        self.cuda_generate_control_noise = self.getFunctionSafe("generate_control_noise")
-        self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
-        self.cuda_set_control_limit = self.getFunctionSafe("set_control_limit")
-        self.cuda_set_noise_cov = self.getFunctionSafe("set_noise_cov")
-        self.cuda_set_noise_mean = self.getFunctionSafe("set_noise_mean")
-        self.cuda_set_raceline = self.getFunctionSafe("set_raceline")
+        self.cuda_init_curand_kernel = self.getFunctionSafe(
+            'init_curand_kernel')
+        self.cuda_generate_control_noise = self.getFunctionSafe(
+            'generate_control_noise')
+        self.cuda_evaluate_control_sequence = self.getFunctionSafe(
+            'evaluate_control_sequence')
+        self.cuda_set_control_limit = self.getFunctionSafe('set_control_limit')
+        self.cuda_set_noise_cov = self.getFunctionSafe('set_noise_cov')
+        self.cuda_set_noise_mean = self.getFunctionSafe('set_noise_mean')
+        self.cuda_set_raceline = self.getFunctionSafe('set_raceline')
         self.initCurand()
 
         # TODO:
         # set control limit
         device_control_limit = self.to_device(self.control_limit)
-        self.cuda_set_control_limit(device_control_limit,block=(1,1,1),grid=(1,1,1))
+        self.cuda_set_control_limit(
+            device_control_limit, block=(1, 1, 1), grid=(1, 1, 1))
         # set noise variance
         device_noise_cov = self.to_device(self.noise_cov)
-        self.cuda_set_noise_cov(device_noise_cov, block=(1,1,1),grid=(1,1,1))
+        self.cuda_set_noise_cov(
+            device_noise_cov, block=(1, 1, 1), grid=(1, 1, 1))
         # set noise mean
         device_noise_mean = self.to_device(self.noise_mean)
-        self.cuda_set_noise_mean(device_noise_mean, block=(1,1,1),grid=(1,1,1))
+        self.cuda_set_noise_mean(
+            device_noise_mean, block=(1, 1, 1), grid=(1, 1, 1))
         # set raceline
         device_raceline = self.to_device(self.discretized_raceline)
-        self.cuda_set_raceline(device_raceline, block=(1,1,1),grid=(1,1,1))
-
+        self.cuda_set_raceline(
+            device_raceline, block=(1, 1, 1), grid=(1, 1, 1))
 
         sleep(1)
 
     def initCurand(self):
         seed = np.int32(int(time()*10000))
-        self.cuda_init_curand_kernel(seed,block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-        #self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
-        #self.device_rand_vals = drv.to_device(self.rand_vals)
+        self.cuda_init_curand_kernel(seed, block=(
+            self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
+        # self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
+        # self.device_rand_vals = drv.to_device(self.rand_vals)
 
-    def loadCudaFile(self,cuda_filename,macros):
-        self.print_info("loading cuda source code ...")
-        with open(cuda_filename,"r") as f:
+    def loadCudaFile(self, cuda_filename, macros):
+        self.print_info('loading cuda source code ...')
+        with open(cuda_filename, 'r') as f:
             code = f.read()
         self.mod = SourceModule(code % macros, no_extern_c=True)
 
     def setBlockGrid(self):
         if (self.samples_count < 1024):
             # if sample count is small only employ one grid
-            self.cuda_block_size = (self.samples_count,1,1)
-            self.cuda_grid_size = (1,1)
+            self.cuda_block_size = (self.samples_count, 1, 1)
+            self.cuda_grid_size = (1, 1)
         else:
             # employ multiple grid,
-            self.cuda_block_size = (1024,1,1)
-            self.cuda_grid_size = (ceil(self.samples_count/1024.0),1)
-        self.print_info("cuda block size %d, grid size %d"%(self.cuda_block_size[0],self.cuda_grid_size[0]))
+            self.cuda_block_size = (1024, 1, 1)
+            self.cuda_grid_size = (ceil(self.samples_count/1024.0), 1)
+        self.print_info('cuda block size %d, grid size %d' %
+                        (self.cuda_block_size[0], self.cuda_grid_size[0]))
         return
 
-    def getFunctionSafe(self,name):
+    def getFunctionSafe(self, name):
         fun = self.mod.get_function(name)
-        self.print_info("registers used, ",name,"= %d"%(fun.num_regs))
+        self.print_info('registers used, ', name, '= %d' % (fun.num_regs))
         assert fun.num_regs < 64
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
@@ -147,30 +155,33 @@ class MppiCarController(CarController):
         opponent_traj = np.array(opponent_traj)
         if (opponent_count > 0):
             # use only x,y from the states
-            opponent_traj = opponent_traj[:,:,:2]
+            opponent_traj = opponent_traj[:, :, :2]
         return opponent_count, opponent_traj
-
 
 
 #   state: (x,y,heading,v_forward,v_sideway,omega)
 # Note the difference between control_rate and actual control. Since we sample the time rate of change on control it's a bit confusing
+
+
     def control(self):
         t = time()
         # vf: forward v
         # vs: lateral v, left positive
         # omega: angular velocity
-        x,y,heading,vf,vs,omega = self.car.states
+        x, y, heading, vf, vs, omega = self.car.states
 
-        #ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
-        ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
+        # ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
+        ref_control_rate = np.zeros([self.horizon, self.m], dtype=np.float32)
 
         # generate random var
-        random_vals = np.zeros(self.samples_count*self.horizon*self.control_dim,dtype=np.float32) 
-        self.cuda_generate_control_noise(block=(self.curand_kernel_n,1,1),grid=(1,1,1))
-        #random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
-        #cov0 = np.std(random_vals[:,:,0])
-        #cov1 = np.std(random_vals[:,:,1])
-        #self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
+        random_vals = np.zeros(
+            self.samples_count*self.horizon*self.control_dim, dtype=np.float32)
+        self.cuda_generate_control_noise(
+            block=(self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
+        # random_vals = random_vals.reshape( (self.samples_count, self.horizon, self.control_dim) )
+        # cov0 = np.std(random_vals[:,:,0])
+        # cov1 = np.std(random_vals[:,:,1])
+        # self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
 
         # prepare opponent info
         opponent_count, opponent_traj = self.getOpponentStatus()
@@ -184,31 +195,33 @@ class MppiCarController(CarController):
         device_ref_control_rate = self.to_device(ref_control_rate)
         device_initial_state = self.to_device(self.car.states)
         costs = np.zeros((self.samples_count), dtype=np.float32)
-        sampled_control_rate = np.zeros( self.samples_count*self.horizon*self.m, dtype=np.float32 )
+        sampled_control_rate = np.zeros(
+            self.samples_count*self.horizon*self.m, dtype=np.float32)
         device_last_control = self.to_device(self.last_control)
 
-
-        sampled_trajectory = np.zeros((self.samples_count*self.horizon*self.n), dtype=np.float32)
+        sampled_trajectory = np.zeros(
+            (self.samples_count*self.horizon*self.n), dtype=np.float32)
         self.cuda_evaluate_control_sequence(
-                device_initial_state, 
-                device_last_control,
-                device_ref_control_rate, 
-                drv.Out(costs),
-                drv.Out(sampled_control_rate),
-                #drv.Out(sampled_trajectory),
-                opponent_count,
-                device_opponent_traj,
-                block=self.cuda_block_size,grid=self.cuda_grid_size
-                )
+            device_initial_state,
+            device_last_control,
+            device_ref_control_rate,
+            drv.Out(costs),
+            drv.Out(sampled_control_rate),
+            # drv.Out(sampled_trajectory),
+            opponent_count,
+            device_opponent_traj,
+            block=self.cuda_block_size, grid=self.cuda_grid_size
+        )
         # sampled trajectory overhead with GPU has 10Hz impact
-        #sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
+        # sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
         # retrieve cost
-        sampled_control_rate = sampled_control_rate.reshape(self.samples_count,self.horizon,self.m)
+        sampled_control_rate = sampled_control_rate.reshape(
+            self.samples_count, self.horizon, self.m)
         control_rate = self.synthesizeControl(costs, sampled_control_rate)
-        #self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
+        # self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
-        control = self.last_control + np.cumsum( control_rate, axis=0)*self.dt
+        control = self.last_control + np.cumsum(control_rate, axis=0)*self.dt
         # display expected trajectory
         # 5Hz impact
         '''
@@ -217,17 +230,17 @@ class MppiCarController(CarController):
         self.plotTrajectory(expected_trajectory)
         '''
 
-        #self.last_ref_control = control.copy()
+        # self.last_ref_control = control.copy()
         self.last_ref_control = np.zeros_like(control)
 
-        self.car.throttle += control_rate[0,0]*self.dt
-        self.car.steering += control_rate[0,1]*self.dt
+        self.car.throttle += control_rate[0, 0]*self.dt
+        self.car.steering += control_rate[0, 1]*self.dt
 
-        #self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
-        self.last_control = [self.car.throttle,self.car.steering]
+        # self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
+        self.last_control = [self.car.throttle, self.car.steering]
         dt = time() - t
         self.freq_vec.append(1.0/dt)
-        #self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
+        # self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
 
         '''
         display_trajectory = sampled_trajectory[:,:,0:2]
@@ -342,10 +355,10 @@ class MppiCarController(CarController):
         min_index = np.argmin(cost_vec)
         return sampled_control[min_index]
 
-
     # given cost and sampled control, return optimal control per MPPI algorithm
     # control_vec: samples * horizon * m
     # cost_vec: samples
+
     def synthesizeControl(self, cost_vec, sampled_control_rate):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
@@ -354,15 +367,17 @@ class MppiCarController(CarController):
         # calculate weights
         weights = np.exp(- (cost_vec - beta)/cost_mean/self.temperature)
         weights = weights / np.sum(weights)
-        #self.print_info("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
+        # self.print_info("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 
-        synthesized_control_rate = np.zeros((self.horizon,self.m))
+        synthesized_control_rate = np.zeros((self.horizon, self.m))
         for t in range(self.horizon):
             for i in range(self.m):
-                synthesized_control_rate[t,i] = np.sum(weights * sampled_control_rate[:,t,i])
+                synthesized_control_rate[t, i] = np.sum(
+                    weights * sampled_control_rate[:, t, i])
         return synthesized_control_rate
 
-    def to_device(self,data):
-        return drv.to_device(np.array(data,dtype=np.float32).flatten())
-    def from_device(self,data,shape,dtype=np.float32):
-        return drv.from_device(data,shape,dtype)
+    def to_device(self, data):
+        return drv.to_device(np.array(data, dtype=np.float32).flatten())
+
+    def from_device(self, data, shape, dtype=np.float32):
+        return drv.from_device(data, shape, dtype)

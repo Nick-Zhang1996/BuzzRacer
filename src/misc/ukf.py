@@ -2,14 +2,15 @@
 # on a dynamic bicycle model, following ETH's paper
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import sqrtm,norm
+from scipy.linalg import sqrtm, norm
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
-from math import radians,degrees
+from math import radians, degrees
 from common import *
 
-#DEBUG
+# DEBUG
 from ethCarSim import ethCarSim
+
 
 class UKF:
     def __init__(self,):
@@ -28,7 +29,7 @@ class UKF:
         # TODO use a dictionary
 
         # initial values
-        #Df, Dr, C, B, Cm1, Cm2, Cr, Cd = param
+        # Df, Dr, C, B, Cm1, Cm2, Cr, Cd = param
         # tire param
         self.Df = 1.0
         self.Dr = 1.0
@@ -39,52 +40,52 @@ class UKF:
         self.Cm1 = 7.0
         self.Cm2 = 0.3
         self.Cr = 0.24*7.0
-        #self.Cd = 0.05
+        # self.Cd = 0.05
         self.Cd = 0.0
 
         self.Iz = 10*self.m/12.0*(0.1**2+0.1**2)
-        
+
         # not actual param value, but ratio between estimated param and initial param
         # order of param
-        #self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
-        self.param = np.array([1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0])
+        # self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
+        self.param = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
         self.initSigmaPoints()
-        
+
         # added to cov matrix at each step
         # 1 reasonable tracking of v, underestimating at peaks
-        #self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[2e-3**2]*self.param_n)
+        # self.process_noise_cov = np.diag([0.01**2, 0.04**2, 0.01**2, 0.04**2, radians(2)**2, 1**2]+[2e-3**2]*self.param_n)
 
         # 2
         # use ground truth parameter, no noise, tune v
-        #self.process_noise_cov = np.diag([(1e-4)**2, (1e-4)**2, (1e-4)**2, (1e-4)**2, radians(0.02)**2, 0.01**2]+[0e-5**2]*self.param_n)
+        # self.process_noise_cov = np.diag([(1e-4)**2, (1e-4)**2, (1e-4)**2, (1e-4)**2, radians(0.02)**2, 0.01**2]+[0e-5**2]*self.param_n)
 
         # 3
         # use noisy simulation
         # NOTE this does not multiply with dt, so we multiply by dt2
-        #self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [0e-3**2]*(self.param_n) )*(0.01**2)
+        # self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [0e-3**2]*(self.param_n) )*(0.01**2)
 
         # 4
         # start tuning cov for parameter
         # 1e-1 - 1e-3 **2 seem to be good
-        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3,radians(10), 1.0] + [0.5**2]*(self.param_n-2) + [0.0]*2)*(0.01**2)
-
+        self.process_noise_cov = np.diag([0.1, 0.3, 0.1, 0.3, radians(
+            10), 1.0] + [0.5**2]*(self.param_n-2) + [0.0]*2)*(0.01**2)
 
         # 1
-        #self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(1)**2])
+        # self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(1)**2])
         # 2
-        #self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(0.1)**2])
+        # self.observation_noise_cov = np.diag([1e-3**2, 1e-3**2, radians(0.1)**2])
 
         # 3 also #2*1e5 to maintain ratio in #2 ->that's really larger lets use use old
-        #self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
-        
+        # self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
+
         # 4
-        self.observation_noise_cov = np.diag([2e-3**2, 2e-3**2, radians(0.5)**2])
+        self.observation_noise_cov = np.diag(
+            [2e-3**2, 2e-3**2, radians(0.5)**2])
 
-
-    def initState(self,x,vxg,y,vyg,psi,omega):
+    def initState(self, x, vxg, y, vyg, psi, omega):
         # state: x,vxg,y,vyg, psi, omega
-        self.dynamic_state = np.array([0,0,0,0,0,0],dtype=np.float)
+        self.dynamic_state = np.array([0, 0, 0, 0, 0, 0], dtype=np.float)
         self.dynamic_state[0] = x
         self.dynamic_state[1] = vxg
         self.dynamic_state[2] = y
@@ -92,34 +93,33 @@ class UKF:
         self.dynamic_state[4] = psi
         self.dynamic_state[5] = omega
 
-        self.state = np.hstack([self.dynamic_state,self.param])
+        self.state = np.hstack([self.dynamic_state, self.param])
 
         # cov matrix
 
         # 3 sigma
 
         # 1
-        #self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
+        # self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
 
         # 2
-        #self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
+        # self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
 
         # 3
-        self.state_3sigma = [0.05, 0.05, 0.05, 0.05,0.05, 2.0]
-
-
+        self.state_3sigma = [0.05, 0.05, 0.05, 0.05, 0.05, 2.0]
 
         # 1
-        #self.param_3sigma = [2e-3]*self.param_n
+        # self.param_3sigma = [2e-3]*self.param_n
 
         # 2
-        #self.param_3sigma = [0e-5]*self.param_n
+        # self.param_3sigma = [0e-5]*self.param_n
 
         # 4 add some cov so we're not waiting as long for cov on param to go high
-        #self.param_3sigma = [1e-2]*(self.param_n-1) + [0]
+        # self.param_3sigma = [1e-2]*(self.param_n-1) + [0]
         self.param_3sigma = [1e-2]*(self.param_n-2) + [0]*2
 
-        self.state_cov = (np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
+        self.state_cov = (
+            np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
     def initSigmaPoints(self):
         # scaling terms
@@ -130,21 +130,21 @@ class UKF:
         self.L = L = self.state_n + self.param_n
         # it's lambda, but lambda is taken, so its chinese ru
         ru = alfa*alfa*(L+k)-L
-        self.gamma = gamma = (L + ru ) **0.5
+        self.gamma = gamma = (L + ru) ** 0.5
 
         # weight
         self.w_m_0 = ru / (L + ru)
         self.w_c_0 = ru / (L + ru) + (1-alfa*alfa + beta)
         # w_m and w_c for index > 0
-        self.w_i = 1.0/ (2* (L + ru))
+        self.w_i = 1.0 / (2 * (L + ru))
         return
 
     # given mean and covariance matrix, generate sigma points
-    def generateSigmaPoints(self,x,P):
+    def generateSigmaPoints(self, x, P):
         L = self.L
 
         # sigma points array
-        x0 = np.array(x).reshape(-1,1)
+        x0 = np.array(x).reshape(-1, 1)
         X = np.repeat(x0, 2*L+1, 1)
 
         def is_pos_def(x):
@@ -154,13 +154,13 @@ class UKF:
             P = self.nearPD(P)
         '''
         variation = self.gamma * np.real(sqrtm(P))
-        X[:,1:L+1] += variation
-        X[:,L+1:] -= variation
+        X[:, 1:L+1] += variation
+        X[:, L+1:] -= variation
 
-        return X 
+        return X
 
-    #https://stackoverflow.com/questions/10939213/how-can-i-calculate-the-nearest-positive-semi-definite-matrix
-    def nearPD(self,A, nit=10):
+    # https://stackoverflow.com/questions/10939213/how-can-i-calculate-the-nearest-positive-semi-definite-matrix
+    def nearPD(self, A, nit=10):
         def _getAplus(A):
             eigval, eigvec = np.linalg.eig(A)
             Q = np.matrix(eigvec)
@@ -169,7 +169,7 @@ class UKF:
 
         def _getPs(A, W=None):
             W05 = np.matrix(W**.5)
-            return  W05.I * _getAplus(W05 * A * W05) * W05.I
+            return W05.I * _getAplus(W05 * A * W05) * W05.I
 
         def _getPu(A, W=None):
             Aret = np.array(A.copy())
@@ -191,64 +191,78 @@ class UKF:
     # progress var with covariance matrix P through fun(), unscented style
     # fun should have signature of:
     # fun(self,var,...), where var is np.array of size (var_length, batch_size)
-    # fun must support batch processing 
+    # fun must support batch processing
     # return: mean, covariance matrix
-    def unscentedTrans(self,var,P,fun, *args):
-        sigma_x = self.generateSigmaPoints(var,P)
+    def unscentedTrans(self, var, P, fun, *args):
+        sigma_x = self.generateSigmaPoints(var, P)
         post_sigma_x = fun(sigma_x, *args)
         # calc x_mean
-        x_mean = np.sum(np.hstack([post_sigma_x[:,0].reshape(-1,1) * self.w_m_0, post_sigma_x[:,1:] * self.w_i]),axis=1)
-        #x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
-        x_cov = self.w_c_0 * (post_sigma_x[:,0] - x_mean).reshape(-1,1) * (post_sigma_x[:,0] - x_mean)
-        for i in range(1,2*self.L+1):
-            x_cov = x_cov + self.w_i * (post_sigma_x[:,i] - x_mean).reshape(-1,1) * (post_sigma_x[:,i] - x_mean)
+        x_mean = np.sum(np.hstack(
+            [post_sigma_x[:, 0].reshape(-1, 1) * self.w_m_0, post_sigma_x[:, 1:] * self.w_i]), axis=1)
+        # x_mean = np.mean(np.hstack([post_sigma_x[:,0].reshape(-1,1) , post_sigma_x[:,1:]]),axis=1)
+        x_cov = self.w_c_0 * \
+            (post_sigma_x[:, 0] - x_mean).reshape(-1, 1) * \
+            (post_sigma_x[:, 0] - x_mean)
+        for i in range(1, 2*self.L+1):
+            x_cov = x_cov + self.w_i * \
+                (post_sigma_x[:, i] - x_mean).reshape(-1, 1) * \
+                (post_sigma_x[:, i] - x_mean)
 
         return x_mean, x_cov
 
     # predict state using unscented transform
     # control dim: (control_dim)
     def predict(self, state, state_cov, control, dt):
-        post_state, post_state_cov = self.unscentedTrans(state, state_cov, self.advanceModel, control, dt)
+        post_state, post_state_cov = self.unscentedTrans(
+            state, state_cov, self.advanceModel, control, dt)
 
         # NOTE model noise
         post_state_cov = post_state_cov + self.process_noise_cov
 
         return post_state, post_state_cov
 
-
     # update from observation
     # y_real: actual measurement
+
     def update(self, state, state_cov, y_real):
 
         # predict measurement
         sigma_x = self.generateSigmaPoints(state, state_cov)
-        x_mean = np.sum(np.hstack([sigma_x[:,0].reshape(-1,1) * self.w_m_0, sigma_x[:,1:] * self.w_i]),axis=1)
+        x_mean = np.sum(np.hstack(
+            [sigma_x[:, 0].reshape(-1, 1) * self.w_m_0, sigma_x[:, 1:] * self.w_i]), axis=1)
 
-        sigma_y = sigma_x[(0,2,4),:]
-        y_mean = np.sum(np.hstack([sigma_y[:,0].reshape(-1,1) * self.w_m_0, sigma_y[:,1:] * self.w_i]),axis=1)
+        sigma_y = sigma_x[(0, 2, 4), :]
+        y_mean = np.sum(np.hstack(
+            [sigma_y[:, 0].reshape(-1, 1) * self.w_m_0, sigma_y[:, 1:] * self.w_i]), axis=1)
 
-        y_cov = self.w_c_0 * (sigma_y[:,0] - y_mean).reshape(-1,1) * (sigma_y[:,0] - y_mean)
+        y_cov = self.w_c_0 * \
+            (sigma_y[:, 0] - y_mean).reshape(-1, 1) * (sigma_y[:, 0] - y_mean)
         # NOTE observation noise
         y_cov = y_cov + self.observation_noise_cov
-        for i in range(1,2*self.L+1):
-            y_cov = y_cov + self.w_i * (sigma_y[:,i] - y_mean).reshape(-1,1) * (sigma_y[:,i] - y_mean)
+        for i in range(1, 2*self.L+1):
+            y_cov = y_cov + self.w_i * \
+                (sigma_y[:, i] - y_mean).reshape(-1, 1) * \
+                (sigma_y[:, i] - y_mean)
 
         # calculate cross covariance mtx Pxy
-        xy_cov = self.w_c_0 * (sigma_x[:,0] - x_mean).reshape(-1,1) * (sigma_y[:,0] - y_mean)
-        for i in range(1,2*self.L+1):
-            xy_cov = xy_cov + self.w_i * (sigma_x[:,i] - x_mean).reshape(-1,1) * (sigma_y[:,i] - y_mean)
+        xy_cov = self.w_c_0 * \
+            (sigma_x[:, 0] - x_mean).reshape(-1, 1) * (sigma_y[:, 0] - y_mean)
+        for i in range(1, 2*self.L+1):
+            xy_cov = xy_cov + self.w_i * \
+                (sigma_x[:, i] - x_mean).reshape(-1, 1) * \
+                (sigma_y[:, i] - y_mean)
 
         ukf_gain = xy_cov @ np.linalg.inv(y_cov)
-        state = state + ukf_gain @ ( y_real - y_mean)
+        state = state + ukf_gain @ (y_real - y_mean)
         state_cov = state_cov - ukf_gain @ y_cov @ ukf_gain.T
 
         return state, state_cov
 
     # give joint_state and control (throttle,steering)
     # advance model by dt
-    def advanceModel(self,joint_state,control,dt):
-        state = joint_state[:self.state_n,:]
-        param = joint_state[self.state_n:,:]
+    def advanceModel(self, joint_state, control, dt):
+        state = joint_state[:self.state_n, :]
+        param = joint_state[self.state_n:, :]
 
         # note everybody's row vector
         x, vxg, y, vyg, psi, omega = state
@@ -267,57 +281,67 @@ class UKF:
         # DEBUG check against original model
         debug = False
         if debug:
-            eth = ethCarSim(0.0,0.0,0.0)
+            eth = ethCarSim(0.0, 0.0, 0.0)
             eth.states[0] = x[0]
             eth.states[1] = vxg[0]
             eth.states[2] = y[0]
             eth.states[3] = vyg[0]
             eth.states[4] = psi[0]
             eth.states[5] = omega[0]
-            eth.updateCar(0.01,None,throttle,steering)
+            eth.updateCar(0.01, None, throttle, steering)
 
         # convert to local frame
         vx = vxg * np.cos(psi) + vyg * np.sin(psi)
         vy = -vxg * np.sin(psi) + vyg * np.cos(psi)
         if np.min(vx) < 0.05:
             pass
-            #print_warning("low longitudinal speed")
+            # print_warning("low longitudinal speed")
 
         # tire model
-        slip_f = - np.arctan( (omega * self.lf + vy)/vx ) + steering
-        slip_r = np.arctan( (omega * self.lr - vy)/vx )
+        slip_f = - np.arctan((omega * self.lf + vy)/vx) + steering
+        slip_r = np.arctan((omega * self.lr - vy)/vx)
 
         # TODO add load transfer
-        Ffy = self.Df*Df_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_f)) * 9.8 * self.lr / (self.lr + self.lf) * self.m
-        Fry = self.Dr*Dr_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_r)) * 9.8 * self.lf / (self.lr + self.lf) * self.m
+        Ffy = self.Df*Df_ratio * np.sin(self.C*C_ratio * np.arctan(
+            self.B*B_ratio * slip_f)) * 9.8 * self.lr / (self.lr + self.lf) * self.m
+        Fry = self.Dr*Dr_ratio * np.sin(self.C*C_ratio * np.arctan(
+            self.B*B_ratio * slip_r)) * 9.8 * self.lf / (self.lr + self.lf) * self.m
 
         # motor model
-        Frx = (( self.Cm1*Cm1_ratio - self.Cm2*Cm2_ratio * vx) * throttle - self.Cr*Cr_ratio - self.Cd*Cd_ratio * vx * vx)*self.m
+        Frx = ((self.Cm1*Cm1_ratio - self.Cm2*Cm2_ratio * vx) *
+               throttle - self.Cr*Cr_ratio - self.Cd*Cd_ratio * vx * vx)*self.m
 
         # DEBUG
         if debug:
-            print("ukf")
-            print("vx %.2f, vy %.2f"%(vx[0],vy[0]))
-            print("slip f = %.2f, slip r = %.2f"%(degrees(slip_f[0]),degrees(slip_r[0])))
-            f_coeff_f = self.Df*self.Df_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_f))
-            f_coeff_r = self.Dr*self.Dr_ratio * np.sin( self.C*C_ratio * np.arctan(self.B*B_ratio *slip_r))
-            print("f_coeff_f = %5.2f, f_coeff_r = %5.2f"%(f_coeff_f[0],f_coeff_r[0]))
+            print('ukf')
+            print('vx %.2f, vy %.2f' % (vx[0], vy[0]))
+            print('slip f = %.2f, slip r = %.2f' %
+                  (degrees(slip_f[0]), degrees(slip_r[0])))
+            f_coeff_f = self.Df*self.Df_ratio * \
+                np.sin(self.C*C_ratio * np.arctan(self.B*B_ratio * slip_f))
+            f_coeff_r = self.Dr*self.Dr_ratio * \
+                np.sin(self.C*C_ratio * np.arctan(self.B*B_ratio * slip_r))
+            print('f_coeff_f = %5.2f, f_coeff_r = %5.2f' %
+                  (f_coeff_f[0], f_coeff_r[0]))
 
-            print("acc_f %.2f, acc_r %.2f"%(Ffy[0]/self.m, Fry[0]/self.m))
-            print("forward %.2f"%(Frx[0]/self.m))
+            print('acc_f %.2f, acc_r %.2f' % (Ffy[0]/self.m, Fry[0]/self.m))
+            print('forward %.2f' % (Frx[0]/self.m))
 
         # Dynamics
-        d_vx = 1.0/self.m * (Frx - Ffy * np.sin( steering ) + self.m * vy * omega)
-        d_vy = 1.0/self.m * (Fry + Ffy * np.cos( steering ) - self.m * vx * omega)
-        d_omega = 1.0/self.Iz*Iz_ratio * (Ffy * self.lf * np.cos( steering ) - Fry * self.lr)
+        d_vx = 1.0/self.m * \
+            (Frx - Ffy * np.sin(steering) + self.m * vy * omega)
+        d_vy = 1.0/self.m * \
+            (Fry + Ffy * np.cos(steering) - self.m * vx * omega)
+        d_omega = 1.0/self.Iz*Iz_ratio * \
+            (Ffy * self.lf * np.cos(steering) - Fry * self.lr)
 
         if debug:
-            print("d_omega %.2f"%(d_omega[0]))
+            print('d_omega %.2f' % (d_omega[0]))
 
         # discretization
         vx = vx + d_vx * dt
         vy = vy + d_vy * dt
-        omega = omega + d_omega * dt 
+        omega = omega + d_omega * dt
 
         # convert back to global frame
         vxg = vx * np.cos(psi) - vy * np.sin(psi)
@@ -331,26 +355,26 @@ class UKF:
         new_state = (x, vxg, y, vyg, psi, omega)
 
         # DEBUG
-        ukf_predict = np.array(new_state)[:,0]
+        ukf_predict = np.array(new_state)[:, 0]
 
         if debug:
-            print("eth predict")
+            print('eth predict')
             print(np.array(eth.states))
 
-            print("ukf predict")
+            print('ukf predict')
             print(ukf_predict)
 
-            print("diff")
+            print('diff')
             print(np.array(eth.states) - ukf_predict)
 
-        new_param = (Df_ratio, Dr_ratio, C_ratio, B_ratio, Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio)
+        new_param = (Df_ratio, Dr_ratio, C_ratio, B_ratio,
+                     Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio)
         new_joint_state = np.vstack([new_state, new_param])
-
 
         return new_joint_state
 
 # -------------- DEBUG --------------------
-    def confidence_ellipse(self, mean,cov, ax, n_std=3.0, facecolor='none', **kwargs):
+    def confidence_ellipse(self, mean, cov, ax, n_std=3.0, facecolor='none', **kwargs):
         """
         Create a plot of the covariance confidence ellipse of *x* and *y*.
 
@@ -396,14 +420,13 @@ class UKF:
         ellipse.set_transform(transf + ax.transData)
         return ax.add_patch(ellipse)
 
-
     # test unscented covariance, using cartesian to polar coordinate transform
     # states: (x,y), dim:(state_dim, batch)
     # output: (rho, theta)
-    def cartesianToPolar(self,states):
-        theta = np.arctan2(states[1],states[0])
+    def cartesianToPolar(self, states):
+        theta = np.arctan2(states[1], states[0])
         rho = (states[0]**2 + states[1]**2)**0.5
-        return np.vstack([rho,theta])
+        return np.vstack([rho, theta])
 
     def testCartesianToPolar(self):
         self.state_n = 2
@@ -411,36 +434,38 @@ class UKF:
         self.initSigmaPoints()
         # mean for test state
         # state: (x,y)
-        state = np.array((5,9),dtype=np.float)
+        state = np.array((5, 9), dtype=np.float)
         # cov for test state
         state_P = np.identity(2)
-        state_P[1,1] = 2
+        state_P[1, 1] = 2
 
-        #Monte Carlo method to get true output variance and mean
-        mc_samples = np.random.multivariate_normal(state, state_P, size=(10000,)).T
+        # Monte Carlo method to get true output variance and mean
+        mc_samples = np.random.multivariate_normal(
+            state, state_P, size=(10000,)).T
         mc_outputs = self.cartesianToPolar(mc_samples)
-        mc_mean = np.mean(mc_outputs,axis=1)
+        mc_mean = np.mean(mc_outputs, axis=1)
         mc_cov = np.cov(mc_outputs)
 
-        print("mc mean")
+        print('mc mean')
         print(mc_mean)
-        print("mc cov")
+        print('mc cov')
         print(mc_cov)
 
-        #Unscented transform to simulate variance and mean
-        u_mean, u_cov = self.unscentedTrans(state,state_P,self.cartesianToPolar)
-        print("unscented mean")
+        # Unscented transform to simulate variance and mean
+        u_mean, u_cov = self.unscentedTrans(
+            state, state_P, self.cartesianToPolar)
+        print('unscented mean')
         print(u_mean)
-        print("unscented cov")
+        print('unscented cov')
         print(u_cov)
 
         # plot
         fig = plt.figure()
         ax = fig.gca()
-        #ax.plot(mc_samples, '*',label="mc samples")
-        #ax.plot(mc_outputs, '*',label="mc ouputs")
-        ax.plot(mc_mean[0],mc_mean[1], '+',label="mc mean")
-        ax.plot(u_mean[0],u_mean[1], '+',label="unscented mean")
+        # ax.plot(mc_samples, '*',label="mc samples")
+        # ax.plot(mc_outputs, '*',label="mc ouputs")
+        ax.plot(mc_mean[0], mc_mean[1], '+', label='mc mean')
+        ax.plot(u_mean[0], u_mean[1], '+', label='unscented mean')
 
         self.confidence_ellipse(mc_mean, mc_cov, ax, edgecolor='red')
         self.confidence_ellipse(u_mean, u_cov, ax, edgecolor='blue')
@@ -448,7 +473,7 @@ class UKF:
         ax.legend()
         plt.show()
 
-    def sqr(self,x):
+    def sqr(self, x):
         return x**2
 
     def testSqr(self):
@@ -457,37 +482,38 @@ class UKF:
         self.initSigmaPoints()
         # mean for test state
         # state: (x,y)
-        state = np.array([0.0],dtype=np.float)
+        state = np.array([0.0], dtype=np.float)
         # cov for test state
         state_P = np.identity(1)
-        state_P[0,0] = 2
+        state_P[0, 0] = 2
 
-        #Monte Carlo method to get true output variance and mean
-        mc_samples = np.random.multivariate_normal(state, state_P, size=(10000,)).T
+        # Monte Carlo method to get true output variance and mean
+        mc_samples = np.random.multivariate_normal(
+            state, state_P, size=(10000,)).T
 
         mc_outputs = self.sqr(mc_samples)
-        mc_mean = np.mean(mc_outputs,axis=1)
+        mc_mean = np.mean(mc_outputs, axis=1)
         mc_cov = np.cov(mc_outputs)
 
-        print("mc mean")
+        print('mc mean')
         print(mc_mean)
-        print("mc cov")
+        print('mc cov')
         print(mc_cov)
 
-        #Unscented transform to simulate variance and mean
-        u_mean, u_cov = self.unscentedTrans(state,state_P,self.sqr)
-        print("unscented mean")
+        # Unscented transform to simulate variance and mean
+        u_mean, u_cov = self.unscentedTrans(state, state_P, self.sqr)
+        print('unscented mean')
         print(u_mean)
-        print("unscented cov")
+        print('unscented cov')
         print(u_cov)
 
         # plot
         fig = plt.figure()
         ax = fig.gca()
-        #ax.plot(mc_samples, '*',label="mc samples")
-        #ax.plot(mc_outputs, '*',label="mc ouputs")
-        ax.plot(mc_mean[0],mc_mean[1], '+',label="mc mean")
-        ax.plot(u_mean[0],u_mean[1], '+',label="unscented mean")
+        # ax.plot(mc_samples, '*',label="mc samples")
+        # ax.plot(mc_outputs, '*',label="mc ouputs")
+        ax.plot(mc_mean[0], mc_mean[1], '+', label='mc mean')
+        ax.plot(u_mean[0], u_mean[1], '+', label='unscented mean')
 
         self.confidence_ellipse(mc_mean, mc_cov, ax, edgecolor='red')
         self.confidence_ellipse(u_mean, u_cov, ax, edgecolor='blue')
@@ -496,8 +522,7 @@ class UKF:
         plt.show()
 
 
-if __name__ =="__main__":
+if __name__ == '__main__':
     ukf = UKF()
-    #ukf.testCartesianToPolar()
+    # ukf.testCartesianToPolar()
     ukf.testSqr()
-

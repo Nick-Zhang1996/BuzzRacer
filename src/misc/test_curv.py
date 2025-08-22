@@ -6,7 +6,7 @@ from copy import deepcopy
 import sys
 from math import radians
 from track import TrackFactory
-from scipy.interpolate import splprep, splev,CubicSpline,interp1d
+from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 import matplotlib.pyplot as plt
 
@@ -18,24 +18,29 @@ config_folder = './configs/' + name + '/'
 config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
-config_track= original_config.getElementsByTagName('track')[0]
-track = TrackFactory.build(main=None,config=config_track)
+config_track = original_config.getElementsByTagName('track')[0]
+track = TrackFactory.build(main=None, config=config_track)
 track.init()
+
 
 class FakeMain():
     def __init__(self):
         self.extensions = []
         self.track = None
+
+
 sim = CurvilinearSimulator(FakeMain())
 sim.track = track
 
+
 def getCoord(s0):
-    x0 = np.array((s0,0,0,0))
+    x0 = np.array((s0, 0, 0, 0))
     cart0 = sim.curv2Cart(x0)
     return cart0[:2]
 
-ss = np.linspace(0,sim.track.raceline_len_m,1000)
+
+ss = np.linspace(0, sim.track.raceline_len_m, 1000)
 coord = np.array([getCoord(s) for s in ss])
 
-plt.plot(coord[:,0],coord[:,1],'o')
+plt.plot(coord[:, 0], coord[:, 1], 'o')
 plt.show()

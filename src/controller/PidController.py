@@ -1,6 +1,7 @@
 from common import ndarray, angular_difference
 import numpy as np
 
+
 class PidController:
     def __init__(self, p, i, d, dt, integral_limit, lpf_cutoff_freq):
         self.__p = p
@@ -11,7 +12,8 @@ class PidController:
         self.__last_x0 = 0
         self.__dt = dt
         self.__integral_limit = integral_limit
-        self.__alpha = (2 * np.pi * self.__dt * lpf_cutoff_freq) / (2 * np.pi * self.__dt * lpf_cutoff_freq + 1)
+        self.__alpha = (2 * np.pi * self.__dt * lpf_cutoff_freq) / \
+            (2 * np.pi * self.__dt * lpf_cutoff_freq + 1)
 
         # DEBUG
         self.mag_p = 0
@@ -27,7 +29,8 @@ class PidController:
         p_term = self.__p * error
         # I:
         self.__integral += error * self.__dt
-        self.__integral = np.clip(self.__integral, -self.__integral_limit, self.__integral_limit)
+        self.__integral = np.clip(
+            self.__integral, -self.__integral_limit, self.__integral_limit)
         i_term = self.__i * self.__integral
         # D:
         if dxdt is None:
@@ -45,4 +48,3 @@ class PidController:
 
     def getDebug(self):
         return (self.mag_p, self.mag_i, self.mag_d)
-

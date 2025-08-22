@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 
+
 def init_weights(m):
     if isinstance(m, nn.Linear):
         nn.init.normal_(m.weight, mean=0., std=0.1)
         nn.init.constant_(m.bias, 0.1)
+
 
 class ActorVar(nn.Module):
     def __init__(self, state_dim, action_dim, std=1.0):
@@ -18,7 +20,7 @@ class ActorVar(nn.Module):
                                    nn.Tanh())
 
         self.actor_tail = nn.Sequential(nn.Linear(128, action_dim),
-                                   nn.Tanh())  # 20*2
+                                        nn.Tanh())  # 20*2
 
         self.var_tail = nn.Sequential(nn.Linear(128, action_dim))
 
@@ -33,8 +35,9 @@ class ActorVar(nn.Module):
         log_std_clamped = torch.clamp(log_std, min=-20, max=0.1)
         std = log_std_clamped.exp().expand_as(mu)
         # std = self.log_std.exp().expand_as(mu)
-        dist = Normal(mu,std)
+        dist = Normal(mu, std)
         return dist
+
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, std=1.0):
@@ -53,10 +56,12 @@ class Actor(nn.Module):
 
     def forward(self, state):
         mu = self.actor(state)
-        log_std_clamped = self.log_std#torch.clamp(self.log_std, min=-20, max=0.1)
+        # torch.clamp(self.log_std, min=-20, max=0.1)
+        log_std_clamped = self.log_std
         std = log_std_clamped.exp().expand_as(mu)
-        dist = Normal(mu,std)
+        dist = Normal(mu, std)
         return dist
+
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
@@ -73,6 +78,7 @@ class Critic(nn.Module):
     def forward(self, state):
         value = self.critic(state)
         return value
+
 
 class Actor_tan(nn.Module):
     def __init__(self, state_dim, action_dim, std=1.0):
@@ -91,10 +97,12 @@ class Actor_tan(nn.Module):
 
     def forward(self, state):
         mu = self.actor(state)
-        log_std_clamped = self.log_std#torch.clamp(self.log_std, min=-20, max=0.1)
+        # torch.clamp(self.log_std, min=-20, max=0.1)
+        log_std_clamped = self.log_std
         std = log_std_clamped.exp().expand_as(mu)
-        dist = Normal(mu,std)
+        dist = Normal(mu, std)
         return dist
+
 
 class Critic_tan(nn.Module):
     def __init__(self, state_dim):
@@ -111,6 +119,7 @@ class Critic_tan(nn.Module):
     def forward(self, state):
         value = self.critic(state)
         return value
+
 
 class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, std=1.0):
@@ -137,8 +146,9 @@ class ActorCritic(nn.Module):
         mu = self.actor(state)
         value = self.critic(state)
         std = self.log_std.exp().expand_as(mu)
-        dist = Normal(mu,std)
+        dist = Normal(mu, std)
         return dist, value
+
 
 class ActorCriticVar(nn.Module):
     def __init__(self, state_dim, action_dim, std=1.0):
@@ -150,7 +160,7 @@ class ActorCriticVar(nn.Module):
                                    nn.Tanh())
 
         self.actor_tail = nn.Sequential(nn.Linear(128, action_dim),
-                                   nn.Tanh())  # 20*2
+                                        nn.Tanh())  # 20*2
 
         self.var_tail = nn.Sequential(nn.Linear(128, action_dim))
 
@@ -170,5 +180,5 @@ class ActorCriticVar(nn.Module):
         log_std_clamped = torch.clamp(log_std, min=-20, max=0.1)
         std = log_std_clamped.exp().expand_as(mu)
         # std = self.log_std.exp().expand_as(mu)
-        dist = Normal(mu,std)
+        dist = Normal(mu, std)
         return dist, value

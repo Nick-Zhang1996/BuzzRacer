@@ -14,9 +14,9 @@ w = tw = 59
 tire_w = 10
 
 # CG longitudinal location
-lf = np.mean( [ wb*Gr/G, wb*(1-Gf/G) ] )
+lf = np.mean([wb*Gr/G, wb*(1-Gf/G)])
 lr = wb - lf
-print("lf = %.2f, lr = %.2f"%(lf,lr))
+print('lf = %.2f, lr = %.2f' % (lf, lr))
 
 # CG Height, measured by raising one end of car
 
@@ -40,18 +40,17 @@ print(hs)
 
 ll = Gr / (Gl+Gr) * tw
 # amount of rise in left axle
-delta = [-13,13,34.5,-34.5]
+delta = [-13, 13, 34.5, -34.5]
 # which axle is measured, lef:1, right:-1
-meas = [1,-1,-1,1]
-Gs = [87.65,84.61,97.23,99.4]
+meas = [1, -1, -1, 1]
+Gs = [87.65, 84.61, 97.23, 99.4]
 hs = []
 for i in range(len(delta)):
     theta = np.arcsin(float(-delta[i])/tw)
-    if (meas[i]>0):
+    if (meas[i] > 0):
         Gr = G - Gs[i]
     else:
         Gr = Gs[i]
-    h = ( (ll+ tire_w/2) - Gr/G*tw )/np.tan(theta)
+    h = ((ll + tire_w/2) - Gr/G*tw)/np.tan(theta)
     hs.append(h)
 print(hs)
-

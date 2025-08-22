@@ -1,9 +1,10 @@
 """Wrapper for recording videos."""
+from PIL import Image
 import os
 from typing import Callable, Optional
 
 import gymnasium as gym
-from gymnasium import logger,error
+from gymnasium import logger, error
 
 
 def capped_cubic_video_schedule(episode_id: int) -> bool:
@@ -16,13 +17,14 @@ def capped_cubic_video_schedule(episode_id: int) -> bool:
 
     Returns:
         If to apply a video schedule number
+
     """
     if episode_id < 1000:
         return int(round(episode_id ** (1.0 / 3))) ** 3 == episode_id
     else:
         return episode_id % 1000 == 0
 
-from PIL import Image
+
 class GifRecorder():
     def __init__(self, env, base_path, metadata, disable_logger):
         self.frames = []
@@ -32,12 +34,14 @@ class GifRecorder():
         self.env = env
         self.render_mode = env.render_mode
         self.enabled = True
-        self.fps = env.metadata.get('render_fps',30)
-        if not self.render_mode in ['rgb_array_list','rgb_array']:
-            logger.warn(f'{env} was not initialized with supported render mode [rgb_array]')
+        self.fps = env.metadata.get('render_fps', 30)
+        if not self.render_mode in ['rgb_array_list', 'rgb_array']:
+            logger.warn(
+                f'{env} was not initialized with supported render mode [rgb_array]')
             self.enabled = False
         if not self.enabled:
             return
+
     def capture_frame(self):
         frame = self.env.render()
         self.frames.append(Image.fromarray(frame.copy()))
@@ -45,11 +49,14 @@ class GifRecorder():
     def close(self):
         self.env.close()
         filename = self.base_path+'.gif'
-        self.frames[0].save(fp=filename,format='GIF',append_images=self.frames,save_all=True,duration = 30,loop=0)
+        self.frames[0].save(fp=filename, format='GIF',
+                            append_images=self.frames, save_all=True, duration=30, loop=0)
         print(f'gif saved at {filename}')
         self.frames = []
         if ('step_id' in self.metadata.keys() and 'episode_id' in self.metadata.keys()):
-            print(f"step_id = {self.metadata['step_id']}, episode_id = {self.metadata['episode_id']}")
+            print(
+                f"step_id = {self.metadata['step_id']}, episode_id = {self.metadata['episode_id']}")
+
     def __del__(self):
         if len(self.frames) > 0:
             logger.warn('frames not saved before close')
@@ -66,6 +73,7 @@ class RecordGif(gym.Wrapper):
     By default, the recording will be stopped once a `terminated` or `truncated` signal has been emitted by the environment. However, you can
     also create recordings of fixed length (possibly spanning several episodes) by passing a strictly positive value for
     ``video_length``.
+
     """
 
     def __init__(
@@ -75,7 +83,7 @@ class RecordGif(gym.Wrapper):
         episode_trigger: Callable[[int], bool] = None,
         step_trigger: Callable[[int], bool] = None,
         video_length: int = 0,
-        name_prefix: str = "rl-video",
+        name_prefix: str = 'rl-video',
         disable_logger: bool = False,
     ):
         """Wrapper records videos of rollouts.
@@ -96,8 +104,9 @@ class RecordGif(gym.Wrapper):
         if episode_trigger is None and step_trigger is None:
             episode_trigger = capped_cubic_video_schedule
 
-        trigger_count = sum(x is not None for x in [episode_trigger, step_trigger])
-        assert trigger_count == 1, "Must specify exactly one trigger"
+        trigger_count = sum(x is not None for x in [
+                            episode_trigger, step_trigger])
+        assert trigger_count == 1, 'Must specify exactly one trigger'
 
         self.episode_trigger = episode_trigger
         self.step_trigger = step_trigger
@@ -108,8 +117,8 @@ class RecordGif(gym.Wrapper):
         # Create output folder if needed
         if os.path.isdir(self.video_folder):
             logger.warn(
-                f"Overwriting existing gifs at {self.video_folder} folder "
-                f"(try specifying a different `video_folder` for the `RecordGif` wrapper if this is not desired)"
+                f'Overwriting existing gifs at {self.video_folder} folder '
+                f'(try specifying a different `video_folder` for the `RecordGif` wrapper if this is not desired)'
             )
         os.makedirs(self.video_folder, exist_ok=True)
 
@@ -121,11 +130,12 @@ class RecordGif(gym.Wrapper):
         self.terminated = False
         self.truncated = False
         self.recorded_frames = 0
-        self.is_vector_env = getattr(env, "is_vector_env", False)
+        self.is_vector_env = getattr(env, 'is_vector_env', False)
         self.episode_id = 0
 
     def reset(self, **kwargs):
-        """Reset the environment using kwargs and then starts recording if video enabled."""
+        """Reset the environment using kwargs and then starts recording if
+        video enabled."""
         observations = super().reset(**kwargs)
         self.terminated = False
         self.truncated = False
@@ -148,13 +158,13 @@ class RecordGif(gym.Wrapper):
         if self.episode_trigger:
             video_name = f"{self.name_prefix}-episode-{self.episode_id}"
         '''
-        video_name = f"{self.name_prefix}-episode-{self.step_id}-{self.episode_id}"
+        video_name = f'{self.name_prefix}-episode-{self.step_id}-{self.episode_id}'
 
         base_path = os.path.join(self.video_folder, video_name)
         self.gif_recorder = GifRecorder(
             env=self.env,
             base_path=base_path,
-            metadata={"step_id": self.step_id, "episode_id": self.episode_id},
+            metadata={'step_id': self.step_id, 'episode_id': self.episode_id},
             disable_logger=self.disable_logger,
         )
 
@@ -219,7 +229,8 @@ class RecordGif(gym.Wrapper):
         self.recorded_frames = 1
 
     def render(self, *args, **kwargs):
-        """Compute the render frames as specified by render_mode attribute during initialization of the environment or as specified in kwargs."""
+        """Compute the render frames as specified by render_mode attribute
+        during initialization of the environment or as specified in kwargs."""
         if self.gif_recorder is None or not self.gif_recorder.enabled:
             return super().render(*args, **kwargs)
 

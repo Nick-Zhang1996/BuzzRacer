@@ -8,9 +8,10 @@ import os.path
 from time import time
 import pickle
 
+
 class Logger(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
+    def __init__(self, main):
+        Extension.__init__(self, main)
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0
@@ -27,21 +28,23 @@ class Logger(Extension):
 
         # create a folder using date and type of experiment
         today = date.today()
-        try: 
+        try:
             self.main.simulator
             suffix = 'sim'
         except AttributeError:
             suffix = 'exp'
 
         try:
-            logFolder = '../log/' + self.main.experiment_name +'/'
+            logFolder = '../log/' + self.main.experiment_name + '/'
         except AttributeError:
-            logFolder = '../log/' + '%d_%d_%d_'%(today.year,today.month,today.day) + suffix + '/'
+            logFolder = '../log/' + \
+                '%d_%d_%d_' % (today.year, today.month,
+                               today.day) + suffix + '/'
 
         if not os.path.exists(logFolder):
             os.makedirs(logFolder)
-        logPrefix = "full_state"
-        logSuffix = ".p"
+        logPrefix = 'full_state'
+        logSuffix = '.p'
         no = 1
         while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
             no += 1
@@ -49,7 +52,7 @@ class Logger(Extension):
         self.log_no = no
         self.logFilename = logFolder+logPrefix+str(no)+logSuffix
 
-        logPrefix = "debug_dict"
+        logPrefix = 'debug_dict'
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
         self.logFolder = logFolder
 
@@ -61,10 +64,11 @@ class Logger(Extension):
         log_entry = []
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
-            (x,y,theta,v_forward,v_sideway,omega) = car.states
+            (x, y, theta, v_forward, v_sideway, omega) = car.states
 
             # (time, x,y,theta,vforward,vsideway=0,omega)
-            log_entry.append([time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle])
+            log_entry.append([time(), x, y, theta, v_forward,
+                             v_sideway, omega, car.steering, car.throttle])
 
         self.full_state_log.append(log_entry)
 
@@ -73,17 +77,17 @@ class Logger(Extension):
         debug_dict = LogObject.populateLog(self.main, logged)
         debug_dict['cars'] = []
         for car in self.main.cars:
-            debug_dict['cars'].append(LogObject.populateLog(car,logged))
+            debug_dict['cars'].append(LogObject.populateLog(car, logged))
         self.debug_dict_log.append(debug_dict)
 
     def postFinal(self):
-        print_ok("[Logger]: saving full_state log at " + self.logFilename)
+        print_ok('[Logger]: saving full_state log at ' + self.logFilename)
 
-        output = open(self.logFilename,'wb')
-        pickle.dump(self.full_state_log,output)
+        output = open(self.logFilename, 'wb')
+        pickle.dump(self.full_state_log, output)
         output.close()
 
-        print_ok("[Logger]: saving debugDict log at " + self.logDictFilename)
-        output = open(self.logDictFilename,'wb')
-        pickle.dump(self.debug_dict_log,output)
+        print_ok('[Logger]: saving debugDict log at ' + self.logDictFilename)
+        output = open(self.logDictFilename, 'wb')
+        pickle.dump(self.debug_dict_log, output)
         output.close()
