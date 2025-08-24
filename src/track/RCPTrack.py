@@ -16,7 +16,7 @@ from bisect import bisect
 
 from common import *
 from track.Track import Track
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 
 # debugging
 K_vec = []  # curvature
@@ -50,7 +50,7 @@ class Node:
 class RCPTrack(Track):
     def __init__(self, main=None, config=None):
         Track.__init__(self, main, config)
-        self.t = execution_timer(True)
+        self.t = ExecutionTimer(True)
         # resolution : pixels per grid side length
         self.setResolution(200)
         # for calculating derivative and integral of offset

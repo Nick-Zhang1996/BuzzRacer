@@ -1,4 +1,4 @@
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 from rcvip_env_function import getfreezeTimecollosionReachedreward
 import rcvip_simulator.Track as Track
 import rcvip_simulator.VehicleModel as VehicleModel
@@ -51,7 +51,7 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 
-t = execution_timer(True)
+t = ExecutionTimer(True)
 
 
 folder_location = 'trained_model/'

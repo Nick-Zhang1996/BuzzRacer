@@ -3,7 +3,7 @@ from pycuda.compiler import SourceModule
 import pycuda.driver as drv
 import pycuda.autoinit
 import matplotlib.pyplot as plt
-from timeUtil import execution_timer
+from timeUtil import ExecutionTimer
 import os
 import sys
 import numpy as np
