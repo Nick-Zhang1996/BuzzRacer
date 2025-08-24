@@ -42,7 +42,7 @@ class Gifsaver(Extension):
         self.gifimages.append(Image.fromarray(cv2.cvtColor(
             self.main.visualization.visualization_img.copy(), cv2.COLOR_BGR2RGB)))
 
-    def postUpdate(self):
+    def post_update(self):
         self.count += 1
         # save first and second rendering image
         '''
