@@ -11,7 +11,7 @@ class BoundaryChecker(Extension):
         # running sum of collision count, reset every lap
         self.collision_count = [0] * len(self.main.cars)
 
-    def postInit(self):
+    def post_init(self):
         self.discretized_raceline = self.main.track.discretized_raceline
         for car in self.main.cars:
             car.in_collision = False

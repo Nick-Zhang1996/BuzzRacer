@@ -46,7 +46,7 @@ class Visualization(Extension):
         cv2.imshow('experiment', img)
         cv2.waitKey(200)
 
-    def postInit(self,):
+    def post_init(self,):
         self.saveBlankImg()
 
     def saveBlankImg(self):
@@ -67,7 +67,7 @@ class Visualization(Extension):
 
     # show image
     # do this last since controllers may need to alter the image
-    def postUpdate(self,):
+    def post_update(self,):
         if (self.update_visualization.is_set()):
             self.update_visualization.clear()
             self.visualization_ts = time()
@@ -97,7 +97,7 @@ class Visualization(Extension):
                 self.print_info('Requesting snapshot')
                 self.main.snapshot.takeSnapshot()
 
-    def preUpdate(self,):
+    def pre_update(self,):
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
         # print_info(self.prefix(), "preupdate %.1f"%(time()-self.visualization_ts))
         if (time()-self.visualization_ts > self.frame_dt):

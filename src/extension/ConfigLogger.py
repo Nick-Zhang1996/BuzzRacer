@@ -18,7 +18,7 @@ class ConfigLogger(Extension):
                 # simulator specific logging
                 pass
 
-    def postFinal(self):
+    def post_final(self):
         # stuff to log down
         entry = []
         # experiment name, this is config folder name (e.g. Cu_a_param_sweep)

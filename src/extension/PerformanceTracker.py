@@ -9,7 +9,7 @@ class PerformanceTracker(Extension):
         self.car = self.main.cars[0]
         self.control_effort_vec = []
 
-    def postUpdate(self):
+    def post_update(self):
         self.control_effort_vec.append(self.main.cars[0].controller.utru)
         return
 

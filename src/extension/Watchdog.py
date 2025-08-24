@@ -10,7 +10,7 @@ class Watchdog(Extension):
         for car in self.main.cars:
             car.in_track = True
 
-    def postUpdate(self):
+    def post_update(self):
         for car in self.main.cars:
             # if car is outside track, halt
             x = car.states[0]

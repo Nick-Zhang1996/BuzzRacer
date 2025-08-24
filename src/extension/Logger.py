@@ -56,7 +56,7 @@ class Logger(Extension):
         self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
         self.logFolder = logFolder
 
-    def postUpdate(self):
+    def post_update(self):
         # x,y,theta are in track frame
         # v_forward in vehicle frame, forward positive
         # v_sideway in vehicle frame, left positive
@@ -80,7 +80,7 @@ class Logger(Extension):
             debug_dict['cars'].append(LogObject.populateLog(car, logged))
         self.debug_dict_log.append(debug_dict)
 
-    def postFinal(self):
+    def post_final(self):
         print_ok('[Logger]: saving full_state log at ' + self.logFilename)
 
         output = open(self.logFilename, 'wb')

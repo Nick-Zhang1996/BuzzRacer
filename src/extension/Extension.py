@@ -10,29 +10,29 @@ class Extension(PrintObject):
 
     # optional initialization
 
-    def preInit(self):
+    def pre_init(self):
         pass
 
     def init(self):
         pass
 
-    def postInit(self):
+    def post_init(self):
         pass
 
-    def preUpdate(self):
+    def pre_update(self):
         pass
 
     def update(self):
         pass
 
-    def postUpdate(self):
+    def post_update(self):
         pass
 
-    def preFinal(self):
+    def pre_final(self):
         pass
 
     def final(self):
         pass
 
-    def postFinal(self):
+    def post_final(self):
         pass

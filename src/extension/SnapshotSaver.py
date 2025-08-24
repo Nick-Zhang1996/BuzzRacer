@@ -9,7 +9,7 @@ class SnapshotSaver(Extension):
         Extension.__init__(self, main)
         self.recording = Event()
 
-    def postInit(self):
+    def post_init(self):
         self.background = self.main.track.drawTrack()
         self.background = self.main.track.drawRaceline(img=self.background)
 
@@ -29,7 +29,7 @@ class SnapshotSaver(Extension):
             self.timestep = 0
             self.print_info('snapshot started')
 
-    def postUpdate(self):
+    def post_update(self):
         # save a multiple exposure photo
         if (self.recording.is_set() and self.timestep % self.interval == 0):
             if (self.img is None):
