@@ -1,32 +1,40 @@
-# universal entry point for running the car
-from common import *
-from threading import Event, Lock
-from math import pi, radians, degrees
-from time import time, sleep
+"""Universal entry point for running simulation or experiments."""
+import sys
+import os.path
+import os
+import logging
+from threading import Event
+from time import time
+from xml.dom import minidom
 
-from util.timeUtil import execution_timer
+from common import PrintObject, LogObject, ExperimentType
+
+from util.timeUtil import ExecutionTimer
 from track import TrackFactory
 
 from car.Car import Car
 
-from xml.dom import minidom
-import xml.etree.ElementTree as ET
+logger = logging.getLogger('ProfileSteinmerge')
+logger.setLevel(logging.INFO)
 
-import sys
-import os.path
-import os
-os.environ['PATH'] = os.environ['PATH']+':/usr/local/cuda/bin/'  # enables cuda
+os.environ['PATH'] = (
+    os.environ['PATH'] + ':/usr/local/cuda/bin/')  # enables cuda
 
 
 class Main(PrintObject, LogObject):
-    def __init__(self, config_filename):
+    """Entry point for running simulation or experiments."""
+
+    def __init__(self, config: str):
         LogObject.__init__(self)
         self.basedir = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__)))
-        self.config_filename = config_filename
-        self.experiment_name = config_filename
+        self.config_filename = config
+        self.experiment_name = config
 
-    def init(self):
+        self.simulator = None
+
+        # Load config
+        # TODO: make this configurable Object
         self.print_ok(' loading settings')
         config = minidom.parse(self.config_filename)
         config_settings = config.getElementsByTagName('settings')[0]
@@ -35,60 +43,85 @@ class Main(PrintObject, LogObject):
             setattr(self, key, eval(value_text))
             self.print_info(' main.', key, '=', value_text)
 
-        config_experiment_text = config_settings.getElementsByTagName('experiment_type')[
-            0].firstChild.nodeValue
-        self.experiment_type = eval('ExperimentType.'+config_experiment_text)
+        def get_experiment_type_from_config_settings(config_settings):
+            config_experiment_text = config_settings.getElementsByTagName(
+                'experiment_type')[0].firstChild.nodeValue
+            type_map = {'Simulation': ExperimentType.Simulation,
+                        'RealWorld': ExperimentType.Realworld}
+            try:
+                return type_map[config_experiment_text]
+            except KeyError as e:
+                raise NameError(
+                    f'Unknown experiment type {config_experiment_text},'
+                    f'must be one of {type_map.keys}') from e
 
-        # prepare track
-        # config_track_text = config_settings.getElementsByTagName('track')[0].firstChild.nodeValue
-        config_track = config.getElementsByTagName('track')[0]
-        self.track = TrackFactory.build(main=self, config=config_track)
-        self.track.init()
+        self.experiment_type = get_experiment_type_from_config_settings(
+            config_settings)
 
-        # prepare cars
+        # Prepare track
+        def get_track_from_config(config):
+            config_track = config.getElementsByTagName('track')[0]
+            track = TrackFactory.build(main=self, config=config_track)
+            track.init()
+            return track
+        self.track = get_track_from_config(config)
+
+        # Prepare cars
         Car.reset()
         config_cars = config.getElementsByTagName('cars')[0]
-        for config_car in config_cars.getElementsByTagName('car'):
-            Car.Factory(self, config_car)
-        self.cars = Car.cars
-        self.print_info(' total cars: %d' % (len(self.cars)))
+        self.cars = [Car.Factory(self, config_car)
+                     for config_car in config_cars.getElementsByTagName('car')]
+        self.print_info(f' total cars: {len(self.cars)}')
 
-        self.timer = execution_timer(True)
+        self.timer = ExecutionTimer(True)
+        ''' Timer for profiling code '''
         self.new_state_update = Event()
-        # flag to quit all child threads gracefully
+        ''' Event is set when a new state from simulator or Vicon is ready'''
         self.exit_request = Event()
-        # if set, continue to follow trajectory but set throttle to -0.1
-        # so we don't leave car uncontrolled at max speed
-        # currently this is ignored and pressing 'q' the first time will cut motor
-        # second 'q' will exit program
+        ''' Flag to quit all child threads gracefully '''
         self.slowdown = Event()
+        ''' if set, continue to follow trajectory but set throttle to -0.1
+        so we don't leave car uncontrolled at max speed
+        currently this is ignored and pressing 'q' the first time will cut motor
+        second 'q' will exit program
+        '''
         self.slowdown_ts = 0
+        ''' Timestamp for when slowdown Event is set '''
 
-        # --- Extensions ---
+        # Load Extensions defined in configs
         self.print_ok('setting up extensions...')
         self.extensions = []
         config_extensions = config.getElementsByTagName('extensions')[0]
-        for config_extension in config_extensions.getElementsByTagName('extension'):
+        for config_extension in config_extensions.getElementsByTagName(
+                'extension'):
             extension_class_name = config_extension.firstChild.nodeValue
-            exec('from extension import '+extension_class_name)
-            # ext = eval(extension_class_name+'(self)')
+            try:
+                # pylint: disable-next=exec-used
+                exec('from extension import ' + extension_class_name)
+            except ImportError:
+                self.print_error(f'Cannot import {extension_class_name}')
+                raise
+
             ext = eval(extension_class_name)(self)
             handle_name = ''
             for key, raw in config_extension.attributes.items():
+                # handle is the attribute name of this extension
                 if key == 'handle':
                     handle_name = raw
                     setattr(self, handle_name, ext)
-                    self.print_info('main.'+handle_name +
-                                    ' = '+ext.__class__.__name__)
+                    self.print_info('main.' + handle_name + ' = ' +
+                                    ext.__class__.__name__)
                 else:
                     try:
                         value = eval(raw)
                     except (NameError, SyntaxError):
                         value = raw
-                    # all other attributes will be set to extension
+                    # all other attributes in config will be added to extension
                     setattr(ext, key, value)
-                    self.print_info('main.'+handle_name +
-                                    '.'+key+' = '+str(value))
+                    self.print_info('main.' + handle_name + '.' + key + ' = ' +
+                                    str(value))
+        # Some modules depend on other modules to initialize
+        # Use preInit, init, and postInit for crude separation
         for item in self.extensions:
             item.preInit()
         for car in self.cars:
@@ -104,13 +137,12 @@ class Main(PrintObject, LogObject):
         for car in self.cars:
             car.postInit()
 
-    # run experiment until user press q in visualization window
     def run(self):
+        """Run experiment until user press q in visualization window."""
         self.print_info('running ... press q to quit')
         while not self.exit_request.is_set():
-            ts = time()
             self.update()
-        # exit point
+
         self.print_info('Exiting ...')
         for car in self.cars:
             car.controller.final()
@@ -121,20 +153,27 @@ class Main(PrintObject, LogObject):
         for item in self.extensions:
             item.postFinal()
 
+    @property
     def time(self):
+        """Current time, either time() or simulated time if in simulation."""
         if self.experiment_type == ExperimentType.Simulation:
-            return self.sim_t
+            return self.simulator.sim_t
         else:
             return time()
 
-    # run the control/visualization update
-    # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
-    # in simulation, this is called with evenly spaced time
-    # in real experiment, this is called after a new vicon update is pulled
-    # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
-    # client (this function) need to unset that event
+    def update(self, ):
+        """Run the control/visualization update.
 
-    def update(self,):
+        This should be called in a loop(while not self.exit_request.is_set())
+        continuously, without delay.
+
+        In simulation, this is called with evenly spaced time.
+
+        In real experiment, this is called after a new vicon update is available.
+        When a new vicon/optitrack state is available, vi.newState() is set and
+        client (this function) need to unset that event
+
+        """
         t = self.timer
         # -- Extension update --
         t.s()
@@ -165,21 +204,19 @@ class Main(PrintObject, LogObject):
 
 
 if __name__ == '__main__':
-    if (len(sys.argv) == 2):
-        name = sys.argv[1]
-    else:
-        name = 'default'
 
-    config_filename = './configs/'+name+'.xml'
-    if (os.path.exists(config_filename)):
-        print_ok('using config '+config_filename)
+    # Run default.xml config if none is provided
+    name = sys.argv[1] if len(sys.argv) == 2 else 'default'
+    config_filename = './configs/' + name + '.xml'
+
+    if os.path.exists(config_filename):
+        logger.info('using config %s', config_filename)
     else:
-        print_error(config_filename + '  does not exist!')
+        logger.error(config_filename + '  does not exist!')
 
     experiment = Main(config_filename)
-    experiment.init()
     experiment.run()
     experiment.timer.summary()
     # experiment.cars[0].controller.p.summary()
 
-    print_info('program complete')
+    logger.info('program complete')

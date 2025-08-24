@@ -31,7 +31,7 @@ class Watchdog(Extension):
                     self.prefix()+'car stopped, terminating experiment')
 
             # if laptime is unreasonable, halt
-            if (self.main.sim_t - car.laptimer.last_lap_ts > 20):
+            if (self.main.simulator.sim_t - car.laptimer.last_lap_ts > 20):
                 self.triggered = True
                 self.main.exit_request.set()
                 print_warning(self.prefix(

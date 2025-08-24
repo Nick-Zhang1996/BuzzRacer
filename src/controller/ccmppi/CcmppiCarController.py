@@ -7,7 +7,7 @@ from extension.simulator.DynamicSimulator import DynamicSimulator
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from CarController import CarController
 from controller.ccmppi.ccmppi import CCMPPI
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 from common import *
 import random
 import matplotlib.pyplot as plt
@@ -40,7 +40,7 @@ class CcmppiCarController(CarController):
         # last_s is the last s such that R(last_s) is closest to vehicle
         # used as a starting point for root finding
         self.last_s = None
-        self.p = execution_timer(True)
+        self.p = ExecutionTimer(True)
 
         self.opponents = []
         self.opponent_prediction = []

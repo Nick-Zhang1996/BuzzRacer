@@ -1,5 +1,5 @@
 # replay state history
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 from extension.simulator.DynamicSimulator import DynamicSimulator
 from time import time
 import os
@@ -21,7 +21,7 @@ sys.path.append('/home/nickzhang/rcvip/src/sysid/gaussian_process')
 class Replay(Simulator):
     def __init__(self, main):
         super().__init__(main)
-        self.t = execution_timer(True)
+        self.t = ExecutionTimer(True)
         self.car_count = 0
         self.timestep = 0
         self.curvilinear = None
@@ -137,7 +137,7 @@ class Replay(Simulator):
         self.t.e('drawPredictedTrajectory')
         self.t.e()
         self.main.new_state_update.set()
-        self.main.sim_t += self.main.dt
+        self.main.simulator.sim_t += self.main.dt
         self.matchRealTime()
         self.timestep += 1
 

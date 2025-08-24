@@ -3,7 +3,7 @@ from extension.simulator.DynamicSimulator import DynamicSimulator
 from extension.simulator.KinematicSimulator import KinematicSimulator
 from controller.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
 from controller.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 from common import *
 import os
 import sys
@@ -45,7 +45,7 @@ class CCMPPI:
             self.cc = CCMPPI_DYNAMIC(
                 self.dt, self.T,  self.noise_cov, self.track)
 
-        self.p = execution_timer(True)
+        self.p = ExecutionTimer(True)
         self.debug_dict = {}
 
         self.old_ref_control = np.zeros([self.T, self.m], dtype=np.float32)

@@ -38,7 +38,7 @@ class Simulator(Extension, PrintObject):
         if (self.main.experiment_type != ExperimentType.Simulation):
             self.print_error(
                 'Experiment type is not Simulation but a Simulator is loaded')
-        self.main.sim_t = 0
+        self.sim_t = 0
         self.print_info('match_time: ' + str(self.match_time))
 
         if self.state_noise_enabled:
@@ -81,7 +81,7 @@ class Simulator(Extension, PrintObject):
         if (self.state_noise_enabled):
             self.addStateNoise()
         self.main.new_state_update.set()
-        self.main.sim_t += self.main.dt
+        self.sim_t += self.main.dt
         self.matchRealTime()
 
     def matchRealTime(self):
@@ -91,9 +91,9 @@ class Simulator(Extension, PrintObject):
             return
         if (self.t0 is None):
             self.t0 = time()
-        time_to_reach = self.main.sim_t * self.real_sim_time_ratio + self.t0
+        time_to_reach = self.sim_t * self.real_sim_time_ratio + self.t0
         self.print_debug('sim_t = %.3f, time = %.3f, expected= %.3f, delta = %.3f' % (
-            self.main.sim_t, time()-self.t0, self.main.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
+            self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
         if (time_to_reach-time() < 0):
             pass
             # print_warning("algorithm can't keep up ..... %.3f s"%(time()-time_to_reach))

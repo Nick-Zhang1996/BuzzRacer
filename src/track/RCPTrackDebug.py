@@ -14,7 +14,7 @@ import pickle
 from bisect import bisect
 
 from common import *
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 from track.RCPTrack import RCPTrack
 
 

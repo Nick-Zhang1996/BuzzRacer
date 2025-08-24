@@ -3,7 +3,7 @@
 import numpy as np
 from mpc import MPC
 from time import time
-# from timeUtil import execution_timer
+# from timeUtil import ExecutionTimer
 from car import Car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi
 from common import *
@@ -17,7 +17,7 @@ sys.path.append(base_dir)
 class ctrlMpcWrapper(Car):
     def __init__(self, car_setting, dt):
         super().__init__(car_setting, dt)
-        # self.t = execution_timer(True)
+        # self.t = ExecutionTimer(True)
         self.freq = []
         self.min_freq = 999
         self.dt = dt

@@ -8,15 +8,15 @@ from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
 from util.SymbolicDynamics import SymbolicDynamics
 from scipy.linalg import block_diag
 import sympy
-from util.timeUtil import execution_timer
+from util.timeUtil import ExecutionTimer
 import cv2
 
 
 class iLQGameCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
-        self.t = execution_timer(True)
-        self.lqt = execution_timer(True)
+        self.t = ExecutionTimer(True)
+        self.lqt = ExecutionTimer(True)
         self.m = 2
         self.n = 4
         self.iterations = 3
