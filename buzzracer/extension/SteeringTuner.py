@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 
 
 class SteeringTuner(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'steering_tuner')
 
     def final(self):
         for car in self.main.cars:

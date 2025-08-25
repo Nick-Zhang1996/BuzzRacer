@@ -19,8 +19,8 @@ sys.path.append('/home/nickzhang/rcvip/src/sysid/gaussian_process')
 
 
 class Replay(Simulator):
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self):
+        super().__init__(handle_name='replay')
         self.t = ExecutionTimer(True)
         self.car_count = 0
         self.timestep = 0

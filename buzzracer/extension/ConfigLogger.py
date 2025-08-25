@@ -1,19 +1,21 @@
-# log experiment parameter for batch experiment
-import numpy as np
-from common import *
-from extension.Extension import Extension
+''' log experiment parameter for batch experiment '''
 from xml.dom import minidom
 import os
 
+from extension.Extension import Extension
+
 
 class ConfigLogger(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    ''' Log experiment wide metadata and statistics'''
+
+    def __init__(self):
+        Extension.__init__(self, 'config_logger')
 
     def init(self):
         config = minidom.parse(self.main.config_filename)
         config_extensions = config.getElementsByTagName('extensions')[0]
-        for config_extension in config_extensions.getElementsByTagName('extension'):
+        for config_extension in config_extensions.getElementsByTagName(
+                'extension'):
             if config_extension.getAttribute('handle') == 'simulator':
                 # simulator specific logging
                 pass
@@ -33,19 +35,25 @@ class ConfigLogger(Extension):
         # laptime_stddev
         # boundary violation
         # obstacle violation
-        labels = 'experiment name , config file name , log name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary violation , obstacle violation'
+        # labels = ('experiment name'
+        #           'config file name,'
+        #           'log name ,'
+        #           'laps , Qop1, Qop2,'
+        #           'start_lead_i_j, end_lead_i_j,'
+        #           'laptime_mean , laptime_stddev ,'
+        #           'boundary violation , obstacle violation')
         entry.append(self.main.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
         entry.append(self.main.lap_counter.total_laps)
 
         # retrieve config params
-        config_filename = self.main.config_filename
-        config = minidom.parse(config_filename)
-        config_cars = config.getElementsByTagName('cars')[0]
-        config_car = config_cars.getElementsByTagName('car')[0]
-        config_controller = config_car.getElementsByTagName('controller')[0]
-        attrs = config_controller.attributes.items()
+        #config_filename = self.main.config_filename
+        #config = minidom.parse(config_filename)
+        #config_cars = config.getElementsByTagName('cars')[0]
+        #config_car = config_cars.getElementsByTagName('car')[0]
+        #config_controller = config_car.getElementsByTagName('controller')[0]
+        #attrs = config_controller.attributes.items()
 
         # start position (delta s)
         # aggressiveness
@@ -71,10 +79,10 @@ class ConfigLogger(Extension):
             entry.append(-1)
 
         log_name = os.path.join(self.main.logger.logFolder, 'textlog.txt')
-        with open(log_name, 'a') as f:
+        with open(log_name, 'a', encoding='utf8') as f:
             # f.write(labels)
             # f.write('\n')
-            self.print_info('text log at '+log_name)
+            self.print_info('text log at ' + log_name)
             text_entry = [str(item) for item in entry]
             f.write(','.join(text_entry))
             f.write('\n')

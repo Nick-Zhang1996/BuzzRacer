@@ -7,12 +7,13 @@ from threading import Event
 from time import time
 from xml.dom import minidom
 
-from common import PrintObject, LogObject, ExperimentType
-
+from common import PrintObject, LogObject, ExperimentType, Config
 from util.timeUtil import ExecutionTimer
 from track import TrackFactory
 
 from car.Car import Car
+from extension.Extension import Extension
+
 
 logger = logging.getLogger('ProfileSteinmerge')
 logger.setLevel(logging.INFO)
@@ -41,7 +42,7 @@ class Main(PrintObject, LogObject):
         self.print_ok(' setting main attributes')
         for key, value_text in config_settings.attributes.items():
             setattr(self, key, eval(value_text))
-            self.print_info(' main.', key, '=', value_text)
+            self.print_info('f main.{key}.{value_text}')
 
         def get_experiment_type_from_config_settings(config_settings):
             config_experiment_text = config_settings.getElementsByTagName(
@@ -68,7 +69,7 @@ class Main(PrintObject, LogObject):
 
         # Prepare cars
         Car.reset()
-        config_cars = config.getElementsByTagName('cars')[0]
+        config_cars: Config = config.getElementsByTagName('cars')[0]
         self.cars = [Car.Factory(self, config_car)
                      for config_car in config_cars.getElementsByTagName('car')]
         self.print_info(f' total cars: {len(self.cars)}')
@@ -89,51 +90,18 @@ class Main(PrintObject, LogObject):
         ''' Timestamp for when slowdown Event is set '''
 
         # Load Extensions defined in configs
-        self.print_ok('setting up extensions...')
-        self.extensions = []
-        config_extensions = config.getElementsByTagName('extensions')[0]
-        for config_extension in config_extensions.getElementsByTagName(
-                'extension'):
-            extension_class_name = config_extension.firstChild.nodeValue
-            try:
-                # pylint: disable-next=exec-used
-                exec('from extension import ' + extension_class_name)
-            except ImportError:
-                self.print_error(f'Cannot import {extension_class_name}')
-                raise
+        Extension.load(self, config)
 
-            ext = eval(extension_class_name)(self)
-            handle_name = ''
-            for key, raw in config_extension.attributes.items():
-                # handle is the attribute name of this extension
-                if key == 'handle':
-                    handle_name = raw
-                    setattr(self, handle_name, ext)
-                    self.print_info('main.' + handle_name + ' = ' +
-                                    ext.__class__.__name__)
-                else:
-                    try:
-                        value = eval(raw)
-                    except (NameError, SyntaxError):
-                        value = raw
-                    # all other attributes in config will be added to extension
-                    setattr(ext, key, value)
-                    self.print_info('main.' + handle_name + '.' + key + ' = ' +
-                                    str(value))
         # Some modules depend on other modules to initialize
         # Use pre_init, init, and post_init for crude separation
-        for item in self.extensions:
-            item.pre_init()
+        Extension.pre_init_all()
         for car in self.cars:
             car.pre_init()
-
-        for item in self.extensions:
-            item.init()
+        Extension.init_all()
         for car in self.cars:
             car.init()
 
-        for item in self.extensions:
-            item.post_init()
+        Extension.post_init_all()
         for car in self.cars:
             car.post_init()
 
@@ -146,12 +114,9 @@ class Main(PrintObject, LogObject):
         self.print_info('Exiting ...')
         for car in self.cars:
             car.controller.final()
-        for item in self.extensions:
-            item.pre_final()
-        for item in self.extensions:
-            item.final()
-        for item in self.extensions:
-            item.post_final()
+        Extension.pre_final_all()
+        Extension.final_all()
+        Extension.post_final_all()
 
     @property
     def time(self):
@@ -177,7 +142,7 @@ class Main(PrintObject, LogObject):
         t = self.timer
         # -- Extension update --
         t.s()
-        for item in self.extensions:
+        for item in Extension.extensions:
             t.s(item.name)
             item.pre_update()
             t.e(item.name)
@@ -193,12 +158,10 @@ class Main(PrintObject, LogObject):
 
         # -- Extension update --
         t.s('update')
-        for item in self.extensions:
-            item.update()
+        Extension.update_all()
         t.e('update')
         t.s('post')
-        for item in self.extensions:
-            item.post_update()
+        Extension.post_update_all()
         t.e('post')
         t.e()
 

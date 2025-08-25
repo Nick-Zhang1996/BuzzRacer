@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath(
 
 
 class CopgSimulator(Simulator):
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self):
+        super().__init__(handle_name='simulator')
 
     def init(self):
         super().init()

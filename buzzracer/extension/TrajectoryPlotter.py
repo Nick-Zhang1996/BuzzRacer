@@ -8,8 +8,8 @@ import os.path
 
 
 class TrajectoryPlotter(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'trajectory_plotter')
         print_ok(self.prefix()+' in use')
 
     def init(self):

@@ -14,10 +14,10 @@ class Simulator(Extension, PrintObject):
     that use different state representation for simulation
     '''
 
-    def __init__(self, main):
+    def __init__(self, *args, **kwargs):
         """subclass may override this, call super().__init__(main) in the
         begiing."""
-        super().__init__(main)
+        super().__init__(handle_name='simulator')
         self.match_time = None
         self.state_noise_enabled = None
         self.state_noise_magnitude = None
