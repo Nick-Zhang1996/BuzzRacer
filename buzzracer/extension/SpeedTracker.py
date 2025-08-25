@@ -4,8 +4,8 @@ from common import *
 
 
 class SpeedTracker(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'speed_tracker')
 
     def init(self):
         for car in self.main.cars:

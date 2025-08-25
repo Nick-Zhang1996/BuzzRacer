@@ -11,8 +11,8 @@ from threading import Event
 
 
 class Visualization(Extension):
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self):
+        super().__init__(handle_name='visualization')
         self.update_visualization = Event()
         self.update_freq = 100
         self.frame_dt = 1.0/self.update_freq

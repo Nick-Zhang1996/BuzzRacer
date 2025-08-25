@@ -4,8 +4,8 @@ from extension.Extension import Extension
 
 
 class PerformanceTracker(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self,'performance_tracker')
         self.car = self.main.cars[0]
         self.control_effort_vec = []
 

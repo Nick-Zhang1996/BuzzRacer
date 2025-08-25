@@ -6,8 +6,8 @@ from extension.Extension import Extension
 
 
 class OpponentCollisionChecker(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'opponent_collision_checker')
         self.collision_count = 0
         self.last_collision_ts = -1e3
         self.lockout_timestep = 10

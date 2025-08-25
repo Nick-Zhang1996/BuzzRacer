@@ -5,8 +5,8 @@ from threading import Event
 
 
 class SnapshotSaver(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'snapshot_saver')
         self.recording = Event()
 
     def post_init(self):

@@ -35,8 +35,8 @@ class CurvilinearSimulator(Simulator):
         ay is before ax to follow convention of steering before throttle
     '''
 
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self):
+        super().__init__(handle_name='simulator')
         self.track = self.main.track
 
     def init(self):

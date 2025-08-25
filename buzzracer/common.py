@@ -1,6 +1,19 @@
-import numpy as np
-from enum import Enum, auto
+''' Project-wide Common functions and classes'''
+import os
+import logging
+
 import inspect
+from enum import Enum, auto
+
+import numpy as np
+
+BASEDIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+''' BuzzRacer project base folder, contains buzzracer/, gifs/ etc.'''
+
+
+class Config:
+    ''' Dummy class for type checking'''
 
 
 class ExperimentType(Enum):
@@ -31,7 +44,7 @@ class LogObject:
     @staticmethod
     def populate_log(root, logged=None):
         """build a tree of debug_dict."""
-        if (logged is None):
+        if logged is None:
             logged = set()
         debug_dict = root.debug_dict
         logged.add(root)
@@ -43,53 +56,101 @@ class LogObject:
         return debug_dict
 
 
+# ANSI color codes
+RESET = "\033[0m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[96m"
+
+
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: BLUE,
+        logging.INFO: GREEN,
+        logging.WARNING: YELLOW,
+        logging.ERROR: RED,
+        logging.CRITICAL: RED,
+    }
+
+    def format(self, record):
+        # Short prefix: just class name or logger name
+        prefix = f"[{record.name}]"
+        levelname = record.levelname
+
+        # Apply color based on level
+        color = self.COLORS.get(record.levelno, RESET)
+        message = super().format(record)
+
+        return f"{color}{prefix} {levelname}: {message}{RESET}"
+
+
+def get_logger(name: str):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)  # set min log level
+
+    # avoid duplicate handlers if already configured
+    if not logger.handlers:
+        ch = logging.StreamHandler()
+        formatter = ColoredFormatter(
+            "%(message)s")  # message only, prefix handled manually
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+    return logger
+
+
 class PrintObject:
-    debug = False
+    text_logger: logging.Logger
 
-    def __init__(self):
-        # print_ok(self.prefix() + "in use")
-        # self.debug = False
-        pass
+    def __init_subclass__(cls):
+        """Called when a subclass is created; set up a class-specific logger."""
+        super().__init_subclass__()
+        cls.text_logger = get_logger(cls.__name__)
 
-    def print_debug_enable(self):
-        self.debug = True
+    @classmethod
+    def print_debug_enable(cls):
+        cls.text_logger.setLevel(logging.DEBUG)
 
-    def print_debug_disable(self):
-        self.debug = False
+    @classmethod
+    def print_debug_disable(cls):
+        cls.text_logger.setLevel(logging.INFO)
 
-    def prefix(self):
-        return '['+self.__class__.__name__+']: '
+    @classmethod
+    def prefix(cls):
+        return '[' + cls.__class__.__name__ + ']: '
 
-    def print_error(self, *message):
-        print('\033[91m', self.prefix(), 'ERROR ', *message, '\033[0m')
-        raise RuntimeError
+    @classmethod
+    def print_error(cls, *message):
+        cls.text_logger.error(*message)
 
-    def print_ok(self, *message):
+    @classmethod
+    def print_info(cls, *message):
         # green
-        print('\033[92m', self.prefix(), *message, '\033[0m')
+        cls.text_logger.info(*message)
 
-    def print_debug(self, *message):
-        # yellow
-        if (self.debug):
-            print('\033[93m', self.prefix(), inspect.stack()[
-                  1][3], *message, '\033[0m')
+    @classmethod
+    def print_ok(cls, *message):
+        # green
+        cls.text_logger.info(*message)
 
-    def print_warning(self, *message):
-        # yellow
-        # print('\033[93m',self.prefix(), *message, '\033[0m')
-        # red
-        print('\033[91m', self.prefix(), 'WARNING: ', *message, '\033[0m')
-
-    def print_info(self, *message):
+    @classmethod
+    def print_debug(cls, *message):
         # light blue
-        print('\033[96m', self.prefix(), *message, '\033[0m')
+        cls.text_logger.debug(inspect.stack(), *message)
+
+    @classmethod
+    def print_warning(cls, *message):
+        cls.text_logger.warning(inspect.stack(), *message)
 
 
 # if variables are declared in a subclass for readability,
 # then the contructor of this method needs to be called AFTER those definitions
 # so they don't get overridden
 class ConfigObject(PrintObject):
+
     def __init__(self, config):
+        super().__init__()
         self.config = config
         if config is None:
             self.print_warning('ConfigObject received None as config')
@@ -102,8 +163,9 @@ class ConfigObject(PrintObject):
             except NameError:
                 value = value_text
             setattr(self, key, value)
-            self.print_info(config.firstChild.nodeValue,
-                            '.', key, '=', value_text)
+            text = config.firstChild.nodeValue + '.' + key + '=' + value_text
+            self.print_info(text)
+
 
 # ----------
 

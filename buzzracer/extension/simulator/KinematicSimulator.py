@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath(
 
 class KinematicSimulator(Simulator):
 
-    def __init__(self, main):
-        super().__init__(main)
+    def __init__(self):
+        super().__init__(handle_name='simulator')
 
         # for when a specific car instance is not speciied
         self.lr = 45e-3

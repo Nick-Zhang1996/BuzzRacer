@@ -7,8 +7,8 @@ from math import degrees
 
 
 class SteeringTracker(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self,'steering_tracker')
         self.pos_vec = None
 
     def init(self):

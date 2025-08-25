@@ -16,9 +16,9 @@ sys.path.insert(0, os.path.abspath(
 
 
 class Optitrack(Extension, PrintObject):
-    def __init__(self, main):
-        super().__init__(main)
-        if (main.experiment_type != ExperimentType.Realworld):
+    def __init__(self):
+        super().__init__(handle_name='vi')
+        if (Extension.main.experiment_type != ExperimentType.Realworld):
             self.print_error(
                 'Experiment type is not Realworld but Optitrack is loaded')
 

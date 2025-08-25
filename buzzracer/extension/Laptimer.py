@@ -9,8 +9,8 @@ import pickle
 
 
 class Laptimer(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'lap_timer')
 
     def init(self):
         self.main.car_laptime_mean = []

@@ -10,8 +10,8 @@ import pickle
 
 
 class Logger(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
+    def __init__(self):
+        Extension.__init__(self, 'logger')
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0

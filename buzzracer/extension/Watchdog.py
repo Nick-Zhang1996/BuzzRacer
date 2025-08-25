@@ -3,9 +3,9 @@ from extension.Extension import Extension
 
 
 class Watchdog(Extension):
-    def __init__(self, main):
-        Extension.__init__(self, main)
-        self.track = main.track
+    def __init__(self):
+        Extension.__init__(self, watchdog)
+        self.track = self.main.track
         self.triggered = False
         for car in self.main.cars:
             car.in_track = True
