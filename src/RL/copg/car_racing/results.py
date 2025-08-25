@@ -1,6 +1,6 @@
 import car_racing_simulator.Track as Track
 import car_racing_simulator.VehicleModel as VehicleModel
-from car_racing.orca_env_function import getNFcollosionreward
+from car_racing.orca_env_function import get_n_fcollosionreward
 from car_racing.network import Actor as Actor
 import json
 import numpy as np
@@ -101,9 +101,9 @@ for i in range(2000):
     prev_state_c2 = state_c2
 
     # advance state
-    state_c1 = vehicle_model.dynModelBlendBatch(
+    state_c1 = vehicle_model.dyn_model_blend_batch(
         state_c1.view(-1, 6), action1.view(-1, 2)).view(-1, 6)
-    state_c2 = vehicle_model.dynModelBlendBatch(
+    state_c2 = vehicle_model.dyn_model_blend_batch(
         state_c2.view(-1, 6), action2.view(-1, 2)).view(-1, 6)
 
     # if it's done, hold last state
@@ -113,10 +113,10 @@ for i in range(2000):
                 prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
 
     # evaluate current step
-    reward1, reward2, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2 = getNFcollosionreward(state_c1, state_c2,
-                                                                                              vehicle_model.getLocalBounds(
+    reward1, reward2, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2 = get_n_fcollosionreward(state_c1, state_c2,
+                                                                                              vehicle_model.get_local_bounds(
                                                                                                   state_c1[:, 0]),
-                                                                                              vehicle_model.getLocalBounds(
+                                                                                              vehicle_model.get_local_bounds(
                                                                                                   state_c2[:, 0]),
                                                                                               prev_state_c1, prev_state_c2)
 

@@ -135,7 +135,7 @@ class hybridKinematicSim(nn.Module):
             # vehicle forward speed
             Vx = latest_state[:, 1] * \
                 torch.cos(psi) + latest_state[:, 3]*torch.sin(psi)
-            long_acc = self.getLongitudinalAcc(throttle)
+            long_acc = self.get_longitudinal_acc(throttle)
             # u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
 
             # self.states: x,vx,y,vy,psi,dpsi
@@ -214,7 +214,7 @@ class hybridKinematicSim(nn.Module):
         for i in range(batch_size):
             last_full_state = np.array(full_states[i,-self.forward_steps-1,:].detach())
             next_full_state = np.array(future_states[i,0,:].detach())
-            advsim_next_full_state = self.testForward(full_states,actions,i)
+            advsim_next_full_state = self.test_forward(full_states,actions,i)
             # this should be close to zero
             error = np.linalg.norm(next_full_state-advsim_next_full_state)
             errors.append(error)
@@ -233,7 +233,7 @@ class hybridKinematicSim(nn.Module):
         return future_states
 
     # using advCarSim, calculate future states
-    def testForward(self, full_states, actions, i=0, sim=None):
+    def test_forward(self, full_states, actions, i=0, sim=None):
         # only do the first one
         latest_state = full_states[i, -1, -
                                    (self.state_dim+self.action_dim):-self.action_dim]
@@ -269,7 +269,7 @@ class hybridKinematicSim(nn.Module):
                        (2*Caf*lf-2*Car*lr)/(m*Vx)],
                       [0, 0, 0, 0, 0, 1],
                       [0, 0, 0, -(2*lf*Caf-2*lr*Car)/(Iz*Vx), 0, -(2*lf**2*Caf+2*lr**2*Car)/(Iz*Vx)]])
-        # print("testForward A")
+        # print("test_forward A")
         # print(A)
         B = np.array(
             [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2*Caf/m, 0, 2*lf*Caf/Iz]]).T
@@ -330,7 +330,7 @@ class hybridKinematicSim(nn.Module):
             self.Iz_pow_ratio[0]
         return self.Iz_base * torch.pow(10.0, pow_ratio)
 
-    def getLongitudinalAcc(self, throttle):
+    def get_longitudinal_acc(self, throttle):
         acc = (throttle - self.throttle_offset) * self.throttle_ratio
         return acc
 

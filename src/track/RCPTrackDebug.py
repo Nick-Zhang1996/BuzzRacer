@@ -22,7 +22,7 @@ class RCPTrackDebug(RCPTrack):
     def __init__(self, main=None, config=None):
         super().__init__(main, config)
 
-    def resolveLogname(self,):
+    def resolve_logname(self,):
 
         # setup log file
         # log file will record state of the vehicle for later analysis
@@ -43,13 +43,13 @@ class RCPTrackDebug(RCPTrack):
         if (False and self.cost_count % 100 == 0):
             self.K = k
             self.verify()
-            bdy = self.boundaryClearanceVector(k)
+            bdy = self.boundary_clearance_vector(k)
             plt.plot(bdy)
             plt.show()
 
         # save a checkpoint
         if (False and self.cost_count % 1000 == 0):
-            self.resolveLogname()
+            self.resolve_logname()
             output = open(self.logFilename, 'wb')
             pickle.dump(k, output)
             output.close()
@@ -68,14 +68,14 @@ class RCPTrackDebug(RCPTrack):
         # print("p1/p2 = %.2f"%(p1_cost/p2_cost))
         return total_cost
 
-    def minimizeCurvatureRoutine(self,):
+    def minimize_curvature_routine(self,):
         steps = 100
         self.steps = steps
         # initialize an initial raceline for reference
         print('base raceline')
         self.prepareTrack()
         # discretize the initial raceline
-        self.discretizePath(steps)
+        self.discretize_path(steps)
 
         # NOTE the reconstructed path's end deviate from original by around 5cm
         self.verify()
@@ -88,7 +88,7 @@ class RCPTrackDebug(RCPTrack):
         k = self.K
         k -= 3*eps
         self.verify(k)
-        tmp = self.boundaryClearanceVector(k)
+        tmp = self.boundary_clearance_vector(k)
         plt.plot(tmp)
         plt.show()
         '''
@@ -114,7 +114,7 @@ class RCPTrackDebug(RCPTrack):
         R_min = wheelbase / tan(max_steering)
         K_max = 1.0/R_min
         # track boundary
-        cons = [{'type': 'ineq', 'fun': self.boundaryClearanceVector}]
+        cons = [{'type': 'ineq', 'fun': self.boundary_clearance_vector}]
         cons.append({'type': 'eq', 'fun': lambda x: x[-1]-x[0]})
 
         cons = tuple(cons)
@@ -167,7 +167,7 @@ class RCPTrackDebug(RCPTrack):
 
         return
 
-    def verifySpeedProfile(self, *, speed_profile_fun, mu=0.7, show_traction_circle=False, n_steps=1000):
+    def verify_speed_profile(self, *, speed_profile_fun, mu=0.7, show_traction_circle=False, n_steps=1000):
         # calculate theoretical lap time
         g = 9.81
         t_total = 0
@@ -272,5 +272,5 @@ class RCPTrackDebug(RCPTrack):
             plt.show()
         print('theoretical laptime %.2f' % t_total)
 
-        self.reconstructRaceline()
+        self.reconstruct_raceline()
         return t_total

@@ -15,14 +15,14 @@ class Logger(Extension):
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0
-        self.resolveLogname()
+        self.resolve_logname()
         # the vector that's written to pickle file
         # this is updated frequently, use the last line
         # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
         self.full_state_log = []
         self.debug_dict_log = []
 
-    def resolveLogname(self,):
+    def resolve_logname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
 
@@ -74,10 +74,10 @@ class Logger(Extension):
 
         # debug_dict
         logged = set()
-        debug_dict = LogObject.populateLog(self.main, logged)
+        debug_dict = LogObject.populate_log(self.main, logged)
         debug_dict['cars'] = []
         for car in self.main.cars:
-            debug_dict['cars'].append(LogObject.populateLog(car, logged))
+            debug_dict['cars'].append(LogObject.populate_log(car, logged))
         self.debug_dict_log.append(debug_dict)
 
     def post_final(self):

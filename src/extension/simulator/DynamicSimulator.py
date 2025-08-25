@@ -7,7 +7,7 @@ from common import *
 from Simulator import Simulator
 import matplotlib.pyplot as plt
 import numpy as np
-from sysid.tire import tireCurve
+from sysid.tire import tire_curve
 from extension import Simulator
 import os
 import sys
@@ -28,12 +28,12 @@ class DynamicSimulator(Simulator):
         KinematicSimulator.dt = DynamicSimulator.dt
         KinematicSimulator.max_v = 100
         for car in self.cars:
-            self.addCar(car)
+            self.add_car(car)
         self.main.new_state_update.set()
 
     # add a car to be DynamicSimu
     # car needs to (x,y,heading,v_forward,v_sideway,omega)
-    def addCar(self, car):
+    def add_car(self, car):
         x, y, heading, v_forward, v_sideway, omega = car.states
         car.Vx = v_forward
         car.Vy = v_sideway
@@ -69,7 +69,7 @@ class DynamicSimulator(Simulator):
     # this is to make itself useful for when update is not necessary
     #    x,y,psi,v_forward,v_sideway,d_psi = car_states
     @staticmethod
-    def advanceDynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car):
         lf = car.lf
         lr = car.lr
         L = car.L
@@ -104,8 +104,8 @@ class DynamicSimulator(Simulator):
 
             # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
             # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-            Ffy = tireCurve(slip_f) * m * 9.8 * lr/(lr+lf)
-            Fry = 1.15*tireCurve(slip_r) * m * 9.8 * lf/(lr+lf)
+            Ffy = tire_curve(slip_f) * m * 9.8 * lr/(lr+lf)
+            Fry = 1.15*tire_curve(slip_r) * m * 9.8 * lf/(lr+lf)
 
             # Dynamics
             # d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)

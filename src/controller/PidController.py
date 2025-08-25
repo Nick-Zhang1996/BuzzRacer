@@ -46,5 +46,5 @@ class PidController:
         self.mag_d = d_term
         return p_term + i_term + d_term
 
-    def getDebug(self):
+    def get_debug(self):
         return (self.mag_p, self.mag_i, self.mag_d)

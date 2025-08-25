@@ -57,7 +57,7 @@ smooth_v = savgol_filter(v, 51, 2)
 acc = np.diff(smooth_v)/dt
 
 
-def getLongitudinalAcc(state, throttle, steering):
+def get_longitudinal_acc(state, throttle, steering):
     vf = state[3]
     acc = throttle * 4.95445214 - 1.01294228 - abs(steering)
     if (vf < 0.01 and throttle < 0.245):
@@ -77,7 +77,7 @@ for i in range(len(x)-1):
     #   state: (x,y,heading,v_forward,v_sideway,omega)
     state = (x[i], y[i], heading[i], v[i], 0, 0)
 
-    predicted_acc = getLongitudinalAcc(state, throttle[i], steering[i])
+    predicted_acc = get_longitudinal_acc(state, throttle[i], steering[i])
     action = (-steering[i], predicted_acc)
     action_vec.append(action)
     # FIXME
@@ -86,11 +86,11 @@ for i in range(len(x)-1):
     z = (x[i], y[i], heading[i])
     z = np.matrix(z).reshape(3, 1)
     kf.update(z, timestamp=dt*i)
-    kf_state = kf.getState()
+    kf_state = kf.get_state()
     kf_state_vec.append(kf_state)
 
 
-def getAccCarFrame(x, y, dt):
+def get_acc_car_frame(x, y, dt):
     dxdt = np.diff(x)/dt
     dydt = np.diff(y)/dt
     # dxdt = savgol_filter(dxdt,51,2)
@@ -141,7 +141,7 @@ action_vec = np.array(action_vec)
 # kf_x, kf_y, kf_v, kf_theta, kf_omega = kf_state
 
 # prepare acc vector
-lat_acc, lon_acc, total_acc = getAccCarFrame(x, y, dt)
+lat_acc, lon_acc, total_acc = get_acc_car_frame(x, y, dt)
 
 # plot acc
 fig = plt.figure()

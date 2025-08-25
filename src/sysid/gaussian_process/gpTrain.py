@@ -16,7 +16,7 @@ from gpytorch.mlls import DeepApproximateMLL, VariationalELBO
 from gpytorch.likelihoods import MultitaskGaussianLikelihood
 
 
-def loadData(filename, visualize=False):
+def load_data(filename, visualize=False):
     """Data Preparation.
 
     given full_state.p log, provide:
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     # dynamic model simulator
     filename = 'log/2023_10_9_exp/full_state1.p'
 
-    train_x, train_y = loadData(filename, visualize=False)
+    train_x, train_y = load_data(filename, visualize=False)
     print(train_x.shape, train_y.shape)
 
     # TRAINING MODEL

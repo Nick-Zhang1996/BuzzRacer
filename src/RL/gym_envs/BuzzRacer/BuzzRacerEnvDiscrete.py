@@ -3,7 +3,7 @@ import pygame
 from track import TrackFactory
 from xml.dom.minidom import parseString
 import torch
-from RL.copg.rcvip_racing.rcvip_env_function import getRewardSingleAgent
+from RL.copg.rcvip_racing.rcvip_env_function import get_reward_single_agent
 from RL.copg.rcvip_simulator.VehicleModel import VehicleModel
 import numpy as np
 from gymnasium import spaces
@@ -44,9 +44,9 @@ class BuzzRacerEnvDiscrete(gym.Env):
         self.vehicle_model = VehicleModel(n_batch, self.device, track='rcp')
 
         if self.render_mode == 'human':
-            self.initVisualization()
+            self.init_visualization()
 
-    def initVisualization(self):
+    def init_visualization(self):
         pygame.init()
         pygame.font.init()
 
@@ -60,9 +60,9 @@ class BuzzRacerEnvDiscrete(gym.Env):
         config = parseString('<track>full</track>')
         config_track = config.getElementsByTagName('track')[0]
         self.track = TrackFactory(self, config_track)
-        self.img_track = self.track.drawTrack()
+        self.img_track = self.track.draw_track()
         self.img_blank_track = self.img_track.copy()
-        self.img_track_raceline = self.track.drawRaceline(img=self.img_track)
+        self.img_track_raceline = self.track.draw_raceline(img=self.img_track)
         self.background = pygame.surfarray.make_surface(
             self.img_track_raceline[:, :, ::-1])
         self.background = pygame.transform.flip(self.background, False, True)
@@ -111,15 +111,15 @@ class BuzzRacerEnvDiscrete(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        states = self.generateRandomStates()
+        states = self.generate_random_states()
         self.torch_states = torch.tensor([states], dtype=torch.float32)
-        bounds = self.vehicle_model.getLocalBounds(self.torch_states[:, 0])
-        reward, done = getRewardSingleAgent(
+        bounds = self.vehicle_model.get_local_bounds(self.torch_states[:, 0])
+        reward, done = get_reward_single_agent(
             self.torch_states, bounds, self.torch_states,  self.device)
         while (done):
-            states = self.generateRandomStates()
+            states = self.generate_random_states()
             self.torch_states = torch.tensor([states], dtype=torch.float32)
-            reward, done = getRewardSingleAgent(
+            reward, done = get_reward_single_agent(
                 self.torch_states, bounds, self.torch_states,  self.device)
 
         observation = states
@@ -128,7 +128,7 @@ class BuzzRacerEnvDiscrete(gym.Env):
             self._render_frame()
         return observation, info
 
-    def generateRandomStates(self):
+    def generate_random_states(self):
         random = self.np_random
         s = random.uniform(0, 11.4)
         d = random.uniform(-0.2, 0.2)
@@ -157,10 +157,10 @@ class BuzzRacerEnvDiscrete(gym.Env):
         torch_action = torch.tensor(action, dtype=torch.float32).reshape(-1, 2)
         last_torch_states = self.torch_states
 
-        self.torch_states = self.vehicle_model.dynModelBlendBatch(
+        self.torch_states = self.vehicle_model.dyn_model_blend_batch(
             self.torch_states, torch_action)
-        bounds = self.vehicle_model.getLocalBounds(self.torch_states[:, 0])
-        reward, done = getRewardSingleAgent(
+        bounds = self.vehicle_model.get_local_bounds(self.torch_states[:, 0])
+        reward, done = get_reward_single_agent(
             self.torch_states, bounds, last_torch_states, self.device)
 
         if self.render_mode == 'human':
@@ -179,7 +179,7 @@ class BuzzRacerEnvDiscrete(gym.Env):
     def _render_frame(self):
         # find car position
         local_state = self.torch_states.numpy()
-        global_state = self.vehicle_model.fromLocalToGlobal(
+        global_state = self.vehicle_model.from_local_to_global(
             local_state).flatten()
         x, y, heading, v_forward, v_sideway, omega = global_state
 

@@ -51,7 +51,7 @@ data_dict['end_lead_i_j'] = (data_dict['end_lead_i_j'] + track.raceline_len_m /
 print('Qop1 \t, Qop2 \t, start \t, end   \t, gain')
 
 
-def printTableEntry(Qop1, Qop2):
+def print_table_entry(Qop1, Qop2):
     mask = np.logical_and(data_dict['Qop1'] == Qop1, data_dict['Qop2'] == Qop2)
     mean_start_lead = np.mean(data_dict['start_lead_i_j'][mask])
     mean_end_lead = np.mean(data_dict['end_lead_i_j'][mask])
@@ -64,15 +64,15 @@ mean_start_lead = np.mean(data_dict['start_lead_i_j'])
 mean_end_lead = np.mean(data_dict['end_lead_i_j'])
 mean_gain = mean_end_lead - mean_start_lead
 print(f'mean gain: {mean_gain}')
-printTableEntry(0, 0)
-printTableEntry(4, 0)
-printTableEntry(-4, 0)
-printTableEntry(0, -4)
-printTableEntry(0, 4)
-printTableEntry(-4, -4)
-printTableEntry(4, 4)
-printTableEntry(4, -4)
-printTableEntry(-4, 4)
+print_table_entry(0, 0)
+print_table_entry(4, 0)
+print_table_entry(-4, 0)
+print_table_entry(0, -4)
+print_table_entry(0, 4)
+print_table_entry(-4, -4)
+print_table_entry(4, 4)
+print_table_entry(4, -4)
+print_table_entry(-4, 4)
 
 # table 3: end gain vs lead gain
 '''
@@ -89,7 +89,7 @@ print(f'win_i: {win_i}, win_j: {win_j}')
 # table 5: when starting from behind, Qop vs finish ratio
 
 
-def printTable5Entry(Qop1, Qop2):
+def print_table5_entry(Qop1, Qop2):
     mask = np.logical_and(data_dict['Qop1'] == Qop1, data_dict['Qop2'] == Qop2)
     follow_mask = np.logical_and(mask, data_dict['start_lead_i_j'] < 0)
     follow_win_mask = np.logical_and(
@@ -123,15 +123,15 @@ def printTable5Entry_alt(Qop1, Qop2):
 
 print(f'Qop1 \t, Qop2 \t, follow win \t, lead win \t,overall win \t, total runs')
 print('Results for i')
-printTable5Entry(0, 0)
-printTable5Entry(4, 0)
-printTable5Entry(-4, 0)
-printTable5Entry(0, -4)
-printTable5Entry(0, 4)
-printTable5Entry(-4, -4)
-printTable5Entry(4, 4)
-printTable5Entry(4, -4)
-printTable5Entry(-4, 4)
+print_table5_entry(0, 0)
+print_table5_entry(4, 0)
+print_table5_entry(-4, 0)
+print_table5_entry(0, -4)
+print_table5_entry(0, 4)
+print_table5_entry(-4, -4)
+print_table5_entry(4, 4)
+print_table5_entry(4, -4)
+print_table5_entry(-4, 4)
 
 zero_lead = np.abs(data_dict['start_lead_i_j']) < 1e-5
 print(f'{np.sum(zero_lead)} zero leads')

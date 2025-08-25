@@ -45,23 +45,23 @@ class kinematicSimulator():
         self.kf_K_vec = []
 
     # get random input to steering and longitudinal acceleration
-    def randomInput(self):
+    def random_input(self):
         steering = radians(random.uniform(-30, 30))
         acc = random.uniform(-3, 3)
         return (steering, acc)
 
-    def sinInput(self, ts):
+    def sin_input(self, ts):
         steering = radians(10)*sin(ts)
         acc = 3*sin(ts)
         return (steering, acc)
 
-    def getNoisyObservation(self):
+    def get_noisy_observation(self):
         x_obs = self.X[0, 0] + random.gauss(0, self.var_xy**0.5)
         y_obs = self.X[1, 0] + random.gauss(0, self.var_xy**0.5)
         theta_obs = self.X[3, 0] + random.gauss(0, self.var_theta**0.5)
         return (x_obs, y_obs, theta_obs)
 
-    def getNoisyAction(self, action=None):
+    def get_noisy_action(self, action=None):
         if action is None:
             alpha = 0.03
             self.action = np.array(self.action)*(1-alpha) + np.array(
@@ -94,7 +94,7 @@ class kinematicSimulator():
     # theta, car heading, in rad, ref from x axis
     # beta: steering angle, left positive, in rad
     # return new state (x,y,theta)
-    def updateCar(self, dt, state, throttle, beta, v_override=None):
+    def update_car(self, dt, state, throttle, beta, v_override=None):
         self.t += dt
         # wheelbase, in meter
         # heading of pi/2, i.e. vehile central axis aligned with y axis,
@@ -162,11 +162,11 @@ def run(steps):
     # for i in range(steps):
     for i in progressbar.progressbar(range(steps)):
         # action = (radians(10),3)
-        noisy_action = sim.getNoisyAction()
+        noisy_action = sim.get_noisy_action()
 
         kf.predict(noisy_action, timestamp=dt*i)
 
-        z = sim.getNoisyObservation()
+        z = sim.get_noisy_observation()
         z = np.matrix(z).reshape(3, 1)
         kf.update(z, timestamp=dt*i)
 

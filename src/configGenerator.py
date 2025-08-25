@@ -37,7 +37,7 @@ sim = CurvilinearSimulator(FakeMain())
 sim.track = track
 
 
-def getRandomInitialStatePair():
+def get_random_initial_state_pair():
     # s0 = np.random.uniform(0.5,track.raceline_len_m-0.5)
     # s1 = s0 + np.random.uniform(-0.3,0.3)
     # s1 in rear
@@ -64,12 +64,12 @@ def getRandomInitialStatePair():
     delta_x = x0 - x1
     is_in_collision = np.abs(delta_x[0]) < 0.18 and np.abs(delta_x[2]) < 0.14
     if (is_in_collision):
-        return getRandomInitialStatePair()
+        return get_random_initial_state_pair()
     else:
-        cart0 = sim.curv2Cart(x0)
-        cart1 = sim.curv2Cart(x1)
-        curv0 = sim.cart2Curv(cart0)
-        curv1 = sim.cart2Curv(cart1)
+        cart0 = sim.curv2_cart(x0)
+        cart1 = sim.curv2_cart(x1)
+        curv0 = sim.cart2_curv(cart0)
+        curv1 = sim.cart2_curv(cart1)
         if (curv0[0] == curv1[0]):
             breakpoint()
         return tuple(cart0[:4]), tuple(cart1[:4])
@@ -83,7 +83,7 @@ Qop = [4, 0, -4]
 for i in range(30):
     for q0 in Qop:
         for q1 in Qop:
-            s0, s1 = getRandomInitialStatePair()
+            s0, s1 = get_random_initial_state_pair()
             config = deepcopy(original_config)
             config_extensions = config.getElementsByTagName('extensions')[0]
             config_cars = config.getElementsByTagName('cars')[0]

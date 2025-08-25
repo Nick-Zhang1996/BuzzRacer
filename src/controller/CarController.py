@@ -19,10 +19,10 @@ class CarController(ConfigObject, LogObject):
         KinematicSimulator.dt = self.car.main.dt
         super().__init__(config)
 
-    def preInit(self):
+    def pre_init(self):
         return
 
-    def postInit(self):
+    def post_init(self):
         return
 
     def init(self):
@@ -50,37 +50,37 @@ class CarController(ConfigObject, LogObject):
         control = np.array((self.car.steering, self.car.throttle))
         control = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
         # kinematic
-        expected_trajectory = self.getKinematicTrajectory(
+        expected_trajectory = self.get_kinematic_trajectory(
             self.car.states, control)
-        self.plotTrajectory(expected_trajectory)
+        self.plot_trajectory(expected_trajectory)
         self.predicted_traj = expected_trajectory
         return self.predicted_traj
 
-    def plotTrajectory(self, trajectory):
+    def plot_trajectory(self, trajectory):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
         img = self.car.main.visualization.visualization_img
         for coord in trajectory:
-            img = self.car.main.track.drawCircle(
+            img = self.car.main.track.draw_circle(
                 img, coord, 0.02, color=(0, 0, 0))
         self.car.main.visualization.visualization_img = img
         return
 
     # debugging functions
-    def getKinematicTrajectory(self, x0, control):
+    def get_kinematic_trajectory(self, x0, control):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = KinematicSimulator.advanceDynamics(
+            state = KinematicSimulator.advance_dynamics(
                 state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)
 
-    def getDynamicTrajectory(self, x0, control):
+    def get_dynamic_trajectory(self, x0, control):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = DynamicSimulator.advanceDynamics(
+            state = DynamicSimulator.advance_dynamics(
                 state, control[i], self.car)
             trajectory.append(state)
         return np.array(trajectory)

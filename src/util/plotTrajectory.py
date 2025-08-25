@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 
-def plotTraj(track, filename, img, color, text):
+def plot_traj(track, filename, img, color, text):
     global offset
     with open(filename, 'rb') as f:
         data = pickle.load(f)
@@ -24,7 +24,7 @@ def plotTraj(track, filename, img, color, text):
     # plt.show()
     # breakpoint()
 
-    track.drawPolyline(points, img, lineColor=color, thickness=2)
+    track.draw_polyline(points, img, lineColor=color, thickness=2)
     return img
 
     # font
@@ -65,10 +65,10 @@ offset = 0
 
 # blank = np.zeros_like(track_img)
 filename = '../../log/feb25/full_state11.p'
-img2 = plotTraj(track, filename, track_img, (0, 255, 0), 'Baseline')
+img2 = plot_traj(track, filename, track_img, (0, 255, 0), 'Baseline')
 
 filename = '../../log/feb25/full_state12.p'
-img1 = plotTraj(track, filename, track_img, (0, 0, 255), 'CVaR')
+img1 = plot_traj(track, filename, track_img, (0, 0, 255), 'CVaR')
 
 
 # img1 = img1 - boundary_img

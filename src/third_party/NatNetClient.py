@@ -15,7 +15,7 @@
 
 # Modification by Nick Zhang:
 # manage spawned thread
-# add flag for exit, calling self.requestQuit() will terminate all threads gracefully
+# add flag for exit, calling self.request_quit() will terminate all threads gracefully
 
 import socket
 import struct
@@ -38,7 +38,7 @@ class NatNetClient:
     def __init__(self):
         self.newFrameListener = None
         self.rigidBodyListener = None
-        self.labeledMarkerListener = None
+        self.labeled_marker_listener = None
         self.flag_quit = Event()
         self.child_threads = []
         self.unlabeledMarkersPos = []
@@ -77,7 +77,7 @@ class NatNetClient:
     NAT_UNRECOGNIZED_REQUEST = 100
 
     # set flag_quit, exit all threads
-    def requestQuit(self):
+    def request_quit(self):
         self.flag_quit.set()
         for thread in self.child_threads:
             thread.join()
@@ -272,8 +272,8 @@ class NatNetClient:
                 size = FloatValue.unpack(data[offset:offset+4])
                 offset += 4
                 self.labeledMarkersPos.append(pos)
-                if (self.labeledMarkerListener is not None):
-                    self.labeledMarkerListener(self.labeledMarkersPos)
+                if (self.labeled_marker_listener is not None):
+                    self.labeled_marker_listener(self.labeledMarkersPos)
 
                 # Version 2.6 and later
                 if ((self.__natNetStreamVersion[0] == 2 and self.__natNetStreamVersion[1] >= 6) or self.__natNetStreamVersion[0] > 2 or major == 0):
@@ -530,7 +530,7 @@ class NatNetClient:
 
         trace('End Packet\n----------\n')
 
-    def sendCommand(self, command, commandStr, socket, address):
+    def send_command(self, command, commandStr, socket, address):
         # Compose the message in our known message format
         if (command == self.NAT_REQUEST_MODELDEF or command == self.NAT_REQUEST_FRAMEOFDATA):
             packetSize = 0
@@ -574,5 +574,5 @@ class NatNetClient:
         commandThread.start()
         self.child_threads.append(commandThread)
 
-        self.sendCommand(self.NAT_REQUEST_MODELDEF, '',
+        self.send_command(self.NAT_REQUEST_MODELDEF, '',
                          self.commandSocket, (self.serverIPAddress, self.commandPort))

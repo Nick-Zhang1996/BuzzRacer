@@ -3,7 +3,7 @@
 from math import pi, degrees, radians, sin, cos, tan, atan
 from collections import namedtuple
 from PIL import Image
-from tire import tireCurve
+from tire import tire_curve
 from time import sleep
 import cv2
 from track import RCPTrack
@@ -19,7 +19,7 @@ thisdir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(thisdir))
 
 
-def loadLog(filename=None):
+def load_log(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):
             print_error('Specify a log to load')
@@ -33,7 +33,7 @@ def loadLog(filename=None):
     return log
 
 
-def prepLog(log, skip=1):
+def prep_log(log, skip=1):
     # time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle
     t = log[skip:, 0]
     t = t-t[0]
@@ -44,7 +44,7 @@ def prepLog(log, skip=1):
     v_sideway = log[skip:, 5]
     # NOTE
     # omega = log[skip:,6]
-    omega = np.hstack([0, np.diff(wrapContinuous(heading))])/0.01
+    omega = np.hstack([0, np.diff(wrap_continuous(heading))])/0.01
     steering = log[skip:, 7]
     throttle = log[skip:, 8]
 
@@ -55,7 +55,7 @@ def prepLog(log, skip=1):
     return mylog
 
 
-def loadMeasuredSteering(filename):
+def load_measured_steering(filename):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
     measured_steering = np.array(data[0]['measured_steering'])
@@ -116,10 +116,10 @@ def step_raw(state, control, dt=0.01, slip_f_override=None):
         slip_f = -np.arctan((omega*lf + vy)/vx) + steering
         slip_r = np.arctan((omega*lr - vy)/vx)
 
-        # Ffy = tireCurve(slip_f) * m * ( 9.8 *lr/(lr+lf) - d_vx*h/(lr+lf))
-        # Fry = 1.15*tireCurve(slip_r) * m * ( 9.8 *lf/(lr+lf) + d_vx*h/(lr+lf))
-        Ffy = 0.9*tireCurve(slip_f) * m * 9.8 * lr/(lr+lf)
-        Fry = 0.95*tireCurve(slip_r) * m * 9.8 * lf/(lr+lf)
+        # Ffy = tire_curve(slip_f) * m * ( 9.8 *lr/(lr+lf) - d_vx*h/(lr+lf))
+        # Fry = 1.15*tire_curve(slip_r) * m * ( 9.8 *lf/(lr+lf) + d_vx*h/(lr+lf))
+        Ffy = 0.9*tire_curve(slip_f) * m * 9.8 * lr/(lr+lf)
+        Fry = 0.95*tire_curve(slip_r) * m * 9.8 * lf/(lr+lf)
 
         d_vy = 1.0/m * (Fry + Ffy * np.cos(steering) - m * vx * omega)
         d_omega = 1.0/Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
@@ -222,7 +222,7 @@ def step_rig(state, control, dt=0.01, slip_f_override=None):
     return retval, debug_dict
 
 
-def getDistanceTravelled(log, i, lookahead):
+def get_distance_travelled(log, i, lookahead):
     # distance travelled in actual future trajectory
     cum_distance_actual = 0.0
     cum_distance_actual_list = []
@@ -236,7 +236,7 @@ def getDistanceTravelled(log, i, lookahead):
     return cum_distance_actual, cum_distance_actual_list
 
 
-def addAlgorithmName(img, step_fun):
+def add_algorithm_name(img, step_fun):
     # add text
     # font
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -267,8 +267,8 @@ def run():
     # load log
     # filename = '../../log/2022_2_9_exp/full_state4.p'
     filename = '../../log/2022_3_2_exp/full_state2.p'
-    rawlog = loadLog(filename)
-    log = prepLog(rawlog, skip=1)
+    rawlog = load_log(filename)
+    log = prep_log(rawlog, skip=1)
     dt = 0.01
     vx_alt = np.hstack([0, np.diff(log.x)])/dt
     vy_alt = np.hstack([0, np.diff(log.y)])/dt
@@ -282,7 +282,7 @@ def run():
     # filename = '../../log/2022_2_7_exp/debug_dict2.p'
     '''
     filename = '../../log/2022_2_9_exp/debug_dict4.p'
-    measured_steering = loadMeasuredSteering(filename)[:-1]
+    measured_steering = load_measured_steering(filename)[:-1]
     offset = (-np.mean(measured_steering) + np.mean(log.steering))
     measured_steering = measured_steering + offset
     '''
@@ -290,8 +290,8 @@ def run():
     # prep track image
     track = RCPTrack()
     track.load()
-    img_track = track.drawTrack()
-    img_track = track.drawRaceline(img=img_track)
+    img_track = track.draw_track()
+    img_track = track.draw_raceline(img=img_track)
     cv2.imshow('validate', img_track)
     cv2.waitKey(10)
 
@@ -313,13 +313,13 @@ def run():
         vy_car = log.v_sideway
 
         car_state = (x[i], y[i], heading[i], 0, 0, 0)
-        img = track.drawCar(img_track.copy(), car_state, steering[i])
+        img = track.draw_car(img_track.copy(), car_state, steering[i])
 
         # plot actual future trajectory
         actual_future_traj = np.vstack(
             [x[i:i+lookahead_steps], y[i:i+lookahead_steps]]).T
         # BLUE
-        img = track.drawPolyline(
+        img = track.draw_polyline(
             actual_future_traj, lineColor=(255, 0, 0), img=img.copy())
 
         state = (x[i], vx[i], y[i], vy[i], heading[i], omega[i])
@@ -349,7 +349,7 @@ def run():
         predicted_future_traj = np.vstack(
             [predicted_states[:, 0], predicted_states[:, 2]]).T
         # GREEN
-        img = track.drawPolyline(
+        img = track.draw_polyline(
             predicted_future_traj, lineColor=(0, 255, 0), img=img)
 
         '''
@@ -367,10 +367,10 @@ def run():
         predicted_states = np.array(predicted_states)
         predicted_future_traj = np.vstack([predicted_states[:,0],predicted_states[:,2]]).T
         # RED
-        img = track.drawPolyline(predicted_future_traj,lineColor=(100,100,255),img=img)
+        img = track.draw_polyline(predicted_future_traj,lineColor=(100,100,255),img=img)
         '''
 
-        img = addAlgorithmName(img, step_fun)
+        img = add_algorithm_name(img, step_fun)
 
         cv2.imshow('validate', img)
         k = cv2.waitKey(10) & 0xFF
@@ -394,7 +394,7 @@ def run():
         v_actual_hist = (vx[i:i+lookahead_steps]**2 +
                          vy[i:i+lookahead_steps]**2)**0.5
 
-        cum_distance_actual, cum_distance_actual_list = getDistanceTravelled(
+        cum_distance_actual, cum_distance_actual_list = get_distance_travelled(
             log, i, lookahead_steps)
 
         # velocity predicted
@@ -427,9 +427,9 @@ def run():
 
             # heading
             def wrap(x): return np.mod(x + np.pi, 2*np.pi) - np.pi
-            heading_predicted = wrapContinuous(
+            heading_predicted = wrap_continuous(
                 wrap(predicted_heading_hist))/np.pi*180
-            heading_actual = wrapContinuous(
+            heading_actual = wrap_continuous(
                 heading[i:i+lookahead_steps])/np.pi*180
 
             ax0 = plt.subplot(311)
@@ -499,8 +499,8 @@ def err():
     step_fun = step_raw
     # filename = '../../log/2022_2_9_exp/full_state4.p'
     filename = '../../log/2022_3_2_exp/full_state2.p'
-    rawlog = loadLog(filename)
-    log = prepLog(rawlog, skip=200)
+    rawlog = load_log(filename)
+    log = prep_log(rawlog, skip=200)
     dt = 0.01
     vx = np.hstack([0, np.diff(log.x)])/dt
     vy = np.hstack([0, np.diff(log.y)])/dt
@@ -510,7 +510,7 @@ def err():
     # filename = '../../log/2022_2_7_exp/debug_dict2.p'
     # filename = '../../log/2022_2_9_exp/debug_dict4.p'
     '''
-    measured_steering = loadMeasuredSteering(filename)[:-1]
+    measured_steering = load_measured_steering(filename)[:-1]
     offset = (-np.mean(measured_steering) + np.mean(log.steering))
     measured_steering = measured_steering + offset
     '''
@@ -558,7 +558,7 @@ def err():
     print(cum_error)
 
 
-def wrapContinuous(val):
+def wrap_continuous(val):
     # wrap to -pi,pi
     def wrap(x): return np.mod(x + np.pi, 2*np.pi) - np.pi
     dval = np.diff(val)

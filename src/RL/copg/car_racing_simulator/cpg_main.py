@@ -53,12 +53,12 @@ if __name__ == '__main__':
             d = d[0]
 
         u0 = torch.FloatTensor([[d, delta]])
-        x0 = vehicle_model.dynModelBlend(x0, u0)
+        x0 = vehicle_model.dyn_model_blend(x0, u0)
         curvilinear_coordinates.append(x0.detach().numpy().reshape(6, ))
-        global_coordinates.append(track1.fromLocaltoGlobal(
+        global_coordinates.append(track1.from_localto_global(
             x0.detach().numpy().reshape(6,)))
         inputs.append(np.array([d, delta]))
-        state.x, state.y, state.yaw = track1.fromLocaltoGlobal(
+        state.x, state.y, state.yaw = track1.from_localto_global(
             x0.detach().numpy().reshape(6,))
         state.v = x0[:, 3].detach().numpy()
         state_data.append([state.x, state.y, state.yaw, state.v])
@@ -72,11 +72,11 @@ if __name__ == '__main__':
     global_upper = []
     global_center = []
     for i in range(999):
-        global_lower.append(track1.fromLocaltoGlobal(
+        global_lower.append(track1.from_localto_global(
             np.array([track1.s[i], track1.d_lower[i], 0])))
-        global_upper.append(track1.fromLocaltoGlobal(
+        global_upper.append(track1.from_localto_global(
             np.array([track1.s[i], track1.d_upper[i], 0])))
-        global_center.append(track1.fromLocaltoGlobal(
+        global_center.append(track1.from_localto_global(
             np.array([track1.s[i], 0, 0])))
     global_l = np.array(global_lower)
     global_u = np.array(global_upper)

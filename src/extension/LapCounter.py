@@ -24,7 +24,7 @@ class LapCounter(Extension):
     def update(self):
         for car in self.main.cars:
             if (self.plotLapCountFlag):
-                self.plotLapCount(car)
+                self.plot_lap_count(car)
             if car.laptimer.new_lap.is_set():
                 if (not car.critical_lap.is_set()):
                     car.critical_lap.set()
@@ -43,7 +43,7 @@ class LapCounter(Extension):
                     # should we wait for next time step to st exit flag?
                     self.main.exit_request.set()
 
-    def plotLapCount(self, car):
+    def plot_lap_count(self, car):
         if (not self.main.visualization.update_visualization.is_set()):
             return
         img = car.main.visualization.visualization_img

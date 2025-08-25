@@ -48,14 +48,14 @@ class ctrlMppiWrapper(Car):
             [[-self.max_throttle, self.max_throttle], [-radians(27.1), radians(27.1)]])
 
         # discretize raceline for use in MPPI
-        self.prepareDiscretizedRaceline()
+        self.prepare_discretized_raceline()
 
         self.mppi = MPPI(self.samples_count, self.horizon_steps, self.state_dim, self.control_dim, self.temperature,
                          self.mppi_dt, self.noise_cov, self.discretized_raceline, cuda=True, cuda_filename='mppi/mppi_racecar.cu')
 
-        self.mppi.applyDiscreteDynamics = self.applyDiscreteDynamics
-        self.mppi.evaluateStepCost = self.evaluateStepCost
-        self.mppi.evaluateTerminalCost = self.evaluateTerminalCost
+        self.mppi.apply_discrete_dynamics = self.apply_discrete_dynamics
+        self.mppi.evaluate_step_cost = self.evaluate_step_cost
+        self.mppi.evaluate_terminal_cost = self.evaluate_terminal_cost
 
         if (sim is None):
             self.lf = 0.09-0.036
@@ -87,7 +87,7 @@ class ctrlMppiWrapper(Car):
             self.m = sim.m
         return
 
-    def prepareDiscretizedRaceline(self):
+    def prepare_discretized_raceline(self):
         ss = np.linspace(0, self.track.raceline_len_m,
                          self.discretized_raceline_len)
         rr = splev(ss % self.track.raceline_len_m,
@@ -104,12 +104,12 @@ class ctrlMppiWrapper(Car):
         self.raceline_velocity = vv
 
         # describe track boundary as offset from raceline
-        self.createBoundary()
+        self.create_boundary()
         self.discretized_raceline = np.vstack(
             [self.raceline_points, self.raceline_headings, vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
         return
 
-    def createBoundary(self, show=False):
+    def create_boundary(self, show=False):
         # construct a (self.discretized_raceline_len * 2) vector
         # to record the left and right track boundary as an offset to the discretized raceline
         left_boundary = []
@@ -123,7 +123,7 @@ class ctrlMppiWrapper(Car):
             coord = self.raceline_points[:, i]
             heading = self.raceline_headings[i]
 
-            left, right = self.track.preciseTrackBoundary(coord, heading)
+            left, right = self.track.precise_track_boundary(coord, heading)
             left_boundary.append(left)
             right_boundary.append(right)
 
@@ -141,11 +141,11 @@ class ctrlMppiWrapper(Car):
             '''
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPoint(img,coord,color=(0,0,0))
-            img = self.track.drawPoint(img,left_point,color=(0,0,0))
-            img = self.track.drawPoint(img,right_point,color=(0,0,0))
+            img = self.track.draw_track()
+            img = self.track.draw_raceline(img = img)
+            img = self.track.draw_point(img,coord,color=(0,0,0))
+            img = self.track.draw_point(img,left_point,color=(0,0,0))
+            img = self.track.draw_point(img,right_point,color=(0,0,0))
             plt.imshow(img)
             plt.show()
             '''
@@ -154,11 +154,11 @@ class ctrlMppiWrapper(Car):
         self.raceline_right_boundary = right_boundary
 
         if (show):
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img=img)
-            img = self.track.drawPolyline(
+            img = self.track.draw_track()
+            img = self.track.draw_raceline(img=img)
+            img = self.track.draw_polyline(
                 left_boundary_points, lineColor=(0, 255, 0), img=img)
-            img = self.track.drawPolyline(
+            img = self.track.draw_polyline(
                 right_boundary_points, lineColor=(0, 0, 255), img=img)
             plt.imshow(img)
             plt.show()
@@ -182,7 +182,7 @@ class ctrlMppiWrapper(Car):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
 
-    def ctrlCar(self, state, track, v_override=None, reverse=False):
+    def ctrl_car(self, state, track, v_override=None, reverse=False):
         p = self.p
         p.s()
         # get an estimate for current distance along raceline
@@ -190,24 +190,24 @@ class ctrlMppiWrapper(Car):
                       'crosstrack_error': [], 'heading_error': []}
 
         try:
-            self.predictOpponent()
+            self.predict_opponent()
             debug_dict['opponent'] = self.opponent_prediction
         except AttributeError:
             pass
 
-        # e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(state, 3, 0.01, reverse=reverse)
+        # e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.get_ref_point(state, 3, 0.01, reverse=reverse)
         # debug_dict['crosstrack_error'] = e_cross
         # debug_dict['heading_error'] = e_heading
         p.s('local traj')
         if self.last_s is None:
-            retval = track.localTrajectory(
+            retval = track.local_trajectory(
                 state, wheelbase=0.102/2.0, return_u=True)
             if retval is None:
-                print_warning('localTrajectory returned None')
+                print_warning('local_trajectory returned None')
                 ret = (0, 0, False, debug_dict)
                 return ret
             else:
-                # parse return value from localTrajectory
+                # parse return value from local_trajectory
                 (local_ctrl_pnt, offset, orientation,
                  curvature, v_target, u0) = retval
                 self.last_s = track.uToS(u0).item()
@@ -243,7 +243,7 @@ class ctrlMppiWrapper(Car):
         p.s('debug')
         sim_state = state.copy()
         for i in range(self.horizon_steps):
-            sim_state = self.applyDiscreteDynamics(
+            sim_state = self.apply_discrete_dynamics(
                 sim_state, uu[i], self.mppi_dt)
             coord = (sim_state[0], sim_state[2])
             debug_dict['x_ref'].append(coord)
@@ -253,12 +253,12 @@ class ctrlMppiWrapper(Car):
         p.e()
         return ret
 
-    def evaluateStepCost(self, state, control):
+    def evaluate_step_cost(self, state, control):
         heading = state[4]
         # calculate cost
         # cost = -reward + penalty
-        # ids0 = self.findClosestIds(x0)
-        ids = self.findClosestIds(state)
+        # ids0 = self.find_closest_ids(x0)
+        ids = self.find_closest_ids(state)
 
         # reward is progress along centerline
         # cost = - ( self.ss[ids] - self.ss[ids0] )
@@ -273,7 +273,7 @@ class ctrlMppiWrapper(Car):
         # FIXME
         # return 0.0
 
-    def findClosestIds(self, state):
+    def find_closest_ids(self, state):
         x = state[0]
         y = state[2]
         dx = x - self.raceline_points[0]
@@ -283,12 +283,12 @@ class ctrlMppiWrapper(Car):
         idx = np.argmin(dist2)
         return idx
 
-    def evaluateTerminalCost(self, state, x0):
+    def evaluate_terminal_cost(self, state, x0):
         heading = state[4]
         # calculate cost
         # cost = -reward + penalty
-        ids0 = self.findClosestIds(x0)
-        ids = self.findClosestIds(state)
+        ids0 = self.find_closest_ids(x0)
+        ids = self.find_closest_ids(state)
 
         # reward is progress along centerline
         cost_real = - (self.ss[ids] - self.ss[ids0])
@@ -310,7 +310,7 @@ class ctrlMppiWrapper(Car):
 
     # advance car dynamics
     # for use in visualization
-    def applyDiscreteDynamics(self, state, control, dt):
+    def apply_discrete_dynamics(self, state, control, dt):
         x = state[0]
         vxg = state[1]
         # left pos(+)
@@ -396,13 +396,13 @@ class ctrlMppiWrapper(Car):
 
     # we assume opponent will follow reference trajectory at current speed
 
-    def initTrackOpponents(self):
+    def init_track_opponents(self):
         return
 
-    def predictOpponent(self):
+    def predict_opponent(self):
         self.opponent_prediction = []
         for opponent in self.opponents:
-            traj = self.track.predictOpponent(
+            traj = self.track.predict_opponent(
                 opponent.state, self.horizon_steps, self.mppi_dt)
             self.opponent_prediction.append(traj)
 

@@ -52,7 +52,7 @@ class advCarSim:
     # update vehicle state
     # NOTE vx != 0
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    def updateCar(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_states, throttle, steering):
         # simulator carries internal state and doesn't really need these
         '''
         x = sim_states['coord'][0]
@@ -144,7 +144,7 @@ class advCarSim:
         plt.show()
 # dynamic simulator
 
-    def initDynamicSimulation(self, car, init_state=(0.3*0.6, 1.7*0.6, radians(90))):
+    def init_dynamic_simulation(self, car, init_state=(0.3*0.6, 1.7*0.6, radians(90))):
         car.new_state_update = Event()
         car.new_state_update.set()
 
@@ -164,9 +164,9 @@ class advCarSim:
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
-    def updateDynamicSimulation(self, car):
+    def update_dynamic_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.updateCar(
+        sim_states = car.sim_states = car.simulator.update_car(
             self.sim_dt, car.sim_states, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
         car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
@@ -177,7 +177,7 @@ class advCarSim:
         # print("v = %.2f"%(sim_states['vf']))
         car.new_state_update.set()
 
-    def stopDynamicSimulation(self, car):
+    def stop_dynamic_simulation(self, car):
         return
 
 
@@ -186,5 +186,5 @@ if __name__ == '__main__':
     for i in range(200):
         throttle = 0
         steering = radians(10)
-        sim.updateCar(0.005, None, throttle, steering)
+        sim.update_car(0.005, None, throttle, steering)
     sim.debug()

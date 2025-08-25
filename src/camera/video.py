@@ -32,7 +32,7 @@ class Video:
             print('Cannot open camera')
             exit()
 
-    def getStateAtTime(self, t):
+    def get_state_at_time(self, t):
         # TODO add interpolation
         try:
             index = np.searchsorted(self.log[:, 0, 0], t)
@@ -42,22 +42,22 @@ class Video:
 
     def render(self, frame, t):
         # only for car 0
-        log = self.getStateAtTime(t)
+        log = self.get_state_at_time(t)
         car_pos = log[0, 1:3].reshape(1, 1, -1).astype(np.float32)
         dst = cv.perspectiveTransform(car_pos, self.mat)
         dst = tuple(dst.flatten().astype(int))
         cv.circle(frame, dst, 55, (0, 0, 255), 3)
         return frame
 
-    def drawPolyline(self, points, frame):
+    def draw_polyline(self, points, frame):
         # TODO aike
         return
 
-    def drawCircle(self, center, radius, frame):
+    def draw_circle(self, center, radius, frame):
         # TODO aike
         return
 
-    def drawText(self, bottom_left, text, frame):
+    def draw_text(self, bottom_left, text, frame):
         # TODO aike
         return
 

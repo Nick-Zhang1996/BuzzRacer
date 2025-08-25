@@ -300,8 +300,8 @@ class CCMPPI:
         cost = 0.0
         for k in range(self.N):
             print("step = %d, x= %.3f, y=%.3f, v=%.3f, psi=%.3f, T=%.3f, S=%.3f"%(k,state[0],state[1],state[2],state[3], this_control_seq[k,0], this_control_seq[k,1]))
-            state = self.applyDiscreteDynamics(state,this_control_seq[k],self.dt)
-            step_cost, index, dist = self.evaluateStepCost(state, this_control_seq[k], self.discretized_raceline)
+            state = self.apply_discrete_dynamics(state,this_control_seq[k],self.dt)
+            step_cost, index, dist = self.evaluate_step_cost(state, this_control_seq[k], self.discretized_raceline)
             cost += step_cost
             print(step_cost, index, dist)
         '''
@@ -310,7 +310,7 @@ class CCMPPI:
         '''
         self.cc.debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
         self.cc.rand_vals = self.rand_vals.reshape([self.K,self.T,self.m])
-        self.cc.visualizeOnTrack()
+        self.cc.visualize_on_track()
         '''
 
         # throttle, steering
@@ -322,7 +322,7 @@ class CCMPPI:
             print_error('cc-mppi fail to return valid control')
         return ref_control
 
-    def evalControl(self, state, candidate_control):
+    def eval_control(self, state, candidate_control):
         candidate_control = np.array(candidate_control).reshape(-1, self.m)
         S = 0
         x0 = state.copy()
@@ -330,22 +330,22 @@ class CCMPPI:
         # run each simulation for self.T timesteps
         for t in range(self.T):
             control = candidate_control[t, :]
-            x = self.applyDiscreteDynamics(x, control, self.dt)
-            S += self.evaluateStepCost(x, control)
-        S += self.evaluateTerminalCost(x, x0)
+            x = self.apply_discrete_dynamics(x, control, self.dt)
+            S += self.evaluate_step_cost(x, control)
+        S += self.evaluate_terminal_cost(x, x0)
         return S
 
-    def findClosestId(self, state, in_raceline):
+    def find_closest_id(self, state, in_raceline):
         x = state[0]
         y = state[1]
         dist2 = (x-in_raceline[:, 0])**2 + (y-in_raceline[:, 1])**2
         min_index = np.argmin(dist2)
         return min_index, dist2[min_index]**0.5
 
-    def evaluateStepCost(self, state, control, in_raceline):
+    def evaluate_step_cost(self, state, control, in_raceline):
         in_raceline = in_raceline.reshape(-1, 6)
         # find closest id
-        index, dist = self.findClosestId(state, in_raceline)
+        index, dist = self.find_closest_id(state, in_raceline)
         vx = state[2]
         dv = vx - in_raceline[index, 3]
 

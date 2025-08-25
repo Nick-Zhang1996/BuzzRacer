@@ -9,7 +9,7 @@ thisdir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(thisdir))
 
 
-def wrapContinuous(val):
+def wrap_continuous(val):
     # wrap to -pi,pi
     def wrap(x): return np.mod(x + np.pi, 2*np.pi) - np.pi
     dval = np.diff(val)
@@ -18,7 +18,7 @@ def wrapContinuous(val):
     return retval
 
 
-def loadLog(filename=None):
+def load_log(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):
             print_error('Specify a log to load')
@@ -32,7 +32,7 @@ def loadLog(filename=None):
     return log
 
 
-def prepLog(log, skip=1):
+def prep_log(log, skip=1):
     # time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle
     t = log[skip:, 0]
     t = t-t[0]
@@ -43,7 +43,7 @@ def prepLog(log, skip=1):
     v_sideway = log[skip:, 5]
     # NOTE
     # omega = log[skip:,6]
-    omega = np.hstack([0, np.diff(wrapContinuous(heading))])/0.01
+    omega = np.hstack([0, np.diff(wrap_continuous(heading))])/0.01
     steering = log[skip:, 7]
     throttle = log[skip:, 8]
 
@@ -55,12 +55,12 @@ def prepLog(log, skip=1):
 
 
 filename = '../../log/2022_3_1_sim/full_state2.p'
-rawlog = loadLog(filename)
-log_old = prepLog(rawlog, skip=1)
+rawlog = load_log(filename)
+log_old = prep_log(rawlog, skip=1)
 
 filename = '../../log/2022_3_1_sim/full_state1.p'
-rawlog = loadLog(filename)
-log_new = prepLog(rawlog, skip=1)
+rawlog = load_log(filename)
+log_new = prep_log(rawlog, skip=1)
 dt = 0.01
 plt.plot(log_old.steering, label='old steering')
 plt.plot(log_new.steering, label='new steering')

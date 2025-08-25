@@ -17,16 +17,16 @@ laptime_vec = []
 count = 0
 
 
-def getLaptime(ctrl_offset, track_obj, start_grid, start_dir):
+def get_laptime(ctrl_offset, track_obj, start_grid, start_dir):
     global saveGif, gifimages, img_track, count
     count += 1
-    laptime = track_obj.initRaceline(
+    laptime = track_obj.init_raceline(
         start_grid, start_dir, start_seqno, offset=ctrl_offset)
     laptime_vec.append(laptime)
     sys.stdout.write('.')
     sys.stdout.flush()
     if saveGif:
-        img_track_raceline = mk103.drawRaceline(img=img_track.copy())
+        img_track_raceline = mk103.draw_raceline(img=img_track.copy())
         gifimages.append(Image.fromarray(cv2.cvtColor(
             img_track_raceline, cv2.COLOR_BGR2RGB)))
         # plt.imshow(img_track_raceline)
@@ -87,14 +87,14 @@ if __name__ == '__main__':
 
     # initialize track
     track_len = len(descrip)
-    mk103.initTrack(descrip, track_size, scale=0.565)
+    mk103.init_track(descrip, track_size, scale=0.565)
     start_grid = (3, 3)
     start_dir = 'd'
     start_seqno = 10
 
-    img_track = mk103.drawTrack()
+    img_track = mk103.draw_track()
 
-    print('benchmark laptime = '+str(getLaptime(adjustment,
+    print('benchmark laptime = '+str(get_laptime(adjustment,
           mk103, start_grid, start_dir, start_seqno)))
 
     def fun(x): return x
@@ -120,8 +120,8 @@ if __name__ == '__main__':
     bnds = tuple([(-max_offset, max_offset) for i in range(track_len)])
     # bnds = ((-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset),(-max_offset,max_offset))
 
-    # res = minimize(getLaptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
-    res = minimize(getLaptime, adjustment, args=(mk103, start_grid, start_dir,
+    # res = minimize(get_laptime,adjustment,args=(mk103),method='COBYLA',bounds=bnds,constraints=cons)
+    res = minimize(get_laptime, adjustment, args=(mk103, start_grid, start_dir,
                    start_seqno), method='SLSQP', bounds=bnds, constraints=cons)
     print(res)
     adjustment = res.x

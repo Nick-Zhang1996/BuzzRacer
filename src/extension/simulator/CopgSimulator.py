@@ -8,7 +8,7 @@ from common import *
 from Simulator import Simulator
 import matplotlib.pyplot as plt
 import numpy as np
-from sysid.tire import tireCurve
+from sysid.tire import tire_curve
 from extension import Simulator
 import os
 import sys
@@ -28,7 +28,7 @@ class CopgSimulator(Simulator):
         KinematicSimulator.dt = CopgSimulator.dt
         KinematicSimulator.max_v = 100
         for car in self.cars:
-            self.addCar(car)
+            self.add_car(car)
         self.main.new_state_update.set()
 
         CopgSimulator.vehicle_model = VehicleModel(
@@ -36,7 +36,7 @@ class CopgSimulator(Simulator):
 
     # add a car to be DynamicSimu
     # car needs to (x,y,heading,v_forward,v_sideway,omega)
-    def addCar(self, car):
+    def add_car(self, car):
         x, y, heading, v_forward, v_sideway, omega = car.states
         car.Vx = v_forward
         car.Vy = v_sideway
@@ -66,7 +66,7 @@ class CopgSimulator(Simulator):
         car.norm = []
 
     @staticmethod
-    def advanceDynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car):
         """# advance vehicle dynamics.
 
         # NOTE using car frame origined at CG with x pointing forward, y leftward
@@ -77,9 +77,9 @@ class CopgSimulator(Simulator):
         # control = steering,throttle
 
         """
-        local_state = CopgSimulator.vehicle_model.fromGlobalToLocal(car_states)
-        new_local_state = CopgSimulator.vehicle_model.dynModelBlendBatch(
+        local_state = CopgSimulator.vehicle_model.from_global_to_local(car_states)
+        new_local_state = CopgSimulator.vehicle_model.dyn_model_blend_batch(
             local_state, (control[1], control[0]))
-        global_state = CopgSimulator.vehicle_model.fromLocalToGlobal(
+        global_state = CopgSimulator.vehicle_model.from_local_to_global(
             new_local_state).flatten()
         return global_state.flatten()

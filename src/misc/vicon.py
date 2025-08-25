@@ -17,12 +17,12 @@ class Vicon:
     # Port : Port number to listen on, default is vicon's default port
     # daemon : whether to spawn a daemon update thread
     #     If user prefer to get vicon update manually, this can be set to false
-    #     However, user need to make sure to call getViconUpdate() frequently enough to prevent
-    #     the incoming network buffer from filling up, which would result in self.getViconUpdate
+    #     However, user need to make sure to call get_vicon_update() frequently enough to prevent
+    #     the incoming network buffer from filling up, which would result in self.get_vicon_update
     #     gettting stacked up outdated vicon frames
     #
-    #     In applications where getViconUpdate() cannot be called frequently enough,
-    #     or when the user code can't afford to wait for getViconUpdate() to complete.
+    #     In applications where get_vicon_update() cannot be called frequently enough,
+    #     or when the user code can't afford to wait for get_vicon_update() to complete.
     #     User may choose to set daemon to True, in which case a new thread would be spawned
     #     dedicated to receiving vicon frames and maintaining a local copy of the most recent states
 
@@ -67,14 +67,14 @@ class Vicon:
         q_t = self.tf.euler2q(0, 0, 0)
         self.T = np.hstack([q_t, np.array([-0.0, -0.0, 0])])
 
-        self.updateCallback = self.doNothing
+        self.updateCallback = self.do_nothing
 
         if enableKF:
-            # temporarily unset enableKF to trick getViconUpdate() to ignore kf before it's inited
+            # temporarily unset enableKF to trick get_vicon_update() to ignore kf before it's inited
             if not daemon:
                 print('Warning: Kalman Filter is enabled but Vicon Update Daemon is not')
             self.enableKF = False
-            retval = self.getViconUpdate()
+            retval = self.get_vicon_update()
             self.enableKF = True
             if retval is None:
                 print("Vicon not ready, can't determine obj count for Kalman Filter")
@@ -83,13 +83,13 @@ class Vicon:
             self.kf = [KalmanFilter() for i in range(self.obj_count)]
             # self.kf_state = []
             for i in range(self.obj_count):
-                (x, y, theta) = self.getState2d(i)
+                (x, y, theta) = self.get_state2d(i)
                 self.kf[i].init(x, y, theta)
-                # self.kf_state.append(self.kf.getState())
+                # self.kf_state.append(self.kf.get_state())
 
         if daemon:
             self.thread = threading.Thread(
-                name='vicon', target=self.viconUpateDaemon)
+                name='vicon', target=self.vicon_upate_daemon)
             self.thread.start()
         else:
             self.thread = None
@@ -101,23 +101,23 @@ class Vicon:
         self.sock.close()
 
     # set a callback function for new vicon updates
-    def setCallback(self, fun):
+    def set_callback(self, fun):
         self.updateCallback = fun
         return
 
     # placeholder for an empty function
-    def doNothing():
+    def do_nothing():
         pass
 
     # get name of an object given its ID. This can be useful for verifying ID <-> object relationship
-    def getItemName(self, obj_id):
+    def get_item_name(self, obj_id):
         self.state_lock.acquire()
         local_name = self.obj_names[obj_id]
         self.state_lock.release()
         return local_name
 
     # get item id from name
-    def getItemID(self, obj_name):
+    def get_item_i_d(self, obj_name):
         self.state_lock.acquire()
         local_names = self.obj_names
         self.state_lock.release()
@@ -130,7 +130,7 @@ class Vicon:
             return obj_id
 
     # get state by id
-    def getState(self, inquiry_id):
+    def get_state(self, inquiry_id):
         if inquiry_id >= self.obj_count:
             print('error: invalid id : '+str(inquiry_id))
             return None
@@ -139,18 +139,18 @@ class Vicon:
         self.state_lock.release()
         return retval
 
-    def viconUpateDaemon(self):
+    def vicon_upate_daemon(self):
         while not self.quit_thread:
-            self.getViconUpdate()
+            self.get_vicon_update()
 
     # stop the update thread
-    def stopUpdateDaemon(self):
+    def stop_update_daemon(self):
         if not (self.thread is None):
             self.quit_thread = True
             self.thread.join()
             self.thread = None
 
-    def getViconUpdate(self, debugData=None):
+    def get_vicon_update(self, debugData=None):
         # the no of bytes here must agree with length of a vicon packet
         # typically 256,512 or 1024
         try:
@@ -194,15 +194,15 @@ class Vicon:
             # (x,y,heading)
             x, y, z, rx, ry, rz = local_state_list[i]
             # (z_x,z_y,z_theta)
-            (z_x, z_y, z_theta) = self.tf.reframeR(
-                self.T, x, y, z, self.tf.euler2Rxyz(rx, ry, rz))
+            (z_x, z_y, z_theta) = self.tf.reframe_r(
+                self.T, x, y, z, self.tf.euler2_rxyz(rx, ry, rz))
             local_state2d_list.append((z_x, z_y, z_theta))
 
             if self.enableKF:
                 self.kf[i].predict()
                 z = np.matrix([[z_x, z_y, z_theta]]).T
                 self.kf[i].update(z)
-                # self.kf_state[i] = self.kf[i].getState()
+                # self.kf_state[i] = self.kf[i].get_state()
 
         self.state2d_lock.acquire()
         self.state2d_list = local_state2d_list
@@ -213,7 +213,7 @@ class Vicon:
         self.newState.set()
         return local_state_list
 
-    def getState2d(self, inquiry_id):
+    def get_state2d(self, inquiry_id):
         if inquiry_id >= self.obj_count:
             return None
         try:
@@ -231,27 +231,27 @@ class Vicon:
         return retval
 
     # get KF state by id
-    def getKFstate(self, inquiry_id):
+    def get_k_fstate(self, inquiry_id):
         self.kf[inquiry_id].predict()
         # (x,dx,-,y,dy,-,theta,dtheta)
-        return self.kf[inquiry_id].getState()
+        return self.kf[inquiry_id].get_state()
 
-    def testFreq(self, packets=100):
+    def test_freq(self, packets=100):
         # test actual frequency of vicon update, with PACKETS number of state updates
         tic = time()
         for i in range(packets):
-            self.getViconUpdate()
+            self.get_vicon_update()
         tac = time()
         return packets/(tac-tic)
 
     # for debug
-    def saveFile(self, data, filename):
+    def save_file(self, data, filename):
         newFile = open(filename, 'wb')
         newFile.write(data)
         newFile.close()
 
     # for debug
-    def loadFile(self, filename):
+    def load_file(self, filename):
         newFile = open(filename, 'rb')
         data = bytearray(newFile.read())
         newFile.close()
@@ -260,29 +260,29 @@ class Vicon:
 
 if __name__ == '__main__':
     vi = Vicon(daemon=True)
-    vi.getViconUpdate()
+    vi.get_vicon_update()
     sleep(0.1)
 
     for i in range(vi.obj_count):
-        print('ID: '+str(i)+', Name: '+vi.getItemName(i))
+        print('ID: '+str(i)+', Name: '+vi.get_item_name(i))
 
-    wand_id = vi.getItemID('Wand')
+    wand_id = vi.get_item_i_d('Wand')
     print('Wand id '+str(wand_id))
     sleep(1)
 
     # debug speed estimation
     while False:
         # for i in range(10):
-        (kf_x, dx, _, kf_y, dy, _, theta, dtheta) = vi.getKFstate(wand_id)
-        (x, y, z, rx, ry, rz) = vi.getState(wand_id)
+        (kf_x, dx, _, kf_y, dy, _, theta, dtheta) = vi.get_k_fstate(wand_id)
+        (x, y, z, rx, ry, rz) = vi.get_state(wand_id)
         # print(x,dx,degrees(dtheta))
         # print(x,y,degrees(rz))
         print(kf_x-x)
         sleep(0.02)
 
-    vi.stopUpdateDaemon()
+    vi.stop_update_daemon()
 
     # test freq
     if False:
         for i in range(3):
-            print('Freq = '+str(vi.testFreq())+'Hz')
+            print('Freq = '+str(vi.test_freq())+'Hz')

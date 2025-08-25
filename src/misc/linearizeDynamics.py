@@ -25,11 +25,11 @@ class LinearizeDynamics():
         self.l = self.n
         self.m = 2
         self.N = horizon
-        self.setupModel()
+        self.setup_model()
         u_min = np.array((-1, -radians(25)))
         u_max = np.array((1, radians(25)))
         self.solver = CSSolver(self.n, self.m, self.l, self.N, u_min, u_max)
-        self.getRefTraj('../log/ref_traj/full_state1.p', show=False)
+        self.get_ref_traj('../log/ref_traj/full_state1.p', show=False)
         return
 
     def covarianceControl_cvxpy(self, state, control):
@@ -142,8 +142,8 @@ class LinearizeDynamics():
         # print(np.linalg.norm(R - R_old))
         return R
 
-    def testSimpleDynamics(self):
-        print('testSimpleDynamics (2d double integrator)')
+    def test_simple_dynamics(self):
+        print('test_simple_dynamics (2d double integrator)')
         # dynamics: 2D double integrator
         dt = self.dt
         n = self.n = 4
@@ -304,7 +304,7 @@ class LinearizeDynamics():
         plt.title('with K')
         plt.show()
 
-    def covarianceControlDynamicBicycle(self):
+    def covariance_control_dynamic_bicycle(self):
         # 1) get reference trajectory from current position
         #    velocity, desired angular rates
         # 2) assemble A,B,D, d matrices
@@ -314,7 +314,7 @@ class LinearizeDynamics():
     # test cc on a simple dynamics
     # warning: this function is standalone and will mess up other functions' paremeters
 
-    def simpleDynamicsCovarianceControl(self):
+    def simple_dynamics_covariance_control(self):
         # dynamics: 2D double integrator
         dt = self.dt
         n = self.n = 4
@@ -388,7 +388,7 @@ class LinearizeDynamics():
 
         return K
 
-    def setupModel(self):
+    def setup_model(self):
         # dimension
         self.lf = 0.09-0.036
         self.lr = 0.036
@@ -412,7 +412,7 @@ class LinearizeDynamics():
     # read a log
     # use trajectory of second lap as reference trajectory
     # this sets and saves reference state and trajectory
-    def getRefTraj(self, logname, lap_no=2, show=False):
+    def get_ref_traj(self, logname, lap_no=2, show=False):
 
         # read log
         with open(logname, 'rb') as f:
@@ -487,8 +487,8 @@ class LinearizeDynamics():
 
         return
 
-    def testGetRefTraj(self):
-        self.getRefTraj('../log/ethsim/full_state1.p')
+    def test_get_ref_traj(self):
+        self.get_ref_traj('../log/ethsim/full_state1.p')
         return
 
     def update_dynamics(self, states, controls, dt):
@@ -574,7 +574,7 @@ class LinearizeDynamics():
         '''
         print("vx = %5.2f, vy = %5.2f"%(vx,vy))
         print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
-        print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
+        print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tire_curve(slip_f), tire_curve(slip_r)))
         '''
 
         # back to global frame
@@ -642,7 +642,7 @@ class LinearizeDynamics():
         u0 = nominal_ctrl.copy()
         '''
         self.sim.states = np.array(x0.copy())
-        self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
+        self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
         x_post = np.array(self.sim.states)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
@@ -654,7 +654,7 @@ class LinearizeDynamics():
 
         return A, B, d
 
-    def testLinearize(self):
+    def test_linearize(self):
         # compare F(x0+dx,u0+du) and A(x0+dx) + B(u0+du) + d
         # read log
         logname = '../log/ethsim/full_state1.p'
@@ -691,7 +691,7 @@ class LinearizeDynamics():
         x_a_prior = (x[i], dx[i], y[i], dy[i], heading[i], dheading[i])
         u_a = (throttle[i], steering[i])
         self.sim.states = np.array(x_a_prior)
-        self.sim.updateCar(self.dt, None, u_a[0], u_a[1])
+        self.sim.update_car(self.dt, None, u_a[0], u_a[1])
         x_a_post_truth = np.array(self.sim.states)
 
         x_a_post_guess = A @ x_a_prior + B @ u_a + d
@@ -805,7 +805,7 @@ class LinearizeDynamics():
 
         return AA, BB, dd, DD
 
-    def makeBigMatrices(self, As, Bs, ds, Ds):
+    def make_big_matrices(self, As, Bs, ds, Ds):
         n = self.n
         m = self.m
         N = self.N
@@ -829,21 +829,21 @@ class LinearizeDynamics():
     # the model in log file is different from log in current model
     # re-generate reference trajectory using same x0 and uu
 
-    def generateTestRefTraj(self):
-        self.getRefTraj('../log/ethsim/full_state1.p', show=False)
+    def generate_test_ref_traj(self):
+        self.get_ref_traj('../log/ethsim/full_state1.p', show=False)
         for i in range(self.ref_traj.shape[0]-1):
             x = self.ref_traj[i, :]
             self.sim.states = np.array(x)
-            self.sim.updateCar(
+            self.sim.update_car(
                 self.dt, None, self.ref_ctrl[i, 0], self.ref_ctrl[i, 1])
             x_post = np.array(self.sim.states)
             self.ref_traj[i+1, :] = x_post
         return
 
-    def testBigMatrices(self, offset=0):
+    def test_big_matrices(self, offset=0):
         # get ref traj
-        # self.generateTestRefTraj()
-        self.getRefTraj('../log/ethsim/full_state1.p', show=False)
+        # self.generate_test_ref_traj()
+        self.get_ref_traj('../log/ethsim/full_state1.p', show=False)
 
         # linearize dynamics around ref traj
         As = []
@@ -946,29 +946,29 @@ class LinearizeDynamics():
         '''
 
         # plot true and linearized traj
-        img_track = self.track.drawTrack()
-        img_track = self.track.drawRaceline(img=img_track)
+        img_track = self.track.draw_track()
+        img_track = self.track.draw_raceline(img=img_track)
         car_state = (x0[0], x0[2], x0[4], 0, 0, 0)
-        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
+        img = self.track.draw_car(img_track.copy(), car_state, u0[1])
 
         actual_future_traj = self.ref_traj[i+1:i+1+self.N, (0, 2)]
         # actual_future_traj  = self.ref_traj[start+1:start+1+self.N,(0,2)]
-        img = self.track.drawPolyline(
+        img = self.track.draw_polyline(
             actual_future_traj, lineColor=(255, 0, 0), img=img.copy())
 
         predicted_states = XX.reshape((-1, self.n))
         predicted_future_traj = predicted_states[:, (0, 2)]
-        img = self.track.drawPolyline(
+        img = self.track.draw_polyline(
             predicted_future_traj, lineColor=(0, 255, 0), img=img.copy())
         plt.imshow(img)
         plt.show()
 
         return AA, BB, dd, B0, B1, d0, d1
 
-    def testBigMatricesJacob(self, offset=0):
+    def test_big_matrices_jacob(self, offset=0):
         # get ref traj
-        # self.generateTestRefTraj()
-        self.getRefTraj('../log/ethsim/full_state1.p', show=False)
+        # self.generate_test_ref_traj()
+        self.get_ref_traj('../log/ethsim/full_state1.p', show=False)
 
         # linearize dynamics around ref traj
         As = []
@@ -1057,25 +1057,25 @@ class LinearizeDynamics():
         '''
 
         # plot true and linearized traj
-        img_track = self.track.drawTrack()
-        img_track = self.track.drawRaceline(img=img_track)
+        img_track = self.track.draw_track()
+        img_track = self.track.draw_raceline(img=img_track)
         car_state = (x0[0], x0[2], x0[4], 0, 0, 0)
-        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
+        img = self.track.draw_car(img_track.copy(), car_state, u0[1])
 
         actual_future_traj = self.ref_traj[i+1:i+1+self.N, (0, 2)]
-        img = self.track.drawPolyline(
+        img = self.track.draw_polyline(
             actual_future_traj, lineColor=(255, 0, 0), img=img.copy())
 
         predicted_states = XX.reshape((-1, self.n))
         predicted_future_traj = predicted_states[:, (0, 2)]
-        img = self.track.drawPolyline(
+        img = self.track.draw_polyline(
             predicted_future_traj, lineColor=(0, 255, 0), img=img.copy())
         plt.imshow(img)
         plt.show()
         return AA, BB, dd, B0, B1, d0, d1
 
-    def testK(self):
-        self.getRefTraj('../log/ethsim/full_state1.p', show=False)
+    def test_k(self):
+        self.get_ref_traj('../log/ethsim/full_state1.p', show=False)
 
         # linearize dynamics around ref traj
         As = []
@@ -1155,5 +1155,5 @@ if __name__ == '__main__':
     print(time()-t0)
 
     # test CS solver on double integrator
-    # main.simpleDynamicsCovarianceControl()
-    # main.testSimpleDynamics()
+    # main.simple_dynamics_covariance_control()
+    # main.test_simple_dynamics()

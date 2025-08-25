@@ -106,7 +106,7 @@ def show(img):
 def run_ukf():
     global x, vx, y, vy, heading, omega, t
     ukf = UKF()
-    ukf.initState(x[0], vx[0], y[0], vy[0], heading[0], omega[0])
+    ukf.init_state(x[0], vx[0], y[0], vy[0], heading[0], omega[0])
     '''
     print("true")
     print("Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz (ratio)")
@@ -225,13 +225,13 @@ def run_ukf():
     return ukf
 
 
-def testPredict(ukf, show=False):
+def test_predict(ukf, show=False):
     # record ukf param
     ukf_param = ukf.state[-ukf.param_n:].copy()
 
     if (show):
-        img_track = track.drawTrack()
-        # img_track = track.drawRaceline(img=img_track)
+        img_track = track.draw_track()
+        # img_track = track.draw_raceline(img=img_track)
         cv2.imshow('validate', img_track)
         cv2.waitKey(10)
 
@@ -242,13 +242,13 @@ def testPredict(ukf, show=False):
         # draw car current pos
         car_state = (x[i], y[i], heading[i], 0, 0, 0)
         if (show):
-            img = track.drawCar(img_track.copy(), car_state, steering[i])
+            img = track.draw_car(img_track.copy(), car_state, steering[i])
 
         # plot actual future trajectory
         actual_future_traj = np.vstack(
             [x[i:i+lookahead_steps], y[i:i+lookahead_steps]]).T
         if (show):
-            img = track.drawPolyline(
+            img = track.draw_polyline(
                 actual_future_traj, lineColor=(255, 0, 0), img=img.copy())
 
         # calculate predicted trajectory
@@ -256,7 +256,7 @@ def testPredict(ukf, show=False):
         control = (throttle[i], steering[i])
         predicted_states = []
         # print("step = %d"%(i))
-        # ukf.initState(x[i], vx[i], y[i], vy[i], heading[i], omega[i])
+        # ukf.init_state(x[i], vx[i], y[i], vy[i], heading[i], omega[i])
         # predicted_states.append(ukf.state)
         # NOTE check dimension, should be col vector
         joint_state = np.hstack([state, ukf_param]).reshape(-1, 1)
@@ -266,7 +266,7 @@ def testPredict(ukf, show=False):
             # print(ukf.state[:ukf.state_n])
             # ukf.state, _ = ukf.predict(ukf.state, ukf.state_cov, control, 0.01)
 
-            joint_state = ukf.advanceModel(joint_state, control, dt=0.01)
+            joint_state = ukf.advance_model(joint_state, control, dt=0.01)
 
             predicted_states.append(joint_state)
 
@@ -293,7 +293,7 @@ def testPredict(ukf, show=False):
 
         predicted_future_traj = np.hstack([xx, yy])
         if (show):
-            img = track.drawPolyline(
+            img = track.draw_polyline(
                 predicted_future_traj, lineColor=(0, 0, 255), img=img)
 
             cv2.imshow('validate', img)
@@ -324,4 +324,4 @@ def testPredict(ukf, show=False):
 
 if __name__ == '__main__':
     ukf = run_ukf()
-    testPredict(ukf, show=True)
+    test_predict(ukf, show=True)

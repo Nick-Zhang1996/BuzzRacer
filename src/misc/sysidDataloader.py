@@ -115,7 +115,7 @@ class CarDataset(Dataset):
     def __getitem__(self, idx):
         return self.dataset[idx]
 
-    def plotDataset(self):
+    def plot_dataset(self):
         return
 
 

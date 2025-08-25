@@ -17,7 +17,7 @@ class LogObject:
     the class's log as key/value pairs. If the class has member
     variables that need to be logged, declare them as LogObject and
     handle their debug_dict by themselves. There is no need for a class
-    to handle its member variable's debug_dict, populateLog will take
+    to handle its member variable's debug_dict, populate_log will take
     care of that
 
     """
@@ -25,11 +25,11 @@ class LogObject:
     def __init__(self):
         self.debug_dict = {}
 
-    def preUpdate(self):
+    def pre_update(self):
         self.debug_dict = {}
 
     @staticmethod
-    def populateLog(root, logged=None):
+    def populate_log(root, logged=None):
         """build a tree of debug_dict."""
         if (logged is None):
             logged = set()
@@ -38,7 +38,7 @@ class LogObject:
         for att in dir(root):
             item = getattr(root, att)
             if (isinstance(item, LogObject) and not item in logged):
-                debug_dict[att] = LogObject.populateLog(item, logged)
+                debug_dict[att] = LogObject.populate_log(item, logged)
 
         return debug_dict
 

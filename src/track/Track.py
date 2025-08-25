@@ -30,37 +30,37 @@ class Track(ConfigObject):
         ConfigObject.__init__(self, config)
 
     def init(self):
-        self.setUpObstacles()
+        self.set_up_obstacles()
 
     # NOTE funs that need to move to this file TODO
 
     # NOTE need to be overridden in each subclass Track
 
     # draw a raceline
-    def drawRaceline(self, img=None):
+    def draw_raceline(self, img=None):
         raise NotImplementedError
 
     # draw a picture of the track
-    def drawTrack(self, img=None, show=False):
+    def draw_track(self, img=None, show=False):
         raise NotImplementedError
 
-    def localTrajectory(self, state):
+    def local_trajectory(self, state):
         raise NotImplementedError
 
     # NOTE universal function for all Track classes
-    def setResolution(self, res):
+    def set_resolution(self, res):
         self.resolution = res
         return
 
     # determine if an coordinate is outside of track boundary, used in watchdog
-    def isOutside(self, coord):
+    def is_outside(self, coord):
         grace = 1.0
         x, y = coord
         return x < -grace or y < -grace or x > self.x_limit+grace or y > self.y_limit+grace
 
     # check if vehicle is currently in collision with obstacle
     # only give index of the first obstacle if multiple obstacle is in collision
-    def isInObstacle(self, state):
+    def is_in_obstacle(self, state):
         if (not self.obstacle):
             return (False, -1)
         dist = self.obstacle_radius
@@ -83,13 +83,13 @@ class Track(ConfigObject):
         return (x_new, y_new)
 
     # draw a circle on canvas at coord
-    def drawCircle(self, img, coord, radius_m, color=(0, 0, 0)):
+    def draw_circle(self, img, coord, radius_m, color=(0, 0, 0)):
         src = self.m2canvas(coord)
         radius_pix = int(radius_m * self.resolution)
         img = cv2.circle(img, src, radius_pix, color, -1)
         return img
 
-    def plotObstacles(self, img=None):
+    def plot_obstacles(self, img=None):
         if (not self.obstacle):
             return img
         if img is None:
@@ -99,12 +99,12 @@ class Track(ConfigObject):
 
         # plot obstacles
         for obs in self.obstacles:
-            img = self.drawCircle(img, obs, 0.1, color=(255, 100, 100))
+            img = self.draw_circle(img, obs, 0.1, color=(255, 100, 100))
         for car in self.main.cars:
-            has_collided, obs_id = self.isInObstacle(car.states)
+            has_collided, obs_id = self.is_in_obstacle(car.states)
             if (has_collided):
                 # plot obstacle in collision red
-                img = self.drawCircle(
+                img = self.draw_circle(
                     img, self.obstacles[obs_id], 0.1, color=(100, 100, 255))
 
         '''
@@ -129,7 +129,7 @@ class Track(ConfigObject):
 
     # draw a polynomial line defined in track space
     # points: a list of coordinates in format (x,y)
-    def drawPolyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
+    def draw_polyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
 
         if img is None:
             img = np.zeros([int(self.resolution*self.x_limit),
@@ -145,14 +145,14 @@ class Track(ConfigObject):
                 p2), color=lineColor, thickness=thickness)
         return img
 
-    def drawTrajectory(self, traj_points, img=None, lineColor=(0, 0, 255), thickness=3):
-        return self.drawPolyline(traj_points[:, 1:3], img, lineColor, thickness)
+    def draw_trajectory(self, traj_points, img=None, lineColor=(0, 0, 255), thickness=3):
+        return self.draw_polyline(traj_points[:, 1:3], img, lineColor, thickness)
 
     # draw ONE arrow, unit: meter, coord sys: dimensioned
     # source: source of arrow, in meter
     # orientation, radians from x axis, ccw positive
     # length: in pixels, though this is only qualitative
-    def drawArrow(self, source, orientation, length, color=(0, 0, 0), thickness=2, img=None, show=False):
+    def draw_arrow(self, source, orientation, length, color=(0, 0, 0), thickness=2, img=None, show=False):
         if img is None:
             img = np.zeros([int(self.resolution*self.x_limit),
                            int(self.resolution*self.y_limit), 3], dtype='uint8')
@@ -171,7 +171,7 @@ class Track(ConfigObject):
 
     # NOTE obstacles
     # obstacle related class variables need to be set prior
-    def setUpObstacles(self):
+    def set_up_obstacles(self):
         if (not self.obstacle):
             self.obstacle_count = 0
             return
@@ -201,7 +201,7 @@ class Track(ConfigObject):
 
         self.obstacles = obstacles
 
-    def prepareDiscretizedRaceline(self):
+    def prepare_discretized_raceline(self):
         """depends on self.raceline_s, self.raceline_len_m."""
         ss = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
         rr = splev(ss % self.raceline_len_m, self.raceline_s, der=0)
@@ -218,7 +218,7 @@ class Track(ConfigObject):
         self.raceline_velocity = vv
 
         # describe track boundary as offset from raceline
-        self.createBoundary()
+        self.create_boundary()
         self.discretized_raceline = np.vstack(
             [self.raceline_points, self.raceline_headings, vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
         '''
@@ -230,11 +230,11 @@ class Track(ConfigObject):
         '''
         return
 
-    def createBoundary(self, show=False):
+    def create_boundary(self, show=False):
         '''
          construct a (self.discretized_raceline_len * 2) vector
          to record the left and right track boundary as an offset to the discretized raceline
-         depends on self.preciseTrackBoundary(coord,heading)
+         depends on self.precise_track_boundary(coord,heading)
         '''
         left_boundary = []
         right_boundary = []
@@ -247,7 +247,7 @@ class Track(ConfigObject):
             coord = self.raceline_points[:, i]
             heading = self.raceline_headings[i]
 
-            left, right = self.preciseTrackBoundary(coord, heading)
+            left, right = self.precise_track_boundary(coord, heading)
             left_boundary.append(left)
             right_boundary.append(right)
 
@@ -265,11 +265,11 @@ class Track(ConfigObject):
             '''
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-            img = self.drawTrack()
-            img = self.drawRaceline(img = img)
-            img = self.drawPoint(img,coord,color=(0,0,0))
-            img = self.drawPoint(img,left_point,color=(0,0,0))
-            img = self.drawPoint(img,right_point,color=(0,0,0))
+            img = self.draw_track()
+            img = self.draw_raceline(img = img)
+            img = self.draw_point(img,coord,color=(0,0,0))
+            img = self.draw_point(img,left_point,color=(0,0,0))
+            img = self.draw_point(img,right_point,color=(0,0,0))
             plt.imshow(img)
             plt.show()
             '''
@@ -278,11 +278,11 @@ class Track(ConfigObject):
         self.raceline_right_boundary = right_boundary
 
         if (show):
-            img = self.drawTrack()
-            img = self.drawRaceline(img=img)
-            img = self.drawPolyline(
+            img = self.draw_track()
+            img = self.draw_raceline(img=img)
+            img = self.draw_polyline(
                 left_boundary_points, lineColor=(0, 255, 0), img=img)
-            img = self.drawPolyline(
+            img = self.draw_polyline(
                 right_boundary_points, lineColor=(0, 0, 255), img=img)
             plt.imshow(img)
             plt.show()

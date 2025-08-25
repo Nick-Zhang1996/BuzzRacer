@@ -37,15 +37,15 @@ class Laptimer(Extension):
                     print_info('[Laptimer]: car%d, Lap %d laptime: %.4f s' % (
                         car.id, len(car.laptime_vec), car.laptimer.last_laptime))
                     car.laptime_vec.append(car.laptimer.last_laptime)
-                    # self.showStats()
+                    # self.show_stats()
 
     def final(self):
         for car in self.main.cars:
             car.debug_dict.update({'laptime_vec': car.laptime_vec})
-        self.showStats()
-        self.logLaptime()
+        self.show_stats()
+        self.log_laptime()
 
-    def logLaptime(self):
+    def log_laptime(self):
         try:
             # logname = "../log/laptime_" + str(self.main.logger.log_no) + ".p"
             logname = self.main.logger.logFolder + \
@@ -56,7 +56,7 @@ class Laptimer(Extension):
         except AttributeError:
             pass
 
-    def showStats(self):
+    def show_stats(self):
         car_laptime_mean = []
         car_laptime_stddev = []
         for car in self.main.cars:

@@ -20,7 +20,7 @@ class Joystick:
 
         self.child_threads = []
         self.child_threads.append(
-            Thread(name='joystick', target=self.updateDaemon))
+            Thread(name='joystick', target=self.update_daemon))
         self.child_threads[-1].start()
 
     def quit(self):
@@ -35,7 +35,7 @@ class Joystick:
             if e.ev_type == 'Absolute':
                 self.gamepad[e.code] = e.state
 
-    def updateDaemon(self,):
+    def update_daemon(self,):
         while not self.exit_signal.isSet():
             self.update()
             # lef:1, right:-1

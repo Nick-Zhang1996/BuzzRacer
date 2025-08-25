@@ -7,7 +7,7 @@ filename = 'log.txt'
 filename = 'sat_fine_grid.txt'
 
 
-def getCov(log_no):
+def get_cov(log_no):
     filename = '../log/kinematics_results/debug_dict%d.p' % (log_no)
     with open(filename, 'rb') as f:
         data = pickle.load(f)
@@ -74,9 +74,9 @@ for i in range(ccmppi.shape[0]):
     if (ccmppi[i, 8] < 0.01 or mppi_injected[i, 8] < 0.01):
         # print("skip")
         continue
-    ccmppi_cov = getCov(ccmppi_log_no[i])
-    mppi_injected_cov = getCov(mppi_injected_log_no[i])
-    # mppi_cov_cov = getCov(mppi_cov_log_no[i])
+    ccmppi_cov = get_cov(ccmppi_log_no[i])
+    mppi_injected_cov = get_cov(mppi_injected_log_no[i])
+    # mppi_cov_cov = get_cov(mppi_cov_log_no[i])
 
     mppi_injected_ratio.append(mppi_injected_cov/ccmppi_cov)
     # mppi_cov_ratio.append(mppi_cov_cov/ccmppi_cov)

@@ -3,7 +3,7 @@
 import numpy as np
 from math import sin, cos, tan, radians, degrees, pi, atan
 import matplotlib.pyplot as plt
-from tire import tireCurve
+from tire import tire_curve
 
 # advanced dynamic simulator of mini z
 
@@ -58,7 +58,7 @@ class ethCarSim:
     # NOTE using car frame origined at CG with x pointing forward, y leftward
     # sim_states is no longer used but kept to maintain the same API
     # should be changed in next update
-    def updateCar(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_states, throttle, steering):
         # simulator carries internal state and doesn't really need these
         lf = self.lf
         lr = self.lr
@@ -131,7 +131,7 @@ class ethCarSim:
             '''
             print("vx = %5.2f, vy = %5.2f"%(vx,vy))
             print("slip_f = %5.2f, slip_r = %5.2f"%(degrees(slip_f), degrees(slip_r)))
-            print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tireCurve(slip_f), tireCurve(slip_r)))
+            print("f_coeff_f = %5.2f, f_coeff_f = %5.2f"%(tire_curve(slip_f), tire_curve(slip_r)))
             '''
 
         # add noise if need be
@@ -190,7 +190,7 @@ class ethCarSim:
         plt.show()
 
 # eth dynamic simulator
-    def initEthSimulation(self, car, init_state=(0.3*0.6, 1.7*0.6, radians(90))):
+    def init_eth_simulation(self, car, init_state=(0.3*0.6, 1.7*0.6, radians(90))):
         car.new_state_update = Event()
         car.new_state_update.set()
 
@@ -210,9 +210,9 @@ class ethCarSim:
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
-    def updateEthSimulation(self, car):
+    def update_eth_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.updateCar(
+        sim_states = car.sim_states = car.simulator.update_car(
             self.sim_dt, car.sim_states, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
         car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
@@ -223,7 +223,7 @@ class ethCarSim:
         # print("v = %.2f"%(sim_states['vf']))
         car.new_state_update.set()
 
-    def stopEthSimulation(self, car):
+    def stop_eth_simulation(self, car):
         return
 
 
@@ -233,6 +233,6 @@ if __name__ == '__main__':
         throttle = 0.24 + 0.5
         steering = radians(10)
         print('step %d' % (i))
-        sim.updateCar(0.01, None, throttle, steering)
+        sim.update_car(0.01, None, throttle, steering)
         print(sim.states)
     sim.debug()

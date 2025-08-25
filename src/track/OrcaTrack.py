@@ -1,6 +1,6 @@
 # Orca track from ETH Zurich
-# TODO drawTrack
-# TODO drawCar at the right size
+# TODO draw_track
+# TODO draw_car at the right size
 # TODO sliding window for visualization
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
@@ -16,11 +16,11 @@ sys.path.insert(0, '..')
 class OrcaTrack(Track):
     def __init__(self, main, config):
         super().__init__(main, config)
-        self.setResolution(200)
-        self.loadTrack()
-        self.buildContinuousTrack()
+        self.set_resolution(200)
+        self.load_track()
+        self.build_continuous_track()
 
-    def loadTrack(self,):
+    def load_track(self,):
         # config = json.load(open('../copg/car_racing/config.json'))
         # self.path = config['data_dir']
         self.path = os.path.join(
@@ -43,14 +43,14 @@ class OrcaTrack(Track):
         self.border_angle_upper = np.loadtxt(self.path + 'con_angle_inner.txt')
         self.border_angle_lower = np.loadtxt(self.path + 'con_angle_outer.txt')
 
-    def buildSpline(self, coord_vec):
+    def build_spline(self, coord_vec):
         s_vec = self.s
         m = len(s_vec)+1
         smoothing_factor = 0.01*(m)
         spline, u = splprep(coord_vec.T, u=s_vec, s=smoothing_factor, per=1)
         return spline
 
-    def buildContinuousTrack(self):
+    def build_continuous_track(self):
         s_vec = self.s
         # n*2
         r_vec = np.vstack([self.X, self.Y]).T
@@ -82,9 +82,9 @@ class OrcaTrack(Track):
         self.lower = lower
 
         self.raceline_len_m = s_vec[-1]
-        self.raceline_s = self.buildSpline(r_vec)
-        self.upper_fun = self.buildSpline(upper)
-        self.lower_fun = self.buildSpline(lower)
+        self.raceline_s = self.build_spline(r_vec)
+        self.upper_fun = self.build_spline(upper)
+        self.lower_fun = self.build_spline(lower)
 
         '''
         plt.plot(upper[:,0],upper[:,1])
@@ -94,28 +94,28 @@ class OrcaTrack(Track):
         '''
 
     # draw a picture of the track
-    def drawTrack(self):
+    def draw_track(self):
         x_pix = int(self.x_limit*self.resolution)
         y_pix = int(self.y_limit*self.resolution)
         # height, width
         img = 255*np.ones([y_pix, x_pix, 3], dtype=np.uint8)
-        img = self.drawPolyline(
+        img = self.draw_polyline(
             self.upper, img, lineColor=(0, 0, 0), thickness=2)
-        img = self.drawPolyline(
+        img = self.draw_polyline(
             self.lower, img, lineColor=(0, 0, 0), thickness=2)
         return img
 
     # draw a raceline
-    def drawRaceline(self, img=None):
-        img = self.drawPolyline(
+    def draw_raceline(self, img=None):
+        img = self.draw_polyline(
             self.r_vec, img, lineColor=(0, 0, 255), thickness=1)
         return img
 
 
 if __name__ == '__main__':
     track = OrcaTrack(None, None)
-    track.loadTrack()
-    track.buildContinuousTrack()
-    img = track.drawTrack()
+    track.load_track()
+    track.build_continuous_track()
+    img = track.draw_track()
     plt.imshow(img)
     plt.show()

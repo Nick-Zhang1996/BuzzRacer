@@ -41,4 +41,4 @@ class NascarTrack(CurvilinearTrack):
         xx = np.hstack(xx)
         yy = np.hstack(yy)
         r = np.vstack([xx, yy]).T
-        self.buildContinuousTrack(r)
+        self.build_continuous_track(r)

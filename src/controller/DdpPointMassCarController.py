@@ -46,20 +46,20 @@ class DdpPointMassCarController(CarController):
         # print(f'T = {throttle} S = {steering}')
 
         print(car.id)
-        steering, throttle = self.ddpControl(car.sim_states)
+        steering, throttle = self.ddp_control(car.sim_states)
 
         car.throttle = throttle
         car.steering = steering
-        self.drawPredictedTrajectory()
+        self.draw_predicted_trajectory()
         self.predicted_traj = self.x_ref
         return
 
     def update_dynamics(self, states, controls, dt=None):
         if (dt is None):
             dt = self.dt
-        return self.simulator.advancePointMassDynamics(states.flatten(), controls.flatten(), dt)
+        return self.simulator.advance_point_mass_dynamics(states.flatten(), controls.flatten(), dt)
 
-    def getLder(self, x_ref, u_ref, x_op=None):
+    def get_lder(self, x_ref, u_ref, x_op=None):
         ''' 
         jacobian and hessian matrix for the step cost l(x,u) 
         l_path(x,u) = xT Q x + q x + uT R u
@@ -79,7 +79,7 @@ class DdpPointMassCarController(CarController):
             lxx += self.Qop
         return (lx, lxx, lu, luu, lux)
 
-    def getL(self, xx, uu, xx_op=None):
+    def get_l(self, xx, uu, xx_op=None):
         cost = 0
         for t in range(self.horizon):
             x = xx[t]
@@ -97,7 +97,7 @@ class DdpPointMassCarController(CarController):
 
         return cost
 
-    def ddpControl(self, x0):
+    def ddp_control(self, x0):
         # only select 1 opponent
         xx_op = None
         for car in self.main.cars:
@@ -131,25 +131,25 @@ class DdpPointMassCarController(CarController):
                 u = u_ref[t]
                 new_x = self.update_dynamics(xx[-1], u).reshape(-1, 1)
                 xx.append(new_x)
-            cost = self.getL(xx, u_ref, xx_op)
+            cost = self.get_l(xx, u_ref, xx_op)
             x_ref = xx
             # print(f'iter {iter}, cost = {cost}')
             # DEBUG
-            zero_control_cost = self.getL(x_ref, np.array(u_ref)*0, xx_op)
+            zero_control_cost = self.get_l(x_ref, np.array(u_ref)*0, xx_op)
 
             no_deviation_x = np.array(x_ref).copy()
             no_deviation_x[:, 2:] = 0
-            zero_deviation_cost = self.getL(no_deviation_x, u_ref, xx_op)
+            zero_deviation_cost = self.get_l(no_deviation_x, u_ref, xx_op)
 
             no_progress_x = np.array(x_ref).copy()
             no_progress_x[:, 0, :] = no_progress_x[0, 0, :]
             no_progress_x[:, 1, :] = no_progress_x[0, 1, :]
-            no_progress_cost = self.getL(no_progress_x, u_ref, xx_op)
+            no_progress_cost = self.get_l(no_progress_x, u_ref, xx_op)
 
             progress_cost = cost - no_progress_cost
             deviation_cost = cost - zero_deviation_cost
             control_cost = cost - zero_control_cost
-            opponent_cost = cost - self.getL(xx, u_ref)
+            opponent_cost = cost - self.get_l(xx, u_ref)
 
             print(
                 f'prog: {progress_cost}, dev: {deviation_cost}, ctrl: {control_cost}, oppo: {opponent_cost}')
@@ -170,7 +170,7 @@ class DdpPointMassCarController(CarController):
                         new_x = self.update_dynamics(xx[-1], u).reshape(-1, 1)
                         xx.append(new_x)
                         uu.append(u)
-                    line_search_cost = self.getL(xx, uu, xx_op)
+                    line_search_cost = self.get_l(xx, uu, xx_op)
                     if (line_search_cost < cost):
                         x_ref = xx
                         u_ref = uu
@@ -205,7 +205,7 @@ class DdpPointMassCarController(CarController):
             u_feedback_K_vec = []
             for k in range(self.horizon-1, -1, -1):
                 fx, fu, d = self.linearize(xx[k], uu[k])
-                lx, lxx, lu, luu, lux = self.getLder(
+                lx, lxx, lu, luu, lux = self.get_lder(
                     xx[k], uu[k], None if xx_op is None else xx_op[k])
 
                 Qx = lx + Vx @ fx
@@ -295,7 +295,7 @@ class DdpPointMassCarController(CarController):
         u0 = nominal_ctrl.copy()
         '''
         self.sim.states = np.array(x0.copy())
-        self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
+        self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
         x_post = np.array(self.sim.states)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
@@ -307,7 +307,7 @@ class DdpPointMassCarController(CarController):
 
         return A, B, d
 
-    def drawPredictedTrajectory(self):
+    def draw_predicted_trajectory(self):
         """draw self.x_ref."""
         lineColor = (0, 100, 100)
         if (self.main.visualization.update_visualization.is_set()):
@@ -316,12 +316,12 @@ class DdpPointMassCarController(CarController):
             for t in range(self.horizon):
                 curvi_states = self.x_ref[t]
                 control = self.u_ref[t]
-                cart_states = self.simulator.curv2Cart(curvi_states)
+                cart_states = self.simulator.curv2_cart(curvi_states)
                 predicted_traj.append(cart_states)
 
             predicted_traj = np.array(predicted_traj)
             predicted_traj = np.hstack(
                 [np.zeros((predicted_traj.shape[0], 1)), predicted_traj])
-            img = self.main.track.drawTrajectory(
+            img = self.main.track.draw_trajectory(
                 np.array(predicted_traj), img, lineColor)
             self.main.visualization.visualization_img = img
