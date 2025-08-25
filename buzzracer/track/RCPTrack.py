@@ -472,9 +472,10 @@ class RCPTrack(Track):
         save['start_pos'] = self.start_pos
         save['start_dir'] = self.start_dir
 
-        with open('./data/'+filename, 'wb') as f:
+        full_filename = './data/'+filename
+        with open(full_filename, 'wb') as f:
             pickle.dump(save, f)
-        print_ok('track and raceline saved')
+        print_ok(f'Track and raceline saved at {full_filename}')
 
     # load quadratically smoothed raceline
     def load(self, filename=None):
