@@ -43,13 +43,13 @@ class CCMPPI_KINEMATIC():
             [[-0.7, 0.7], [-radians(27.1), radians(27.1)]])
 
         # set up parameters for the model
-        self.setupParam()
+        self.setup_param()
         # load track
-        self.getRefTraj('../log/ref_traj/kinematic.p', show=False)
+        self.get_ref_traj('../log/ref_traj/kinematic.p', show=False)
 
         np.random.seed()
 
-    def setupParam(self):
+    def setup_param(self):
         # dimension
         self.lf = lf = 0.09-0.036
         self.lr = lr = 0.036
@@ -70,7 +70,7 @@ class CCMPPI_KINEMATIC():
     # read a log
     # use trajectory of second lap as reference trajectory
     # this sets and saves reference state and trajectory
-    def getRefTraj(self, logname, lap_no=2, show=False):
+    def get_ref_traj(self, logname, lap_no=2, show=False):
         # read log
         with open(logname, 'rb') as f:
             data = pickle.load(f)
@@ -224,7 +224,7 @@ class CCMPPI_KINEMATIC():
         u0 = nominal_ctrl.copy()
         '''
         self.sim.states = np.array(x0.copy())
-        self.sim.updateCar(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
+        self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
         x_post = np.array(self.sim.states)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
@@ -515,7 +515,7 @@ class CCMPPI_KINEMATIC():
 
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
                 # steering, control
-                x_i = KinematicSimulator.advanceDynamics(
+                x_i = KinematicSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 y_i = As[:, :, i] @ y_i + Bs[:, :, i] @ epsilon
 
@@ -545,7 +545,7 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
                 # x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advanceDynamics(
+                x_i = KinematicSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 nocc_states_vec[j].append(x_i.flatten())
 
@@ -635,14 +635,14 @@ class CCMPPI_KINEMATIC():
         return ret_dict
 
     # compare linearized batch dynamics against
-    def testLinearization(self, offset=0):
+    def test_linearization(self, offset=0):
 
         n = self.n
         N = self.N
         m = self.m
         l = self.l
 
-        # xy_vec, v_vec, heading_vec = self.track.getRefXYVheading(state, N-1, self.dt)
+        # xy_vec, v_vec, heading_vec = self.track.get_ref_x_y_vheading(state, N-1, self.dt)
         # assemble state: X,Y,V,heading
         # ref_state_vec = np.hstack([xy_vec,v_vec[:,np.newaxis],heading_vec[:,np.newaxis]])
 
@@ -698,20 +698,20 @@ class CCMPPI_KINEMATIC():
         xx_linearized = A @ x0 + B @ uu + C @ d
 
         # plot true and linearized traj
-        img_track = self.track.drawTrack()
-        img_track = self.track.drawRaceline(img=img_track)
+        img_track = self.track.draw_track()
+        img_track = self.track.draw_raceline(img=img_track)
         car_state = (x0[0], x0[1], x0[3], 0, 0, 0)
         print(car_state)
-        img = self.track.drawCar(img_track.copy(), car_state, u0[1])
+        img = self.track.draw_car(img_track.copy(), car_state, u0[1])
 
         '''
         actual_future_traj  = ref_state_vec[:,(0,1)]
-        img = self.track.drawPolyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
+        img = self.track.draw_polyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
         '''
 
         predicted_states = xx_linearized.reshape((-1, self.n))
         predicted_future_traj = predicted_states[:, (0, 1)]
-        img = self.track.drawPolyline(
+        img = self.track.draw_polyline(
             predicted_future_traj, lineColor=(0, 255, 0), img=img.copy())
 
         plt.imshow(img)
@@ -720,7 +720,7 @@ class CCMPPI_KINEMATIC():
         return
 
     # mean: (x_mean, y_mean)
-    def plotConfidenceEllipse(self, ax, mean, cov_matrix, color='red'):
+    def plot_confidence_ellipse(self, ax, mean, cov_matrix, color='red'):
         facecolor = 'none'
         # sigma, how large covariance matrix is
         n_std = 3.0
@@ -750,7 +750,7 @@ class CCMPPI_KINEMATIC():
         ellipse.set_transform(transf + ax.transData)
         return ax.add_patch(ellipse)
 
-    def testSingleFrame(self):
+    def test_single_frame(self):
         state = np.array([0.6*3.5, 0.6*1.75, radians(90), 1.0, 0, 0])
         # dim: N*m*n
         Ks, As, Bs, ds, = self.cc(state, True)
@@ -781,9 +781,9 @@ class CCMPPI_KINEMATIC():
         print(ds[1, 2]-ds_flat[1*n + 2])
 
         ret_dict = self.simulate()
-        # self.testLinearization()
+        # self.test_linearization()
 
-    def visualizeOnTrack(self):
+    def visualize_on_track(self):
         state = self.debug_info['x0'].copy()
 
         # dim: N*m*n
@@ -797,26 +797,26 @@ class CCMPPI_KINEMATIC():
         nocc_states_vec = ret_dict['nocc_states_vec']
 
         track = self.track
-        img = track.drawTrack()
-        track.drawRaceline(img=img)
+        img = track.draw_track()
+        track.draw_raceline(img=img)
         car_steering = 0.0
 
         x, y, v, heading = state
         x0 = np.hstack([x, y, heading, 0, 0, 0])
-        img = track.drawCar(img, x0, car_steering)
+        img = track.draw_car(img, x0, car_steering)
 
         for i in range(cc_states_vec.shape[0]):
-            img = track.drawPolyline(
+            img = track.draw_polyline(
                 cc_states_vec[i, :, :], img=img, lineColor=(200, 200, 200), thickness=1)
 
         '''
         for i in range(nocc_states_vec.shape[0]):
-            img = track.drawPolyline(nocc_states_vec[i,:,:],img=img,lineColor=(200,200,200),thickness=1)
+            img = track.draw_polyline(nocc_states_vec[i,:,:],img=img,lineColor=(200,200,200),thickness=1)
         '''
         plt.imshow(img)
         plt.show()
 
-    def visualizeConfidenceEllipse(self):
+    def visualize_confidence_ellipse(self):
         # x,y,heading, v
         state = self.debug_info['x0'].copy()
 
@@ -845,8 +845,8 @@ class CCMPPI_KINEMATIC():
         x_mean = np.mean(cc_states_vec[:, -1, 0])
         y_mean = np.mean(cc_states_vec[:, -1, 1])
         cc_cov_mtx = np.cov(xy_vec)
-        self.plotConfidenceEllipse(ax_cc, (x_mean, y_mean), cc_cov_mtx)
-        self.plotConfidenceEllipse(
+        self.plot_confidence_ellipse(ax_cc, (x_mean, y_mean), cc_cov_mtx)
+        self.plot_confidence_ellipse(
             ax_cc, (x_mean, y_mean), theory_cc_cov_mtx, color='blue')
 
         plt.title('with CC (%s, input limit= %s)' % (
@@ -866,8 +866,8 @@ class CCMPPI_KINEMATIC():
         x_mean = np.mean(nocc_states_vec[:, -1, 0])
         y_mean = np.mean(nocc_states_vec[:, -1, 1])
         nocc_cov_mtx = np.cov(xy_vec)
-        self.plotConfidenceEllipse(ax_nocc, (x_mean, y_mean), nocc_cov_mtx)
-        self.plotConfidenceEllipse(
+        self.plot_confidence_ellipse(ax_nocc, (x_mean, y_mean), nocc_cov_mtx)
+        self.plot_confidence_ellipse(
             ax_nocc, (x_mean, y_mean), theory_nocc_cov_mtx, color='blue')
 
         plt.title('without CC (%s, input limit= %s)' % (
@@ -909,7 +909,7 @@ if __name__ == "__main__":
     KinematicSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
-    main.visualizeConfidenceEllipse()
-    #main.visualizeOnTrack()
+    main.visualize_confidence_ellipse()
+    #main.visualize_on_track()
 
 '''

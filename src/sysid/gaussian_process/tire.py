@@ -6,7 +6,7 @@ from math import radians, degrees
 # output: lateral friction coefficient
 
 
-def oldoldTireCurve(slip):
+def oldold_tire_curve(slip):
     C = 2.80646
     B = 0.51943
     Df = 3.93731*1.5
@@ -18,7 +18,7 @@ def oldoldTireCurve(slip):
 # output: lateral friction coefficient
 
 
-def oldtireCurve(slip):
+def oldtire_curve(slip):
     C = 1.3
     B = 12.0/3
     D = 0.66*3
@@ -27,7 +27,7 @@ def oldtireCurve(slip):
     return retval
 
 
-def tireCurve(slip):
+def tire_curve(slip):
     C = 1.6
     B = 2.3
     D = 1.1
@@ -46,8 +46,8 @@ plt.show()
 if __name__ == '__main__':
 
     xx = np.linspace(radians(-40), radians(40), 1000)
-    acc = tireCurve(xx)
-    acc_old = oldtireCurve(xx)
+    acc = tire_curve(xx)
+    acc_old = oldtire_curve(xx)
 
     fig = plt.figure()
     ax = fig.gca()

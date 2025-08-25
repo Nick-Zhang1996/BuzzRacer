@@ -117,7 +117,7 @@ class Main():
     def update(self,):
         # -- Extension update --
         for item in self.extensions:
-            item.preUpdate()
+            item.pre_update()
 
         self.new_state_update.wait()
         self.new_state_update.clear()

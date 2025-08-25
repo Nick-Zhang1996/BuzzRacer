@@ -1,5 +1,5 @@
 from util.timeUtil import ExecutionTimer
-from rcvip_env_function import getfreezeTimecollosionReachedreward
+from rcvip_env_function import getfreeze_timecollosion_reachedreward
 import rcvip_simulator.Track as Track
 import rcvip_simulator.VehicleModel as VehicleModel
 from common import *
@@ -219,8 +219,8 @@ def simulate(device, t):
         prev_state_c2 = state_c2
 
         t.s('dynamics')
-        state_c1 = vehicle_model.dynModelBlendBatch(state_c1, action1, t)
-        state_c2 = vehicle_model.dynModelBlendBatch(state_c2, action2, t)
+        state_c1 = vehicle_model.dyn_model_blend_batch(state_c1, action1, t)
+        state_c2 = vehicle_model.dyn_model_blend_batch(state_c2, action2, t)
         t.e('dynamics')
 
         t.s('reward')
@@ -230,10 +230,10 @@ def simulate(device, t):
         state_c2 = (state_c2.transpose(0, 1) * (~done_c2) +
                     prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
 
-        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreezeTimecollosionReachedreward(
+        reward1, reward2, done_c1, done_c2, coll_c1, coll_c2, counter1, counter2 = getfreeze_timecollosion_reachedreward(
             state_c1, state_c2,
-            vehicle_model.getLocalBounds(state_c1[:, 0]),
-            vehicle_model.getLocalBounds(state_c2[:, 0]),
+            vehicle_model.get_local_bounds(state_c1[:, 0]),
+            vehicle_model.get_local_bounds(state_c2[:, 0]),
             prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2, device=device)
 
         t.e('reward')

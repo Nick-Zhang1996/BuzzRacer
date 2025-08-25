@@ -45,10 +45,10 @@ class CurvilinearSimulator(Simulator):
         self.cars = self.main.cars
         CurvilinearSimulator.dt = self.main.dt
         for car in self.cars:
-            self.addCar(car)
+            self.add_car(car)
         self.main.new_state_update.set()
 
-    def addCar(self, car):
+    def add_car(self, car):
         '''
         initialize a car
         car.states =  (x,y,heading,v_forward,v_sideway,omega)
@@ -59,13 +59,13 @@ class CurvilinearSimulator(Simulator):
         phi: heading from ref curve tangend, ccw positive
         '''
         x, y, heading, v_forward, v_sideway, omega = car.states
-        curv = self.cart2Curv(car.states)
+        curv = self.cart2_curv(car.states)
         car.sim_states = curv
 
         car.state_dim = 4
         car.control_dim = 2
 
-    def cart2Curv(self, cart, guess_s=None):
+    def cart2_curv(self, cart, guess_s=None):
         """transform cartesian states to curvilinear states relies on
         self.track.raceline_s.
 
@@ -108,7 +108,7 @@ class CurvilinearSimulator(Simulator):
         return np.array([s, v, n, phi])
 
     # DEBUG
-    def debugPlot(self, cart):
+    def debug_plot(self, cart):
         x, y, heading, v_forward, v_sideway, omega = cart
 
         def dist(s):
@@ -125,7 +125,7 @@ class CurvilinearSimulator(Simulator):
         plt.show()
         return
 
-    def curv2Cart(self, curv):
+    def curv2_cart(self, curv):
         """transform curvilinear states to cartesian states.
 
         [curv]: (s,v,n,phi)
@@ -172,7 +172,7 @@ class CurvilinearSimulator(Simulator):
             curvature = 0.0
         return np.copysign(curvature, sign)
 
-    def advancePointMassDynamics(self, curv_states, control, dt):
+    def advance_point_mass_dynamics(self, curv_states, control, dt):
         s, v, n, phi = curv_states
         k_s = self.curvature(s)
         ay, ax = control
@@ -191,7 +191,7 @@ class CurvilinearSimulator(Simulator):
         '''
         return curv_states + dx
 
-    def advanceDynamics(self, car_states, control, car, dt=None):
+    def advance_dynamics(self, car_states, control, car, dt=None):
         """ignore car_states, update car.sim_states with control and optional
         [dt]
 
@@ -202,21 +202,21 @@ class CurvilinearSimulator(Simulator):
 
         # DEBUG
         '''
-        check1 = np.linalg.norm(self.cart2Curv(car_states,guess_s = car.sim_states[0]) - car.sim_states)
-        check2 = np.linalg.norm(self.curv2Cart(self.cart2Curv(car_states,guess_s = car.sim_states[0])) - car_states)
+        check1 = np.linalg.norm(self.cart2_curv(car_states,guess_s = car.sim_states[0]) - car.sim_states)
+        check2 = np.linalg.norm(self.curv2_cart(self.cart2_curv(car_states,guess_s = car.sim_states[0])) - car_states)
         if (check1 > 0.001 or check2 > 0.001):
             print('inconsistency in coord frame transformation')
             print(check1,check2)
             print('card_states: ', car_states)
             print('curv_states: ', car.sim_states)
-            print('card -> curv: ', self.cart2Curv(car_states))
-            print('card -> curv -> card: ', self.curv2Cart(self.cart2Curv(car_states)))
-            print('curv -> card: ', self.curv2Cart(car.sim_states))
-            print('curv -> card -> curv ', self.cart2Curv(self.curv2Cart(car.sim_states)))
+            print('card -> curv: ', self.cart2_curv(car_states))
+            print('card -> curv -> card: ', self.curv2_cart(self.cart2_curv(car_states)))
+            print('curv -> card: ', self.curv2_cart(car.sim_states))
+            print('curv -> card -> curv ', self.cart2_curv(self.curv2_cart(car.sim_states)))
             breakpoint()
         '''
 
-        car.sim_states = self.advancePointMassDynamics(
+        car.sim_states = self.advance_point_mass_dynamics(
             car.sim_states, control, dt)
 
-        return self.curv2Cart(car.sim_states)
+        return self.curv2_cart(car.sim_states)

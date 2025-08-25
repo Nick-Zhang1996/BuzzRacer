@@ -52,7 +52,7 @@ class MPC:
     # p : prediction horizon/steps
     # du_max : (m,) max|uk - uk-1|, for each u channel
     # u_max  : (m,) max|uk|, for each u channel
-    def convertLtv(self, A_vec, B_vec, C, P, Q, y_ref, x0, du_max, u_max):
+    def convert_ltv(self, A_vec, B_vec, C, P, Q, y_ref, x0, du_max, u_max):
         p = self.p
         n = self.n
         m = self.m
@@ -157,7 +157,7 @@ class MPC:
     # u_max max|uk|
     # P is for a single state vector, it will be broadcasted automatically
     # NOTE currently for single input only
-    def convertLti(self, A, B, P, Q, xref, x0, p, du_max, u_max):
+    def convert_lti(self, A, B, P, Q, xref, x0, p, du_max, u_max):
         P = np.kron(np.eye(p, dtype=int), P)
         Q = np.kron(np.eye(p, dtype=int), Q)
 

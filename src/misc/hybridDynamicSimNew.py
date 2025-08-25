@@ -137,10 +137,10 @@ class hybridDynamicSimNew(nn.Module):
             slip_f = -torch.atan((omega*self.lf + Vy)/Vx) + steering
             slip_r = torch.atan((omega*self.lr - Vy)/Vx)
             # we call these acc but they are forces normalized by mass
-            lateral_acc_f = self.tireCurve(slip_f)
-            lateral_acc_r = self.tireCurve(slip_r)
+            lateral_acc_f = self.tire_curve(slip_f)
+            lateral_acc_r = self.tire_curve(slip_r)
 
-            forward_acc_r = self.getLongitudinalAcc(Vx, throttle)
+            forward_acc_r = self.get_longitudinal_acc(Vx, throttle)
             # self.states: x,vx,y,vy,psi,dpsi
             # state derivative in local frame
 
@@ -244,7 +244,7 @@ class hybridDynamicSimNew(nn.Module):
         for i in range(batch_size):
             last_full_state = np.array(full_states[i,-self.forward_steps-1,:].detach())
             next_full_state = np.array(future_states[i,0,:].detach())
-            advsim_next_full_state = self.testForward(full_states,actions,i)
+            advsim_next_full_state = self.test_forward(full_states,actions,i)
             # this should be close to zero
             error = np.linalg.norm(next_full_state-advsim_next_full_state)
             errors.append(error)
@@ -304,12 +304,12 @@ class hybridDynamicSimNew(nn.Module):
             self.Iz_pow_ratio[0]
         return self.Iz_base * torch.pow(10.0, pow_ratio)
 
-    def getLongitudinalAcc(self, vx, throttle):
+    def get_longitudinal_acc(self, vx, throttle):
         acc = (self.throttle_cm1 - self.throttle_cm2 * vx) * \
             throttle - self.throttle_cr - self.throttle_cd * vx**2
         return acc
 
-    def tireCurve(self, slip):
+    def tire_curve(self, slip):
         acc = self.tire_D * \
             torch.sin(self.tire_C * torch.atan(self.tire_B * slip))
         return acc

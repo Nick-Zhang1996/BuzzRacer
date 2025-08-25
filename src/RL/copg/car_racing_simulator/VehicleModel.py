@@ -10,9 +10,9 @@ class VehicleModel():
         self.device = device
         self.track = Track.Track()
         if (track == 'orca'):
-            self.track.loadOrcaTrack(config)
+            self.track.load_orca_track(config)
         elif (track == 'rcp'):
-            self.track.loadRcpTrack()
+            self.track.load_rcp_track()
 
         self.track_s = torch.from_numpy(self.track.s).type(
             torch.FloatTensor).to(self.device)
@@ -65,7 +65,7 @@ class VehicleModel():
 
         self.Ts = 0.03
 
-    def dynModel(self, x, u):
+    def dyn_model(self, x, u):
 
         k1 = self.dx(x, u)
         k2 = self.dx(x + self.Ts / 2. * k1, u)
@@ -90,7 +90,7 @@ class VehicleModel():
 
         r_tar = delta * v_x / (self.l_f + self.l_r)
 
-        [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+        [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
         f[:, 0] = v_x * torch.cos(phi) - v_y * torch.sin(phi)
         f[:, 1] = v_x * torch.sin(phi) + v_y * torch.cos(phi)
@@ -103,7 +103,7 @@ class VehicleModel():
                                   F_ry * self.l_r + self.tv_p * (r_tar - r))
         return f
 
-    def slipAngle(self, x, u):
+    def slip_angle(self, x, u):
         v_x = x[:, 3]
         v_y = x[:, 4]
         r = x[:, 5]
@@ -115,7 +115,7 @@ class VehicleModel():
 
         return alpha_f, alpha_r
 
-    def forceModel(self, x, u):
+    def force_model(self, x, u):
         v_x = x[:, 3]
         v_y = x[:, 4]
         r = x[:, 5]
@@ -132,19 +132,19 @@ class VehicleModel():
 
         return F_rx, F_ry, F_fy
 
-    def dynModelCurve(self, x, u):
+    def dyn_model_curve(self, x, u):
 
-        k1 = self.dxCurve(x, u).to(self.device)
-        k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
+        k1 = self.dx_curve(x, u).to(self.device)
+        k2 = self.dx_curve(x + self.Ts / 2. * k1, u).to(self.device)
+        k3 = self.dx_curve(x + self.Ts / 2. * k2, u).to(self.device)
+        k4 = self.dx_curve(x + self.Ts * k3, u).to(self.device)
 
         x_next = x + self.Ts * (k1 / 6. + k2 / 3. +
                                 k3 / 3. + k4 / 6.).to(self.device)
 
         return x_next
 
-    def dynModelBlend(self, x, u):
+    def dyn_model_blend(self, x, u):
 
         blend_ratio = (x[:, 3] - 0.3)/(0.2)
 
@@ -181,10 +181,10 @@ class VehicleModel():
 
         if lambda_blend > 0:
 
-            k1 = self.dxCurve(x, u).to(self.device)
-            k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-            k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-            k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
+            k1 = self.dx_curve(x, u).to(self.device)
+            k2 = self.dx_curve(x + self.Ts / 2. * k1, u).to(self.device)
+            k3 = self.dx_curve(x + self.Ts / 2. * k2, u).to(self.device)
+            k4 = self.dx_curve(x + self.Ts * k3, u).to(self.device)
 
             x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. +
                                    k3 / 3. + k4 / 6.).to(self.device)
@@ -193,7 +193,7 @@ class VehicleModel():
 
         return x_dyn*lambda_blend + (1-lambda_blend)*x_kin_full
 
-    def dynModelBlendBatch(self, x, u_unclipped):
+    def dyn_model_blend_batch(self, x, u_unclipped):
 
         blend_ratio = (x[:, 3] - 0.3)/(0.2)
 
@@ -233,10 +233,10 @@ class VehicleModel():
         x_kin_full = torch.cat([x_kin_state[:, 0:3], v_x_state.view(-1, 1),
                                v_y_state.view(-1, 1), yawrate_state.view(-1, 1)], dim=1)
 
-        k1 = self.dxCurve(x, u).to(self.device)
-        k2 = self.dxCurve(x + self.Ts / 2. * k1, u).to(self.device)
-        k3 = self.dxCurve(x + self.Ts / 2. * k2, u).to(self.device)
-        k4 = self.dxCurve(x + self.Ts * k3, u).to(self.device)
+        k1 = self.dx_curve(x, u).to(self.device)
+        k2 = self.dx_curve(x + self.Ts / 2. * k1, u).to(self.device)
+        k3 = self.dx_curve(x + self.Ts / 2. * k2, u).to(self.device)
+        k4 = self.dx_curve(x + self.Ts * k3, u).to(self.device)
 
         x_dyn = x + self.Ts * (k1 / 6. + k2 / 3. + k3 /
                                3. + k4 / 6.).to(self.device)
@@ -254,7 +254,7 @@ class VehicleModel():
 
         delta = u[:, 1]
 
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         beta = torch.atan(self.l_r*torch.tan(delta)/(self.l_f + self.l_r))
 
@@ -292,7 +292,7 @@ class VehicleModel():
         blend_ratio = (v_x - 0.3)/(0.2)
 
         lambda_blend = np.min([np.max([blend_ratio, 0]), 1])
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         if lambda_blend < 1:
             fkin = torch.empty(self.n_batch, self.n_full_state)
@@ -316,7 +316,7 @@ class VehicleModel():
                 return fkin
 
         if lambda_blend > 0:
-            [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+            [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
             f[:, 0] = (v_x * torch.cos(mu) - v_y *
                        torch.sin(mu))/(1.0 - kappa*d)
@@ -334,7 +334,7 @@ class VehicleModel():
 
         return f*lambda_blend + (1-lambda_blend)*fkin
 
-    def dxCurve(self, x, u):
+    def dx_curve(self, x, u):
 
         f = torch.empty(x.size(0), self.n_full_state)
 
@@ -349,9 +349,9 @@ class VehicleModel():
 
         r_tar = delta * v_x / (self.l_f + self.l_r)
 
-        [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+        [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
         f[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu)
@@ -365,7 +365,7 @@ class VehicleModel():
                                   F_ry * self.l_r + self.tv_p * (r_tar - r))
         return f
 
-    def fromStoIndexBatch(self, s_in):
+    def from_sto_index_batch(self, s_in):
 
         s = s_in
 
@@ -402,22 +402,22 @@ class VehicleModel():
 
         return index, next_index, rela_proj
 
-    def getCurvature(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_curvature(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
 
         kappa = self.track_kappa[index] + rela_proj * \
             (self.track_kappa[next_index] - self.track_kappa[index])
 
         return kappa
 
-    def getTrackHeading(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_track_heading(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         phi = self.track_phi[index] + rela_proj * \
             (self.track_phi[next_index] - self.track_phi[index])
         return phi
 
-    def getLocalBounds(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_local_bounds(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         d_upper = self.track_d_upper[index] + \
             rela_proj * \
             (self.track_d_upper[next_index] - self.track_d_upper[index])
@@ -436,14 +436,14 @@ class VehicleModel():
 
         return d_upper, d_lower, angle_upper, angle_lower
 
-    def fromLocalToGlobal(self, state_local, phi_ref):
+    def from_local_to_global(self, state_local, phi_ref):
         s = state_local[:, 0]
         d = state_local[:, 1]
         mu = state_local[:, 2]
         v_x = state_local[:, 3]
         v_y = state_local[:, 4]
         r = state_local[:, 5]
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         vec_track = torch.empty(self.n_batch, 2)
         vec_track[:, 0] = (self.track_X[next_index] -
                            self.track_X[index]) * rela_proj
@@ -459,7 +459,7 @@ class VehicleModel():
         phi_0 = self.track_phi[index]
         # phi_1 = self.track_phi[next_index]
         phi = phi_0
-        # phi = self.getTrackHeading(s)#self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
+        # phi = self.get_track_heading(s)#self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
 
         pos_global = torch.empty(self.n_batch, 2)
         pos_global[:, 0] = pos_center[:, 0] - d * torch.sin(phi)
@@ -491,7 +491,7 @@ class VehicleModel():
 
         return x_global
 
-    def fromStoIndex(self, s):
+    def from_sto_index(self, s):
 
         s = torch.fmod(s, self.track_s[-1])
         # if s > self.track_kappa[-1]:
@@ -505,7 +505,7 @@ class VehicleModel():
         rela_proj = (s - self.track_s[index]) / self.track.diff_s
         return [index, rela_proj]
 
-    def wrapMu(self, mu):
+    def wrap_mu(self, mu):
         if mu < -np.pi:
             mu = mu + 2 * np.pi
         elif mu > np.pi:

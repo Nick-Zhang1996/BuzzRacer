@@ -50,7 +50,7 @@ class UKF:
         # self.param = np.array([Df, Dr, C, B, Cm1, Cm2, Cr, Cd, Iz])
         self.param = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 
-        self.initSigmaPoints()
+        self.init_sigma_points()
 
         # added to cov matrix at each step
         # 1 reasonable tracking of v, underestimating at peaks
@@ -83,7 +83,7 @@ class UKF:
         self.observation_noise_cov = np.diag(
             [2e-3**2, 2e-3**2, radians(0.5)**2])
 
-    def initState(self, x, vxg, y, vyg, psi, omega):
+    def init_state(self, x, vxg, y, vyg, psi, omega):
         # state: x,vxg,y,vyg, psi, omega
         self.dynamic_state = np.array([0, 0, 0, 0, 0, 0], dtype=np.float)
         self.dynamic_state[0] = x
@@ -121,7 +121,7 @@ class UKF:
         self.state_cov = (
             np.diag(self.state_3sigma + self.param_3sigma)/3.0)**2
 
-    def initSigmaPoints(self):
+    def init_sigma_points(self):
         # scaling terms
         # NOTE unconventional alfa, usually 1e-3
         alfa = 1.0e-2
@@ -140,7 +140,7 @@ class UKF:
         return
 
     # given mean and covariance matrix, generate sigma points
-    def generateSigmaPoints(self, x, P):
+    def generate_sigma_points(self, x, P):
         L = self.L
 
         # sigma points array
@@ -151,7 +151,7 @@ class UKF:
             return np.all(np.linalg.eigvals(x) > 0)
         '''
         if not is_pos_def(P):
-            P = self.nearPD(P)
+            P = self.near_p_d(P)
         '''
         variation = self.gamma * np.real(sqrtm(P))
         X[:, 1:L+1] += variation
@@ -160,7 +160,7 @@ class UKF:
         return X
 
     # https://stackoverflow.com/questions/10939213/how-can-i-calculate-the-nearest-positive-semi-definite-matrix
-    def nearPD(self, A, nit=10):
+    def near_p_d(self, A, nit=10):
         def _getAplus(A):
             eigval, eigvec = np.linalg.eig(A)
             Q = np.matrix(eigvec)
@@ -193,8 +193,8 @@ class UKF:
     # fun(self,var,...), where var is np.array of size (var_length, batch_size)
     # fun must support batch processing
     # return: mean, covariance matrix
-    def unscentedTrans(self, var, P, fun, *args):
-        sigma_x = self.generateSigmaPoints(var, P)
+    def unscented_trans(self, var, P, fun, *args):
+        sigma_x = self.generate_sigma_points(var, P)
         post_sigma_x = fun(sigma_x, *args)
         # calc x_mean
         x_mean = np.sum(np.hstack(
@@ -213,8 +213,8 @@ class UKF:
     # predict state using unscented transform
     # control dim: (control_dim)
     def predict(self, state, state_cov, control, dt):
-        post_state, post_state_cov = self.unscentedTrans(
-            state, state_cov, self.advanceModel, control, dt)
+        post_state, post_state_cov = self.unscented_trans(
+            state, state_cov, self.advance_model, control, dt)
 
         # NOTE model noise
         post_state_cov = post_state_cov + self.process_noise_cov
@@ -227,7 +227,7 @@ class UKF:
     def update(self, state, state_cov, y_real):
 
         # predict measurement
-        sigma_x = self.generateSigmaPoints(state, state_cov)
+        sigma_x = self.generate_sigma_points(state, state_cov)
         x_mean = np.sum(np.hstack(
             [sigma_x[:, 0].reshape(-1, 1) * self.w_m_0, sigma_x[:, 1:] * self.w_i]), axis=1)
 
@@ -260,7 +260,7 @@ class UKF:
 
     # give joint_state and control (throttle,steering)
     # advance model by dt
-    def advanceModel(self, joint_state, control, dt):
+    def advance_model(self, joint_state, control, dt):
         state = joint_state[:self.state_n, :]
         param = joint_state[self.state_n:, :]
 
@@ -288,7 +288,7 @@ class UKF:
             eth.states[3] = vyg[0]
             eth.states[4] = psi[0]
             eth.states[5] = omega[0]
-            eth.updateCar(0.01, None, throttle, steering)
+            eth.update_car(0.01, None, throttle, steering)
 
         # convert to local frame
         vx = vxg * np.cos(psi) + vyg * np.sin(psi)
@@ -423,15 +423,15 @@ class UKF:
     # test unscented covariance, using cartesian to polar coordinate transform
     # states: (x,y), dim:(state_dim, batch)
     # output: (rho, theta)
-    def cartesianToPolar(self, states):
+    def cartesian_to_polar(self, states):
         theta = np.arctan2(states[1], states[0])
         rho = (states[0]**2 + states[1]**2)**0.5
         return np.vstack([rho, theta])
 
-    def testCartesianToPolar(self):
+    def test_cartesian_to_polar(self):
         self.state_n = 2
         self.param_n = 0
-        self.initSigmaPoints()
+        self.init_sigma_points()
         # mean for test state
         # state: (x,y)
         state = np.array((5, 9), dtype=np.float)
@@ -442,7 +442,7 @@ class UKF:
         # Monte Carlo method to get true output variance and mean
         mc_samples = np.random.multivariate_normal(
             state, state_P, size=(10000,)).T
-        mc_outputs = self.cartesianToPolar(mc_samples)
+        mc_outputs = self.cartesian_to_polar(mc_samples)
         mc_mean = np.mean(mc_outputs, axis=1)
         mc_cov = np.cov(mc_outputs)
 
@@ -452,8 +452,8 @@ class UKF:
         print(mc_cov)
 
         # Unscented transform to simulate variance and mean
-        u_mean, u_cov = self.unscentedTrans(
-            state, state_P, self.cartesianToPolar)
+        u_mean, u_cov = self.unscented_trans(
+            state, state_P, self.cartesian_to_polar)
         print('unscented mean')
         print(u_mean)
         print('unscented cov')
@@ -476,10 +476,10 @@ class UKF:
     def sqr(self, x):
         return x**2
 
-    def testSqr(self):
+    def test_sqr(self):
         self.state_n = 1
         self.param_n = 0
-        self.initSigmaPoints()
+        self.init_sigma_points()
         # mean for test state
         # state: (x,y)
         state = np.array([0.0], dtype=np.float)
@@ -501,7 +501,7 @@ class UKF:
         print(mc_cov)
 
         # Unscented transform to simulate variance and mean
-        u_mean, u_cov = self.unscentedTrans(state, state_P, self.sqr)
+        u_mean, u_cov = self.unscented_trans(state, state_P, self.sqr)
         print('unscented mean')
         print(u_mean)
         print('unscented cov')
@@ -524,5 +524,5 @@ class UKF:
 
 if __name__ == '__main__':
     ukf = UKF()
-    # ukf.testCartesianToPolar()
-    ukf.testSqr()
+    # ukf.test_cartesian_to_polar()
+    ukf.test_sqr()

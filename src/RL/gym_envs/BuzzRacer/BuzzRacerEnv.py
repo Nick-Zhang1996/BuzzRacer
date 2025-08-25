@@ -3,7 +3,7 @@ import pygame
 from track import TrackFactory
 from xml.dom.minidom import parseString
 import torch
-from RL.copg.rcvip_racing.rcvip_env_function import getRewardSingleAgent
+from RL.copg.rcvip_racing.rcvip_env_function import get_reward_single_agent
 from RL.copg.rcvip_simulator.VehicleModel import VehicleModel
 import numpy as np
 from gymnasium import spaces
@@ -49,12 +49,12 @@ class BuzzRacerEnv(gym.Env):
         self.vehicle_model = VehicleModel(n_batch, self.device, track='rcp')
 
         if self.render_mode == 'human':
-            self.initVisualization()
+            self.init_visualization()
         elif self.render_mode == 'rgb_array':
-            self.initVisualization()
+            self.init_visualization()
 
     # draw control related static images
-    def drawControl(self, canvas, coord=(0, 0)):
+    def draw_control(self, canvas, coord=(0, 0)):
 
         # Static component
         font = pygame.font.SysFont(None, 25, bold=False)
@@ -117,18 +117,18 @@ class BuzzRacerEnv(gym.Env):
                             (x1 + 100, y1 + 60), (0, 0, 255), 1)
         img = cv2.putText(img, 'Throttle', (x1 + 104, y1 + 55),
                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        img = self.overlayCarRenderingRaw(img, car, (x2, y2))
+        img = self.overlay_car_rendering_raw(img, car, (x2, y2))
         # throttle_end = int(50+(72*throttle))
         # img = cv2.rectangle(img, (x1 + 52, y1 + 45), (x1 + throttle_end, y1 + 60), (0, 255, 0), -1)
 
         # car
         x2 = coord[0] + 20
         y2 = coord[1] + 50
-        img = self.overlayCarRenderingRaw(img, car, (x2, y2))
+        img = self.overlay_car_rendering_raw(img, car, (x2, y2))
 
         return img
 
-    def initVisualization(self):
+    def init_visualization(self):
         pygame.init()
         pygame.font.init()
 
@@ -142,9 +142,9 @@ class BuzzRacerEnv(gym.Env):
         config = parseString('<track>full</track>')
         config_track = config.getElementsByTagName('track')[0]
         self.track = TrackFactory(self, config_track)
-        self.img_track = self.track.drawTrack()
+        self.img_track = self.track.draw_track()
         self.img_blank_track = self.img_track.copy()
-        self.img_track_raceline = self.track.drawRaceline(img=self.img_track)
+        self.img_track_raceline = self.track.draw_raceline(img=self.img_track)
         self.background = pygame.surfarray.make_surface(
             self.img_track_raceline[:, :, ::-1])
         self.background = pygame.transform.flip(self.background, False, True)
@@ -194,15 +194,15 @@ class BuzzRacerEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        states = self.generateRandomStates()
+        states = self.generate_random_states()
         self.torch_states = torch.tensor([states], dtype=torch.float32)
-        bounds = self.vehicle_model.getLocalBounds(self.torch_states[:, 0])
-        reward, done = getRewardSingleAgent(
+        bounds = self.vehicle_model.get_local_bounds(self.torch_states[:, 0])
+        reward, done = get_reward_single_agent(
             self.torch_states, bounds, self.torch_states,  self.device)
         while (done):
-            states = self.generateRandomStates()
+            states = self.generate_random_states()
             self.torch_states = torch.tensor([states], dtype=torch.float32)
-            reward, done = getRewardSingleAgent(
+            reward, done = get_reward_single_agent(
                 self.torch_states, bounds, self.torch_states,  self.device)
 
         observation = states
@@ -211,7 +211,7 @@ class BuzzRacerEnv(gym.Env):
             self._render_frame()
         return observation, info
 
-    def generateRandomStates(self):
+    def generate_random_states(self):
         random = self.np_random
         s = random.uniform(0, 11.4)
         d = random.uniform(-0.2, 0.2)
@@ -226,10 +226,10 @@ class BuzzRacerEnv(gym.Env):
     def step(self, action):
         torch_action = torch.tensor(action, dtype=torch.float32).reshape(-1, 2)
         last_torch_states = self.torch_states
-        self.torch_states = self.vehicle_model.dynModelBlendBatch(
+        self.torch_states = self.vehicle_model.dyn_model_blend_batch(
             self.torch_states, torch_action)
-        bounds = self.vehicle_model.getLocalBounds(self.torch_states[:, 0])
-        reward, done = getRewardSingleAgent(
+        bounds = self.vehicle_model.get_local_bounds(self.torch_states[:, 0])
+        reward, done = get_reward_single_agent(
             self.torch_states, bounds, last_torch_states,  self.device)
 
         if self.render_mode == 'human':
@@ -249,7 +249,7 @@ class BuzzRacerEnv(gym.Env):
     def _render_frame(self):
         # find car position
         local_state = self.torch_states.numpy()
-        global_state = self.vehicle_model.fromLocalToGlobal(
+        global_state = self.vehicle_model.from_local_to_global(
             local_state).flatten()
         x, y, heading, v_forward, v_sideway, omega = global_state
 
@@ -259,7 +259,7 @@ class BuzzRacerEnv(gym.Env):
 
         self.screen.blit(self.background, (0, 0))
         self.screen.blit(car_image, car_rect)
-        self.drawControl(self.screen)
+        self.draw_control(self.screen)
 
         if (self.render_mode == 'human'):
             pygame.display.flip()

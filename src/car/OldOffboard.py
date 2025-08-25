@@ -13,7 +13,7 @@ class OldOffboard(Car):
         self.car_interface = None
         Car.__init__(self, main)
 
-    def initParam(self):
+    def init_param(self):
         # max steering is in radians, for vehicle with ackerman steering (inner wheel steer more than outer)
         # steering angle shoud be calculated by arcsin(wheelbase/turning radius), easily derived from non-slipping bicycle model
         # default values are for the MR03 chassis with Porsche 911 GT3 RS body
@@ -49,7 +49,7 @@ class OldOffboard(Car):
         self.min_pwm_left = self.params['max_steer_pwm_left']
         self.max_pwm_right = self.params['max_steer_pwm_right']
 
-    def initHardware(self):
+    def init_hardware(self):
         try:
             self.car_interface = serial.Serial(
                 self.serial_port, 115200, timeout=0.001, writeTimeout=0)
@@ -67,7 +67,7 @@ class OldOffboard(Car):
             return False
 
     # provide direct pwm
-    def actuatePWM(self, steeringPWM, throttlePWM):
+    def actuate_p_w_m(self, steeringPWM, throttlePWM):
         if not (self.car_interface is None):
             self.car_interface.write(
                 (str(int(steeringPWM))+','+str(int(throttlePWM))+'\n').encode('ascii'))

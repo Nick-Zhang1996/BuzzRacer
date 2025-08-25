@@ -19,7 +19,7 @@ class BoundaryChecker(Extension):
     def update(self):
         for i in range(len(self.main.cars)):
             car = self.main.cars[i]
-            if (self.isOutOfBoundary(car)):
+            if (self.is_out_of_boundary(car)):
                 if (not car.in_collision):
                     car.in_collision = True
                     self.collision_count[i] += 1
@@ -35,15 +35,15 @@ class BoundaryChecker(Extension):
                             (i, self.collision_count[i]))
             self.main.cars[i].total_boundary_collision = self.collision_count[i]
 
-    def isOutOfBoundary(self, car):
+    def is_out_of_boundary(self, car):
         car_coord = car.states[0:2]
         car_heading = car.states[2]
-        left, right = self.main.track.preciseTrackBoundary(
+        left, right = self.main.track.precise_track_boundary(
             car_coord, car_heading)
         out = left < 0 or right < 0
         return out
 
-    def isOutOfBoundaryDiscrete(self, car):
+    def is_out_of_boundary_discrete(self, car):
         x, y, heading, vf, vs, omega = car.states
         ref_points = self.discretized_raceline[:, 0:2]
         ref_heading = self.discretized_raceline[:, 2]

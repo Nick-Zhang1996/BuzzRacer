@@ -16,16 +16,16 @@ class Gifsaver(Extension):
     def init(self):
 
         # prepare save gif, this provides an easy to use visualization for presentation
-        self.prepareGif()
-        self.resolveLogname()
+        self.prepare_gif()
+        self.resolve_logname()
         self.count = 0
 
-    def prepareGif(self):
+    def prepare_gif(self):
         self.gifimages = []
         self.gifimages.append(Image.fromarray(cv2.cvtColor(
             self.main.visualization.img_track.copy(), cv2.COLOR_BGR2RGB)))
 
-    def resolveLogname(self,):
+    def resolve_logname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
         logFolder = '../gifs/'

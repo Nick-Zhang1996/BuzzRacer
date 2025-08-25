@@ -14,12 +14,12 @@ class TrajectoryPlotter(Extension):
 
     def init(self):
 
-        self.resolveLogname()
+        self.resolve_logname()
 
-    def prepareGif(self):
+    def prepare_gif(self):
         pass
 
-    def resolveLogname(self,):
+    def resolve_logname(self,):
         # setup log file
         # log file will record state of the vehicle for later analysis
         logFolder = '../gifs/'

@@ -17,18 +17,18 @@ class CurvilinearTrack(Track):
         self.resolution = 200
 
         # derived class should override the constructor,
-        # call self.buildContinuousTrack(r) to create a curvilinear track
+        # call self.build_continuous_track(r) to create a curvilinear track
         # r.shape == (n,2), and consistes of the discretized track centerline
         # see NascarTrack.py for example
         self.discretized_raceline_len = 1024
         return
 
-    def drawRaceline(self, img):
+    def draw_raceline(self, img):
         return img
 
     # state: x,y,theta,vf,vs,omega
     # x,y referenced from skidpad frame
-    def localTrajectory(self, state, ccw=True, wheelbase=108e-3):
+    def local_trajectory(self, state, ccw=True, wheelbase=108e-3):
         x = state[0]
         y = state[1]
         heading = state[2]
@@ -61,12 +61,12 @@ class CurvilinearTrack(Track):
 
     # return true if vehicle is unsalvageably outside of the track
     # for use by Watchdog to terminate an experiment
-    def isOutside(self, coord):
+    def is_outside(self, coord):
         state = (*coord, 0, 0, 0, 0)
-        _, offset, _, _, _ = self.localTrajectory(state, wheelbase=0)
+        _, offset, _, _, _ = self.local_trajectory(state, wheelbase=0)
         return offset > (self.width/2)*1.5
 
-    def buildContinuousTrack(self, r):
+    def build_continuous_track(self, r):
         self.r = r
         assert (len(self.r.shape) == 2)
         assert (self.r.shape[1] == 2)
@@ -130,9 +130,9 @@ class CurvilinearTrack(Track):
         self.lower = lower
 
         # self.raceline_len_m = s_vec[-1]
-        # self.raceline_s = self.buildSpline(r_vec)
-        # self.upper_fun = self.buildSpline(upper)
-        # self.lower_fun = self.buildSpline(lower)
+        # self.raceline_s = self.build_spline(r_vec)
+        # self.upper_fun = self.build_spline(upper)
+        # self.lower_fun = self.build_spline(lower)
 
         '''
         plt.plot(upper[:,0],upper[:,1])
@@ -140,9 +140,9 @@ class CurvilinearTrack(Track):
         plt.plot(r_vec[0,:],r_vec[1,:],'o')
         plt.show()
         '''
-        self.prepareDiscretizedRaceline()
+        self.prepare_discretized_raceline()
 
-    def prepareDiscretizedRaceline(self):
+    def prepare_discretized_raceline(self):
         ss = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
         rr = splev(ss % self.raceline_len_m, self.raceline_s, der=0)
         drr = splev(ss % self.raceline_len_m, self.raceline_s, der=1)
@@ -169,20 +169,20 @@ class CurvilinearTrack(Track):
         return (x_new, y_new)
 
     # draw a picture of the track
-    def drawTrack(self):
+    def draw_track(self):
         x_pix = int((self.x_max - self.x_min)*self.resolution)
         y_pix = int((self.y_max - self.y_min)*self.resolution)
         # height, width
         img = 255*np.ones([y_pix, x_pix, 3], dtype=np.uint8)
-        img = self.drawPolyline(
+        img = self.draw_polyline(
             self.upper, img, lineColor=(0, 0, 0), thickness=2)
-        img = self.drawPolyline(
+        img = self.draw_polyline(
             self.lower, img, lineColor=(0, 0, 0), thickness=2)
         return img
 
-    def preciseTrackBoundary(self, coord, heading):
+    def precise_track_boundary(self, coord, heading):
         state = (coord[0], coord[1], heading, 0, 0, 0)
-        raceline_point, offset, raceline_orientation, signed_curvature, _ = self.localTrajectory(
+        raceline_point, offset, raceline_orientation, signed_curvature, _ = self.local_trajectory(
             state)
         left = self.width/2 - offset
         right = self.width/2 + offset

@@ -1,7 +1,7 @@
 # Game imports
 from car_racing.network import Actor  # Var as Actor
 import random
-from rcvip_env_function import getRewardSingleAgent
+from rcvip_env_function import get_reward_single_agent
 import rcvip_simulator.VehicleModel as VehicleModel
 import time
 from copg_optim.critic_functions import critic_update, get_advantage
@@ -44,7 +44,7 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
 
 
-# from rcvip_env_function import getfreezeTimecollosionReachedrewardSingleAgent
+# from rcvip_env_function import getfreeze_timecollosion_reachedreward_single_agent
 
 folder_location = 'trained_model/'
 directory = os.path.join(folder_location, experiment_name, 'model')
@@ -134,10 +134,10 @@ def simulate(device):
         prev_state = state
 
         # advance state
-        state = vehicle_model.dynModelBlendBatch(state, action)
+        state = vehicle_model.dyn_model_blend_batch(state, action)
 
-        bounds = vehicle_model.getLocalBounds(state[:, 0])
-        reward,  done = getRewardSingleAgent(
+        bounds = vehicle_model.get_local_bounds(state[:, 0])
+        reward,  done = get_reward_single_agent(
             state, bounds, prev_state,  device)
 
         # dim: batch,time,dim

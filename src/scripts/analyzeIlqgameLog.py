@@ -12,7 +12,7 @@ class Main(PrintObject):
         self.basedir = os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))))
 
-    def loadStateLog(self, log_name):
+    def load_state_log(self, log_name):
         # time_steps * cars * (states + action)
         full_path = os.path.join(self.basedir, 'log', log_name)
         self.print_ok(f'opening file at {full_path}')
@@ -25,7 +25,7 @@ class Main(PrintObject):
         self.car_count = self.data.shape[1]
         return self.data
 
-    def loadDebugDict(self, log_name):
+    def load_debug_dict(self, log_name):
         # time_steps * cars * (states + action)
         full_path = os.path.join(self.basedir, 'log', log_name)
         self.print_ok(f'opening file at {full_path}')
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     main = Main()
     # dim: time,car, state
     # (time, x,y,theta,vforward,vsideway=0,omega)
-    # data = main.loadLog('2023_11_13_exp/full_state2.p')
-    data = main.loadDebugDict('2023_11_15_exp/debug_dict1.p')
+    # data = main.load_log('2023_11_13_exp/full_state2.p')
+    data = main.load_debug_dict('2023_11_15_exp/debug_dict1.p')
     breakpoint()
     print('done')

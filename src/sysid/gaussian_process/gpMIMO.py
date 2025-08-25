@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 from time import time, sleep
 from gpModel import MultitaskDeepGP
 
-from tire import tireCurve
+from tire import tire_curve
 
 # RUN PARAMETER
 
@@ -100,8 +100,8 @@ def dynamics(state_control):
 
         # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
         # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-        Ffy = tireCurve(slip_f) * m * 9.8 * lr/(lr+lf)
-        Fry = 1.15*tireCurve(slip_r) * m * 9.8 * lf/(lr+lf)
+        Ffy = tire_curve(slip_f) * m * 9.8 * lr/(lr+lf)
+        Fry = 1.15*tire_curve(slip_r) * m * 9.8 * lf/(lr+lf)
 
         # Dynamics
         # d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)

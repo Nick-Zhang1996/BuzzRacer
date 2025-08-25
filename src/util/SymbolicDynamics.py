@@ -20,7 +20,7 @@ class SymbolicDynamics:
         self.l = None
         return
 
-    def symDer(self):
+    def sym_der(self):
         ''' calculate jacobian of f(x,u)
         before calling this function user should define
         self.f as a function of self.x, self.u
@@ -79,10 +79,10 @@ class SymbolicDynamics:
         '''
         return
 
-    def calcDer(self, x0, u0, subs_dict={}):
+    def calc_der(self, x0, u0, subs_dict={}):
         ''' calculate fx,fu,lx,lu,lxx,luu,lux numerically
         e.g. fx = dfdx = df(x,u) / dx 
-        user should call symDer() before calling this function
+        user should call sym_der() before calling this function
         x0: list-like, substitute values for x
         u0: list-like, substitute values for u
         return: dfdx,dudx in numpy array, evaluated at x0,u0
@@ -150,8 +150,8 @@ if __name__ == '__main__':
     test.f = [f0, f1, f2]
     test.l = x0+x1+x2+u0+u1*x0
 
-    test.symDer()
-    fx, fu, lx, lu, lxx, luu, lux = test.calcDer(x0=[1, 2, 3], u0=[4, 5])
+    test.sym_der()
+    fx, fu, lx, lu, lxx, luu, lux = test.calc_der(x0=[1, 2, 3], u0=[4, 5])
     print(lxx)
     print(luu)
     print(lux)

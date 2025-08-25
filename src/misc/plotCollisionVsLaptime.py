@@ -4,7 +4,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 
-def plotFile(filename, marker, label):
+def plot_file(filename, marker, label):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
         data = data[0]
@@ -31,12 +31,12 @@ def plotFile(filename, marker, label):
 
 
 if __name__ == '__main__':
-    plotFile('../log/kinematics_results/debug_dict8.p',
+    plot_file('../log/kinematics_results/debug_dict8.p',
              '+', 'MPPI (same injected noise)')
-    plotFile('../log/kinematics_results/debug_dict9.p',
+    plot_file('../log/kinematics_results/debug_dict9.p',
              'o', 'MPPI (same terminal covariance)')
-    plotFile('../log/kinematics_results/debug_dict10.p', 'x', 'CCMPPI-mixed')
-    plotFile('../log/kinematics_results/debug_dict11.p', '*', 'CCMPPI-pure')
+    plot_file('../log/kinematics_results/debug_dict10.p', 'x', 'CCMPPI-mixed')
+    plot_file('../log/kinematics_results/debug_dict11.p', '*', 'CCMPPI-pure')
     plt.xlabel('Laptime (s)')
     plt.ylabel('Collision')
     plt.legend()

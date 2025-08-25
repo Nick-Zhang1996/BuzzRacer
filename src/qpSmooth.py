@@ -38,7 +38,7 @@ class QpSmooth(RCPTrack):
     # where f''@r = bl*rl + b*r + br*rr
     # ds, arc length between rl,r and r, rr
     # if not specified, |r-rl|_2 will be used as approximation
-    def lagrangeDer(self, points, ds=None):
+    def lagrange_der(self, points, ds=None):
         rl, r, rr = points
         def dist(x, y): return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
         if ds is None:
@@ -67,7 +67,7 @@ class QpSmooth(RCPTrack):
     # dr (2,2),  taken w.r.t. arc length s
     # ddr (2,2), taken w.r.t. arc length s
     # ds: arc length between the endpoints
-    def bezierCurve(self, r, dr, ddr, ds=None):
+    def bezier_curve(self, r, dr, ddr, ds=None):
         rl, rr = r
         drl, drr = dr
         ddrl, ddrr = ddr
@@ -110,7 +110,7 @@ class QpSmooth(RCPTrack):
     # generate a bezier spline matching derivative estimated from lagrange interpolation
     # break_pts.shape = (n,2)
     # return: vector function, domain [0,len(points)]
-    def bezierSpline(self, break_pts):
+    def bezier_spline(self, break_pts):
         break_pts = np.array(break_pts).T
 
         # calculate first and second derivative
@@ -124,7 +124,7 @@ class QpSmooth(RCPTrack):
             rr = break_pts[:, (i+1) % n]
             points = [rl, r, rr]
 
-            ((al, a, ar), (bl, b, br)) = self.lagrangeDer(points)
+            ((al, a, ar), (bl, b, br)) = self.lagrange_der(points)
             df.append(al*rl + a*r + ar*rr)
             ddf.append(bl*rl + b*r + br*rr)
 
@@ -133,7 +133,7 @@ class QpSmooth(RCPTrack):
             # generate bezier spline segments
             rl = break_pts[:, (i) % n]
             r = break_pts[:, (i+1) % n]
-            section_P = self.bezierCurve(
+            section_P = self.bezier_curve(
                 [rl, r], [df[i], df[(i+1) % n]], [ddf[i], ddf[(i+1) % n]], ds=None)
             # NOTE testing
             def B(t, p): return (1-t)**5*p[0] + 5*t*(1-t)**4*p[1] + 10*t**2*(
@@ -153,7 +153,7 @@ class QpSmooth(RCPTrack):
     # P: array of control points, shape n*2*5
     # u (iterable): parameter, domain [0,n], where n is number of break points in spline generation
 
-    def evalBezierSpline(self, P, u):
+    def eval_bezier_spline(self, P, u):
         u = np.array(u).reshape(-1, 1)
         n = len(P)
         assert (u >= 0).all()
@@ -171,7 +171,7 @@ class QpSmooth(RCPTrack):
         return np.array(r)
 
     # calculate arc length of <x,y> = fun(u) from ui to uf
-    def arcLen(self, fun, ui, uf):
+    def arc_len(self, fun, ui, uf):
         steps = 20
         uu = np.linspace(ui, uf, steps)
         s = 0
@@ -184,7 +184,7 @@ class QpSmooth(RCPTrack):
 
     # calculate variance of curvature w.r.t. break point variation
     # correspond to equation 6 in paper
-    def curvatureJac(self):
+    def curvature_jac(self):
         break_pts = np.array(self.break_pts).T
         # u_max is also number of break points
         N = self.u_max
@@ -196,7 +196,7 @@ class QpSmooth(RCPTrack):
         ds = []
         def fun(x): return self.raceline_fun(x).flatten()
         for i in range(N):
-            ds.append(self.arcLen(fun, i, (i+1)))
+            ds.append(self.arc_len(fun, i, (i+1)))
 
         # calculate first and second derivative
         # w.r.t. ds
@@ -226,7 +226,7 @@ class QpSmooth(RCPTrack):
             sl = ds[(i-1) % N]
             sr = ds[(i) % N]
 
-            ((al, a, ar), (bl, b, br)) = self.lagrangeDer(points, ds=(sl, sr))
+            ((al, a, ar), (bl, b, br)) = self.lagrange_der(points, ds=(sl, sr))
             dr = al*rl + a*r + ar*rr
             ddr = bl*rl + b*r + br*rr
 
@@ -292,7 +292,7 @@ class QpSmooth(RCPTrack):
 
     # override RCPTrack function
     # draw raceline with Bezier curve
-    def drawRaceline(self, lineColor=(0, 0, 255), img=None):
+    def draw_raceline(self, lineColor=(0, 0, 255), img=None):
         rows = self.gridsize[0]
         cols = self.gridsize[1]
         res = self.resolution
@@ -333,9 +333,9 @@ class QpSmooth(RCPTrack):
         # render different color based on speed
         # slow - red, fast - green (BGR)
         def v2c(x): return int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        def getColor(v): return (0, v2c(v), 255-v2c(v))
+        def get_color(v): return (0, v2c(v), 255-v2c(v))
         for i in range(len(u_new)-1):
-            # img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=getColor(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3)
+            # img = cv2.line(img, tuple(pts[i]),tuple(pts[i+1]), color=get_color(self.targetVfromU(u_new[i]%(self.break_pts.shape[0]))), thickness=3)
             # ignore color for now
             img = cv2.line(img, tuple(pts[i]), tuple(
                 pts[i+1]), color=(0, 255, 0), thickness=3)
@@ -356,7 +356,7 @@ class QpSmooth(RCPTrack):
 
         return img
 
-    def checkTrackBoundary(self, coord, n, delta_max, offset=0):
+    def check_track_boundary(self, coord, n, delta_max, offset=0):
         '''
             # input:
             # coord: r=(x,y) unit:m
@@ -447,9 +447,9 @@ class QpSmooth(RCPTrack):
 
         return min(F*self.scale, delta_max), min(R*self.scale, delta_max)
 
-    # convert raceline to a B spline to reuse old code for velocity generation and localTrajectory, since they expect a spline object
+    # convert raceline to a B spline to reuse old code for velocity generation and local_trajectory, since they expect a spline object
     # result save at self.raceline
-    def convertToSpline(self):
+    def convert_to_spline(self):
         # sample entire path
         steps = 100
         N = len(self.break_pts)
@@ -463,11 +463,11 @@ class QpSmooth(RCPTrack):
         self.u = u
         self.raceline = tck
 
-    def saveTrackImage(self):
-        img_track = self.drawTrack()
-        # img_track = super().drawRaceline(img=img_track, points=self.break_pts)
+    def save_track_image(self):
+        img_track = self.draw_track()
+        # img_track = super().draw_raceline(img=img_track, points=self.break_pts)
         # do not show break points
-        img_track = super().drawRaceline(img=img_track, points=[])
+        img_track = super().draw_raceline(img=img_track, points=[])
         if (self.img_filename is not None):
             filename = os.path.join(self.save_dir, self.img_filename)
             cv2.imwrite(filename, img_track)
@@ -477,11 +477,11 @@ class QpSmooth(RCPTrack):
         plt.show()
         return
 
-    def testLagrangeDer(self):
+    def test_lagrange_der(self):
         # generate three points
         points = np.array([[-1, -1], [2, 2], [5, 5]])
         rl, r, rr = points
-        ((al, a, ar), (bl, b, br)) = self.lagrangeDer(points)
+        ((al, a, ar), (bl, b, br)) = self.lagrange_der(points)
         df = al*rl + a*r + ar*rr
         ddf = bl*rl + b*r + br*rr
         print(df)
@@ -493,7 +493,7 @@ class QpSmooth(RCPTrack):
         return
 
     # test bezier curve
-    def testBezierCurve(self):
+    def test_bezier_curve(self):
         # generate a batch of points following a unit circle
         u = np.linspace(0, (2*pi)/17.0*14, 17)
         xx = np.cos(u)
@@ -503,10 +503,10 @@ class QpSmooth(RCPTrack):
         tic = time()
         # just test w/ an outlier
         points[4, :] = [0, 1.2]
-        P = self.bezierSpline(points)
+        P = self.bezier_spline(points)
 
         u_close = np.linspace(0, points.shape[0], 1000)
-        r = self.evalBezierSpline(P, u_close)
+        r = self.eval_bezier_spline(P, u_close)
         print(time()-tic)
 
         B_x = r[:, 0]
@@ -520,32 +520,32 @@ class QpSmooth(RCPTrack):
         return
 
     # plot Bezier curve based raceline on a track map
-    def testTrack(self):
+    def test_track(self):
         # prepare the full racetrack
         self.prepareTrack()
         # use control points as bezier breakpoints
         # generate bezier spline
-        self.P = self.bezierSpline(self.ctrl_pts)
+        self.P = self.bezier_spline(self.ctrl_pts)
         self.u_max = len(self.ctrl_pts)
-        self.raceline_fun = lambda u: self.evalBezierSpline(self.P, u)
+        self.raceline_fun = lambda u: self.eval_bezier_spline(self.P, u)
         # render
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
 
-    def testCurvatureJac(self, param=0):
+    def test_curvature_jac(self, param=0):
         # prepare the full racetrack
         self.prepareTrack()
         self.break_pts = self.ctrl_pts
 
         # use control points as bezier breakpoints
         # generate bezier spline
-        self.P = self.bezierSpline(self.break_pts)
+        self.P = self.bezier_spline(self.break_pts)
         self.u_max = len(self.break_pts)
-        self.raceline_fun = lambda u: self.evalBezierSpline(self.P, u)
+        self.raceline_fun = lambda u: self.eval_bezier_spline(self.P, u)
 
-        K, C, Ds = self.curvatureJac()
+        K, C, Ds = self.curvature_jac()
         '''
         # NOTE verify matrix for compatible dimension
         print("N")
@@ -602,8 +602,8 @@ class QpSmooth(RCPTrack):
         print(self.k[param])
 
         # show raceline
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
 
@@ -615,10 +615,10 @@ class QpSmooth(RCPTrack):
         # calculate new J(X) without matrices
         # this requires re-generation of the Bezier Spline
         self.break_pts = new_pts
-        self.P = self.bezierSpline(self.break_pts)
-        self.raceline_fun = lambda u: self.evalBezierSpline(self.P, u)
+        self.P = self.bezier_spline(self.break_pts)
+        self.raceline_fun = lambda u: self.eval_bezier_spline(self.P, u)
         # need this to calculate new ds and k
-        K, C, Ds = self.curvatureJac()
+        K, C, Ds = self.curvature_jac()
         ds = self.ds
         k = self.k
         J_p = 0
@@ -643,15 +643,15 @@ class QpSmooth(RCPTrack):
         print(self.k[param])
 
         # show raceline
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
 
         # render
         '''
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
         '''
@@ -661,18 +661,18 @@ class QpSmooth(RCPTrack):
 
     # resample path defined in raceline_fun
     # new_n: number of break points on the new path
-    def resamplePath(self, new_n):
+    def resample_path(self, new_n):
         # generate bezier spline
-        P = self.bezierSpline(self.break_pts)
+        P = self.bezier_spline(self.break_pts)
         N = len(self.break_pts)
 
-        self.raceline_fun = lambda u: self.evalBezierSpline(P, u)
+        self.raceline_fun = lambda u: self.eval_bezier_spline(P, u)
 
         # show initial raceline
         '''
         print("showing initial raceline BEFORE resampling")
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
         '''
@@ -682,7 +682,7 @@ class QpSmooth(RCPTrack):
         arc_len = [0]
         # we have N+1 points here
         for i in range(1, N+1):
-            s = self.arcLen(self.raceline_fun, i-1, i)
+            s = self.arc_len(self.raceline_fun, i-1, i)
             arc_len.append(s)
         uu = np.linspace(0, N, N+1)
         arc_len = np.array(arc_len)
@@ -705,20 +705,20 @@ class QpSmooth(RCPTrack):
 
         # regenerate spline
         self.break_pts = np.array(new_break_pts)
-        P = self.bezierSpline(self.break_pts)
+        P = self.bezier_spline(self.break_pts)
         N = len(self.break_pts)
-        self.raceline_fun = lambda u: self.evalBezierSpline(P, u)
+        self.raceline_fun = lambda u: self.eval_bezier_spline(P, u)
 
         '''
         print("showing initial raceline AFTER resampling")
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         plt.imshow(img_track)
         plt.show()
         '''
 
     # optimize path and save to pickle file
-    def optimizePath(self, *, max_iter=20, offset=0, visualize=False, save_gif=False, save_steps=False,):
+    def optimize_path(self, *, max_iter=20, offset=0, visualize=False, save_gif=False, save_steps=False,):
         # use control points as initial bezier breakpoints
         # for full track there are 24 points
         self.break_pts = np.array(self.ctrl_pts)
@@ -727,7 +727,7 @@ class QpSmooth(RCPTrack):
         new_N = len(self.break_pts)*3
         print_info('Had %d break points, resample to %d' %
                    (len(self.break_pts), new_N))
-        self.resamplePath(new_N)
+        self.resample_path(new_N)
 
         if save_gif:
             self.gifimages = []
@@ -736,18 +736,18 @@ class QpSmooth(RCPTrack):
         for iter_count in range(max_iter):
 
             # re-sample reference points before every iteration
-            self.resamplePath(new_N)
+            self.resample_path(new_N)
 
             # generate bezier spline
-            self.P = self.bezierSpline(self.break_pts)
+            self.P = self.bezier_spline(self.break_pts)
             self.u_max = len(self.break_pts)
             N = self.u_max
 
-            self.raceline_fun = lambda u: self.evalBezierSpline(self.P, u)
+            self.raceline_fun = lambda u: self.eval_bezier_spline(self.P, u)
 
             print_ok('iter: %d' % (iter_count,))
-            img_track = self.drawTrack()
-            img_track = self.drawRaceline(img=img_track)
+            img_track = self.draw_track()
+            img_track = self.draw_raceline(img=img_track)
             if (save_steps):
                 filename = os.path.join(self.save_dir, f'iter{iter_count}.png')
                 cv2.imwrite(filename, img_track)
@@ -762,7 +762,7 @@ class QpSmooth(RCPTrack):
                 self.gifimages.append(Image.fromarray(
                     cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)))
 
-            K, C, Ds = self.curvatureJac()
+            K, C, Ds = self.curvature_jac()
 
             # assemble matrices in QP
             # NOTE ignored W, W=I
@@ -779,7 +779,7 @@ class QpSmooth(RCPTrack):
             delta_max = 5e-2
             for i in range(N):
                 coord = self.break_pts[i]
-                F, R = self.checkTrackBoundary(
+                F, R = self.check_track_boundary(
                     coord, self.n[i], delta_max, offset)
                 h1.append(F)
                 h2.append(R)
@@ -839,15 +839,15 @@ class QpSmooth(RCPTrack):
 
             self.break_pts = perturbed_break_pts
 
-        self.convertToSpline()
-        # retval = self.generateSpeedProfile()
-        retval = self.generateSpeedProfile(
+        self.convert_to_spline()
+        # retval = self.generate_speed_profile()
+        retval = self.generate_speed_profile(
             mu=1.2, acc_max_fun=lambda x: 8.0, dec_max_fun=lambda x: 3.3)
         self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
 
-        self.verifySpeedProfile(speed_profile_fun=speed_profile_fun)
+        self.verify_speed_profile(speed_profile_fun=speed_profile_fun)
         if save_gif:
             print_info('saving gif.. This may take a while')
             self.log_no = 0
@@ -856,8 +856,8 @@ class QpSmooth(RCPTrack):
                                    append_images=self.gifimages, save_all=True, duration=600, loop=0)
             print_ok('gif saved at '+gif_filename)
 
-        img_track = self.drawTrack()
-        img_track = self.drawRaceline(img=img_track)
+        img_track = self.draw_track()
+        img_track = self.draw_raceline(img=img_track)
         img_track_rgb = cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)
         plt.imshow(img_track_rgb)
         plt.show()
@@ -866,13 +866,13 @@ class QpSmooth(RCPTrack):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'track_name', choices=TrackFactory.availableTrackNames())
+        'track_name', choices=TrackFactory.available_track_names())
     args = parser.parse_args()
 
     # optimize and save
     track = QpSmooth()
     track = TrackFactory.build(args.track_name, track=track)
-    track.optimizePath(offset=0.1)
+    track.optimize_path(offset=0.1)
     track.save()
 
     # verify results: load and show
@@ -880,8 +880,8 @@ if __name__ == '__main__':
     print('-----------------')
     print_info('testing loading')
     load_track.load()
-    img_track = load_track.drawTrack()
-    img_track = load_track.drawRaceline(img=img_track)
+    img_track = load_track.draw_track()
+    img_track = load_track.draw_raceline(img=img_track)
     img_track = cv2.cvtColor(img_track, cv2.COLOR_BGR2RGB)
     plt.imshow(img_track)
     plt.show()

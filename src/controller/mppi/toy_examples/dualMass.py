@@ -131,7 +131,7 @@ if __name__ == '__main__':
     mppi = MPPI(samples_count, horizon_steps,
                 control_dim, temperature, dt, noise_cov)
     # define dynamics
-    mppi.applyDiscreteDynamics = dynamics
+    mppi.apply_discrete_dynamics = dynamics
     mppi.evaluateCost = cost
 
     while (main.t < 20):

@@ -13,7 +13,7 @@ filename = 'more_combined.txt'
 track = TrackFactory(name='full')
 
 
-def plotTraj(track, filename, img, color, text):
+def plot_traj(track, filename, img, color, text):
     global offset
     with open(filename, 'rb') as f:
         data = pickle.load(f)
@@ -22,7 +22,7 @@ def plotTraj(track, filename, img, color, text):
     x = data[:, 1]
     y = data[:, 2]
     points = np.vstack([x, y]).T
-    track.drawPolyline(points, img, lineColor=color, thickness=2)
+    track.draw_polyline(points, img, lineColor=color, thickness=2)
     return img
 
     # font
@@ -164,10 +164,10 @@ for index in [4]:
     mppi_logno = int(mppi[index_mppi, 7])
 
     filename = '../log/kinematics_results/full_state'+str(ccmppi_logno)+'.p'
-    img1 = plotTraj(track, filename, track_img.copy(), (0, 0, 255), 'CCMPPI')
+    img1 = plot_traj(track, filename, track_img.copy(), (0, 0, 255), 'CCMPPI')
 
     filename = '../log/kinematics_results/full_state'+str(mppi_logno)+'.p'
-    img2 = plotTraj(track, filename, track_img.copy(), (0, 255, 0), 'MPPI')
+    img2 = plot_traj(track, filename, track_img.copy(), (0, 255, 0), 'MPPI')
 
     img = (img1/2 + img2/2)
     img = np.array(img, dtype=np.uint8)

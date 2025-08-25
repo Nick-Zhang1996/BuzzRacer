@@ -37,12 +37,12 @@ class Skidpad(Track):
         self.start_dir = np.pi/2
         return
 
-    def drawRaceline(self, img):
+    def draw_raceline(self, img):
         return img
 
     # state: x,y,theta,vf,vs,omega
     # x,y referenced from skidpad frame
-    def localTrajectory(self, state, ccw=True):
+    def local_trajectory(self, state, ccw=True):
         x = state[0]
         y = state[1]
         heading = state[2]
@@ -80,7 +80,7 @@ class Skidpad(Track):
         return (raceline_point, offset, raceline_orientation, signed_curvature, self.velocity)
 
     # prepare a picture of the track
-    def drawTrack(self):
+    def draw_track(self):
         # resolution : pixels per meter
         res = self.resolution
         canvas = 255*np.ones([int(res*self.radius*3),
@@ -104,7 +104,7 @@ class Skidpad(Track):
         else:
             return (x_new, y_new)
 
-    def preciseTrackBoundary(self, coord, heading):
+    def precise_track_boundary(self, coord, heading):
         r = (coord[0]**2 + coord[1]**2)**0.5
         phase = np.arctan2(coord[1], coord[0])
         rel_heading = heading - phase
@@ -136,8 +136,8 @@ if __name__ == "__main__":
     state = (x,y,theta,vf,vs,omega)
 
     # visualize raceline
-    img_track = sp.drawTrack()
-    img_track_car = sp.drawCar(img_track.copy(),state,radians(20))
+    img_track = sp.draw_track()
+    img_track_car = sp.draw_car(img_track.copy(),state,radians(20))
     img_track_car = cv2.cvtColor(img_track_car, cv2.COLOR_BGR2RGB)
     plt.imshow(img_track_car)
     plt.show()
@@ -145,9 +145,9 @@ if __name__ == "__main__":
     cv2.imshow('car',img_track_car)
 
     for i in range(200):
-        throttle, steering, valid,debug = car.ctrlCar(state,sp)
-        state = car.updateCar(state,throttle,steering,sim_dt)
-        img_track_car = sp.drawCar(img_track.copy(),state,steering)
+        throttle, steering, valid,debug = car.ctrl_car(state,sp)
+        state = car.update_car(state,throttle,steering,sim_dt)
+        img_track_car = sp.draw_car(img_track.copy(),state,steering)
         print(state[3])
         cv2.imshow('car',img_track_car)
         k = cv2.waitKey(50) & 0xFF

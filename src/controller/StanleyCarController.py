@@ -67,13 +67,13 @@ class StanleyCarController(CarController):
         if (self.planner is not None):
             retval = self.planner.plan()
             if (retval):
-                self.planner.plotAllSolutions()
+                self.planner.plot_all_solutions()
                 self.no_planner_override = False
             else:
                 self.no_planner_override = True
                 self.print_info('planner failed, override')
 
-        throttle, steering, valid, debug_dict = self.ctrlCar(
+        throttle, steering, valid, debug_dict = self.ctrl_car(
             self.car.states, self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
@@ -83,7 +83,7 @@ class StanleyCarController(CarController):
             self.car.steering = steering
         else:
             self.print_warning(
-                ' car %d invalid results from ctrlCar', self.car.id)
+                ' car %d invalid results from ctrl_car', self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
         # self.predict()
@@ -105,7 +105,7 @@ class StanleyCarController(CarController):
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
-    def ctrlCar(self, state, track, v_override=None, reverse=False):
+    def ctrl_car(self, state, track, v_override=None, reverse=False):
         coord = (state[0], state[1])
 
         heading = state[2]
@@ -123,14 +123,14 @@ class StanleyCarController(CarController):
 
         # inquire information about desired trajectory close to the vehicle
         if self.planner is None or self.no_planner_override:
-            retval = track.localTrajectory(state)
+            retval = track.local_trajectory(state)
         else:
-            retval = self.planner.localTrajectory(state)
+            retval = self.planner.local_trajectory(state)
         if retval is None:
             return (0, 0, False, {'offset': 0})
             # return ret
 
-        # parse return value from localTrajectory
+        # parse return value from local_trajectory
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
         # for experiments
         # v_target = min(v_target*0.8, 2.2)
@@ -160,9 +160,9 @@ class StanleyCarController(CarController):
             elif (steering < -self.car.max_steering_right):
                 steering = -self.car.max_steering_right
             if (v_override is None):
-                throttle = self.calcThrottle(state, v_target)
+                throttle = self.calc_throttle(state, v_target)
             else:
-                throttle = self.calcThrottle(state, v_override)
+                throttle = self.calc_throttle(state, v_override)
 
             # ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
             ret = (throttle, steering, True, {})
@@ -170,7 +170,7 @@ class StanleyCarController(CarController):
         return ret
 
     # get ss throttle, given ss velocity, linearfit
-    def steadyStateThrottle(self, velocity_ss):
+    def steady_state_throttle(self, velocity_ss):
         # 0.25 -> 0.94
         # 0.28 -> 1.4
         # 0.31 -> 1.9
@@ -181,13 +181,13 @@ class StanleyCarController(CarController):
             return 0
 
     # PID controller for forward velocity
-    def calcThrottle(self, state, v_target):
+    def calc_throttle(self, state, v_target):
         vf = state[3]
         # forgot how we got this
         # throttle = (acc_target + 1.01294228)/4.95445214
 
         # PID control for throttle
         throttle = self.throttle_pid.control(
-            v_target, vf) + self.steadyStateThrottle(v_target)
+            v_target, vf) + self.steady_state_throttle(v_target)
 
         return max(min(throttle, self.car.max_throttle), -1)

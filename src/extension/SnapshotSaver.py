@@ -10,8 +10,8 @@ class SnapshotSaver(Extension):
         self.recording = Event()
 
     def post_init(self):
-        self.background = self.main.track.drawTrack()
-        self.background = self.main.track.drawRaceline(img=self.background)
+        self.background = self.main.track.draw_track()
+        self.background = self.main.track.draw_raceline(img=self.background)
 
         self.img = None
         self.timestep = 0
@@ -20,7 +20,7 @@ class SnapshotSaver(Extension):
 
     # this will be called when user press 's'
     # first time this will start snapshot, second time will stop
-    def takeSnapshot(self):
+    def take_snapshot(self):
         if (self.recording.is_set()):
             self.recording.clear()
             self.print_info('snapshot stopping')
@@ -37,7 +37,7 @@ class SnapshotSaver(Extension):
             else:
                 img = self.img
             for car in self.main.cars:
-                img = self.main.visualization.drawCar(img, car)
+                img = self.main.visualization.draw_car(img, car)
             self.print_info('snapshot taken frame %d' % (self.timestep))
             self.img = img
 

@@ -46,23 +46,23 @@ class Simulator(Extension, PrintObject):
             assert (self.state_noise_magnitude is not None)
             self.state_noise_magnitude = np.array(self.state_noise_magnitude)
             if (self.state_noise_type == 'normal'):
-                self.addStateNoise = self.addStateNoiseNormal
+                self.addStateNoise = self.add_state_noise_normal
             elif (self.state_noise_type == 'uniform'):
-                self.addStateNoise = self.addStateNoiseUniform
+                self.addStateNoise = self.add_state_noise_uniform
             elif (self.state_noise_type == 'impulse'):
                 assert (self.state_noise_probability is not None)
-                self.addStateNoise = self.addStateNoiseImpulse
+                self.addStateNoise = self.add_state_noise_impulse
             else:
                 self.print_error('unknown noise type ', self.state_noise_type)
 
-    def addCar(self, car):
+    def add_car(self, car):
         """register a car to use this simulation."""
         # x,y,heading,v_forward,v_sideways,omega = car.states
         print_error('unimplemented')
         return
 
     @staticmethod
-    def advanceDynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car):
         """advance dynamics by self.dt.
 
         [car_states] states of the car, (x,y,heading,v_forward,v_sideway,omega)
@@ -76,15 +76,15 @@ class Simulator(Extension, PrintObject):
 
     def update(self):
         for car in self.cars:
-            car.states = self.advanceDynamics(
+            car.states = self.advance_dynamics(
                 car.states, (car.steering, car.throttle), car)
         if (self.state_noise_enabled):
             self.addStateNoise()
         self.main.new_state_update.set()
         self.sim_t += self.main.dt
-        self.matchRealTime()
+        self.match_real_time()
 
-    def matchRealTime(self):
+    def match_real_time(self):
         """sleep to match simulation time to clock time only works when then
         entire simulation loop runs faster than realtime."""
         if (not self.match_time):
@@ -100,17 +100,17 @@ class Simulator(Extension, PrintObject):
 
         sleep(max(0, time_to_reach - time()))
 
-    def addStateNoiseNormal(self):
+    def add_state_noise_normal(self):
         for car in self.cars:
             car.states += np.random.normal(size=car.states.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
-    def addStateNoiseUniform(self):
+    def add_state_noise_uniform(self):
         for car in self.cars:
             car.states += np.random.uniform(low=-1.0, high=1.0, size=car.states.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
-    def addStateNoiseImpulse(self):
+    def add_state_noise_impulse(self):
         for car in self.cars:
             val = np.random.uniform()
             if val < self.state_noise_probability:

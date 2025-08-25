@@ -12,7 +12,7 @@ thisdir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(thisdir))
 
 
-def loadLog(filename=None):
+def load_log(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):
             print_error('Specify a log to load')
@@ -26,7 +26,7 @@ def loadLog(filename=None):
     return log
 
 
-def prepLog(log, skip=1):
+def prep_log(log, skip=1):
     # time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle
     t = log[skip:, 0]
     t = t-t[0]
@@ -48,9 +48,9 @@ def prepLog(log, skip=1):
 # ax = f( Vx, throttle, steering)
 
 
-def plotAcc(filename):
-    rawlog = loadLog(filename)
-    log = prepLog(rawlog, skip=1)
+def plot_acc(filename):
+    rawlog = load_log(filename)
+    log = prep_log(rawlog, skip=1)
     dt = 0.01
     throttle = log.throttle
     ax = np.hstack([0, np.diff(log.v_forward)])/dt
@@ -70,9 +70,9 @@ def plotAcc(filename):
     plt.plot(throttle, ax, '*')
 
 
-def plotAcc2(filename):
-    rawlog = loadLog(filename)
-    log = prepLog(rawlog, skip=1)
+def plot_acc2(filename):
+    rawlog = load_log(filename)
+    log = prep_log(rawlog, skip=1)
     dt = 0.01
     throttle = log.throttle
     v = log.v_forward
@@ -171,6 +171,6 @@ if __name__ == '__main__':
     # filename = "../../log/jan12/full_state1.p"
     # filename = '../../log/2022_2_9_exp/full_state4.p'
     filename = '../../log/2022_3_2_exp/full_state2.p'
-    plotAcc2(filename)
+    plot_acc2(filename)
     plt.legend()
     plt.show()

@@ -19,12 +19,12 @@ class TF:
         return q
 
     def q2euler(self, q):
-        R = self.q2R(q)
+        R = self.q2_r(q)
         roll, pitch, yaw = self.R2euler(R)
         return (roll, pitch, yaw)
 
     # given unit quaternion, find corresponding rotation matrix (passive)
-    def q2R(self, q):
+    def q2_r(self, q):
         # assert(isclose(np.linalg.norm(q),1,atol=0.001))
         Rq = [[q[0]**2+q[1]**2-q[2]**2-q[3]**2, 2*q[1]*q[2]+2*q[0]*q[3], 2*q[1]*q[3]-2*q[0]*q[2]],
               [2*q[1]*q[2]-2*q[0]*q[3],  q[0]**2-q[1]**2+q[2]
@@ -36,7 +36,7 @@ class TF:
     # given euler angles, find corresponding rotation matrix (passive)
     # roll, pitch, yaw, (in reverse sequence, yaw is applied first, then pitch applied to intermediate frame)
     # all in radians
-    def euler2R(self, roll, pitch, yaw):
+    def euler2_r(self, roll, pitch, yaw):
         '''
         R = [[ c2*c3, c2*s3, -s2],
         ...  [s1*s2*s3-c1*s3, s1*s2*s3+c1*c3, c2*s1],
@@ -50,9 +50,9 @@ class TF:
         R = np.matrix(R)
         return R
 
-    # same as euler2R, rotation order is different, roll, pitch, yaw, in that order
+    # same as euler2_r, rotation order is different, roll, pitch, yaw, in that order
     # degree in radians
-    def euler2Rxyz(self, roll, pitch, yaw):
+    def euler2_rxyz(self, roll, pitch, yaw):
         '''
         Rx = [[1,0,0],[0,c1,s1],[0,-s1,c1]]
         Ry = [[c1,0,-s1],[0,1,0],[s1,0,c1]]
@@ -85,8 +85,8 @@ class TF:
         OB = np.matrix(B[-3:]).T
         OT = np.matrix(T[-3:]).T
         TB = OB - OT
-        T_R_W = self.q2R(T[:4])
-        B_R_W = self.q2R(B[:4])
+        T_R_W = self.q2_r(T[:4])
+        B_R_W = self.q2_r(B[:4])
 
         # coord of B origin in T, in T basis
         TB_T = T_R_W * TB
@@ -98,12 +98,12 @@ class TF:
         return (TB_T[0, 0], TB_T[1, 0], yaw+pi/2)
 # reframe, using translation and R(passive)
 
-    def reframeR(self, T, x, y, z, R):
+    def reframe_r(self, T, x, y, z, R):
         # TB = OB - OT
         OB = np.matrix([x, y, z]).T
         OT = np.matrix(T[-3:]).T
         TB = OB - OT
-        T_R_W = self.q2R(T[:4])
+        T_R_W = self.q2_r(T[:4])
         B_R_W = R
 
         # coord of B origin in T, in T basis

@@ -53,15 +53,15 @@ class MppiCarController(CarController):
         self.last_control = np.zeros(2, dtype=np.float32)
         self.freq_vec = []
 
-        self.track.prepareDiscretizedRaceline()
-        self.track.createBoundary()
+        self.track.prepare_discretized_raceline()
+        self.track.create_boundary()
         self.discretized_raceline = self.track.discretized_raceline
         self.raceline_left_boundary = self.track.raceline_left_boundary
         self.raceline_right_boundary = self.track.raceline_right_boundary
 
-        self.initCuda()
+        self.init_cuda()
 
-    def initCuda(self):
+    def init_cuda(self):
         self.curand_kernel_n = 1024
 
         # prepare constants
@@ -76,20 +76,20 @@ class MppiCarController(CarController):
         }
         cuda_code_macros.update({'CURAND_KERNEL_N': self.curand_kernel_n})
         cuda_filename = './controller/mppi/mppi_racecar.cu'
-        self.loadCudaFile(cuda_filename, cuda_code_macros)
-        self.setBlockGrid()
+        self.load_cuda_file(cuda_filename, cuda_code_macros)
+        self.set_block_grid()
 
-        self.cuda_init_curand_kernel = self.getFunctionSafe(
+        self.cuda_init_curand_kernel = self.get_function_safe(
             'init_curand_kernel')
-        self.cuda_generate_control_noise = self.getFunctionSafe(
+        self.cuda_generate_control_noise = self.get_function_safe(
             'generate_control_noise')
-        self.cuda_evaluate_control_sequence = self.getFunctionSafe(
+        self.cuda_evaluate_control_sequence = self.get_function_safe(
             'evaluate_control_sequence')
-        self.cuda_set_control_limit = self.getFunctionSafe('set_control_limit')
-        self.cuda_set_noise_cov = self.getFunctionSafe('set_noise_cov')
-        self.cuda_set_noise_mean = self.getFunctionSafe('set_noise_mean')
-        self.cuda_set_raceline = self.getFunctionSafe('set_raceline')
-        self.initCurand()
+        self.cuda_set_control_limit = self.get_function_safe('set_control_limit')
+        self.cuda_set_noise_cov = self.get_function_safe('set_noise_cov')
+        self.cuda_set_noise_mean = self.get_function_safe('set_noise_mean')
+        self.cuda_set_raceline = self.get_function_safe('set_raceline')
+        self.init_curand()
 
         # TODO:
         # set control limit
@@ -111,20 +111,20 @@ class MppiCarController(CarController):
 
         sleep(1)
 
-    def initCurand(self):
+    def init_curand(self):
         seed = np.int32(int(time()*10000))
         self.cuda_init_curand_kernel(seed, block=(
             self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
         # self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
         # self.device_rand_vals = drv.to_device(self.rand_vals)
 
-    def loadCudaFile(self, cuda_filename, macros):
+    def load_cuda_file(self, cuda_filename, macros):
         self.print_info('loading cuda source code ...')
         with open(cuda_filename, 'r') as f:
             code = f.read()
         self.mod = SourceModule(code % macros, no_extern_c=True)
 
-    def setBlockGrid(self):
+    def set_block_grid(self):
         if (self.samples_count < 1024):
             # if sample count is small only employ one grid
             self.cuda_block_size = (self.samples_count, 1, 1)
@@ -137,14 +137,14 @@ class MppiCarController(CarController):
                         (self.cuda_block_size[0], self.cuda_grid_size[0]))
         return
 
-    def getFunctionSafe(self, name):
+    def get_function_safe(self, name):
         fun = self.mod.get_function(name)
         self.print_info('registers used, ', name, '= %d' % (fun.num_regs))
         assert fun.num_regs < 64
         assert int(fun.num_regs * self.cuda_block_size[0]) <= 65536
         return fun
 
-    def getOpponentStatus(self):
+    def get_opponent_status(self):
         opponent_count = 0
         opponent_traj = []
         for car in self.main.cars:
@@ -184,7 +184,7 @@ class MppiCarController(CarController):
         # self.print_info("cov0 %.2f, cov1 %.2f"%(cov0,cov1))
 
         # prepare opponent info
-        opponent_count, opponent_traj = self.getOpponentStatus()
+        opponent_count, opponent_traj = self.get_opponent_status()
         opponent_count = np.int32(opponent_count)
         if (opponent_count == 0):
             device_opponent_traj = np.uint64(0)
@@ -218,16 +218,16 @@ class MppiCarController(CarController):
         # retrieve cost
         sampled_control_rate = sampled_control_rate.reshape(
             self.samples_count, self.horizon, self.m)
-        control_rate = self.synthesizeControl(costs, sampled_control_rate)
+        control_rate = self.synthesize_control(costs, sampled_control_rate)
         # self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
         control = self.last_control + np.cumsum(control_rate, axis=0)*self.dt
         # display expected trajectory
         # 5Hz impact
         '''
-        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
+        expected_trajectory = self.get_dynamic_trajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
-        self.plotTrajectory(expected_trajectory)
+        self.plot_trajectory(expected_trajectory)
         '''
 
         # self.last_ref_control = control.copy()
@@ -245,7 +245,7 @@ class MppiCarController(CarController):
         '''
         display_trajectory = sampled_trajectory[:,:,0:2]
         for i in range(display_trajectory.shape[0]):
-            self.plotTrajectory(display_trajectory[i])
+            self.plot_trajectory(display_trajectory[i])
         self.print_info("steering std %.2f deg"%(180.0/np.pi*np.std(sampled_control[:,:,1])))
         '''
 
@@ -254,23 +254,23 @@ class MppiCarController(CarController):
         x0 = self.car.states
         index = 50
         cpu_control = sampled_control[index,:,:]
-        cpu_trajectory = self.getTrajectory(x0, cpu_control)
+        cpu_trajectory = self.get_trajectory(x0, cpu_control)
         gpu_trajectory = sampled_trajectory[index,:]
         self.print_info("diff = %.2f"%(np.linalg.norm(cpu_trajectory-gpu_trajectory)))
         '''
         return True
 
     '''
-    def getTrajectory(self, x0, control):
+    def get_trajectory(self, x0, control):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = self.advanceDynamics( state, control[i] )
+            state = self.advance_dynamics( state, control[i] )
             trajectory.append(state)
         return np.array(trajectory)
 
     # old dynamics
-    def advanceDynamics(self, state, control, dt=0.01):
+    def advance_dynamics(self, state, control, dt=0.01):
         # constants
         lf = 0.09-0.036
         lr = 0.036
@@ -340,18 +340,18 @@ class MppiCarController(CarController):
         return retval
 
     # TODO maybe move to Visualization
-    def plotTrajectory(self,trajectory):
+    def plot_trajectory(self,trajectory):
         if (not self.car.main.visualization.update_visualization.is_set()):
             return
         img = self.car.main.visualization.visualization_img
         for coord in trajectory:
-            img = self.car.main.track.drawCircle(img,coord, 0.02, color=(0,0,0))
+            img = self.car.main.track.draw_circle(img,coord, 0.02, color=(0,0,0))
         self.car.main.visualization.visualization_img = img
         return
     '''
 
     # select min cost control
-    def synthesizeControlMin(self, cost_vec, sampled_control):
+    def synthesize_control_min(self, cost_vec, sampled_control):
         min_index = np.argmin(cost_vec)
         return sampled_control[min_index]
 
@@ -359,7 +359,7 @@ class MppiCarController(CarController):
     # control_vec: samples * horizon * m
     # cost_vec: samples
 
-    def synthesizeControl(self, cost_vec, sampled_control_rate):
+    def synthesize_control(self, cost_vec, sampled_control_rate):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
         cost_mean = np.mean(cost_vec-beta)

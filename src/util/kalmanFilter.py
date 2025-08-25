@@ -186,5 +186,5 @@ class KalmanFilter():
 
         return
 
-    def getState(self):
+    def get_state(self):
         return (self.X[0, 0], self.X[1, 0], self.X[2, 0], self.X[3, 0], self.X[4, 0])

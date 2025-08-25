@@ -121,11 +121,11 @@ class Main(PrintObject, LogObject):
                     self.print_info('main.' + handle_name + '.' + key + ' = ' +
                                     str(value))
         # Some modules depend on other modules to initialize
-        # Use preInit, init, and postInit for crude separation
+        # Use pre_init, init, and post_init for crude separation
         for item in self.extensions:
-            item.preInit()
+            item.pre_init()
         for car in self.cars:
-            car.preInit()
+            car.pre_init()
 
         for item in self.extensions:
             item.init()
@@ -133,9 +133,9 @@ class Main(PrintObject, LogObject):
             car.init()
 
         for item in self.extensions:
-            item.postInit()
+            item.post_init()
         for car in self.cars:
-            car.postInit()
+            car.post_init()
 
     def run(self):
         """Run experiment until user press q in visualization window."""
@@ -179,7 +179,7 @@ class Main(PrintObject, LogObject):
         t.s()
         for item in self.extensions:
             t.s(item.name)
-            item.preUpdate()
+            item.pre_update()
             t.e(item.name)
 
         self.new_state_update.wait()

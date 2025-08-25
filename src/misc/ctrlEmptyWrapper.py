@@ -7,5 +7,5 @@ class ctrlEmptyWrapper(Car):
     def init(self, track):
         return
 
-    def ctrlCar(self, states, track, v_override=None, reverse=False):
+    def ctrl_car(self, states, track, v_override=None, reverse=False):
         return (0, 0)

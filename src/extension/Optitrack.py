@@ -26,16 +26,16 @@ class Optitrack(Extension, PrintObject):
         self.vi = _Optitrack(self)
         self.main.vi = self.vi
         for car in self.main.cars:
-            car.internal_id = self.vi.getInternalId(car.optitrack_id)
+            car.internal_id = self.vi.get_internal_id(car.optitrack_id)
             self.print_ok(' Optitrack ID: %d, Internal ID: %d' %
                           (car.optitrack_id, car.internal_id))
 
-    def updateCarStates(self):
+    def update_car_states(self):
         for car in self.main.cars:
             # update for eachj car
             # not using kf state for now
-            (x, y, v, theta, omega) = self.vi.getKFstate(car.internal_id)
-            # (x,y,theta) = self.vi.getState2d(self.car.internal_id)
+            (x, y, v, theta, omega) = self.vi.get_k_fstate(car.internal_id)
+            # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
             car.states = (x, y, theta, v, 0, omega)
         self.main.new_state_update.set()
@@ -46,25 +46,25 @@ class Optitrack(Extension, PrintObject):
 
 # ---- Optitrack ---- old
 
-    def initOptitrack(self, car, unused=None):
+    def init_optitrack(self, car, unused=None):
         self.print_info('Initializing Optitrack...')
         car.vi = Optitrack(wheelbase=car.wheelbase)
         # TODO use acutal optitrack id for car
         # porsche: 2
-        car.internal_id = car.vi.getInternalId(car.optitrack_id)
+        car.internal_id = car.vi.get_internal_id(car.optitrack_id)
         car.new_state_update = car.vi.newState
 
-    def updateOptitrack(self, car):
+    def update_optitrack(self, car):
         # update for eachj car
         # not using kf state for now
-        (x, y, v, theta, omega) = car.vi.getKFstate(car.internal_id)
+        (x, y, v, theta, omega) = car.vi.get_k_fstate(car.internal_id)
 
-        # (x,y,theta) = self.vi.getState2d(self.car.internal_id)
+        # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
         # (x,y,theta,vforward,vsideway=0,omega)
         car.states = (x, y, theta, v, 0, omega)
         return
 
-    def stopOptitrack(self, car):
+    def stop_optitrack(self, car):
         # the optitrack destructor should handle things properly
         car.vi.quit()
         pass
@@ -75,7 +75,7 @@ class _Optitrack(PrintObject):
         self.base = base
         self.newState = Event()
         self.enableKF = Event()
-        self.callback = self.emptyCallback
+        self.callback = self.empty_callback
         if enableKF:
             self.action = (0, 0)
             self.kf = []
@@ -115,27 +115,27 @@ class _Optitrack(PrintObject):
         if self.enableKF.isSet():
             # set callback for rigid body state update, this will create a new KF instance for each object
             # and set up self.optitrack_id_lookup table
-            self.streamingClient.rigidBodyListener = self.receiveRigidBodyFrameInit
+            self.streamingClient.rigidBodyListener = self.receive_rigid_body_frame_init
             # wait for all objects to be detected
             sleep(0.1)
             # switch to regular callback now that everything is initialized
-            self.streamingClient.rigidBodyListener = self.receiveRigidBodyFrame
+            self.streamingClient.rigidBodyListener = self.receive_rigid_body_frame
 
     def __del__(self):
-        self.streamingClient.requestQuit()
+        self.streamingClient.request_quit()
 
-    def emptyCallback(self, *args):
+    def empty_callback(self, *args):
         pass
 
     def quit(self):
-        self.streamingClient.requestQuit()
+        self.streamingClient.request_quit()
 
     # there are two sets of id
     # Optitrack ID: like object name in vicon, each object has a unique ID that can be any integer value
     # internal ID within this class, like object id in vicon, each object has a unique id, id will be assigned starting from zero
     # for example, the Optitrack ID for two objects may be 7,9, while their corresponding internal ID will be 0,1
     # this is to facilitate easier indexing
-    def getOptitrackId(self, internal_id):
+    def get_optitrack_id(self, internal_id):
         # hard code since we only have a handful of models
         try:
             return self.optitrack_id_lookup[internal_id]
@@ -144,7 +144,7 @@ class _Optitrack(PrintObject):
             return None
 
     # find internal id from optitrack id
-    def getInternalId(self, optitrack_id):
+    def get_internal_id(self, optitrack_id):
         try:
             return self.optitrack_id_lookup.index(optitrack_id)
         except ValueError:
@@ -152,10 +152,10 @@ class _Optitrack(PrintObject):
             return None
 
     # optitrack callback for item discovery
-    # this differs from receiveRigidBodyFrame in that
+    # this differs from receive_rigid_body_frame in that
     # 1. does not include kalman filter update
     # 2. if an unseen id is found, it will be added to id list and an KF instance will be created for it
-    def receiveRigidBodyFrameInit(self, optitrack_id, position, rotation):
+    def receive_rigid_body_frame_init(self, optitrack_id, position, rotation):
         if not (optitrack_id in self.optitrack_id_lookup):
             self.obj_count += 1
             self.optitrack_id_lookup.append(optitrack_id)
@@ -195,9 +195,9 @@ class _Optitrack(PrintObject):
             self.state_lock.release()
 
     # regular callback for state update
-    def receiveRigidBodyFrame(self, optitrack_id, position, rotation):
+    def receive_rigid_body_frame(self, optitrack_id, position, rotation):
         # print( "Received frame for rigid body", id )
-        internal_id = self.getInternalId(optitrack_id)
+        internal_id = self.get_internal_id(optitrack_id)
         x, y, z = position
         qx, qy, qz, qw = rotation
         r = Rotation.from_quat([qx, qy, qz, qw])
@@ -223,16 +223,16 @@ class _Optitrack(PrintObject):
         self.state2d_list[internal_id] = (x_local, y_local, theta_local)
 
         if self.enableKF.isSet():
-            # kf.getState() := (x,y,v,theta,omega)
-            self.kf_state_list[internal_id] = self.kf[internal_id].getState()
+            # kf.get_state() := (x,y,v,theta,omega)
+            self.kf_state_list[internal_id] = self.kf[internal_id].get_state()
         self.state_lock.release()
         if not self.base is None:
-            self.base.updateCarStates()
+            self.base.update_car_states()
         self.newState.set()
         # print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         # print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
         # print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))
-        # (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.getKFstate(i)
+        # (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.get_k_fstate(i)
         # print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         # print("\n")
         self.callback(optitrack_id, position, rotation)
@@ -240,7 +240,7 @@ class _Optitrack(PrintObject):
 
     # get state by internal id
 
-    def getState(self, internal_id):
+    def get_state(self, internal_id):
         if internal_id >= self.obj_count:
             self.print_error("can't find internal id %d" % (internal_id))
             return None
@@ -249,7 +249,7 @@ class _Optitrack(PrintObject):
         self.state_lock.release()
         return retval
 
-    def getState2d(self, internal_id):
+    def get_state2d(self, internal_id):
         if internal_id >= self.obj_count:
             self.print_error("can't find internal id %d" % (internal_id))
             return None
@@ -268,15 +268,15 @@ class _Optitrack(PrintObject):
         return retval
 
     # get KF state by internal id
-    def getKFstate(self, internal_id):
+    def get_k_fstate(self, internal_id):
         self.kf[internal_id].predict(self.action)
         # (x,y,v,theta,omega)
-        return self.kf[internal_id].getState()
+        return self.kf[internal_id].get_state()
 
     # update action used in KF prediction
     # this should be called right after a new command is sent to the vehicles
     # action = (steering in rad left positive, longitudinal acc (m/s2))
-    def updateAction(self, action):
+    def update_action(self, action):
         self.action = action
         return
 
@@ -287,11 +287,11 @@ if __name__ == '__main__':
     print('obj count = %d' % (op.obj_count))
     while True:
         for i in range(op.obj_count):
-            op_id = op.getOptitrackId(i)
-            i = op.getInternalId(op_id)
-            x2d, y2d, theta2d = op.getState2d(i)
-            x, y, z, rx, ry, rz = op.getState(i)
-            (kf_x, kf_y, kf_v, kf_theta, kf_omega) = op.getKFstate(i)
+            op_id = op.get_optitrack_id(i)
+            i = op.get_internal_id(op_id)
+            x2d, y2d, theta2d = op.get_state2d(i)
+            x, y, z, rx, ry, rz = op.get_state(i)
+            (kf_x, kf_y, kf_v, kf_theta, kf_omega) = op.get_k_fstate(i)
             print('Internal ID: %d \n Optitrack ID: %d' % (i, op_id))
             print('World coordinate: %0.2f,%0.2f,%0.2f' % (x, y, z))
             print('2d state: %0.2f,%0.2f, heading= %0.2f' %

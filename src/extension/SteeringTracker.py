@@ -13,12 +13,12 @@ class SteeringTracker(Extension):
 
     def init(self):
         self.vi = self.main.vi
-        self.vi.streamingClient.labeledMarkerListener = self.labeledMarkerListener
+        self.vi.streamingClient.labeled_marker_listener = self.labeled_marker_listener
         self.measured_steering = 0.0
         self.steering_history = []
         self.main.cars[0].debug_dict['measured_steering'] = self.steering_history
 
-    def labeledMarkerListener(self, pos_vec):
+    def labeled_marker_listener(self, pos_vec):
         # dim: -x,z,y
         self.pos_vec = np.array(pos_vec)
 

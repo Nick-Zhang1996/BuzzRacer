@@ -38,11 +38,11 @@ class Node:
         self.next = None
         return
 
-    def setExit(self, exit=None):
+    def set_exit(self, exit=None):
         self.exit = exit
         return
 
-    def setEntry(self, entry=None):
+    def set_entry(self, entry=None):
         self.entry = entry
         return
 
@@ -52,7 +52,7 @@ class RCPTrack(Track):
         Track.__init__(self, main, config)
         self.t = ExecutionTimer(True)
         # resolution : pixels per grid side length
-        self.setResolution(200)
+        self.set_resolution(200)
         # for calculating derivative and integral of offset
         # for PID to use
         self.offset_history = []
@@ -62,10 +62,10 @@ class RCPTrack(Track):
         # Moved to Car.py and Visualization.py
         # self.car = cv2.imread('data/image.png',-1)
 
-        # when localTrajectory is called multiple times, we need an initial guess for the parameter for raceline
+        # when local_trajectory is called multiple times, we need an initial guess for the parameter for raceline
         self.last_u = None
 
-    def initTrack(self, description, gridsize, scale, savepath=None):
+    def init_track(self, description, gridsize, scale, savepath=None):
         # build a track and save it
         # description: direction to go to reach next grid u(p), r(ight),d(own), l(eft)
         # e.g For a track like this
@@ -97,7 +97,7 @@ class RCPTrack(Track):
             0, -1), 'r': (1, 0), 'l': (-1, 0)}
 
         for i in range(len(description)):
-            current_node.setExit(description[i])
+            current_node.set_exit(description[i])
 
             previous_node = current_node
             if description[i] in lookup_table_dir:
@@ -107,7 +107,7 @@ class RCPTrack(Track):
                 print('error, unexpected value in description')
                 exit(1)
             if all(current_index == [0, 0]):
-                grid[0][0].setEntry(description[i])
+                grid[0][0].set_entry(description[i])
                 # if not met, description does not lead back to origin
                 assert i == len(description)-1
                 break
@@ -120,7 +120,7 @@ class RCPTrack(Track):
                                 entrydir=description[i])
             grid[current_index[0]][current_index[1]] = current_node
 
-        # grid[0][0].setEntry(description[-1])
+        # grid[0][0].set_entry(description[-1])
 
         # process the linked list, replace with the following
         # straight segment = WE(EW), NS(SN)
@@ -145,7 +145,7 @@ class RCPTrack(Track):
         self.track = grid
         return
 
-    def drawTrack(self, img=None, show=False):
+    def draw_track(self, img=None, show=False):
         # show a picture of the track
         # resolution : pixels per peter
         # scale: side length of a grid (meter)
@@ -223,7 +223,7 @@ class RCPTrack(Track):
     # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of the starting grid,
     # both 0 and len(self.ctrl_pts) pointing to the entry ctrl point for the starting grid
     # and gives a pair of coordinates in METER
-    def initRaceline(self, start, start_direction, offset=None, filename=None):
+    def init_raceline(self, start, start_direction, offset=None, filename=None):
         # init a raceline from current track, save if specified
         # start: which grid to start from, e.g. (3,3)
         # start_direction: which direction to go.
@@ -337,12 +337,12 @@ class RCPTrack(Track):
         # tck, u = splprep(pts.T, u=None, s=0.0, per=1)
         self.u = u
         self.raceline = tck
-        retval = self.generateSpeedProfile()
+        retval = self.generate_speed_profile()
         self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
         self.max_v = retval['max_v']
         self.min_v = retval['min_v']
 
-    def generateSpeedProfile(self, *, mu=0.7, acc_max_fun=lambda x: 1.5, dec_max_fun=lambda x: 1.5, n_steps=1000, show=False):
+    def generate_speed_profile(self, *, mu=0.7, acc_max_fun=lambda x: 1.5, dec_max_fun=lambda x: 1.5, n_steps=1000, show=False):
         """generate speed profile given traction constraints,
         braking/acceleration limit.
 
@@ -507,11 +507,11 @@ class RCPTrack(Track):
         self.y_limit = self.gridsize[0]*self.scale
 
         print_ok('track and raceline loaded')
-        self.reconstructRaceline()
+        self.reconstruct_raceline()
         return
 
     # calculate distance
-    def calcPathDistance(self, u0, u1):
+    def calc_path_distance(self, u0, u1):
         s = 0
         steps = 10
         uu = np.linspace(u0, u1, steps)
@@ -522,12 +522,12 @@ class RCPTrack(Track):
         return s
 
     # new representation of raceline via piecewise curvature map along path
-    def discretizePath(self, steps=1000):
+    def discretize_path(self, steps=1000):
         u = np.linspace(0, self.u[-1], steps)
         # s[k]: path distance from k to k+1
         s = np.zeros_like(u)
         for i in range(1, steps):
-            s[i] = self.calcPathDistance(u[i-1], u[i])
+            s[i] = self.calc_path_distance(u[i-1], u[i])
         S = np.cumsum(s)
         print('discretized path total length is: %.2f' % S[-1])
 
@@ -565,7 +565,7 @@ class RCPTrack(Track):
         plt.show()
         '''
 
-    def getOrcaStyleTrack(self):
+    def get_orca_style_track(self):
         # ORCA compatible representation
         N = self.discretized_raceline_len = 1024
         s = self.s_vec = s_vec = np.linspace(
@@ -577,11 +577,11 @@ class RCPTrack(Track):
         Y = self.r[:, 1].flatten()
 
         diff_s = s_vec[1]-s_vec[0]
-        dr, ddr = self.calcDerivative(ref_path, ds=diff_s)
+        dr, ddr = self.calc_derivative(ref_path, ds=diff_s)
         self.dr = dr
         self.ddr = ddr
         # TODO verify sign
-        kappa = self.calcCurvature(dr, ddr)
+        kappa = self.calc_curvature(dr, ddr)
 
         # raceline heading
         # dr = splev(s_vec%self.raceline_len_m,self.raceline_s,der=1)
@@ -593,7 +593,7 @@ class RCPTrack(Track):
         phi = phi[0] + np.hstack([0, np.cumsum(d_phi)]) + 2*np.pi
 
         # describe track boundary as offset from raceline
-        left_limit, right_limit = self.createBoundary(ref_path, phi)
+        left_limit, right_limit = self.create_boundary(ref_path, phi)
         # TODO: verify sign and upper/lower ordering
         d_upper = np.array(left_limit)
         d_lower = -np.array(right_limit)
@@ -608,7 +608,7 @@ class RCPTrack(Track):
         # self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
         return (N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower)
 
-    def calcDerivative(self, curve, ds):
+    def calc_derivative(self, curve, ds):
         # find first and second derivative
         dr = []
         ddr = []
@@ -618,7 +618,7 @@ class RCPTrack(Track):
             r = curve[i, :]
             rr = curve[i+1, :]
             points = [rl, r, rr]
-            ((al, a, ar), (bl, b, br)) = self.lagrangeDer(points, ds=[ds, ds])
+            ((al, a, ar), (bl, b, br)) = self.lagrange_der(points, ds=[ds, ds])
             dr.append(al*rl+a*r+ar*rr)
             ddr.append(bl*rl+b*r+br*rr)
         dr = np.array(dr)
@@ -628,7 +628,7 @@ class RCPTrack(Track):
         return (dr, ddr)
 
     # right turn negative curvature
-    def calcCurvature(self, dr_vec, ddr_vec):
+    def calc_curvature(self, dr_vec, ddr_vec):
         # ccw 90 deg
         A = np.array([[0, -1], [1, 0]])
         a = (A @ dr_vec.T).T
@@ -644,7 +644,7 @@ class RCPTrack(Track):
     # where f''@r = bl*rl + b*r + br*rr
     # ds, arc length between rl,r and r, rr
     # if not specified, |r-rl|_2 will be used as approximation
-    def lagrangeDer(self, points, ds=None):
+    def lagrange_der(self, points, ds=None):
         rl, r, rr = points
         def dist(x, y): return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
         if ds is None:
@@ -671,7 +671,7 @@ class RCPTrack(Track):
     # given coord=(x,y) unit:m
     # calculate distance to left/right boundary
     # return min(wl, wr), distance to closest side
-    def checkTrackBoundary(self, coord):
+    def check_track_boundary(self, coord):
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
@@ -717,7 +717,7 @@ class RCPTrack(Track):
 
     # given coordinate and heading, calculate precise boundary to left and right
     # return a vector (dist_to_left, dist_to_right)
-    def preciseTrackBoundary(self, coord, heading):
+    def precise_track_boundary(self, coord, heading):
         heading = (heading + np.pi) % (2*np.pi) - np.pi
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
@@ -774,7 +774,7 @@ class RCPTrack(Track):
             while (flag_in_limit):
                 left_point = (coord[0] + left * cos(heading+np.pi/2),
                               coord[1] + left * sin(heading+np.pi/2))
-                flag_in_limit = self.checkTrackBoundary(left_point) > 0
+                flag_in_limit = self.check_track_boundary(left_point) > 0
                 left += step_size
 
             # find right boundary
@@ -783,7 +783,7 @@ class RCPTrack(Track):
             while (flag_in_limit):
                 right_point = (coord[0] + right * cos(heading-np.pi/2),
                                coord[1] + right * sin(heading-np.pi/2))
-                flag_in_limit = self.checkTrackBoundary(right_point) > 0
+                flag_in_limit = self.check_track_boundary(right_point) > 0
                 right += step_size
 
             # convert metric unit to dimensionless unit
@@ -839,11 +839,11 @@ class RCPTrack(Track):
 
     # distance between start and end of path,
     # must be sufficiently close
-    def pathGap(self,):
+    def path_gap(self,):
         return
 
     # convert from K(s) space to cartesian X,Y(s) space using Fresnel integral
-    def kenselTransform(self, K, ds):
+    def kensel_transform(self, K, ds):
         steps = K.shape[0]
         s_total = ds*(steps-1)
         S = np.linspace(0, s_total, steps)
@@ -861,9 +861,9 @@ class RCPTrack(Track):
         return x, y
 
     # generate an array of boundary clearance
-    def boundaryClearanceVector(self, k):
-        x, y = self.kenselTransform(k, self.ds)
-        retval = [self.checkTrackBoundary((xx, yy)) for xx, yy in zip(x, y)]
+    def boundary_clearance_vector(self, k):
+        x, y = self.kensel_transform(k, self.ds)
+        retval = [self.check_track_boundary((xx, yy)) for xx, yy in zip(x, y)]
         # DEBUG
         '''
         for i in retval:
@@ -874,16 +874,16 @@ class RCPTrack(Track):
         return retval
 
     # draw point corresponding to u
-    def drawPointU(self, img, uu):
+    def draw_point_u(self, img, uu):
         rows = self.gridsize[0]
         x_new, y_new = splev(uu, self.raceline, der=0)
 
         for x, y in zip(x_new, y_new):
-            img = self.drawPoint(img, (x, y))
+            img = self.draw_point(img, (x, y))
         return img
 
     # draw the raceline from self.raceline
-    def drawRaceline(self, lineColor=(0, 0, 255), img=None, points=None):
+    def draw_raceline(self, lineColor=(0, 0, 255), img=None, points=None):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -911,9 +911,9 @@ class RCPTrack(Track):
         # render different color based on speed
         # slow - red, fast - green (BGR)
         def v2c(x): return int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        def getColor(v): return (0, v2c(v), 255-v2c(v))
+        def get_color(v): return (0, v2c(v), 255-v2c(v))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=getColor(
+            img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=get_color(
                 self.targetVfromU(u_new[i] % self.track_length_grid)), thickness=3)
 
         # plot reference points
@@ -930,7 +930,7 @@ class RCPTrack(Track):
 
         return img
 
-    def drawRacelineWithColor(self, lineColor=(0, 0, 255), img=None, thickness=3, s_to_color=lambda s: 0):
+    def draw_raceline_with_color(self, lineColor=(0, 0, 255), img=None, thickness=3, s_to_color=lambda s: 0):
         '''
         draw the raceline with specified color scheme
         s_to_color: lambda: s: color (0-1)
@@ -961,11 +961,11 @@ class RCPTrack(Track):
         pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
-        def getColor(s): return (0, int(s_to_color(s)*255),
+        def get_color(s): return (0, int(s_to_color(s)*255),
                                  int(255-255*s_to_color(s)))
         for i in range(len(u_new)-1):
             s = self.uToS(u_new[i] % self.track_length_grid)
-            color = getColor(s)
+            color = get_color(s)
             img = cv2.line(img, tuple(pts[i]), tuple(
                 pts[i+1]), color=color, thickness=thickness)
         return img
@@ -977,7 +977,7 @@ class RCPTrack(Track):
     # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
     # negative offset means coord is to the right of the raceline, viewing from raceline init direction
     # wheelbase is needed to calculate the local trajectory closes to the front axle instead of the old axle
-    def localTrajectory(self, state, wheelbase=90e-3, return_u=False):
+    def local_trajectory(self, state, wheelbase=90e-3, return_u=False):
         # figure out which grid the coord is in
         coord = np.array([state[0], state[1]])
         heading = state[2]
@@ -1131,7 +1131,7 @@ class RCPTrack(Track):
     # also create mapping between s -> v_ref
     # also create raceline_s, raceline parameterized with s
 
-    def reconstructRaceline(self):
+    def reconstruct_raceline(self):
         s_vec = [0]
         n_steps = 1000
         uu = np.linspace(0, self.track_length_grid, n_steps+1)
@@ -1174,7 +1174,7 @@ class RCPTrack(Track):
 
     # get future reference point for dynamic MPC
     # Inputs:
-    # state: vehicle state, same as in self.localTrajectory()
+    # state: vehicle state, same as in self.local_trajectory()
     # p : lookahead steps
     # dt : time between each lookahead steps
 
@@ -1183,9 +1183,9 @@ class RCPTrack(Track):
     # psi_ref : reference heading at the reference points, size (p+1)*2
     # v_ref : reference heading at the reference points, size (p+1)*2
     # valid : a boolean indicating whether the function was able to find a valid result
-    # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+    # The function first finds a point on trajectory closest to vehicle location with local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
 
-    def getRefPoint(self, state, p, dt, reverse=False):
+    def get_ref_point(self, state, p, dt, reverse=False):
         t = self.t
 
         t.s()
@@ -1193,13 +1193,13 @@ class RCPTrack(Track):
             print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         t.s('local traj')
-        retval = self.localTrajectory(
+        retval = self.local_trajectory(
             state, wheelbase=0.102/2.0, return_u=True)
         t.e('local traj')
         if retval is None:
             return None, None, False
 
-        # parse return value from localTrajectory
+        # parse return value from local_trajectory
         (local_ctrl_pnt, offset, orientation, curvature, v_target, u0) = retval
         if isnan(orientation):
             return None, None, False
@@ -1299,7 +1299,7 @@ class RCPTrack(Track):
         # return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec), np.array(k_signed_vec), np.array(coord_vec), True
 
-    def getRefXYVheading(self, state, p, dt, reverse=False):
+    def get_ref_x_y_vheading(self, state, p, dt, reverse=False):
         t = self.t
 
         t.s()
@@ -1307,13 +1307,13 @@ class RCPTrack(Track):
             print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         t.s('local traj')
-        retval = self.localTrajectory(
+        retval = self.local_trajectory(
             state, wheelbase=0.102/2.0, return_u=True)
         t.e('local traj')
         if retval is None:
             return None, None, False
 
-        # parse return value from localTrajectory
+        # parse return value from local_trajectory
         (local_ctrl_pnt, offset, orientation, curvature, v_target, u0) = retval
         if isnan(orientation):
             return None, None, False
@@ -1416,25 +1416,25 @@ class RCPTrack(Track):
 
     # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
     # Inputs:
-    # state: opponent vehicle state, same as in self.localTrajectory()
+    # state: opponent vehicle state, same as in self.local_trajectory()
     # p : lookahead steps
     # dt : time between each lookahead steps
 
     # Return:
     # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
     # valid : a boolean indicating whether the function was able to find a valid result
-    # The function first finds a point on trajectory closest to vehicle location with localTrajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+    # The function first finds a point on trajectory closest to vehicle location with local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
 
-    def predictOpponent(self, state, p, dt, reverse=False):
+    def predict_opponent(self, state, p, dt, reverse=False):
         if reverse:
             print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
-        retval = self.localTrajectory(
+        retval = self.local_trajectory(
             state, wheelbase=0.102/2.0, return_u=True)
         if retval is None:
             return None, None, False
 
-        # parse return value from localTrajectory
+        # parse return value from local_trajectory
         (local_ctrl_pnt, offset, orientation, curvature, v_target, u0) = retval
         if isnan(orientation):
             return None, None, False
@@ -1470,13 +1470,13 @@ class RCPTrack(Track):
         return coord_vec
 
     # draw a point on canvas at coord
-    def drawPoint(self, img, coord, color=(0, 0, 0)):
+    def draw_point(self, img, coord, color=(0, 0, 0)):
         src = self.m2canvas(coord)
         img = cv2.circle(img, src, 3, color, -1)
 
         return img
 
-    def drawPoints(self, img, coord_vec, color=(0, 0, 0)):
+    def draw_points(self, img, coord_vec, color=(0, 0, 0)):
         for coord in coord_vec:
             src = self.m2canvas(coord)
             img = cv2.circle(img, src, 3, color, -1)

@@ -14,6 +14,6 @@ class SpeedTracker(Extension):
     def update(self):
         for car in self.main.cars:
             state = car.states
-            retval = self.main.track.localTrajectory(state)
+            retval = self.main.track.local_trajectory(state)
             (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
             car.debug_dict['target_v'].append(v_target)

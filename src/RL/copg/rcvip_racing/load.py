@@ -1,4 +1,4 @@
-from rcvip_env_function import getfreezeTimecollosionReachedreward
+from rcvip_env_function import getfreeze_timecollosion_reachedreward
 import rcvip_simulator.Track as Track
 import rcvip_simulator.VehicleModel as VehicleModel
 import json

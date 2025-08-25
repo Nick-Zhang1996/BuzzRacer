@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def loadLog(filename=None):
+def load_log(filename=None):
     if (len(sys.argv) != 2):
         if (filename is None):
             print_error('Specify a log to load')
@@ -18,7 +18,7 @@ def loadLog(filename=None):
     return log
 
 
-def prepLog(log, skip=1):
+def prep_log(log, skip=1):
     # time(),x,y,theta,v_forward,v_sideway,omega, car.steering,car.throttle
     t = log[skip:, 0]
     t = t-t[0]
@@ -38,11 +38,11 @@ def prepLog(log, skip=1):
     return mylog
 
 
-def plotRelation():
+def plot_relation():
     # load log
     filename = '../../log/jan12/full_state1.p'
-    rawlog = loadLog(filename)
-    log = prepLog(rawlog, skip=1)
+    rawlog = load_log(filename)
+    log = prep_log(rawlog, skip=1)
     dt = 0.01
     vx = np.hstack([0, np.diff(log.x)])/dt
     vy = np.hstack([0, np.diff(log.y)])/dt

@@ -18,9 +18,9 @@ class VehicleModel():
         self.device = device
         self.track = Track()
         if (track == 'orca'):
-            self.track.loadOrcaTrack()
+            self.track.load_orca_track()
         elif (track == 'rcp'):
-            self.track.loadRcpTrack()
+            self.track.load_rcp_track()
 
         self.track_n = self.track.s.shape[0]
         self.track_s = torch.from_numpy(self.track.s).type(
@@ -97,7 +97,7 @@ class VehicleModel():
 
         r_tar = delta * v_x / (self.l_f + self.l_r)
 
-        [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+        [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
         f[:, 0] = v_x * torch.cos(phi) - v_y * torch.sin(phi)
         f[:, 1] = v_x * torch.sin(phi) + v_y * torch.cos(phi)
@@ -113,7 +113,7 @@ class VehicleModel():
             (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r)
         return f
 
-    def forceModel(self, x, u):
+    def force_model(self, x, u):
         # cartesian: X,Y,phi, vx,vy,w
         # curvilinear: progress, lateral_err, heading_err, vx,vy,w
         v_x = x[:, 3]
@@ -135,14 +135,14 @@ class VehicleModel():
         # rcvip
         # F_rx = 6.17*(D - v_x/15.2 -0.333) * self.mass
         F_rx = D*(3.0-v_x) * self.mass
-        F_fy = self.tireCurve(alpha_f) * self.mass * \
+        F_fy = self.tire_curve(alpha_f) * self.mass * \
             9.8 * self.l_r/(self.l_r+self.l_f)
-        F_ry = 1.15*self.tireCurve(alpha_r) * self.mass * \
+        F_ry = 1.15*self.tire_curve(alpha_r) * self.mass * \
             9.8 * self.l_f/(self.l_r+self.l_f)
 
         return F_rx, F_ry, F_fy
 
-    def tireCurve(self, alpha):
+    def tire_curve(self, alpha):
         C = 1.6
         B = 2.3
         D = 1.1
@@ -150,7 +150,7 @@ class VehicleModel():
         return retval
 
     # refine discretization
-    def dynModel(self, x, u):
+    def dyn_model(self, x, u):
 
         k1 = self.dx(x, u)
         k2 = self.dx(x + self.Ts / 2. * k1, u)
@@ -161,12 +161,12 @@ class VehicleModel():
 
         return x_next
 
-    def kinModel(self, x, u):
+    def kin_model(self, x, u):
         k1 = self.dxkin(x, u)
         x_next = x + self.Ts * k1
         return x_next
 
-    def kinModelCurve(self, x, u):
+    def kin_model_curve(self, x, u):
 
         k1 = self.dxkin(x, u)
         k2 = self.dxkin(x + self.Ts / 2. * k1, u)
@@ -177,20 +177,20 @@ class VehicleModel():
 
         return x_next
 
-    def dynModel(self, x, u):
+    def dyn_model(self, x, u):
 
-        k1 = self.dxCurve(x, u)
+        k1 = self.dx_curve(x, u)
 
         x_next = x + self.Ts * k1
 
         return x_next
 
-    def dynModelCurve(self, x, u):
+    def dyn_model_curve(self, x, u):
 
-        k1 = self.dxCurve(x, u)
-        k2 = self.dxCurve(x + self.Ts / 2. * k1, u)
-        k3 = self.dxCurve(x + self.Ts / 2. * k2, u)
-        k4 = self.dxCurve(x + self.Ts * k3, u)
+        k1 = self.dx_curve(x, u)
+        k2 = self.dx_curve(x + self.Ts / 2. * k1, u)
+        k3 = self.dx_curve(x + self.Ts / 2. * k2, u)
+        k4 = self.dx_curve(x + self.Ts * k3, u)
 
         x_next = x + self.Ts * (k1 / 6. + k2 / 3. + k3 / 3. + k4 / 6.)
 
@@ -198,7 +198,7 @@ class VehicleModel():
 
     # NOTE used
     # x: curvlinear states : (progress, lateral_err, orientation_err, vx,vy
-    def dynModelBlendBatch(self, x, u_unclipped):
+    def dyn_model_blend_batch(self, x, u_unclipped):
         '''
         blend_ratio = (x[:,3] - 0.3)/(0.2)
         # lambda_blend = np.min([np.max([blend_ratio,0]),1])
@@ -228,8 +228,8 @@ class VehicleModel():
         # t.e('dyn prep')
 
         # t.s('kin model')
-        # x_kin_state = self.kinModelCurve(x_kin,u)
-        x_kin_state = self.kinModel(x_kin, u)
+        # x_kin_state = self.kin_model_curve(x_kin,u)
+        x_kin_state = self.kin_model(x_kin, u)
 
         delta = u[:, 1]
         beta = torch.atan(self.l_r * torch.tan(delta) / (self.l_f + self.l_r))
@@ -243,8 +243,8 @@ class VehicleModel():
 
         # Dynamic Model
         # t.s('dyn model')
-        # x_dyn = self.dynModelCurve(x,u)
-        x_dyn = self.dynModel(x, u)
+        # x_dyn = self.dyn_model_curve(x,u)
+        x_dyn = self.dyn_model(x, u)
         # t.e('dyn model')
 
         return (x_dyn.transpose(0, 1)*lambda_blend + x_kin_full.transpose(0, 1)*(1-lambda_blend)).transpose(0, 1)
@@ -261,7 +261,7 @@ class VehicleModel():
         throttle = u[:, 0]
         delta = u[:, 1]
 
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         beta = torch.atan(self.l_r*torch.tan(delta)/(self.l_f + self.l_r))
 
@@ -301,7 +301,7 @@ class VehicleModel():
         blend_ratio = (v_x - 0.3)/(0.2)
 
         lambda_blend = np.min([np.max([blend_ratio, 0]), 1])
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         if lambda_blend < 1:
             fkin = torch.empty(self.n_batch, self.n_state, device=self.device)
@@ -325,7 +325,7 @@ class VehicleModel():
                 return fkin
 
         if lambda_blend > 0:
-            [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+            [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
             f[:, 0] = (v_x * torch.cos(mu) - v_y *
                        torch.sin(mu))/(1.0 - kappa*d)
@@ -345,7 +345,7 @@ class VehicleModel():
 
     # advance dynamics in curvilinear frame
 
-    def dxCurve(self, x, u):
+    def dx_curve(self, x, u):
         f = torch.empty(x.size(0), self.n_state, device=self.device)
 
         s = x[:, 0]  # progress
@@ -359,9 +359,9 @@ class VehicleModel():
 
         r_tar = delta * v_x / (self.l_f + self.l_r)
 
-        [F_rx, F_ry, F_fy] = self.forceModel(x, u)
+        [F_rx, F_ry, F_fy] = self.force_model(x, u)
 
-        kappa = self.getCurvature(s)
+        kappa = self.get_curvature(s)
 
         f[:, 0] = (v_x * torch.cos(mu) - v_y * torch.sin(mu))/(1.0 - kappa*d)
         f[:, 1] = v_x * torch.sin(mu) + v_y * torch.cos(mu)
@@ -381,7 +381,7 @@ class VehicleModel():
             (F_fy * self.l_f * torch.cos(delta) - F_ry * self.l_r)
         return f
 
-    def fromStoIndexBatch(self, s_in):
+    def from_sto_index_batch(self, s_in):
 
         s = s_in
 
@@ -418,22 +418,22 @@ class VehicleModel():
 
         return index, next_index, rela_proj
 
-    def getCurvature(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_curvature(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
 
         kappa = self.track_kappa[index] + rela_proj * \
             (self.track_kappa[next_index] - self.track_kappa[index])
 
         return kappa
 
-    def getTrackHeading(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_track_heading(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         phi = self.track_phi[index] + rela_proj * \
             (self.track_phi[next_index] - self.track_phi[index])
         return phi
 
-    def getLocalBounds(self, s):
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+    def get_local_bounds(self, s):
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         d_upper = self.track_d_upper[index] + \
             rela_proj * \
             (self.track_d_upper[next_index] - self.track_d_upper[index])
@@ -452,7 +452,7 @@ class VehicleModel():
 
         return d_upper, d_lower, angle_upper, angle_lower
 
-    def fromGlobalToLocal(self, state_global):
+    def from_global_to_local(self, state_global):
         track_ref_pos = np.vstack([self.track_X, self.track_Y]).T
         track_s = self.track_s.numpy()
         ds = track_s[1]-track_s[0]
@@ -498,7 +498,7 @@ class VehicleModel():
         retval = np.hstack([progress, lateral, rel_heading, v_x, v_y, omega])
         return retval
 
-    def fromLocalToGlobal(self, state_local):
+    def from_local_to_global(self, state_local):
         track_ref_pos = np.vstack([self.track_X, self.track_Y]).T
         track_s = self.track_s.numpy()
         ds = track_s[1]-track_s[0]
@@ -533,7 +533,7 @@ class VehicleModel():
     # state_local: s,d,mu, v_x,v_y,r (progress, lateral_err, rel_heading, vx,vy,omega)
     # return: state_global (x,y,abs_heading,vx,vy,omega)
     # TODO redo this function
-    def fromLocalToGlobalOld(self, state_local):
+    def from_local_to_global_old(self, state_local):
         state_local = torch.from_numpy(state_local.reshape(1, -1))
         s = state_local[:, 0]
         d = state_local[:, 1]
@@ -541,7 +541,7 @@ class VehicleModel():
         v_x = state_local[:, 3]
         v_y = state_local[:, 4]
         r = state_local[:, 5]
-        index, next_index, rela_proj = self.fromStoIndexBatch(s)
+        index, next_index, rela_proj = self.from_sto_index_batch(s)
         vec_track = torch.empty(self.n_batch, 2, device=self.device)
         vec_track[:, 0] = (self.track_X[next_index] -
                            self.track_X[index]) * rela_proj
@@ -557,7 +557,7 @@ class VehicleModel():
         phi_0 = self.track_phi[index]
         # phi_1 = self.track_phi[next_index]
         # phi = phi_0
-        phi = self.getTrackHeading(s)
+        phi = self.get_track_heading(s)
         # self.track_phi[index] + rela_proj * (self.track_phi[next_index] - self.track_phi[index])
 
         pos_global = torch.empty(self.n_batch, 2, device=self.device)
@@ -599,12 +599,12 @@ if __name__ == '__main__':
     vehicle_model = VehicleModel(1, 'cpu', 'rcp')
     # single test
     local_state = np.array([11.40600837, -0.07746057, 0.36203362, 0, 0, 0])
-    global_state = vehicle_model.fromLocalToGlobal(local_state).flatten()
+    global_state = vehicle_model.from_local_to_global(local_state).flatten()
     print('')
 
-    new_local_state = vehicle_model.fromGlobalToLocal(global_state)
+    new_local_state = vehicle_model.from_global_to_local(global_state)
     print('')
-    new_global_state = vehicle_model.fromLocalToGlobal(
+    new_global_state = vehicle_model.from_local_to_global(
         new_local_state).flatten()
     print('')
 
@@ -636,9 +636,9 @@ if __name__ == '__main__':
         d = np.random.uniform(-0.1, 0.1)
         mu = np.random.uniform(-radians(60), radians(60))
         local_state = np.array((s, d, mu, 0, 0, 0))
-        global_state = vehicle_model.fromLocalToGlobal(local_state).flatten()
-        new_local_state = vehicle_model.fromGlobalToLocal(global_state)
-        new_global_state = vehicle_model.fromLocalToGlobal(
+        global_state = vehicle_model.from_local_to_global(local_state).flatten()
+        new_local_state = vehicle_model.from_global_to_local(global_state)
+        new_global_state = vehicle_model.from_local_to_global(
             new_local_state).flatten()
 
         # test position error

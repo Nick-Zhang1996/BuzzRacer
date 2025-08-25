@@ -47,8 +47,8 @@ class PurePursuitCarController(CarController):
         dt = self.car.main.dt
         self.throttle_pid = PidController(P, I, D, dt, 1, 2)
 
-        self.track.prepareDiscretizedRaceline()
-        self.track.createBoundary()
+        self.track.prepare_discretized_raceline()
+        self.track.create_boundary()
         self.discretized_raceline = self.track.discretized_raceline
         self.raceline_left_boundary = self.track.raceline_left_boundary
         self.raceline_right_boundary = self.track.raceline_right_boundary
@@ -63,7 +63,7 @@ class PurePursuitCarController(CarController):
             raceline_pnts = self.planner.best_plan_traj_points
             # TODO
             raceline_speed = np.ones_like(raceline_pnts[:, 0])*2.0
-            self.planner.plotAllSolutions()
+            self.planner.plot_all_solutions()
 
         x, y, heading, vf, vs, omega = self.car.states
         # find control point of distance lookahead
@@ -125,14 +125,14 @@ class PurePursuitCarController(CarController):
         elif (steering < -self.car.max_steering_right):
             steering = -self.car.max_steering_right
 
-        throttle = self.calcThrottle(self.car.states, v_target)
+        throttle = self.calc_throttle(self.car.states, v_target)
         self.car.throttle = throttle
         self.car.steering = steering
 
         return None
 
     # PID controller for forward velocity
-    def calcThrottle(self, state, v_target):
+    def calc_throttle(self, state, v_target):
         vf = state[3]
         # PI control for throttle
         acc_target = self.throttle_pid.control(v_target, vf)

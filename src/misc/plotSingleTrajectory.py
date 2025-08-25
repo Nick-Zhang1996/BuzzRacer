@@ -6,7 +6,7 @@ from TrackFactory import TrackFactory
 import cv2
 
 
-def plotTraj(track, filename, img, color):
+def plot_traj(track, filename, img, color):
     with open(filename, 'rb') as f:
         data = pickle.load(f)
     data = np.array(data).squeeze(1)
@@ -14,7 +14,7 @@ def plotTraj(track, filename, img, color):
     x = data[:, 1]
     y = data[:, 2]
     points = np.vstack([x, y]).T
-    track.drawPolyline(points, img, lineColor=color, thickness=2)
+    track.draw_polyline(points, img, lineColor=color, thickness=2)
     return img
 
 
@@ -27,7 +27,7 @@ track = TrackFactory(name='full')
 grayness = 180
 
 filename = '../log/kinematics_results/full_state11.p'
-img = plotTraj(track, filename, img.copy(), (255, 0, 0))
+img = plot_traj(track, filename, img.copy(), (255, 0, 0))
 
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 

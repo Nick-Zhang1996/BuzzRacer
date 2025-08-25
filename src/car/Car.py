@@ -43,23 +43,23 @@ class Car(PrintObject, LogObject):
         val = val if val > -self.max_steering_right else -self.max_steering_right
         self._steering = val
 
-    def preInit(self):
-        self.controller.preInit()
+    def pre_init(self):
+        self.controller.pre_init()
         return
 
-    def postInit(self):
-        self.controller.postInit()
+    def post_init(self):
+        self.controller.post_init()
         return
 
     # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
     # have concluded
     def init(self):
         if (self.main.experiment_type == ExperimentType.Realworld):
-            self.initHardware()
+            self.init_hardware()
         self.controller.init()
 
     # initialize code that require hardware here
-    def initHardware(self):
+    def init_hardware(self):
         pass
 
     def actuate(self):
@@ -205,7 +205,7 @@ class Car(PrintObject, LogObject):
             car.controller = controller(car, config_controller)
 
         # ----
-        car.initParam()
+        car.init_param()
 
         car.id = Car.car_count
         Car.cars.append(car)

@@ -1,6 +1,6 @@
 import car_racing_simulator.Track as Track
 import car_racing_simulator.VehicleModel as VehicleModel
-from car_racing.orca_env_function import getNFcollosionreward
+from car_racing.orca_env_function import get_n_fcollosionreward
 from car_racing.network import Actor as Actor
 import pickle
 import json
@@ -13,7 +13,7 @@ sys.path.insert(0, '..')  # inorder to run within the folder
 sys.path.insert(0, '../..')  # inorder to run within the folder
 
 
-def getPerformanceMetric(p1_policy_pth, p2_policy_pth):
+def get_performance_metric(p1_policy_pth, p2_policy_pth):
 
     p1 = Actor(10, 2, std=0.1)
     p2 = Actor(10, 2, std=0.1)
@@ -38,7 +38,7 @@ def getPerformanceMetric(p1_policy_pth, p2_policy_pth):
 
     config = json.load(open('config.json'))
     track1 = Track.Track()
-    track1.loadOrcaTrack(config)
+    track1.load_orca_track(config)
 
     device = torch.device('cpu')
 
@@ -109,9 +109,9 @@ def getPerformanceMetric(p1_policy_pth, p2_policy_pth):
         prev_state_c2 = state_c2
 
         # advance state
-        state_c1 = vehicle_model.dynModelBlendBatch(
+        state_c1 = vehicle_model.dyn_model_blend_batch(
             state_c1.view(-1, 6), action1.view(-1, 2)).view(-1, 6)
-        state_c2 = vehicle_model.dynModelBlendBatch(
+        state_c2 = vehicle_model.dyn_model_blend_batch(
             state_c2.view(-1, 6), action2.view(-1, 2)).view(-1, 6)
 
         # if it's done, hold last state
@@ -121,10 +121,10 @@ def getPerformanceMetric(p1_policy_pth, p2_policy_pth):
                     prev_state_c2.transpose(0, 1) * (done_c2)).transpose(0, 1)
 
         # evaluate current step
-        reward1, reward2, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2 = getNFcollosionreward(state_c1, state_c2,
-                                                                                                  vehicle_model.getLocalBounds(
+        reward1, reward2, done_c1, done_c2, state_c1, state_c2, n_c1, n_c2 = get_n_fcollosionreward(state_c1, state_c2,
+                                                                                                  vehicle_model.get_local_bounds(
                                                                                                       state_c1[:, 0]),
-                                                                                                  vehicle_model.getLocalBounds(
+                                                                                                  vehicle_model.get_local_bounds(
                                                                                                       state_c2[:, 0]),
                                                                                                   prev_state_c1, prev_state_c2)
 
@@ -211,7 +211,7 @@ for i in range(20, 9980, 20*(int(9980/100/20))):
     p1_policy_pth = f'./trained_model/rcptrack_rcvipmodel/copg/model/agent1_{i}.pth'
     p2_policy_pth = f'./trained_model/rcptrack_rcvipmodel/copg/model/agent2_{i}.pth'
     print(f' evaluating policy pair {i}, count = {count} ')
-    p1_col, p2_col, p1_over, p2_over = getPerformanceMetric(
+    p1_col, p2_col, p1_over, p2_over = get_performance_metric(
         p1_policy_pth, p2_policy_pth)
     data.append([p1_col, p2_col, p1_over, p2_over])
     print(f' episode {i} {p1_col}, {p2_col}, {p1_over}, {p2_over} ')

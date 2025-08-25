@@ -59,7 +59,7 @@ class Model:
     def step(self, u, dt=None):
         if dt is None:
             dt = self.dt
-        self.x = self.calcNextState(self.x, u, dt)
+        self.x = self.calc_next_state(self.x, u, dt)
         self.t += dt
 
         self.t_hist.append(self.t)
@@ -67,24 +67,24 @@ class Model:
         self.u_hist.append(u)
         return
 
-    def calcNextState(self, state, u, dt):
+    def calc_next_state(self, state, u, dt):
         u = np.array(u)
         assert u.shape == (self.control_dim,)
         # return state + self.A @ state * dt + self.B @ u * dt
         return self.A @ state + self.B @ u
 
-    def getCost(self, state, u):
+    def get_cost(self, state, u):
         u = np.array(u)
         return (state-self.x_goal).T @ self.Q @ (state-self.x_goal) + u.T @ self.R @ u
 
-    def terminalConditionVal(self):
+    def terminal_condition_val(self):
         return np.linalg.norm(self.x[0:2]-self.x_goal[0:2])
 
     def run(self):
         mppi = MPPI(self.samples_count, self.horizon_steps, self.control_dim,
                     self.temperature, self.dt, self.noise_cov, cuda=True)
-        mppi.applyDiscreteDynamics = self.calcNextState
-        mppi.evaluateCost = self.getCost
+        mppi.apply_discrete_dynamics = self.calc_next_state
+        mppi.evaluateCost = self.get_cost
 
         # warm start
         ref_control = [[0, 0]]*self.horizon_steps
@@ -111,7 +111,7 @@ class Model:
             sim_x = self.x.copy()
             sim_x_hist.append(sim_x)
             for u in uu:
-                sim_x = self.calcNextState(sim_x,u,self.dt)
+                sim_x = self.calc_next_state(sim_x,u,self.dt)
                 sim_x_hist.append(sim_x)
 
             xx = np.array(self.x_hist)
@@ -127,7 +127,7 @@ class Model:
             # ref_control = np.vstack([uu[1:,:],np.zeros([1,self.control_dim])])
             main.step(uu[0, :])
 
-            terminalVal = self.terminalConditionVal()
+            terminalVal = self.terminal_condition_val()
             main.cost_hist.append(terminalVal)
             print_ok(terminalVal)
 

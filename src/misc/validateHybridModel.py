@@ -70,8 +70,8 @@ sim = hybridSim(dtype, device, history_steps, forward_steps, dt)
 track = RCPtrack()
 track.load()
 
-img_track = track.drawTrack()
-# img_track = track.drawRaceline(img=img_track)
+img_track = track.draw_track()
+# img_track = track.draw_raceline(img=img_track)
 cv2.imshow('validate', img_track)
 cv2.waitKey(10)
 
@@ -87,7 +87,7 @@ def run():
     for i in range(1, data_len-lookahead_steps-1):
         # prepare states
         with torch.no_grad():
-            long_acc = sim.getLongitudinalAcc(throttle[i]).detach().item()
+            long_acc = sim.get_longitudinal_acc(throttle[i]).detach().item()
         full_state = [x[i], vx[i], y[i], vy[i],
                       heading[i], omega[i], long_acc, steering[i]]
         full_state_vec.append(full_state)
@@ -97,7 +97,7 @@ def run():
         else:
             continue
 
-        long_acc_vec = [sim.getLongitudinalAcc(throttle[i]).detach(
+        long_acc_vec = [sim.get_longitudinal_acc(throttle[i]).detach(
         ).item() for i in range(i+1, i+1+forward_steps)]
         steering_vec = steering[i+1:i+1+forward_steps]
         actions = np.vstack([long_acc_vec, steering_vec]).T
@@ -105,12 +105,12 @@ def run():
 
         # draw car current pos
         car_state = (x[i], y[i], heading[i], 0, 0, 0)
-        img = track.drawCar(img_track.copy(), car_state, steering[i])
+        img = track.draw_car(img_track.copy(), car_state, steering[i])
 
         # plot actual future trajectory
         actual_future_traj = np.vstack(
             [x[i:i+lookahead_steps], y[i:i+lookahead_steps]]).T
-        img = track.drawPolyline(
+        img = track.draw_polyline(
             actual_future_traj, lineColor=(0, 0, 255), img=img)
         # show(img)
 
@@ -129,7 +129,7 @@ def run():
                 converted_full_state_vec = torch.tensor(
                     converted_full_state_vec, dtype=dtype, device=device, requires_grad=False)
 
-                long_acc_vec = [sim.getLongitudinalAcc(throttle[k]).detach(
+                long_acc_vec = [sim.get_longitudinal_acc(throttle[k]).detach(
                 ).item() for k in range(i+j, i+j+forward_steps)]
                 steering_vec = steering[i+j:i+j+forward_steps]
                 actions = np.vstack([long_acc_vec, steering_vec]).T
@@ -185,7 +185,7 @@ def run():
         plt.show()
         '''
 
-        img = track.drawPolyline(
+        img = track.draw_polyline(
             predicted_future_traj, lineColor=(0, 255, 0), img=img)
         # show(img)
 

@@ -15,7 +15,7 @@ W = 0.08
 # reward: r1_progress - r2_progress + reached reward
 
 
-def getfreezeTimecollosionReachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2, device):
+def getfreeze_timecollosion_reachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2, counter1, counter2, device):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
     # reward = state_c1[:,0] - state_c2[:,0]
@@ -78,7 +78,7 @@ def getfreezeTimecollosionReachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_s
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll, counter1, counter2
 
 
-def getfreezeTimecollosionReachedrewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
+def getfreeze_timecollosion_reachedreward_single_agent(state_c1, lb_c1,  prev_state_c1,  device):
     reward = state_c1[:, 0] - prev_state_c1[:, 0]
     lb_c1_ten = torch.stack(lb_c1).transpose(0, 1)  # .view(1,-1)
 
@@ -100,7 +100,7 @@ def getfreezeTimecollosionReachedrewardSingleAgent(state_c1, lb_c1,  prev_state_
 # in testing
 
 
-def getRewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
+def get_reward_single_agent(state_c1, lb_c1,  prev_state_c1,  device):
     # reward: progress
     reward = state_c1[:, 0] - prev_state_c1[:, 0]
 
@@ -116,7 +116,7 @@ def getRewardSingleAgent(state_c1, lb_c1,  prev_state_c1,  device):
     return reward,  done_c1
 
 
-def getNFcollosionreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
+def get_n_fcollosionreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
     # reward = state_c1[:,0] - state_c2[:,0]
@@ -306,7 +306,7 @@ def getfreezecollosionreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, pr
     return reward, -reward, done_c1, done_c2, c1_coll, c2_coll
 
 
-def getfreezecollosionReachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2):
+def getfreezecollosion_reachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2, prev_coll_c1, prev_coll_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
     # reward = state_c1[:,0] - state_c2[:,0]
@@ -375,7 +375,7 @@ def getfreezeprogressreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, pre
     return reward, -reward, done_c1, done_c2
 
 
-def getfreezeProgressReachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
+def getfreeze_progress_reachedreward(state_c1, state_c2, lb_c1, lb_c2, prev_state_c1, prev_state_c2):
     r1 = state_c1[:, 0] - prev_state_c1[:, 0]
     r2 = state_c2[:, 0] - prev_state_c2[:, 0]
     # reward = state_c1[:,0] - state_c2[:,0]

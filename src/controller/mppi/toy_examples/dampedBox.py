@@ -71,7 +71,7 @@ if __name__ == '__main__':
     for i in range(int(T/dt) + 1 - p):
         x0 = sim.x
         I2 = np.eye(2)
-        mpc.convertLti(I2+A*dt, B*dt, P, Q,
+        mpc.convert_lti(I2+A*dt, B*dt, P, Q,
                        xref[i:i+p, :, :], x0, p, du_max, u_max)
         uu = np.array(mpc.solve())
         # print(uu)

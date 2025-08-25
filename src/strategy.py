@@ -9,7 +9,7 @@ from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 # TODO thoroughly check this
 
 
-def buildLeadFun(tt_i, ss_i, vv_i, tt_j, ss_j, vv_j, dt=0.01):
+def build_lead_fun(tt_i, ss_i, vv_i, tt_j, ss_j, vv_j, dt=0.01):
     s2t_i = interp1d(ss_i, tt_i, kind='cubic')
     t2s_i = interp1d(tt_i, ss_i, kind='cubic')
 
@@ -43,7 +43,7 @@ def buildLeadFun(tt_i, ss_i, vv_i, tt_j, ss_j, vv_j, dt=0.01):
     return interp1d(ss_i, L_ij, kind='cubic'), np.min(L_ij), np.max(L_ij)
 
 
-def buildStatefromSpeedProfile(fulltrack, speed_profile_fun, dt=0.01):
+def build_statefrom_speed_profile(fulltrack, speed_profile_fun, dt=0.01):
     tt = []
     ss = []
     vv = []
@@ -93,36 +93,36 @@ if __name__ == '__main__':
     # create 2 speed profile with similar laptime
 
     # agent i, faster in straights
-    retval = fulltrack.generateSpeedProfile(
+    retval = fulltrack.generate_speed_profile(
         mu=0.6,
         acc_max_fun=lambda x: 5.0,
         dec_max_fun=lambda x: 5.0,
     )
     fulltrack.targetVfromU = speed_profile_fun_i = retval['speed_profile_fun']
     # this calls reconstruct Raceline, which updates sToV
-    fulltrack.verifySpeedProfile(speed_profile_fun=speed_profile_fun_i)
-    pos_i, phi_i, tt_i, ss_i, vv_i = buildStatefromSpeedProfile(
+    fulltrack.verify_speed_profile(speed_profile_fun=speed_profile_fun_i)
+    pos_i, phi_i, tt_i, ss_i, vv_i = build_statefrom_speed_profile(
         fulltrack, speed_profile_fun_i, dt=dt)
 
     # agent j, faster in corners
-    retval = fulltrack.generateSpeedProfile(
+    retval = fulltrack.generate_speed_profile(
         mu=0.9,
         acc_max_fun=lambda x: 1,
         dec_max_fun=lambda x: 1,
     )
     fulltrack.targetVfromU = speed_profile_fun_j = retval['speed_profile_fun']
-    fulltrack.verifySpeedProfile(speed_profile_fun=speed_profile_fun_j)
-    pos_j, phi_j, tt_j, ss_j, vv_j = buildStatefromSpeedProfile(
+    fulltrack.verify_speed_profile(speed_profile_fun=speed_profile_fun_j)
+    pos_j, phi_j, tt_j, ss_j, vv_j = build_statefrom_speed_profile(
         fulltrack, speed_profile_fun_j, dt=dt)
 
     # calculate relative lead
-    s0_to_Lij, Lij_min, Lij_max = buildLeadFun(
+    s0_to_Lij, Lij_min, Lij_max = build_lead_fun(
         tt_i, ss_i, vv_i, tt_j, ss_j, vv_j)
 
     # visualize L_ij
 
-    img_track = fulltrack.drawTrack()
-    img_track = fulltrack.drawRacelineWithColor(
+    img_track = fulltrack.draw_track()
+    img_track = fulltrack.draw_raceline_with_color(
         img=img_track, thickness=10, s_to_color=lambda s: s0_to_Lij(s % ss_i[-1])/Lij_max)
     plt.imshow(img_track[:, :, ::-1])
     plt.show()

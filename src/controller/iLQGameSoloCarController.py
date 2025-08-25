@@ -11,7 +11,7 @@ class iLQGameSoloCarController(iLQGameCarController):
         self.iterations = 1
 
     # ego car solely responsible for evading opponent car
-    def getCostMatrices(self, xx_i, uu_i, xx_j, uu_j):
+    def get_cost_matrices(self, xx_i, uu_i, xx_j, uu_j):
         Q1s = []
         Q2s = []
         q1s = []
@@ -53,11 +53,11 @@ class iLQGameSoloCarController(iLQGameCarController):
                          sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
 
             # barrier function: track boundary
-            cart_states_i = self.simulator.curv2Cart(xx_i[t].flatten())
-            self.t.s('preciseTrackBoundary')
-            left_boundary_i, right_boundary_i = self.main.track.preciseTrackBoundary(
+            cart_states_i = self.simulator.curv2_cart(xx_i[t].flatten())
+            self.t.s('precise_track_boundary')
+            left_boundary_i, right_boundary_i = self.main.track.precise_track_boundary(
                 cart_states_i[:2], cart_states_i[2])
-            self.t.e('preciseTrackBoundary')
+            self.t.e('precise_track_boundary')
 
             # n>0 -> left
             if (left_boundary_i < self.boundary_min_distance):
@@ -71,11 +71,11 @@ class iLQGameSoloCarController(iLQGameCarController):
                     np.array(
                         [[0, 0, +self.boundary_cost*2*self.boundary_min_distance, 0, 0, 0, 0, 0]])
 
-            cart_states_j = self.simulator.curv2Cart(xx_j[t].flatten())
-            self.t.s('preciseTrackBoundary')
-            left_boundary_j, right_boundary_j = self.main.track.preciseTrackBoundary(
+            cart_states_j = self.simulator.curv2_cart(xx_j[t].flatten())
+            self.t.s('precise_track_boundary')
+            left_boundary_j, right_boundary_j = self.main.track.precise_track_boundary(
                 cart_states_j[:2], cart_states_j[2])
-            self.t.e('preciseTrackBoundary')
+            self.t.e('precise_track_boundary')
 
             # n>0 -> left
             if (left_boundary_j < self.boundary_min_distance):
@@ -104,7 +104,7 @@ class iLQGameSoloCarController(iLQGameCarController):
 
             if (self.circular_control_barrier):
                 # normalized ay,ax for agent i
-                bounded_ctrl, constrained = self.boundControl(
+                bounded_ctrl, constrained = self.bound_control(
                     uu_i[t].flatten(), car_i)
                 if (constrained):
                     # self.print_info('car 0 control barrier')
@@ -116,7 +116,7 @@ class iLQGameSoloCarController(iLQGameCarController):
                         np.array([[-2*by, -2*bx]])
 
                 # normalized ay,ax for agent j
-                bounded_ctrl, constrained = self.boundControl(
+                bounded_ctrl, constrained = self.bound_control(
                     uu_j[t].flatten(), car_j)
                 if (constrained):
                     by = bounded_ctrl[0]

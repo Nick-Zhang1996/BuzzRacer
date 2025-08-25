@@ -1,6 +1,6 @@
-from rcvip_env_function import getRewardSingleAgent
+from rcvip_env_function import get_reward_single_agent
 import rcvip_simulator.VehicleModel as VehicleModel
-from rcvip_env_function import getNFcollosionreward
+from rcvip_env_function import get_n_fcollosionreward
 from car_racing.network import Actor as Actor
 import pickle
 import json
@@ -19,7 +19,7 @@ n_pred = 200
 n_state = 6
 
 
-def getPerformanceMetric():
+def get_performance_metric():
     batch_size = 100
     curr_batch_size = batch_size
 
@@ -54,10 +54,10 @@ def getPerformanceMetric():
         prev_state = state
 
         # advance state
-        state = vehicle_model.dynModelBlendBatch(state, action)
+        state = vehicle_model.dyn_model_blend_batch(state, action)
 
-        bounds = vehicle_model.getLocalBounds(state[:, 0])
-        reward,  done = getRewardSingleAgent(
+        bounds = vehicle_model.get_local_bounds(state[:, 0])
+        reward,  done = get_reward_single_agent(
             state, bounds, prev_state,  device)
 
         # force terminate all episodes
@@ -109,4 +109,4 @@ def getPerformanceMetric():
     return
 
 
-getPerformanceMetric()
+get_performance_metric()

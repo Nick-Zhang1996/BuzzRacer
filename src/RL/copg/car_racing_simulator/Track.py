@@ -13,7 +13,7 @@ class Track:
     def __init__(self):
         return
 
-    def loadOrcaTrack(self, config):
+    def load_orca_track(self, config):
         self.path = config['data_dir']
         self.N = config['n_track']
         # ref point location
@@ -32,11 +32,11 @@ class Track:
         self.border_angle_upper = np.loadtxt(self.path + 'con_angle_inner.txt')
         self.border_angle_lower = np.loadtxt(self.path + 'con_angle_outer.txt')
 
-    def loadRcpTrack(self):
+    def load_rcp_track(self):
         config = minidom.parse('config.xml')
         config_track = config.getElementsByTagName('track')[0]
         self.track = TrackFactory(None, config_track, 'full')
-        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.getOrcaStyleTrack()
+        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.get_orca_style_track()
 
         self.N = N
         self.X = X
@@ -53,13 +53,13 @@ class Track:
         self.border_angle_lower = border_angle_lower
         return
 
-    def posAtIndex(self, i):
+    def pos_at_index(self, i):
         return np.array([self.X[i], self.Y[i]])
 
-    def vecToPoint(self, index, x):
+    def vec_to_point(self, index, x):
         return np.array([x[0] - self.X[index], x[1] - self.Y[index]])
 
-    def vecTrack(self, index):
+    def vec_track(self, index):
         if index >= self.N - 1:
             next_index = 0
         else:
@@ -81,14 +81,14 @@ class Track:
         if name == 'kappa':
             return self.kappa[index] + (rela_proj * (self.kappa[next_index] - self.kappa[index]))
 
-    def fromStoPos(self, s):
+    def from_sto_pos(self, s):
 
         index = math.floor(s / self.diff_s)
         rela_proj = (s - self.s[index]) / self.diff_s
-        pos = [self.X[index], self.Y[index]] + self.vecTrack(index) * rela_proj
+        pos = [self.X[index], self.Y[index]] + self.vec_track(index) * rela_proj
         return pos
 
-    def fromStoIndex(self, s):
+    def from_sto_index(self, s):
         if s > self.s[-1]:
             s = s - self.s[-1]
         elif s < 0:
@@ -103,21 +103,21 @@ class Track:
 
     # x_local: s,d,mu, (progress, lateral_err, heading)
     # return: pos_global (x,y,heading)
-    def fromLocaltoGlobal(self, x_local):
+    def from_localto_global(self, x_local):
         s = x_local[0]
         d = x_local[1]
         mu = x_local[2]
 
-        [index, rela_proj] = self.fromStoIndex(s)
+        [index, rela_proj] = self.from_sto_index(s)
         pos_center = [self.X[index], self.Y[index]] + \
-            self.vecTrack(index) * rela_proj
+            self.vec_track(index) * rela_proj
         phi = self.interpol('phi', index, rela_proj)
 
         pos_global = pos_center + d * np.array([-np.sin(phi), np.cos(phi)])
         heading = phi + mu
         return [pos_global[0], pos_global[1], heading]
 
-    def wrapMu(self, mu):
+    def wrap_mu(self, mu):
         if mu < -np.pi:
             mu = mu + 2 * np.pi
         elif mu > np.pi:

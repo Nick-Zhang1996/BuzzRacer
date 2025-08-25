@@ -101,7 +101,7 @@ def train(train_data_loader, history_steps, forward_steps, simulator, device, cr
         full_states = full_states.to(device)
         actions = actions.to(device)
 
-        # truth_state = simulator.testForward(full_states.clone(), actions, i=0,sim=ground_truth_sim)
+        # truth_state = simulator.test_forward(full_states.clone(), actions, i=0,sim=ground_truth_sim)
         predicted_state = simulator(full_states, actions, enable_rnn)
 
         target_states = batch[:, -forward_steps:, :]

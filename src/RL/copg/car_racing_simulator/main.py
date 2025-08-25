@@ -27,9 +27,9 @@ def main():
     u0 = torch.zeros(config['n_batch'], config['n_control'])
 
     for i in range(10):
-        x0 = vehicle_model.dynModelBlendBatch(x0, u0)
+        x0 = vehicle_model.dyn_model_blend_batch(x0, u0)
 
-        print(vehicle_model.getLocalBounds(x0[:, 0]))
+        print(vehicle_model.get_local_bounds(x0[:, 0]))
 
         # sys.stdout.write(str(x0))
 

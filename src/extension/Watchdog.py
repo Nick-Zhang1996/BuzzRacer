@@ -16,7 +16,7 @@ class Watchdog(Extension):
             x = car.states[0]
             y = car.states[1]
             vf = car.states[3]
-            if (self.track.isOutside((x, y))):
+            if (self.track.is_outside((x, y))):
                 car.in_track = False
                 self.triggered = True
                 self.main.exit_request.set()

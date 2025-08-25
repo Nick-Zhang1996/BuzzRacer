@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plotVector(base, vec):
+def plot_vector(base, vec):
     plt.plot([base[0], base[0]+vec[0]], [base[1], base[1]+vec[1]], '-*')
     return
 
@@ -24,7 +24,7 @@ theta = np.arctan2(ax/axm, ay/aym)
 p = [aym*np.cos(theta), axm*np.sin(theta)]
 et = np.array([ax/(axm**2), -ay/(aym**2)])
 et = et/np.linalg.norm(et)
-plotVector(p, et*5)
+plot_vector(p, et*5)
 
 xx = np.linspace(0, axm)
 J = 2

@@ -11,7 +11,7 @@ class EmptyTrack(Track):
         self.scale = 2.0
 
         # draw empty track
-    def drawTrack(self):
+    def draw_track(self):
         gs = self.resolution
         img = 255*np.ones([gs, gs, 3], dtype='uint8')
         return img
@@ -20,7 +20,7 @@ class EmptyTrack(Track):
     # source: source of arrow, in meter
     # orientation, radians from x axis, ccw positive
     # length: in pixels, though this is only qualitative
-    def drawArrow(self, source, orientation, length, color=(0, 0, 0), thickness=2, img=None, show=False):
+    def draw_arrow(self, source, orientation, length, color=(0, 0, 0), thickness=2, img=None, show=False):
 
         if (length > 1):
             length = int(length)
@@ -39,7 +39,7 @@ class EmptyTrack(Track):
 
         src = self.m2canvas(source)
         if (src is None):
-            print('drawArrow err -- point outside canvas')
+            print('draw_arrow err -- point outside canvas')
             return img
         # test_pnt = self.m2canvas(test_pnt)
 
@@ -63,7 +63,7 @@ class EmptyTrack(Track):
 
         return img
 
-    def drawCar(self, img, state, steering):
+    def draw_car(self, img, state, steering):
         # check if vehicle is outside canvas
         # FIXME
         # x,y, v, heading, omega = state
@@ -75,16 +75,16 @@ class EmptyTrack(Track):
             # print("Can't draw car -- outside track")
             return img
         # draw vehicle, orientation as black arrow
-        img = self.drawArrow(coord, heading, length=30,
+        img = self.draw_arrow(coord, heading, length=30,
                              color=(0, 0, 255), thickness=5, img=img)
 
         # draw steering angle, orientation as red arrow
-        # img = self.drawArrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
+        # img = self.draw_arrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)
 
         return img
 
     # draw a point on canvas at coord
-    def drawPoint(self, img, coord, color=(0, 0, 0)):
+    def draw_point(self, img, coord, color=(0, 0, 0)):
         src = self.m2canvas(coord)
         if src is None:
             # print("Can't draw point -- outside track")
@@ -94,7 +94,7 @@ class EmptyTrack(Track):
         return img
 
     # draw a circle on canvas at coord
-    def drawCircle(self, img, coord, radius_m, color=(0, 0, 0)):
+    def draw_circle(self, img, coord, radius_m, color=(0, 0, 0)):
         src = self.m2canvas(coord)
         if src is None:
             # print("Can't draw point -- outside track")
@@ -128,7 +128,7 @@ class EmptyTrack(Track):
     # draw a polynomial line defined in track space
     # points: a list of coordinates in format (x,y)
 
-    def drawPolyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
+    def draw_polyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -155,7 +155,7 @@ class EmptyTrack(Track):
         # render different color based on speed
         # slow - red, fast - green (BGR)
         def v2c(x): return int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        def getColor(v): return (0, v2c(v), 255-v2c(v))
+        def get_color(v): return (0, v2c(v), 255-v2c(v))
         gs = self.resolution
         pts[:, 0] = np.clip(pts[:, 0], 0, gs*cols)
         pts[:, 1] = np.clip(pts[:, 1], 0, gs*rows)

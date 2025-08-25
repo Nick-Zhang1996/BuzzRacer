@@ -29,17 +29,17 @@ class KinematicSimulator(Simulator):
 
         self.cars = self.main.cars
         for car in self.cars:
-            self.addCar(car)
+            self.add_car(car)
         self.main.new_state_update.set()
 
     # add a car to be KinematicSimulator
     # car needs to have .lf, .lr, .L .states (x,y,heading,v_forward,v_sideways,omega)
-    def addCar(self, car):
+    def add_car(self, car):
         x, y, heading, v_forward, v_sideways, omega = car.states
         return
 
     @staticmethod
-    def advanceDynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car):
         """advance dynamics using kinematics model."""
         lr = car.lr
         lf = car.lf

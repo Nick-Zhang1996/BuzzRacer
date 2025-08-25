@@ -33,14 +33,14 @@ sim = CurvilinearSimulator(FakeMain())
 sim.track = track
 
 
-def getCoord(s0):
+def get_coord(s0):
     x0 = np.array((s0, 0, 0, 0))
-    cart0 = sim.curv2Cart(x0)
+    cart0 = sim.curv2_cart(x0)
     return cart0[:2]
 
 
 ss = np.linspace(0, sim.track.raceline_len_m, 1000)
-coord = np.array([getCoord(s) for s in ss])
+coord = np.array([get_coord(s) for s in ss])
 
 plt.plot(coord[:, 0], coord[:, 1], 'o')
 plt.show()

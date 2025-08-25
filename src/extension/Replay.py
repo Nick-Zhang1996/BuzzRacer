@@ -10,7 +10,7 @@ from extension import Simulator
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, atan
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
-from sysid.tire import tireCurve
+from sysid.tire import tire_curve
 from sysid.gaussian_process.gpModel import MultitaskDeepGP
 # sketchy
 import sys
@@ -43,9 +43,9 @@ class Replay(Simulator):
     def init(self):
         super().init()
         if (self.curvilinear):
-            self.loadCurvilinearLog(self.log_name)
+            self.load_curvilinear_log(self.log_name)
         else:
-            self.loadCartesianLog(self.log_name)
+            self.load_cartesian_log(self.log_name)
         self.main.new_state_update.set()
         # DEBUG
         # lateral_err = self.data[:,0,1]
@@ -53,7 +53,7 @@ class Replay(Simulator):
         # plt.show()
         # breakpoint()
 
-    def loadCurvilinearLog(self, log_name):
+    def load_curvilinear_log(self, log_name):
         # time_steps * cars * (states + action)
         full_path = os.path.join(self.basedir, log_name)
         self.print_ok(f'opening file at {full_path}')
@@ -64,7 +64,7 @@ class Replay(Simulator):
         self.car_count = self.data.shape[1]
         assert (len(self.main.cars) == self.car_count)
 
-    def loadCartesianLog(self, log_name):
+    def load_cartesian_log(self, log_name):
         full_path = os.path.join(self.basedir, log_name)
         self.print_ok(f'opening file at {full_path}')
         with open(full_path, 'rb') as f:
@@ -77,8 +77,8 @@ class Replay(Simulator):
             self.print_error(
                 f'number of cars in log does not match number of cars in config, please update config to include {self.car_count} cars')
 
-    def loadRcpTrack(self):
-        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.getOrcaStyleTrack()
+    def load_rcp_track(self):
+        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.get_orca_style_track()
 
         self.N = N
         self.X = X
@@ -129,22 +129,22 @@ class Replay(Simulator):
         car.steering = self.data[self.timestep, i, 7]
 
         if (self.draw_future_traj):
-            self.drawFutureTrajectory()
+            self.draw_future_trajectory()
         self.t.s()
-        self.t.s('drawPredictedTrajectory')
+        self.t.s('draw_predicted_trajectory')
         if (self.draw_predicted_traj):
-            self.drawPredictedTrajectory()
-        self.t.e('drawPredictedTrajectory')
+            self.draw_predicted_trajectory()
+        self.t.e('draw_predicted_trajectory')
         self.t.e()
         self.main.new_state_update.set()
         self.main.simulator.sim_t += self.main.dt
-        self.matchRealTime()
+        self.match_real_time()
         self.timestep += 1
 
     def final(self):
         self.t.summary()
 
-    def drawFutureTrajectory(self, horizon=0.5):
+    def draw_future_trajectory(self, horizon=0.5):
         lineColor = (255, 0, 0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -156,15 +156,15 @@ class Replay(Simulator):
                     for state in curvi_states:
                         cart_states.append(self.CurvilinearToCartesian(
                             self.data[self.timestep, i]))
-                    img = self.main.track.drawTrajectory(
+                    img = self.main.track.draw_trajectory(
                         cart_states, img, lineColor)
             else:
                 for (i, car) in enumerate(self.main.cars):
-                    img = self.main.track.drawTrajectory(
+                    img = self.main.track.draw_trajectory(
                         self.data[self.timestep:self.timestep + int(horizon/self.main.dt), i, :], img, lineColor)
             self.main.visualization.visualization_img = img
 
-    def drawPredictedTrajectory(self, horizon=0.5):
+    def draw_predicted_trajectory(self, horizon=0.5):
         lineColor = (0, 255, 0)
         if (self.main.visualization.update_visualization.is_set()):
             img = self.main.visualization.visualization_img
@@ -178,14 +178,14 @@ class Replay(Simulator):
                         states = predicted_traj[-1]
                         control = self.data[self.timestep +
                                             len(predicted_traj)-1, i, -2:]
-                        new_state = self.prediction_model.advanceDynamics(
+                        new_state = self.prediction_model.advance_dynamics(
                             states, control, car, self.main.dt)
                         predicted_traj.append(new_state)
 
                     predicted_traj = np.array(predicted_traj)
                     predicted_traj = np.hstack(
                         [np.zeros((predicted_traj.shape[0], 1)), predicted_traj])
-                    img = self.main.track.drawTrajectory(
+                    img = self.main.track.draw_trajectory(
                         np.array(predicted_traj), img, lineColor)
             self.main.visualization.visualization_img = img
 
@@ -201,7 +201,7 @@ class VehicleDynamics:
         # x,y,heading,v_forward,v_sideway,omega = car.states
         self.curvilinear = None
 
-    def advanceDynamics(car_states, control, car, dt):
+    def advance_dynamics(car_states, control, car, dt):
         '''
         return states at next timestep
         car_states: differs depending on self.cartesian, 
@@ -219,7 +219,7 @@ class DynamicBicycleModel(VehicleDynamics):
         # x,y,heading,v_forward,v_sideway,omega = car.states
         self.curvilinear = False
 
-    def coreDynamics(self, core_states, control, car, dt):
+    def core_dynamics(self, core_states, control, car, dt):
         '''
         input: core_states = (vx,vy,omega) control = (steering,throttle)
         output: (d_vx, d_vy, d_omega)
@@ -249,8 +249,8 @@ class DynamicBicycleModel(VehicleDynamics):
 
             # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
             # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-            Ffy = tireCurve(slip_f) * m * 9.8 * lr/(lr+lf)
-            Fry = 1.15*tireCurve(slip_r) * m * 9.8 * lf/(lr+lf)
+            Ffy = tire_curve(slip_f) * m * 9.8 * lr/(lr+lf)
+            Fry = 1.15*tire_curve(slip_r) * m * 9.8 * lf/(lr+lf)
 
             # Dynamics
             # d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
@@ -259,7 +259,7 @@ class DynamicBicycleModel(VehicleDynamics):
             d_omega = 1.0/Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
         return (d_vx, d_vy, d_omega)
 
-    def advanceDynamics(self, car_states, control, car, dt):
+    def advance_dynamics(self, car_states, control, car, dt):
         """advance vehicle dynamics NOTE using car frame origined at CG with x
         pointing forward, y leftward this method does NOT update
         car.sim_states, only returns a sim_state this is to make itself useful
@@ -275,7 +275,7 @@ class DynamicBicycleModel(VehicleDynamics):
         # NOTE here vx = vf, vy = vs, different convention
         x, y, heading, vx, vy, omega = car_states
         steering, throttle = control
-        d_vx, d_vy, d_omega = self.coreDynamics(
+        d_vx, d_vy, d_omega = self.core_dynamics(
             (vx, vy, omega), control, car, dt)
 
         # discretization
@@ -305,7 +305,7 @@ class KinematicBicycleModel(VehicleDynamics):
         # x,y,heading,v_forward,v_sideway,omega = car.states
         self.curvilinear = False
 
-    def advanceDynamics(self, car_states, control, car, dt):
+    def advance_dynamics(self, car_states, control, car, dt):
         lr = car.lr
         lf = car.lf
 
@@ -355,7 +355,7 @@ class GpModel(VehicleDynamics):
         self.model = MultitaskDeepGP((100, input_dim), output_dim)
         self.model.load_state_dict(torch.load(model_filename))
 
-    def coreDynamics(self, core_states, control, car, dt):
+    def core_dynamics(self, core_states, control, car, dt):
         '''
         input: core_states = (vx,vy,omega) control = (steering,throttle)
         output: (d_vx, d_vy, omega)
@@ -388,7 +388,7 @@ class GpModel(VehicleDynamics):
             omega = output[0, 2]
         return (d_vx, d_vy, omega)
 
-    def advanceDynamics(self, car_states, control, car, dt):
+    def advance_dynamics(self, car_states, control, car, dt):
         """advance vehicle dynamics NOTE using car frame origined at CG with x
         pointing forward, y leftward this method does NOT update
         car.sim_states, only returns a sim_state this is to make itself useful
@@ -404,7 +404,7 @@ class GpModel(VehicleDynamics):
         # NOTE here vx = vf, vy = vs, different convention
         x, y, heading, vx, vy, omega = car_states
         steering, throttle = control
-        d_vx, d_vy, omega = self.coreDynamics(
+        d_vx, d_vy, omega = self.core_dynamics(
             (vx, vy, omega), control, car, dt)
 
         # discretization

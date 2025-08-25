@@ -37,8 +37,8 @@ class CopgCarController(CarController):
                 continue
             opponent = car
 
-        opponent_curvi_state = self.cartesianToCurvilinear(opponent)
-        ego_curvi_state = self.cartesianToCurvilinear(self.car)
+        opponent_curvi_state = self.cartesian_to_curvilinear(opponent)
+        ego_curvi_state = self.cartesian_to_curvilinear(self.car)
 
         opponent_curvi_state_torch = torch.from_numpy(
             np.array(opponent_curvi_state)).type(torch.FloatTensor)
@@ -55,7 +55,7 @@ class CopgCarController(CarController):
 
     # cart_state: x,y,heading,v_forward,v_sideways,omega
     # curvi_state: s,d,rel_heading,v_forward,v_sideways,omega
-    def cartesianToCurvilinearFast(self, car):
+    def cartesian_to_curvilinear_fast(self, car):
         # every inquiry
         cart_state = car.states
         coord = (cart_state[0], cart_state[1])
@@ -70,7 +70,7 @@ class CopgCarController(CarController):
             np.arctan2(self.track.dr[idx, 1], self.track.dr[idx, 0])
         return (s, d, rel_heading, cart_state[3], cart_state[4], cart_state[5])
 
-    def cartesianToCurvilinear(self, car):
+    def cartesian_to_curvilinear(self, car):
         cart_state = car.states
         coord = np.array((cart_state[0], cart_state[1]))
 

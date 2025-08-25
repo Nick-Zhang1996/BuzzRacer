@@ -53,7 +53,7 @@ class ctrlMpcWrapper(Car):
 #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
 #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    def ctrlCar(self, state, track, v_override=None, reverse=False):
+    def ctrl_car(self, state, track, v_override=None, reverse=False):
         # state dimension
         n = 5
         # action dimension
@@ -70,7 +70,7 @@ class ctrlMpcWrapper(Car):
 
         debug_dict = {}
         t.s('get ref point')
-        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.getRefPoint(
+        e_cross, e_heading, v_ref, k_ref, coord_ref, valid = track.get_ref_point(
             state, p, dt, reverse=reverse)
         debug_dict['crosstrack_error'] = e_cross
         debug_dict['heading_error'] = e_heading
@@ -128,12 +128,12 @@ class ctrlMpcWrapper(Car):
         # self.states = self.states + (Ak @ self.states + Bk @ u)*dt
         # we now compute augmented A and B
         In = np.eye(n)
-        def getA(Vx, dpsi_r): return In + getA_raw(Vx, dpsi_r) * dt
+        def get_a(Vx, dpsi_r): return In + getA_raw(Vx, dpsi_r) * dt
 
-        A_vec = [getA(Vx, dpsi_r) for Vx, dpsi_r in zip(v_ref, dpsi_dt_ref)]
+        A_vec = [get_a(Vx, dpsi_r) for Vx, dpsi_r in zip(v_ref, dpsi_dt_ref)]
         # LTI model
         # v0 = v_ref[0]
-        # A_vec = [getA(Vx,dpsi_r) for Vx,dpsi_r in zip([v0]*len(v_ref),[0]*len(v_ref))]
+        # A_vec = [get_a(Vx,dpsi_r) for Vx,dpsi_r in zip([v0]*len(v_ref),[0]*len(v_ref))]
 
         B_vec = [B*dt] * p
 
@@ -161,7 +161,7 @@ class ctrlMpcWrapper(Car):
         t.e('assemble matrix')
 
         t.s('convert problem')
-        self.mpc.convertLtv(A_vec, B_vec, C, P, Q, y_ref, x0, du_max, u_max)
+        self.mpc.convert_ltv(A_vec, B_vec, C, P, Q, y_ref, x0, du_max, u_max)
         t.e('convert problem')
 
         t.s('solve')
@@ -177,7 +177,7 @@ class ctrlMpcWrapper(Car):
 
         # throttle is controller by other controller
         # throttle = u_optimal[0,1]
-        throttle = self.calcThrottle(state, v_target)
+        throttle = self.calc_throttle(state, v_target)
 
         debug_dict['x_ref'] = coord_ref
         # debug_dict['x_ref'] = []
@@ -199,7 +199,7 @@ class ctrlMpcWrapper(Car):
 
     # initialize mpc
     # sim: an instance of advCarSim so we have access to parameters
-    def initMpcSim(self, sim):
+    def init_mpc_sim(self, sim):
         # prediction step
         self.prediction_steps = 15
         # prediction discretization dt
@@ -225,7 +225,7 @@ class ctrlMpcWrapper(Car):
         return
 
     # initialize mpc
-    def initMpcReal(self):
+    def init_mpc_real(self):
         # prediction step
         self.prediction_steps = 5
         # prediction discretization dt

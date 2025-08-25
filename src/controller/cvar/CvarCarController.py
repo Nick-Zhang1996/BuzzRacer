@@ -88,11 +88,11 @@ class CvarCarController(CarController):
         self.last_control = np.zeros(2, dtype=np.float32)
         self.freq_vec = []
 
-        self.prepareDiscretizedRaceline()
-        # self.createBoundary()
-        self.initCuda()
+        self.prepare_discretized_raceline()
+        # self.create_boundary()
+        self.init_cuda()
 
-    def prepareDiscretizedRaceline(self):
+    def prepare_discretized_raceline(self):
         ss = np.linspace(0, self.track.raceline_len_m,
                          self.discretized_raceline_len)
         rr = splev(ss % self.track.raceline_len_m,
@@ -111,7 +111,7 @@ class CvarCarController(CarController):
         self.raceline_velocity = vv
 
         # describe track boundary as offset from raceline
-        self.createBoundary()
+        self.create_boundary()
         self.discretized_raceline = np.vstack(
             [self.raceline_points, self.raceline_headings, vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
         '''
@@ -124,7 +124,7 @@ class CvarCarController(CarController):
         return
 
     # TODO move this to RCPTrack
-    def createBoundary(self, show=False):
+    def create_boundary(self, show=False):
         # construct a (self.discretized_raceline_len * 2) vector
         # to record the left and right track boundary as an offset to the discretized raceline
         left_boundary = []
@@ -138,7 +138,7 @@ class CvarCarController(CarController):
             coord = self.raceline_points[:, i]
             heading = self.raceline_headings[i]
 
-            left, right = self.track.preciseTrackBoundary(coord, heading)
+            left, right = self.track.precise_track_boundary(coord, heading)
             left_boundary.append(left)
             right_boundary.append(right)
 
@@ -156,11 +156,11 @@ class CvarCarController(CarController):
             '''
             left_point = (coord[0] + left * cos(heading+np.pi/2),coord[1] + left * sin(heading+np.pi/2))
             right_point = (coord[0] + right * cos(heading-np.pi/2),coord[1] + right * sin(heading-np.pi/2))
-            img = self.track.drawTrack()
-            img = self.track.drawRaceline(img = img)
-            img = self.track.drawPoint(img,coord,color=(0,0,0))
-            img = self.track.drawPoint(img,left_point,color=(0,0,0))
-            img = self.track.drawPoint(img,right_point,color=(0,0,0))
+            img = self.track.draw_track()
+            img = self.track.draw_raceline(img = img)
+            img = self.track.draw_point(img,coord,color=(0,0,0))
+            img = self.track.draw_point(img,left_point,color=(0,0,0))
+            img = self.track.draw_point(img,right_point,color=(0,0,0))
             plt.imshow(img)
             plt.show()
             '''
@@ -169,12 +169,12 @@ class CvarCarController(CarController):
         self.raceline_right_boundary = right_boundary
 
         if (show):
-            img = self.track.drawTrack()
+            img = self.track.draw_track()
             img *= 0
-            # img = self.track.drawRaceline(img = img)
-            img = self.track.drawPolyline(
+            # img = self.track.draw_raceline(img = img)
+            img = self.track.draw_polyline(
                 left_boundary_points, lineColor=(0, 255, 0), img=img)
-            img = self.track.drawPolyline(
+            img = self.track.draw_polyline(
                 right_boundary_points, lineColor=(0, 255, 0), img=img)
             with open('track_boundary_img.p', 'wb') as f:
                 self.print_info('saved raw track background')
@@ -184,7 +184,7 @@ class CvarCarController(CarController):
             return img
         return
 
-    def initCuda(self):
+    def init_cuda(self):
         self.curand_kernel_n = 1024
 
         # prepare constants
@@ -202,36 +202,36 @@ class CvarCarController(CarController):
         }
         cuda_code_macros.update({'CURAND_KERNEL_N': self.curand_kernel_n})
         cuda_filename = './controller/cvar/cvar_racecar.cu'
-        self.loadCudaFile(cuda_filename, cuda_code_macros)
-        self.setBlockGrid()
+        self.load_cuda_file(cuda_filename, cuda_code_macros)
+        self.set_block_grid()
 
-        self.cuda_init_curand_kernel = self.getFunctionSafe(
+        self.cuda_init_curand_kernel = self.get_function_safe(
             'init_curand_kernel')
-        self.cuda_generate_control_noise = self.getFunctionSafe(
+        self.cuda_generate_control_noise = self.get_function_safe(
             'generate_control_noise')
-        # self.cuda_evaluate_control_sequence = self.getFunctionSafe("evaluate_control_sequence")
+        # self.cuda_evaluate_control_sequence = self.get_function_safe("evaluate_control_sequence")
         # CVaR
-        self.cuda_generate_state_noise_normal = self.getFunctionSafe(
+        self.cuda_generate_state_noise_normal = self.get_function_safe(
             'generate_state_noise_normal')
-        self.cuda_generate_state_noise_uniform = self.getFunctionSafe(
+        self.cuda_generate_state_noise_uniform = self.get_function_safe(
             'generate_state_noise_uniform')
-        self.cuda_generate_state_noise_impulse = self.getFunctionSafe(
+        self.cuda_generate_state_noise_impulse = self.get_function_safe(
             'generate_state_noise_impulse')
-        self.cuda_evaluate_noisy_control_sequence = self.getFunctionSafe(
+        self.cuda_evaluate_noisy_control_sequence = self.get_function_safe(
             'evaluate_noisy_control_sequence')
 
-        self.cuda_set_control_limit = self.getFunctionSafe('set_control_limit')
-        self.cuda_set_control_noise_cov = self.getFunctionSafe(
+        self.cuda_set_control_limit = self.get_function_safe('set_control_limit')
+        self.cuda_set_control_noise_cov = self.get_function_safe(
             'set_control_noise_cov')
-        self.cuda_set_control_noise_mean = self.getFunctionSafe(
+        self.cuda_set_control_noise_mean = self.get_function_safe(
             'set_control_noise_mean')
-        self.cuda_set_state_noise_magnitude = self.getFunctionSafe(
+        self.cuda_set_state_noise_magnitude = self.get_function_safe(
             'set_state_noise_magnitude')
-        self.cuda_set_state_noise_mean = self.getFunctionSafe(
+        self.cuda_set_state_noise_mean = self.get_function_safe(
             'set_state_noise_mean')
-        self.cuda_set_raceline = self.getFunctionSafe('set_raceline')
-        self.cuda_set_obstacle = self.getFunctionSafe('set_obstacle')
-        self.initCurand()
+        self.cuda_set_raceline = self.get_function_safe('set_raceline')
+        self.cuda_set_obstacle = self.get_function_safe('set_obstacle')
+        self.init_curand()
 
         assert (self.state_noise_type is not None)
         assert (self.state_noise_magnitude is not None)
@@ -286,20 +286,20 @@ class CvarCarController(CarController):
                                device_obstacles, block=(1, 1, 1), grid=(1, 1, 1))
         sleep(1)
 
-    def initCurand(self):
+    def init_curand(self):
         seed = np.int32(int(time()*10000))
         self.cuda_init_curand_kernel(seed, block=(
             self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
         # self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
         # self.device_rand_vals = drv.to_device(self.rand_vals)
 
-    def loadCudaFile(self, cuda_filename, macros):
+    def load_cuda_file(self, cuda_filename, macros):
         self.print_info('loading cuda source code ...')
         with open(cuda_filename, 'r') as f:
             code = f.read()
         self.mod = SourceModule(code % macros, no_extern_c=True)
 
-    def setBlockGrid(self):
+    def set_block_grid(self):
         if (self.samples_count < 1024):
             # if sample count is small only employ one grid
             self.cuda_sample_block_size = (self.samples_count, 1, 1)
@@ -326,7 +326,7 @@ class CvarCarController(CarController):
             self.cuda_total_sample_block_size[0], self.cuda_total_sample_grid_size[0]))
         return
 
-    def getFunctionSafe(self, name):
+    def get_function_safe(self, name):
         fun = self.mod.get_function(name)
         self.print_info('registers used, ', name, '= %d' % (fun.num_regs))
         assert fun.num_regs < 64
@@ -334,7 +334,7 @@ class CvarCarController(CarController):
                    self.cuda_total_sample_block_size[0]) <= 65536
         return fun
 
-    def getOpponentStatus(self):
+    def get_opponent_status(self):
         opponent_count = 0
         opponent_traj = []
         for car in self.main.cars:
@@ -361,7 +361,7 @@ class CvarCarController(CarController):
         x, y, heading, vf, vs, omega = self.car.states
 
         # prepare opponent info
-        opponent_count, opponent_traj = self.getOpponentStatus()
+        opponent_count, opponent_traj = self.get_opponent_status()
         opponent_count = np.int32(opponent_count)
         if (opponent_count == 0):
             device_opponent_traj = np.uint64(0)
@@ -491,7 +491,7 @@ class CvarCarController(CarController):
         sampled_control_rate = sampled_control_rate.reshape(
             self.samples_count, self.horizon, self.m)
         # print('shoulnt be zero',sampled_control_rate[1000,:])
-        control_rate = self.synthesizeControl(costs, sampled_control_rate)
+        control_rate = self.synthesize_control(costs, sampled_control_rate)
         self.old_ref_control_rate = control_rate
         # self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
@@ -499,9 +499,9 @@ class CvarCarController(CarController):
         # display expected trajectory
         # 5Hz impact
         '''
-        expected_trajectory = self.getDynamicTrajectory( self.car.states, control )
+        expected_trajectory = self.get_dynamic_trajectory( self.car.states, control )
         self.expected_trajectory = expected_trajectory
-        self.plotTrajectory(expected_trajectory)
+        self.plot_trajectory(expected_trajectory)
         '''
 
         # self.last_ref_control = control.copy()
@@ -510,10 +510,10 @@ class CvarCarController(CarController):
         self.car.throttle += control_rate[0, 0]*self.dt
         # XXX
 
-        retval = self.track.localTrajectory(self.car.states)
+        retval = self.track.local_trajectory(self.car.states)
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
         self.car.throttle = self.throttle_pid.control(
-            v_target, vf) + self.steadyStateThrottle(v_target)
+            v_target, vf) + self.steady_state_throttle(v_target)
         self.car.steering += control_rate[0, 1]*self.dt
 
         # self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
@@ -525,7 +525,7 @@ class CvarCarController(CarController):
         '''
         display_trajectory = sampled_trajectory[:,:,0:2]
         for i in range(display_trajectory.shape[0]):
-            self.plotTrajectory(display_trajectory[i])
+            self.plot_trajectory(display_trajectory[i])
         self.print_info("steering std %.2f deg"%(180.0/np.pi*np.std(sampled_control[:,:,1])))
         '''
 
@@ -533,7 +533,7 @@ class CvarCarController(CarController):
 
     # select min cost control
 
-    def synthesizeControlMin(self, cost_vec, sampled_control):
+    def synthesize_control_min(self, cost_vec, sampled_control):
         min_index = np.argmin(cost_vec)
         return sampled_control[min_index]
 
@@ -541,7 +541,7 @@ class CvarCarController(CarController):
     # control_vec: samples * horizon * m
     # cost_vec: samples
 
-    def synthesizeControl(self, cost_vec, sampled_control_rate):
+    def synthesize_control(self, cost_vec, sampled_control_rate):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
         cost_mean = np.mean(cost_vec-beta)  # around 35
@@ -565,7 +565,7 @@ class CvarCarController(CarController):
         return drv.from_device(data, shape, dtype)
 
     # get ss throttle, given ss velocity, linearfit
-    def steadyStateThrottle(self, velocity_ss):
+    def steady_state_throttle(self, velocity_ss):
         # 0.25 -> 0.94
         # 0.28 -> 1.4
         # 0.31 -> 1.9
