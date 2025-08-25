@@ -147,11 +147,11 @@ class Main(PrintObject, LogObject):
         for car in self.cars:
             car.controller.final()
         for item in self.extensions:
-            item.preFinal()
+            item.pre_final()
         for item in self.extensions:
             item.final()
         for item in self.extensions:
-            item.postFinal()
+            item.post_final()
 
     @property
     def time(self):
@@ -198,7 +198,7 @@ class Main(PrintObject, LogObject):
         t.e('update')
         t.s('post')
         for item in self.extensions:
-            item.postUpdate()
+            item.post_update()
         t.e('post')
         t.e()
 
