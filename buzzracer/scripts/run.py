@@ -15,7 +15,7 @@ from car.Car import Car
 from extension.Extension import Extension
 
 
-logger = logging.getLogger('ProfileSteinmerge')
+logger = logging.getLogger('Run')
 logger.setLevel(logging.INFO)
 
 os.environ['PATH'] = (

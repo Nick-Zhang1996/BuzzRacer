@@ -2,13 +2,11 @@
 import os
 import logging
 
-import inspect
 from enum import Enum, auto
 
 import numpy as np
 
-BASEDIR = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ''' BuzzRacer project base folder, contains buzzracer/, gifs/ etc.'''
 
 
@@ -23,7 +21,9 @@ class ExperimentType(Enum):
 
 
 class LogObject:
-    """to use this, user need to add LogObject as a parent class for the class
+    """ Base class for logging attributes of a class recursively.
+    
+    To use this, user need to add LogObject as a parent class for the class
     they wish to log.
 
     During use, populate a self.debug_dict of type Dictionary then add
@@ -137,11 +137,11 @@ class PrintObject:
     @classmethod
     def print_debug(cls, *message):
         # light blue
-        cls.text_logger.debug(inspect.stack(), *message)
+        cls.text_logger.debug(*message)
 
     @classmethod
     def print_warning(cls, *message):
-        cls.text_logger.warning(inspect.stack(), *message)
+        cls.text_logger.warning(*message)
 
 
 # if variables are declared in a subclass for readability,

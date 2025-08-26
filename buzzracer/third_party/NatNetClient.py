@@ -16,6 +16,7 @@
 # Modification by Nick Zhang:
 # manage spawned thread
 # add flag for exit, calling self.request_quit() will terminate all threads gracefully
+# pylint: disable=all
 
 import socket
 import struct

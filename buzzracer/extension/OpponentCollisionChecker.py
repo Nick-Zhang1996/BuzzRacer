@@ -1,11 +1,12 @@
-import numpy as np
-from common import *
+''' Check collision with opponents, for iLQGameCarController. '''
 from extension.Extension import Extension
-
-# check collision with opponents, for iLQGameCarController
 
 
 class OpponentCollisionChecker(Extension):
+    ''' Check collision with opponents, for iLQGameCarController. 
+
+    NOTE this only checks car 0
+    '''
     def __init__(self):
         Extension.__init__(self, 'opponent_collision_checker')
         self.collision_count = 0

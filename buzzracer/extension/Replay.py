@@ -1,21 +1,19 @@
-# replay state history
+''' Replay state history '''
+
+import os
+import pickle
+from math import sin, cos, tan, atan
+
+import torch
+import numpy as np
+from scipy.interpolate import splev
+import matplotlib.pyplot as plt
+
 from util.timeUtil import ExecutionTimer
 from extension.simulator.DynamicSimulator import DynamicSimulator
-from time import time
-import os
-from common import *
-import pickle
-from extension.Extension import Extension
 from extension import Simulator
-from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, atan
-from scipy.interpolate import splprep, splev, CubicSpline, interp1d
-import matplotlib.pyplot as plt
 from sysid.tire import tire_curve
 from sysid.gaussian_process.gpModel import MultitaskDeepGP
-# sketchy
-import sys
-import torch
-sys.path.append('/home/nickzhang/rcvip/src/sysid/gaussian_process')
 
 
 class Replay(Simulator):
