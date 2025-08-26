@@ -1,5 +1,6 @@
 ''' Track laptimes of cars'''
 
+import os
 from time import time
 from threading import Thread, Event
 from math import sin, cos
@@ -7,6 +8,7 @@ from math import sin, cos
 import pickle
 import numpy as np
 
+from common import BASEDIR
 from extension.Extension import Extension
 from car.Car import Car
 
@@ -17,81 +19,92 @@ class Laptimer(Extension):
     def __init__(self):
         Extension.__init__(self, 'laptimer')
 
-        self.main.car_laptime_mean = []
-        self.main.car_laptime_stddev = []
-        self.main.car_total_laps = []
-
-        self.laptimer_by_car: dict[Car, _Laptimer] = {_Laptimer(self.main.track.start_pos,
-                                        self.main.track.start_dir) for car in self.main.cars }
-
-        for car in self.main.cars:
-            car.laptime_vec = []
-            self.main.car_laptime_mean.append(-1)
-            self.main.car_laptime_stddev.append(-1)
-            self.main.car_total_laps.append(-1)
+        cars = self.main.cars
+        self.laptime_mean_by_car: dict[Car, float] = {car: 0 for car in cars}
+        ''' Mean laptime for each car '''
+        self.laptime_stddev_by_car: dict[Car, float] = {car: 0 for car in cars}
+        ''' Stddev for each car '''
+        self.total_laps_by_car: dict[Car, int] = {car: 0 for car in cars}
+        ''' Total laps run for each car '''
+        self.laptime_vec_by_car: dict[Car, float] = {car: [] for car in cars}
+        ''' Laptime history for each car '''
+        self.laptimer_by_car: dict[Car, _Laptimer] = {
+            car: _Laptimer(self.main.track.start_pos,
+                           self.main.track.start_dir)
+            for car in cars
+        }
+        ''' Laptimer object for each car '''
 
     def update(self):
         for car in self.main.cars:
-            if (car.enable_laptimer):
-                retval = car.laptimer.update((car.states[0], car.states[1]),
-                                             current_time=self.main.time)
-                if retval:
-                    # car.laptimer.announce()
-                    print_info('[Laptimer]: car%d, Lap %d laptime: %.4f s' %
-                               (car.id, len(car.laptime_vec),
-                                car.laptimer.last_laptime))
-                    car.laptime_vec.append(car.laptimer.last_laptime)
-                    # self.show_stats()
+            is_new_lap = self.laptimer_by_car[car].update(
+                (car.states[0], car.states[1]), current_time=self.main.time)
+            if is_new_lap:
+                # Audio announcement with text-to-voice
+                # car.laptimer.announce()
+                self.print_info('car%d, Lap %d laptime: %.4f s' %
+                                (car.id, len(self.laptime_vec_by_car[car]),
+                                 self.laptimer_by_car[car].last_laptime))
+                self.laptime_vec_by_car[car].append(
+                    self.laptimer_by_car[car].last_laptime)
 
     def final(self):
         for car in self.main.cars:
-            car.debug_dict.update({'laptime_vec': car.laptime_vec})
+            car.debug_dict.update(
+                {'laptime_vec': self.laptime_vec_by_car[car]})
         self.show_stats()
         self.log_laptime()
 
     def log_laptime(self):
         try:
-            # logname = "../log/laptime_" + str(self.main.logger.log_no) + ".p"
             logname = self.main.logger.logFolder + \
                 'laptime'+str(self.main.logger.log_no) + '.p'
-            with open(logname, 'wb') as f:
-                pickle.dump(self.main.cars[0].laptime_vec, f)
-                print_ok(self.prefix() + ' saved laptime vec to ' + logname)
         except AttributeError:
-            pass
+            logname = os.path.join(BASEDIR, 'log', 'laptime_latest.p')
+            self.print_warning(
+                f"Logger extension wasn't enabled, saving to {logname}")
+        with open(logname, 'wb') as f:
+            laptime_vec_by_car_id = {
+                car.id: self.laptime_vec_by_car[car]
+                for car in self.main.cars
+            }
+            pickle.dump(laptime_vec_by_car_id, f)
+            self.print_ok('Saved laptime vec to ' + logname)
 
     def show_stats(self):
-        car_laptime_mean = []
-        car_laptime_stddev = []
         for car in self.main.cars:
-            if (car.enable_laptimer):
-                if (len(car.laptime_vec) > 0):
-                    mean = np.mean(car.laptime_vec[1:])
-                    stddev = np.std(car.laptime_vec[1:])
-                    laps = len(car.laptime_vec[1:])
-                    print_info(
-                        '[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)'
-                        % (car.id, laps, mean, stddev))
-                else:
-                    mean = -1
-                    stddev = -1
-                car_laptime_mean.append(mean)
-                car_laptime_stddev.append(stddev)
-        self.main.car_laptime_mean = car_laptime_mean
-        self.main.car_laptime_stddev = car_laptime_stddev
+            if len(self.laptime_vec_by_car[car]) > 0:
+                # Ignore first warm up lap
+                mean = np.mean(self.laptime_vec_by_car[car][1:])
+                stddev = np.std(self.laptime_vec_by_car[car][1:])
+                laps = len(self.laptime_vec_by_car[car][1:])
+                self.print_info(
+                    'car%d, %d laps, mean %.4f, stddev %.4f (sec)' %
+                    (car.id, laps, mean, stddev))
+            else:
+                mean = -1
+                stddev = -1
+                self.print_warning(f'car{car.id} has no laps')
+            self.laptime_mean_by_car[car] = mean
+            self.laptime_stddev_by_car[car] = stddev
 
 
 class _Laptimer:
 
-    def __init__(self, finish, orientation, voice=False):
-        # coordinate
+    def __init__(self, finish: np.array, orientation: float, voice=False):
+        ''' Internal Laptimer
+        Args:
+            finish: np.array dim (2,)
+            orientation: float Orientation in rad for track orientation at finish 
+        '''
         self.finish = np.array(finish)
-        # in rad
+        ''' Coordinate dim(2,) for finishing line '''
         self.orientation = orientation
+        ''' Orientation in rad for track orientation at finish '''
         self.finish_vec = np.array([cos(orientation), sin(orientation)])
 
         self.voice = voice
-        if (voice):
+        if voice:
             global pyttsx3
             import pyttsx3
             self.engine = pyttsx3.init()
@@ -109,6 +122,7 @@ class _Laptimer:
         # freeze laptimer for a certain time after a new lap to prevent immediate recounting
         self.timeout = 1.0
         self.hotzone_radius = 0.5
+        self.thread = None
 
     def update(self, coord, current_time=None):
         # let the finish location be O
@@ -116,28 +130,19 @@ class _Laptimer:
         # current position be B
         if current_time is None:
             current_time = time()
-        if (current_time < self.last_lap_ts + self.timeout):
+        if current_time < self.last_lap_ts + self.timeout:
             self.new_lap.clear()
             return False
         coord = np.array(coord)
         OB = coord - self.finish
-        if (self.p1norm(OB) > self.hotzone_radius):
+        if self.p1norm(OB) > self.hotzone_radius:
             self.last_coord = coord
             self.new_lap.clear()
             return False
         OA = self.last_coord - self.finish
-        if (np.dot(OA, self.finish_vec) * np.dot(OB, self.finish_vec) < 0):
+        if np.dot(OA, self.finish_vec) * np.dot(OB, self.finish_vec) < 0:
             self.last_laptime = current_time - self.last_lap_ts
             self.last_lap_ts = current_time
-
-            # require one lap as "warmup"
-            '''
-            if (self.lap_count == 0 ):
-                self.lap_count += 1
-                self.new_lap.clear()
-                return False
-            '''
-
             self.lap_count += 1
             self.new_lap.set()
             return True
@@ -150,9 +155,3 @@ class _Laptimer:
         self.engine.say('%.2f' % self.last_laptime)
         self.engine.runAndWait()
         return
-
-
-if __name__ == '__main__':
-    lp = Laptimer((0, 0), 3, voice=True)
-    lp.last_laptime = 9.882424
-    lp.announce()

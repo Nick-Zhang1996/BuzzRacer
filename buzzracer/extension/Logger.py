@@ -1,60 +1,59 @@
-# handles logging
-import numpy as np
-from common import *
-from extension.Extension import Extension
-from datetime import date
-
+''' Extension to build car states logs '''
 import os.path
+from datetime import date
 from time import time
+
 import pickle
+
+from common import BASEDIR, LogObject
+from extension.Extension import Extension
 
 
 class Logger(Extension):
+    ''' Logger for car states.
+
+    Log file records state of the vehicle for later analysis
+     '''
+
     def __init__(self):
         Extension.__init__(self, 'logger')
         # if log is enabled this will be updated
         # if log is not enabled this will be used as gif image name
         self.log_no = 0
         self.resolve_logname()
-        # the vector that's written to pickle file
-        # this is updated frequently, use the last line
-        # (t(s), x (m), y, heading(rad, ccw+, x axis 0), steering(rad, right+), throttle (-1~1), kf_x, kf_y, kf_v,kf_theta, kf_omega )
         self.full_state_log = []
+        ''' Full state log that's written to pickle file full_state{log_no}.p '''
         self.debug_dict_log = []
+        ''' Debug dict that's written to pickle file debug_dict{log_no}.p '''
 
     def resolve_logname(self,):
-        # setup log file
-        # log file will record state of the vehicle for later analysis
+        ''' Find log file name '''
 
         # create a folder using date and type of experiment
         today = date.today()
-        try:
-            self.main.simulator
-            suffix = 'sim'
-        except AttributeError:
-            suffix = 'exp'
+        suffix = 'sim' if hasattr(self.main, 'simulator') else 'exp'
 
         try:
-            logFolder = '../log/' + self.main.experiment_name + '/'
+            log_folder = os.path.join(BASEDIR, 'log', self.main.experiment_name)
         except AttributeError:
-            logFolder = '../log/' + \
+            log_folder = os.path.join(BASEDIR, 'log', 
                 '%d_%d_%d_' % (today.year, today.month,
-                               today.day) + suffix + '/'
+                               today.day) + suffix)
 
-        if not os.path.exists(logFolder):
-            os.makedirs(logFolder)
-        logPrefix = 'full_state'
-        logSuffix = '.p'
+        if not os.path.exists(log_folder):
+            os.makedirs(log_folder)
+        log_prefix = 'full_state'
+        log_suffix = '.p'
         no = 1
-        while os.path.isfile(logFolder+logPrefix+str(no)+logSuffix):
+        while os.path.isfile(log_folder+log_prefix+str(no)+log_suffix):
             no += 1
 
         self.log_no = no
-        self.logFilename = logFolder+logPrefix+str(no)+logSuffix
+        self.log_filename = log_folder+log_prefix+str(no)+log_suffix
 
-        logPrefix = 'debug_dict'
-        self.logDictFilename = logFolder+logPrefix+str(no)+logSuffix
-        self.logFolder = logFolder
+        log_prefix = 'debug_dict'
+        self.log_dict_filename = log_folder+log_prefix+str(no)+log_suffix
+        self.log_folder = log_folder
 
     def post_update(self):
         # x,y,theta are in track frame
@@ -62,11 +61,9 @@ class Logger(Extension):
         # v_sideway in vehicle frame, left positive
         # omega in vehicle frame, axis pointing upward
         log_entry = []
-        for i in range(len(self.main.cars)):
-            car = self.main.cars[i]
+        for car in self.main.cars:
             (x, y, theta, v_forward, v_sideway, omega) = car.states
-
-            # (time, x,y,theta,vforward,vsideway=0,omega)
+            # (time, x,y,theta, vforward,vsideway=0,omega)
             log_entry.append([time(), x, y, theta, v_forward,
                              v_sideway, omega, car.steering, car.throttle])
 
@@ -81,13 +78,13 @@ class Logger(Extension):
         self.debug_dict_log.append(debug_dict)
 
     def post_final(self):
-        print_ok('[Logger]: saving full_state log at ' + self.logFilename)
+        self.print_ok('saving full_state log at ' + self.log_filename)
 
-        output = open(self.logFilename, 'wb')
+        output = open(self.log_filename, 'wb')
         pickle.dump(self.full_state_log, output)
         output.close()
 
-        print_ok('[Logger]: saving debugDict log at ' + self.logDictFilename)
-        output = open(self.logDictFilename, 'wb')
+        self.print_ok('saving debugDict log at ' + self.log_dict_filename)
+        output = open(self.log_dict_filename, 'wb')
         pickle.dump(self.debug_dict_log, output)
         output.close()

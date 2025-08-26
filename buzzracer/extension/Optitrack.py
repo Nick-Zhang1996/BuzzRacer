@@ -1,30 +1,30 @@
-# interface for Optitrack Motive stream via NatNet SDK library
-# FIXME hack
+''' interface for Optitrack Motive stream via NatNet SDK library'''
+# have a lot of x,y,z redefined in local scope
+# pylint: disable=redefined-outer-name
 from math import pi, degrees, atan2
 from threading import Event, Lock
-from time import time, sleep
-from extension.Extension import Extension
-from scipy.spatial.transform import Rotation
+from time import sleep
+
 import numpy as np
-from util.kalmanFilter import KalmanFilter
-from common import *
-from third_party.NatNetClient import NatNetClient
-import os
-import sys
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
+from scipy.spatial.transform import Rotation
 
+from common import ExperimentType, PrintObject
+from extension.Extension import Extension
+from buzzracer.util.kalmanFilter import KalmanFilter
+from buzzracer.third_party.NatNetClient import NatNetClient
 
-class Optitrack(Extension, PrintObject):
+class Optitrack(Extension):
+    ''' interface for Optitrack Motive stream via NatNet SDK library'''
     def __init__(self):
         super().__init__(handle_name='vi')
-        if (Extension.main.experiment_type != ExperimentType.Realworld):
+        if Extension.main.experiment_type != ExperimentType.Realworld:
             self.print_error(
                 'Experiment type is not Realworld but Optitrack is loaded')
+        self.vi = None
+        ''' Internal _Optitrack instance '''
 
     def init(self):
         self.vi = _Optitrack(self)
-        self.main.vi = self.vi
         for car in self.main.cars:
             car.internal_id = self.vi.get_internal_id(car.optitrack_id)
             self.print_ok(' Optitrack ID: %d, Internal ID: %d' %
@@ -42,33 +42,6 @@ class Optitrack(Extension, PrintObject):
 
     def final(self):
         self.vi.quit()
-
-
-# ---- Optitrack ---- old
-
-    def init_optitrack(self, car, unused=None):
-        self.print_info('Initializing Optitrack...')
-        car.vi = Optitrack(wheelbase=car.wheelbase)
-        # TODO use acutal optitrack id for car
-        # porsche: 2
-        car.internal_id = car.vi.get_internal_id(car.optitrack_id)
-        car.new_state_update = car.vi.newState
-
-    def update_optitrack(self, car):
-        # update for eachj car
-        # not using kf state for now
-        (x, y, v, theta, omega) = car.vi.get_k_fstate(car.internal_id)
-
-        # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
-        # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = (x, y, theta, v, 0, omega)
-        return
-
-    def stop_optitrack(self, car):
-        # the optitrack destructor should handle things properly
-        car.vi.quit()
-        pass
-
 
 class _Optitrack(PrintObject):
     def __init__(self, base, enableKF=True):
@@ -98,8 +71,10 @@ class _Optitrack(PrintObject):
         # use the rotation matrix
         # vector_track_frame = self.R.apply(vector_world_frame)
 
-        # a list of state tuples, state tuples take the form: (x,y,z,rx,ry,rz), in meters and radians, respectively
-        # note that rx,ry,rz are euler angles in XYZ convention, this is different from the ZYX convention commonly used in aviation
+        # a list of state tuples,
+        # state tuples take the form: (x,y,z,rx,ry,rz), in meters and radians, respectively
+        # note that rx,ry,rz are euler angles in XYZ convention,
+        #  this is different from the ZYX convention commonly used in aviation
         self.state_list = []
         # this is converted 2D state (x,y,heading) in track space
         self.state2d_list = []
@@ -112,8 +87,9 @@ class _Optitrack(PrintObject):
 
         self.obj_count = 0
 
-        if self.enableKF.isSet():
-            # set callback for rigid body state update, this will create a new KF instance for each object
+        if self.enableKF.is_set():
+            # set callback for rigid body state update,
+            # this will create a new KF instance for each object
             # and set up self.optitrack_id_lookup table
             self.streamingClient.rigidBodyListener = self.receive_rigid_body_frame_init
             # wait for all objects to be detected
@@ -131,9 +107,12 @@ class _Optitrack(PrintObject):
         self.streamingClient.request_quit()
 
     # there are two sets of id
-    # Optitrack ID: like object name in vicon, each object has a unique ID that can be any integer value
-    # internal ID within this class, like object id in vicon, each object has a unique id, id will be assigned starting from zero
-    # for example, the Optitrack ID for two objects may be 7,9, while their corresponding internal ID will be 0,1
+    # Optitrack ID: like object name in vicon,
+    # each object has a unique ID that can be any integer value
+    # internal ID within this class, like object id in vicon,
+    # each object has a unique id, id will be assigned starting from zero
+    # for example, the Optitrack ID for two objects may be 7,9,
+    # while their corresponding internal ID will be 0,1
     # this is to facilitate easier indexing
     def get_optitrack_id(self, internal_id):
         # hard code since we only have a handful of models
@@ -154,9 +133,10 @@ class _Optitrack(PrintObject):
     # optitrack callback for item discovery
     # this differs from receive_rigid_body_frame in that
     # 1. does not include kalman filter update
-    # 2. if an unseen id is found, it will be added to id list and an KF instance will be created for it
+    # 2. if an unseen id is found,
+    # it will be added to id list and an KF instance will be created for it
     def receive_rigid_body_frame_init(self, optitrack_id, position, rotation):
-        if not (optitrack_id in self.optitrack_id_lookup):
+        if not optitrack_id in self.optitrack_id_lookup:
             self.obj_count += 1
             self.optitrack_id_lookup.append(optitrack_id)
 
@@ -167,7 +147,7 @@ class _Optitrack(PrintObject):
 
             # get body pose in track frame
             # x,y,z in track frame
-            x_local, y_local, z_local = self.R.apply([x, y, z])
+            x_local, y_local, _ = self.R.apply([x, y, z])
             # x in car frame is forward direction, get that in world frame
             heading_world = r.apply([1, 0, 0])
             # now convert that to track frame
@@ -175,20 +155,20 @@ class _Optitrack(PrintObject):
             # heading in 2d world is the Z component
             theta_local = atan2(heading_track[1], heading_track[0])
 
-            if self.enableKF.isSet():
+            if self.enableKF.is_set():
                 self.kf.append(KalmanFilter(wheelbase=self.wheelbase))
             # get body pose in track/local frame
             # current setup in G13
             x_local = -x
             y_local = z
             theta_local = ry + pi/2
-            if self.enableKF.isSet():
+            if self.enableKF.is_set():
                 self.kf[-1].init(x_local, y_local, theta_local)
 
             self.state_lock.acquire(timeout=0.01)
             self.state_list.append((x, y, z, rx, ry, rz))
             self.state2d_list.append((x_local, y_local, theta_local))
-            if self.enableKF.isSet():
+            if self.enableKF.is_set():
                 # (x,y,v,theta,omega)
                 self.kf_state_list.append(
                     (x_local, y_local, 0, theta_local, 0))
@@ -205,7 +185,7 @@ class _Optitrack(PrintObject):
 
         # get body pose in track frame
         # x,y,z in track frame
-        x_local, y_local, z_local = self.R.apply([x, y, z])
+        x_local, y_local, _ = self.R.apply([x, y, z])
         # x in car frame is forward direction, get that in world frame
         heading_world = r.apply([1, 0, 0])
         # now convert that to track frame
@@ -213,7 +193,7 @@ class _Optitrack(PrintObject):
         # heading in 2d world is the Z component
         theta_local = atan2(heading_track[1], heading_track[0])
 
-        if self.enableKF.isSet():
+        if self.enableKF.is_set():
             self.kf[internal_id].predict(self.action)
             observation = np.matrix([[x_local, y_local, theta_local]]).T
             self.kf[internal_id].update(observation)
@@ -222,7 +202,7 @@ class _Optitrack(PrintObject):
         self.state_list[internal_id] = (x, y, z, rx, ry, rz)
         self.state2d_list[internal_id] = (x_local, y_local, theta_local)
 
-        if self.enableKF.isSet():
+        if self.enableKF.is_set():
             # kf.get_state() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].get_state()
         self.state_lock.release()
