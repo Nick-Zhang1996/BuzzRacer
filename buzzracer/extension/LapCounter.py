@@ -34,26 +34,24 @@ class LapCounter(Extension):
                     # warm-up completed, hot-lap started
                     # laptimes from now on are representative
                     self.is_hot_lap[car].set()
-                    self.print_ok('car%d critical lap start, total = %d laps' %
-                                  (car.id, self.total_laps))
+                    self.print_ok('car%d critical lap start, total = %d laps',
+                                  car.id, self.total_laps)
                     continue
 
-                car.laps_remaining -= 1
-                car.lap_count += 1
-                self.print_ok('[LapCounter]: car%d, %d laps remaining' %
-                              (car.id, car.laps_remaining))
-                if car.laps_remaining <= 0:
-                    self.print_ok('[LapCounter]: car%d critical lap end' %
-                                  (car.id))
-                    car.critical_lap.clear()
-                    # should we wait for next time step to st exit flag?
+                self.lap_count[car] += 1
+                self.print_ok('car%d, %d laps remaining', car.id,
+                              car.laps_remaining)
+                if self.lap_count[car] == self.total_laps:
+                    self.print_ok(f'car{car.id} critical lap end')
+                    self.is_hot_lap[car].clear()
                     self.main.exit_request.set()
 
     def plot_lap_count(self, car):
+        ''' Plot lap count onto visualization'''
         if not self.main.visualization.update_visualization.is_set():
             return
         img = car.main.visualization.visualization_img
-        text = 'Lap: %d' % (car.lap_count)
+        text = f'Lap: {self.lap_count[car]}'
 
         # font
         font = cv2.FONT_HERSHEY_SIMPLEX

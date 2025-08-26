@@ -1,41 +1,45 @@
-# laptimer
-from extension.Extension import *
+''' Track laptimes of cars'''
+
+from time import time
 from threading import Thread, Event
 from math import sin, cos
-import numpy as np
-from time import time
-from common import *
+
 import pickle
+import numpy as np
+
+from extension.Extension import Extension
+from car.Car import Car
 
 
 class Laptimer(Extension):
-    def __init__(self):
-        Extension.__init__(self, 'lap_timer')
+    ''' Laptimer for simulation and experiments.'''
 
-    def init(self):
+    def __init__(self):
+        Extension.__init__(self, 'laptimer')
+
         self.main.car_laptime_mean = []
         self.main.car_laptime_stddev = []
         self.main.car_total_laps = []
 
+        self.laptimer_by_car: dict[Car, _Laptimer] = {_Laptimer(self.main.track.start_pos,
+                                        self.main.track.start_dir) for car in self.main.cars }
+
         for car in self.main.cars:
-            car.enableLaptimer = True
-            if car.enableLaptimer:
-                car.laptimer = _Laptimer(
-                    self.main.track.start_pos, self.main.track.start_dir)
-                car.laptime_vec = []
+            car.laptime_vec = []
             self.main.car_laptime_mean.append(-1)
             self.main.car_laptime_stddev.append(-1)
             self.main.car_total_laps.append(-1)
 
     def update(self):
         for car in self.main.cars:
-            if (car.enableLaptimer):
-                retval = car.laptimer.update(
-                    (car.states[0], car.states[1]), current_time=self.main.time)
+            if (car.enable_laptimer):
+                retval = car.laptimer.update((car.states[0], car.states[1]),
+                                             current_time=self.main.time)
                 if retval:
                     # car.laptimer.announce()
-                    print_info('[Laptimer]: car%d, Lap %d laptime: %.4f s' % (
-                        car.id, len(car.laptime_vec), car.laptimer.last_laptime))
+                    print_info('[Laptimer]: car%d, Lap %d laptime: %.4f s' %
+                               (car.id, len(car.laptime_vec),
+                                car.laptimer.last_laptime))
                     car.laptime_vec.append(car.laptimer.last_laptime)
                     # self.show_stats()
 
@@ -60,13 +64,14 @@ class Laptimer(Extension):
         car_laptime_mean = []
         car_laptime_stddev = []
         for car in self.main.cars:
-            if (car.enableLaptimer):
+            if (car.enable_laptimer):
                 if (len(car.laptime_vec) > 0):
                     mean = np.mean(car.laptime_vec[1:])
                     stddev = np.std(car.laptime_vec[1:])
                     laps = len(car.laptime_vec[1:])
-                    print_info('[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)' % (
-                        car.id, laps, mean, stddev))
+                    print_info(
+                        '[Laptimer]: car%d, %d laps, mean %.4f, stddev %.4f (sec)'
+                        % (car.id, laps, mean, stddev))
                 else:
                     mean = -1
                     stddev = -1
@@ -77,6 +82,7 @@ class Laptimer(Extension):
 
 
 class _Laptimer:
+
     def __init__(self, finish, orientation, voice=False):
         # coordinate
         self.finish = np.array(finish)
@@ -97,8 +103,8 @@ class _Laptimer:
         # indicator that this lap is new
         self.new_lap = Event()
         self.lap_count = 0
-        self.p1dist = lambda a, b: abs(a[0]-b[0])+abs(a[1]-b[1])
-        self.p1norm = lambda a: abs(a[0])+abs(a[1])
+        self.p1dist = lambda a, b: abs(a[0] - b[0]) + abs(a[1] - b[1])
+        self.p1norm = lambda a: abs(a[0]) + abs(a[1])
 
         # freeze laptimer for a certain time after a new lap to prevent immediate recounting
         self.timeout = 1.0
@@ -110,7 +116,7 @@ class _Laptimer:
         # current position be B
         if current_time is None:
             current_time = time()
-        if (current_time < self.last_lap_ts+self.timeout):
+        if (current_time < self.last_lap_ts + self.timeout):
             self.new_lap.clear()
             return False
         coord = np.array(coord)
@@ -120,7 +126,7 @@ class _Laptimer:
             self.new_lap.clear()
             return False
         OA = self.last_coord - self.finish
-        if (np.dot(OA, self.finish_vec)*np.dot(OB, self.finish_vec) < 0):
+        if (np.dot(OA, self.finish_vec) * np.dot(OB, self.finish_vec) < 0):
             self.last_laptime = current_time - self.last_lap_ts
             self.last_lap_ts = current_time
 
