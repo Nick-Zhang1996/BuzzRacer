@@ -7,12 +7,11 @@ from threading import Event
 from time import time
 from xml.dom import minidom
 
-from common import PrintObject, LogObject, ExperimentType, Config
-from util.timeUtil import ExecutionTimer
-from track import TrackFactory
-
-from car.Car import Car
-from extension.Extension import Extension
+from buzzracer.common import PrintObject, LogObject, ExperimentType, Config
+from buzzracer.util.timeUtil import ExecutionTimer
+from buzzracer.track import TrackFactory
+from buzzracer.car.Car import Car
+from buzzracer.extension.Extension import Extension
 
 
 logger = logging.getLogger('Run')

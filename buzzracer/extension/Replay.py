@@ -12,7 +12,7 @@ from scipy.interpolate import splev
 from buzzracer.common import BASEDIR
 from buzzracer.util.timeUtil import ExecutionTimer
 from buzzracer.extension.simulator.DynamicSimulator import DynamicSimulator
-from buzzracer.extension import Simulator
+from buzzracer.extension.Simulator import Simulator
 from buzzracer.sysid.tire import tire_curve
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
 from buzzracer.car.Car import Car
@@ -187,7 +187,7 @@ class Replay(Simulator):
                 for (i, car) in enumerate(self.main.cars):
                     init_state = self.data[self.timestep, i, 1:-2]
                     predicted_traj = [init_state]
-                    for t in range(int(horizon / self.main.dt)):
+                    for _ in range(int(horizon / self.main.dt)):
                         states = predicted_traj[-1]
                         control = self.data[self.timestep +
                                             len(predicted_traj) - 1, i, -2:]
@@ -374,7 +374,7 @@ class GpModel(DynamicBicycleModel):
         super().__init__()
         self.curvilinear = False
 
-        # TODO move to config, but this is pretty one-off
+        # should move to config, but again this is pretty one-off
         model_filename = '/home/nickzhang/rcvip/src/sysid/gaussian_process/model.p'
         input_dim = 5
         output_dim = 3
