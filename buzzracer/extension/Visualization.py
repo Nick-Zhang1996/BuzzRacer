@@ -1,13 +1,17 @@
-import cv2
-from time import sleep, time
-from common import *
-from extension.Extension import Extension
+''' Create a visualization of car on track'''
+
+import os
+from time import time
 from threading import Event
+from math import degrees
 import pickle
-import matplotlib.pyplot as plt
-from math import degrees, radians
+
+import cv2
 from PIL import Image
-from threading import Event
+import numpy as np
+
+from buzzracer.common import BASEDIR
+from buzzracer.extension.Extension import Extension
 
 
 class Visualization(Extension):
@@ -16,32 +20,40 @@ class Visualization(Extension):
         self.update_visualization = Event()
         self.update_freq = 100
         self.frame_dt = 1.0/self.update_freq
-        # NOTE
         self.frame_dt = 0.0
         self.count = 0
-        # default setting, will be overridden if defined in config
         self.car_graphics = False
+        ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.main.breakpoint = Event()
+        self.visualization_ts: float = 0.0
+        ''' clock time of last visualization update'''
 
-    def final(self):
-        cv2.destroyAllWindows()
-
-    def init(self,):
         self.visualization_ts = time()
-        self.img_track = self.main.track.draw_track()
-        self.img_blank_track = self.img_track.copy()
+
+        self.img_track = None
+        '''' Image of a track, with static visualization components like debuggint text '''
+        self.img_blank_track = None
+        ''' Blacnk image of the track '''
+        self.img_blank_track_with_obstacles = None
+        ''' Blacnk image of the track, with obstacles if any'''
+        self.visualization_img = None
+        ''' The current visualization image'''
+
+    def init(self):
+        img_track = self.main.track.draw_track()
+        self.img_blank_track = img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(
             self.img_track.copy())
-        self.img_track = self.main.track.draw_raceline(img=self.img_track)
+        img_track = self.main.track.draw_raceline(img=img_track)
+        self.img_track = self.draw_control_static_for_all_cars(img_track)
 
-        img = self.img_track.copy()
+        img = img_track.copy()
         for car in self.main.cars:
             car.image = cv2.imread(car.params['rendering'], -1)
             img = self.draw_car(img, car)
 
         # draw static components onto background
-        self.img_track = self.draw_control_static_for_all_cars(self.img_track)
         self.visualization_img = img
         cv2.imshow('experiment', img)
         cv2.waitKey(200)
@@ -50,7 +62,7 @@ class Visualization(Extension):
         self.save_blank_img()
 
     def save_blank_img(self):
-        # img = self.img_blank_track.copy()
+        ''' Save the blank background as pickle dump'''
         img = self.img_blank_track_with_obstacles.copy()
         try:
             obstacles = self.main.cars[0].controller.obstacles
@@ -61,13 +73,15 @@ class Visualization(Extension):
         except AttributeError:
             pass
 
-        with open('track_img.p', 'wb') as f:
-            print_info(self.prefix()+'saved raw track background')
+        filename = os.path.join(BASEDIR,'resources','track_img.p')
+        with open(filename, 'wb') as f:
+            self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)
 
-    # show image
-    # do this last since controllers may need to alter the image
     def post_update(self,):
+        ''' Show visualization image
+            Do this last since controllers may need to alter the image
+        '''
         if (self.update_visualization.is_set()):
             self.update_visualization.clear()
             self.visualization_ts = time()
@@ -78,7 +92,7 @@ class Visualization(Extension):
             if k == ord('q'):
                 # first time q is presed, slow down
                 if not self.main.slowdown.isSet():
-                    print_ok('slowing down, press q again to shutdown')
+                    self.print_ok('slowing down, press q again to shutdown')
                     self.main.slowdown.set()
                     self.main.slowdown_ts = time()
                 else:
@@ -95,7 +109,10 @@ class Visualization(Extension):
             # s for snapshot
             elif k == ord('s'):
                 self.print_info('Requesting snapshot')
-                self.main.snapshot.take_snapshot()
+                try:
+                    self.main.snapshot.toggle_snapshot()
+                except AttributeError:
+                    self.print_warning('Snapshot module is not loaded')
 
     def pre_update(self,):
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
@@ -112,17 +129,10 @@ class Visualization(Extension):
             self.visualization_img = img
 
     def final(self):
-        img = self.img_track.copy()
-        self.visualization_img = img
-        self.update_visualization.set()
-        # self.main.cars[0].controller.plot_obstacles()
-        # self.main.cars[0].controller.plot_trajectory()
-        # img = self.visualization_img.copy()
-        # filename = "./last_frame_" + self.main.algorithm + ".png"
-        # cv2.imwrite(filename,img)
-        # print_info(self.prefix()+"saved last frame at " + filename)
+        cv2.destroyAllWindows()
 
     def draw_control_static_for_all_cars(self, img):
+        ''' Draw static visualization components '''
         offset = -10
         for car in self.main.cars:
             img = self.draw_control_static(img, car, (-10, offset))
@@ -131,6 +141,7 @@ class Visualization(Extension):
         return img
 
     def draw_control_static(self, img, car, coord):
+        ''' Draw static visualization components '''
         # draw car illustration
         x2 = coord[0] + 20
         y2 = coord[1] + 50
@@ -138,6 +149,7 @@ class Visualization(Extension):
         return img
 
     def draw_control_for_all_cars(self, img):
+        ''' Draw control visualization components '''
         offset = -10
         for car in self.main.cars:
             # img = self.draw_acceleration(img, car, (0,0))
@@ -147,11 +159,7 @@ class Visualization(Extension):
 
     def draw_control(self, img, car, coord):
         ''' draw control, throttle/steering: [-1,1]'''
-        def bound(a, l, h):
-            val = l if a < l else a
-            return h if val > h else val
-
-        def map(val, in_l, in_h, out_low, out_high):
+        def fmap(val, in_l, in_h, out_low, out_high):
             # out of bound flag
             oob = False
             if (val < in_l):
@@ -165,9 +173,9 @@ class Visualization(Extension):
         # x1 and y1 are the origin values -- need to be changed if origin changes
         x1 = coord[0] + 30
         y1 = coord[1]
-        x, y, heading, vf_lf, vs_lf, omega_lf = car.states
+        #x, y, heading, vf_lf, vs_lf, omega_lf = car.states
         # Add steering bar
-        steering, oob = map(car.steering, -car.max_steering_left,
+        steering, oob = fmap(car.steering, -car.max_steering_left,
                             car.max_steering_right, 100, 0)
         img = cv2.rectangle(img, (x1, y1 + 25),
                             (x1 + 100, y1 + 40), (0, 0, 255), 1)
@@ -180,7 +188,7 @@ class Visualization(Extension):
         img = cv2.putText(img, 'Steering', (x1 + 104, y1 + 35),
                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         # Add Throttle bar
-        throttle, oob = map(car.throttle, car.min_throttle,
+        throttle, oob = fmap(car.throttle, car.min_throttle,
                             car.max_throttle, 0, 100)
         img = cv2.rectangle(img, (x1, y1 + 45),
                             (x1 + 100, y1 + 60), (0, 0, 255), 1)
@@ -195,46 +203,14 @@ class Visualization(Extension):
 
         return img
 
-    def draw_acceleration(self, img, car, coord):
-        # x1 and y1 are the origin values -- need to be changed if origin changes
-        x1 = coord[0]
-        y1 = coord[1]
-        x, y, heading, vf_lf, vs_lf, omega_lf = car.states
-        steering = car.steering
-        throttle = car.throttle
-
-        # Add acceleration bar
-        img = cv2.circle(img, (x1 + 50, y1 + 80), 18, (0, 0, 255), 1)
-        img = cv2.putText(img, 'Acceleration', (x1 + 104, y1 + 80),
-                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
-        # img = cv2.circle(img, (x1 + 50, y1 + 80), 3, (0, 255, 0), -1)
-        acc_x = ((np.square(vf_lf) - np.square(vs_lf)/(2*x)))
-        acc_y = ((np.square(vf_lf) - np.square(vs_lf)/(2*y)))
-        acc_x_scale = int(acc_x/3)
-        acc_y_scale = int(acc_y/3)
-        direction_x = 0
-        direction_y = 0
-        if (steering == 0):
-            direction_x = (x1 + (50))
-            direction_y = (y1 + (80 + (6 * acc_y_scale)))
-        if (0 < steering):
-            direction_x = (x1 + (50 + (6 * acc_x_scale)))
-            direction_y = (y1 + (80 + (6 * acc_y_scale)))
-        if (steering < 0):
-            direction_x = (x1 + (50 - (6 * acc_x_scale)))
-            direction_y = (y1 + (80 + (6 * acc_y_scale)))
-
-        img = cv2.circle(img, (direction_x, direction_y), 3, (0, 255, 0), -1)
-        return img
-
-# draw the vehicle (one dot with two lines) onto a canvas
-# coord: location of the dor, in meter (x,y)
-# heading: heading of the vehicle, radians from x axis, ccw positive
-#  steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
-# NOTE: this function modifies img, if you want to recycle base img, send img.copy()
     def draw_car(self, img, car):
-        x, y, heading, vf_lf, vs_lf, omega_lf = car.states
-        throttle = car.throttle
+        ''' Draw the vehicle (one dot with two lines) onto a canvas
+        coord: location of the dor, in meter (x,y)
+        heading: heading of the vehicle, radians from x axis, ccw positive
+        steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
+        NOTE: this function modifies img, if you want to recycle base img, send img.copy()
+        '''
+        x, y, heading, _ = car.states
         steering = car.steering
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
@@ -255,7 +231,7 @@ class Visualization(Extension):
         return img
 
     def overlay_car_rendering(self, img, car):
-        x, y, heading, vf_lf, vs_lf, omega_lf = car.states
+        x, y, heading, _ = car.states
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
         if (src is None):
@@ -263,18 +239,8 @@ class Visualization(Extension):
             return img
         return self.overlay_car_rendering_raw(img, car, src, heading)
 
-    # TODO optimize this
-    # overlay Car rendering at specified location in pixel coord, for plotting controls
     def overlay_car_rendering_raw(self, img, car, src, angle=np.pi/2):
-        # x,y,heading, vf_lf, vs_lf, omega_lf = car.states
-        # coord = (x,y)
-        # src = self.main.track.m2canvas(coord)
-        # if (src is None):
-        #    print("overlay_car_rendering err -- coordinate outside canvas")
-        #    return img
-
-        # image rotation according to heading and steering angles
-        # heading = np.pi/2
+        ''' overlay Car rendering at specified location in pixel coord, for plotting controls '''
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
         # dynamic scale
