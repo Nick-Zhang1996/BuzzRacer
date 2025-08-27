@@ -8,13 +8,15 @@ from time import sleep
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from common import ExperimentType, PrintObject
-from extension.Extension import Extension
+from buzzracer.common import ExperimentType, PrintObject
+from buzzracer.extension.Extension import Extension
 from buzzracer.util.kalmanFilter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
 
+
 class Optitrack(Extension):
     ''' interface for Optitrack Motive stream via NatNet SDK library'''
+
     def __init__(self):
         super().__init__(handle_name='vi')
         if Extension.main.experiment_type != ExperimentType.Realworld:
@@ -43,7 +45,9 @@ class Optitrack(Extension):
     def final(self):
         self.vi.quit()
 
+
 class _Optitrack(PrintObject):
+
     def __init__(self, base, enableKF=True):
         self.base = base
         self.newState = Event()
@@ -161,7 +165,7 @@ class _Optitrack(PrintObject):
             # current setup in G13
             x_local = -x
             y_local = z
-            theta_local = ry + pi/2
+            theta_local = ry + pi / 2
             if self.enableKF.is_set():
                 self.kf[-1].init(x_local, y_local, theta_local)
 
@@ -239,9 +243,9 @@ class _Optitrack(PrintObject):
         except IndexError as e:
             self.print_error("can't find internal id %d" % (internal_id))
             self.print_error(str(e))
-            self.print_error('obj count '+str(self.obj_count))
-            self.print_error('state2d list len '+str(len(self.state2d_list)))
-            self.print_error('state list len '+str(len(self.state_list)))
+            self.print_error('obj count ' + str(self.obj_count))
+            self.print_error('state2d list len ' + str(len(self.state2d_list)))
+            self.print_error('state list len ' + str(len(self.state_list)))
         finally:
             self.state_lock.release()
 

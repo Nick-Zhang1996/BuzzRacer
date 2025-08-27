@@ -2,8 +2,8 @@
 from threading import Event
 import cv2
 
-from extension.Extension import Extension
-from car.Car import Car
+from buzzracer.extension.Extension import Extension
+from buzzracer.car.Car import Car
 
 
 class LapCounter(Extension):

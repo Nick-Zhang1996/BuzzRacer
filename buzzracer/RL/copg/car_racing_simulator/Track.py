@@ -5,6 +5,7 @@ from numpy import linalg as LA
 import math
 import torch
 import sys
+
 sys.path.insert(0, '../..')  # inorder to run within the folder
 
 
@@ -36,7 +37,8 @@ class Track:
         config = minidom.parse('config.xml')
         config_track = config.getElementsByTagName('track')[0]
         self.track = TrackFactory(None, config_track, 'full')
-        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.get_orca_style_track()
+        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.get_orca_style_track(
+        )
 
         self.N = N
         self.X = X
@@ -65,7 +67,10 @@ class Track:
         else:
             next_index = index + 1
 
-        return np.array([self.X[next_index] - self.X[index], self.Y[next_index] - self.Y[index]])
+        return np.array([
+            self.X[next_index] - self.X[index],
+            self.Y[next_index] - self.Y[index]
+        ])
 
     def interpol(self, name, index, rela_proj):
         if index == self.N:
@@ -75,17 +80,21 @@ class Track:
             next_index = index + 1
 
         if name == 's':
-            return self.s[index] + (rela_proj * (self.s[next_index] - self.s[index]))
+            return self.s[index] + (rela_proj *
+                                    (self.s[next_index] - self.s[index]))
         if name == 'phi':
-            return self.phi[index] + (rela_proj * (self.phi[next_index] - self.phi[index]))
+            return self.phi[index] + (rela_proj *
+                                      (self.phi[next_index] - self.phi[index]))
         if name == 'kappa':
-            return self.kappa[index] + (rela_proj * (self.kappa[next_index] - self.kappa[index]))
+            return self.kappa[index] + (
+                rela_proj * (self.kappa[next_index] - self.kappa[index]))
 
     def from_sto_pos(self, s):
 
         index = math.floor(s / self.diff_s)
         rela_proj = (s - self.s[index]) / self.diff_s
-        pos = [self.X[index], self.Y[index]] + self.vec_track(index) * rela_proj
+        pos = [self.X[index], self.Y[index]
+               ] + self.vec_track(index) * rela_proj
         return pos
 
     def from_sto_index(self, s):

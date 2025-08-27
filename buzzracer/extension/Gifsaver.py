@@ -4,8 +4,8 @@ import os.path
 import cv2
 from PIL import Image
 
-from common import BASEDIR
-from extension.Extension import Extension
+from buzzracer.common import BASEDIR
+from buzzracer.extension.Extension import Extension
 
 
 class Gifsaver(Extension):

@@ -1,19 +1,25 @@
+''' check collision with static obstacles '''
 import numpy as np
-from extension.Extension import Extension
-from car.Car import Car
-
-# check collision with static obstacles
+from buzzracer.extension.Extension import Extension
+from buzzracer.car.Car import Car
 
 
 class CollisionChecker(Extension):
+
     def __init__(self):
         Extension.__init__(self, 'collision_checker')
 
-        self.collision_count: dict[Car, int] = {car:0 for car in self.main.cars}
+        self.collision_count: dict[Car, int] = {
+            car: 0
+            for car in self.main.cars
+        }
         ''' Running sum of collision count, resets every lap'''
-        self.collision_by_lap_vec = {car:0 for car in self.main.cars}
+        self.collision_by_lap_vec = {car: 0 for car in self.main.cars}
         ''' Collision count by lap'''
-        self.car_is_in_collision: dict[Car, bool] = {car:False for car in self.main.cars}
+        self.car_is_in_collision: dict[Car, bool] = {
+            car: False
+            for car in self.main.cars
+        }
         ''' Is car in collision at this time step'''
 
     def update(self):
@@ -41,5 +47,6 @@ class CollisionChecker(Extension):
             total_vec.append(total)
             mean_vec.append(mean)
             self.print_info(
-                'car %d, total obstacle collision = %d, mean = %.2f' , i, total, mean)
+                'car %d, total obstacle collision = %d, mean = %.2f', i, total,
+                mean)
         self.main.car_total_collisions = total_vec

@@ -2,7 +2,7 @@
 from xml.dom import minidom
 import os
 
-from extension.Extension import Extension
+from buzzracer.extension.Extension import Extension
 
 
 class ConfigLogger(Extension):
