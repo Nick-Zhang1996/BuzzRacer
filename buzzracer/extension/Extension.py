@@ -1,5 +1,5 @@
 ''' Base class for extensions'''
-from common import PrintObject, Config
+from buzzracer.common import PrintObject, Config
 
 
 class Extension(PrintObject):

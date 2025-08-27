@@ -8,9 +8,9 @@ from math import sin, cos
 import pickle
 import numpy as np
 
-from common import BASEDIR
-from extension.Extension import Extension
-from car.Car import Car
+from buzzracer.common import BASEDIR
+from buzzracer.extension.Extension import Extension
+from buzzracer.car.Car import Car
 
 
 class Laptimer(Extension):

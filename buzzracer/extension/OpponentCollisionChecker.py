@@ -1,5 +1,5 @@
 ''' Check collision with opponents, for iLQGameCarController. '''
-from extension.Extension import Extension
+from buzzracer.extension.Extension import Extension
 
 
 class OpponentCollisionChecker(Extension):
@@ -7,6 +7,7 @@ class OpponentCollisionChecker(Extension):
 
     NOTE this only checks car 0
     '''
+
     def __init__(self):
         Extension.__init__(self, 'opponent_collision_checker')
         self.collision_count = 0
@@ -18,7 +19,8 @@ class OpponentCollisionChecker(Extension):
     def update(self):
         self.timestep += 1
         if (self.main.cars[0].controller.is_in_collision()):
-            if (not self.in_collision and self.timestep > self.lockout_timestep+self.last_collision_ts):
+            if (not self.in_collision and self.timestep
+                    > self.lockout_timestep + self.last_collision_ts):
                 self.in_collision = True
                 self.collision_count += 1
         else:

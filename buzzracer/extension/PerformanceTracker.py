@@ -1,12 +1,13 @@
 ''' Track position tracking performance and control effort '''
 import numpy as np
-from extension.Extension import Extension
+from buzzracer.extension.Extension import Extension
 
 
 class PerformanceTracker(Extension):
     ''' Extension to track control effort and other performance metrics. '''
+
     def __init__(self):
-        Extension.__init__(self,'performance_tracker')
+        Extension.__init__(self, 'performance_tracker')
         self.car = self.main.cars[0]
         self.control_effort_vec = []
         self.terminal_cov = 0
@@ -31,7 +32,7 @@ class PerformanceTracker(Extension):
 
         mean_control_effort = np.mean(self.control_effort_vec)
         self.print_ok(self.prefix() + "mean control effort u'Ru = %.5f" %
-                 (mean_control_effort))
+                      (mean_control_effort))
         self.mean_control_effort = mean_control_effort
 
         self.car.controller.p.summary()

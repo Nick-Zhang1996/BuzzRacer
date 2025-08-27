@@ -1,21 +1,28 @@
 ''' Extension to check boundary violations '''
 import numpy as np
 
-from extension.Extension import Extension
-from car.Car import Car
+from buzzracer.extension.Extension import Extension
+from buzzracer.car.Car import Car
 
 # count number of times car is in collision with boundary
 
 
 class BoundaryChecker(Extension):
     ''' Extension to check boundary violations. '''
+
     def __init__(self):
         Extension.__init__(self, 'boundary_checker')
-        self.collision_count: dict[Car, int] = {car:0 for car in self.main.cars}
+        self.collision_count: dict[Car, int] = {
+            car: 0
+            for car in self.main.cars
+        }
         ''' Running sum of collision count, resets every lap'''
         self.discretized_raceline = self.main.track.discretized_raceline
         ''' Local reference of discretized raceline'''
-        self.car_is_in_collision: dict[Car, bool] = {car:False for car in self.main.cars}
+        self.car_is_in_collision: dict[Car, bool] = {
+            car: False
+            for car in self.main.cars
+        }
         ''' Dict to indicate if a car is in collision'''
 
     def update(self):
@@ -24,8 +31,9 @@ class BoundaryChecker(Extension):
                 if not car.in_collision:
                     car.in_collision = True
                     self.collision_count[car] += 1
-                    self.print_ok(self.prefix(), 'car %d collision = %d' %
-                             (car.id, self.collision_count[car]))
+                    self.print_ok(
+                        self.prefix(), 'car %d collision = %d' %
+                        (car.id, self.collision_count[car]))
             else:
                 self.car_is_in_collision = False
 
@@ -45,7 +53,7 @@ class BoundaryChecker(Extension):
 
     def is_out_of_boundary_discrete(self, car):
         #x, y, heading, vf, vs, omega = car.states
-        x, y,_ = car.states
+        x, y, _ = car.states
         ref_points = self.discretized_raceline[:, 0:2]
         ref_heading = self.discretized_raceline[:, 2]
         left_bdry = self.discretized_raceline[:, 3]
@@ -56,8 +64,8 @@ class BoundaryChecker(Extension):
         # vv,
         # self.raceline_left_boundary,
         # self.raceline_right_boundary]).T
-        dx_vec = ref_points[:, 0]-x
-        dy_vec = ref_points[:, 1]-y
+        dx_vec = ref_points[:, 0] - x
+        dy_vec = ref_points[:, 1] - y
         dist_vec = ((dx_vec)**2 + (dy_vec)**2)**0.5
         idx = np.argmin(dist_vec)
         dist = dist_vec[idx]
@@ -65,8 +73,9 @@ class BoundaryChecker(Extension):
         dy = dy_vec[idx]
 
         raceline_to_point_angle = np.arctan2(dy, dx)
-        heading_diff = np.mod(raceline_to_point_angle -
-                              ref_heading[idx] + np.pi, 2*np.pi) - np.pi
+        heading_diff = np.mod(
+            raceline_to_point_angle - ref_heading[idx] + np.pi,
+            2 * np.pi) - np.pi
         margin = 0.05
         if heading_diff > 0:
             out = dist + margin > left_bdry[idx]

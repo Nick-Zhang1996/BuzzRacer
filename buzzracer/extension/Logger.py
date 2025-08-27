@@ -5,8 +5,8 @@ from time import time
 
 import pickle
 
-from common import BASEDIR, LogObject
-from extension.Extension import Extension
+from buzzracer.common import BASEDIR, LogObject
+from buzzracer.extension.Extension import Extension
 
 
 class Logger(Extension):
@@ -26,7 +26,7 @@ class Logger(Extension):
         self.debug_dict_log = []
         ''' Debug dict that's written to pickle file debug_dict{log_no}.p '''
 
-    def resolve_logname(self,):
+    def resolve_logname(self, ):
         ''' Find log file name '''
 
         # create a folder using date and type of experiment
@@ -34,25 +34,26 @@ class Logger(Extension):
         suffix = 'sim' if hasattr(self.main, 'simulator') else 'exp'
 
         try:
-            log_folder = os.path.join(BASEDIR, 'log', self.main.experiment_name)
+            log_folder = os.path.join(BASEDIR, 'log',
+                                      self.main.experiment_name)
         except AttributeError:
-            log_folder = os.path.join(BASEDIR, 'log', 
-                '%d_%d_%d_' % (today.year, today.month,
-                               today.day) + suffix)
+            log_folder = os.path.join(
+                BASEDIR, 'log',
+                '%d_%d_%d_' % (today.year, today.month, today.day) + suffix)
 
         if not os.path.exists(log_folder):
             os.makedirs(log_folder)
         log_prefix = 'full_state'
         log_suffix = '.p'
         no = 1
-        while os.path.isfile(log_folder+log_prefix+str(no)+log_suffix):
+        while os.path.isfile(log_folder + log_prefix + str(no) + log_suffix):
             no += 1
 
         self.log_no = no
-        self.log_filename = log_folder+log_prefix+str(no)+log_suffix
+        self.log_filename = log_folder + log_prefix + str(no) + log_suffix
 
         log_prefix = 'debug_dict'
-        self.log_dict_filename = log_folder+log_prefix+str(no)+log_suffix
+        self.log_dict_filename = log_folder + log_prefix + str(no) + log_suffix
         self.log_folder = log_folder
 
     def post_update(self):
@@ -64,8 +65,10 @@ class Logger(Extension):
         for car in self.main.cars:
             (x, y, theta, v_forward, v_sideway, omega) = car.states
             # (time, x,y,theta, vforward,vsideway=0,omega)
-            log_entry.append([time(), x, y, theta, v_forward,
-                             v_sideway, omega, car.steering, car.throttle])
+            log_entry.append([
+                time(), x, y, theta, v_forward, v_sideway, omega, car.steering,
+                car.throttle
+            ])
 
         self.full_state_log.append(log_entry)
 
