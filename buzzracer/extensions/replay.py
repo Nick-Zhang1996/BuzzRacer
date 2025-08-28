@@ -15,7 +15,7 @@ from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.sysid.tire import tire_curve
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 
 
 class CartesianState(NamedTuple):

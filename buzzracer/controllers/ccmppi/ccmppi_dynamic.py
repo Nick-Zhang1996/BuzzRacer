@@ -4,7 +4,7 @@ from cvxpy.atoms.affine.trace import trace
 from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 from common import *
 from cvxpy.atoms.affine.transpose import transpose
 import cvxpy as cp

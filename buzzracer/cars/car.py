@@ -95,7 +95,7 @@ class Car(PrintObject, LogObject):
             hardware_class_text = config.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
             # pylint: disable-next=exec-used
-            exec('from car import '+hardware_class_text)
+            exec('from buzzracer.cars import '+hardware_class_text)
         except IndexError:
             logger.warning('no hardware specified')
 

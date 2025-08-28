@@ -9,7 +9,7 @@ from xml.dom import minidom
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, BASEDIR, get_logger
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.track_factory import TrackFactory
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 from buzzracer.extensions.extension import Extension
 
 

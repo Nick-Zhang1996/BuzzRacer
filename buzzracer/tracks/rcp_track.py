@@ -1,11 +1,10 @@
-
+import os
 import pickle
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan
 from bisect import bisect
 
 import cv2
 import numpy as np
-from numpy import isclose
 import matplotlib.pyplot as plt
 
 from scipy.interpolate import splprep, splev, interp1d
@@ -13,7 +12,7 @@ from scipy.optimize import minimize
 from scipy.integrate import solve_ivp
 
 
-from buzzracer.common import *
+from buzzracer.common import BASEDIR
 from buzzracer.tracks.track import Track
 from buzzracer.utilities.execution_timer import ExecutionTimer
 
@@ -471,10 +470,10 @@ class RCPTrack(Track):
         save['start_pos'] = self.start_pos
         save['start_dir'] = self.start_dir
 
-        full_filename = './data/'+filename
+        full_filename = os.path.join(BASEDIR, 'buzzracer', 'data', filename)
         with open(full_filename, 'wb') as f:
             pickle.dump(save, f)
-        print_ok(f'Track and raceline saved at {full_filename}')
+        self.print_ok(f'Track and raceline saved at {full_filename}')
 
     # load quadratically smoothed raceline
     def load(self, filename=None):
@@ -506,7 +505,7 @@ class RCPTrack(Track):
         self.x_limit = self.gridsize[1]*self.scale
         self.y_limit = self.gridsize[0]*self.scale
 
-        print_ok('track and raceline loaded')
+        self.print_ok('track and raceline loaded')
         self.reconstruct_raceline()
         return
 
