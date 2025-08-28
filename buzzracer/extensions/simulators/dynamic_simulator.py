@@ -7,7 +7,7 @@ import numpy as np
 
 from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
 from buzzracer.extensions.simulator import Simulator
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 from buzzracer.sysid.tire import tire_curve
 
 class DynamicSimulator(Simulator):

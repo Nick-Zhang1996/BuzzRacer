@@ -4,7 +4,7 @@ import numpy as np
 from mpc import MPC
 from time import time
 # from timeUtil import ExecutionTimer
-from buzzracer.car import car
+from buzzracer.cars import car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi
 from common import *
 

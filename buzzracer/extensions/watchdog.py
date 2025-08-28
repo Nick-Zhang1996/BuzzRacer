@@ -1,7 +1,7 @@
 ''' Extension to terminate experiment if stuck or something goes wrong'''
 
 from buzzracer.extensions.extension import Extension
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 
 
 class Watchdog(Extension):

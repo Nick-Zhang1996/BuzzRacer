@@ -1,5 +1,5 @@
 from mppi import MPPI
-from buzzracer.car import car
+from buzzracer.cars import car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi, atan
 import numpy as np
 from time import time, sleep

@@ -2,7 +2,7 @@
 import numpy as np
 
 from buzzracer.extensions.extension import Extension
-from buzzracer.car.car import Car
+from buzzracer.cars.car import Car
 
 # count number of times car is in collision with boundary
 
