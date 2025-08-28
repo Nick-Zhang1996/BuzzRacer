@@ -4,7 +4,7 @@ The Kinematic Bicycle Model:
     a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles
 '''
 import numpy as np
-from buzzracer.extension.Simulator import Simulator
+from buzzracer.extensions.simulator import Simulator
 
 class KinematicSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''

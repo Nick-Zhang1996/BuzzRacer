@@ -5,8 +5,8 @@ from math import sin, cos, tan, atan
 
 import numpy as np
 
-from buzzracer.extension.simulator.kinematic_simulator import KinematicSimulator
-from buzzracer.extension.Simulator import Simulator
+from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulator import Simulator
 from buzzracer.car.car import Car
 from buzzracer.sysid.tire import tire_curve
 
