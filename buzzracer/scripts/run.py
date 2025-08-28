@@ -2,7 +2,6 @@
 import sys
 import os.path
 import os
-import logging
 from threading import Event
 from time import time
 from xml.dom import minidom
@@ -26,7 +25,7 @@ class Main(PrintObject, LogObject):
     def __init__(self, config: str):
         LogObject.__init__(self)
         self.config_filename = config
-        self.experiment_name = config
+        self.experiment_name = os.path.basename(config).split('.')[0]
         self.simulator = None
 
         # Load config

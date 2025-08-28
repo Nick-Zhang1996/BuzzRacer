@@ -52,7 +52,7 @@ class Extension(PrintObject):
             extension_class_name = config_extension.firstChild.nodeValue
             try:
                 # pylint: disable-next=exec-used
-                exec(f'from buzzracer.extension import {extension_class_name}')
+                exec(f'from buzzracer.extensions import {extension_class_name}')
             except ImportError:
                 cls.print_error(f'Cannot import {extension_class_name}')
                 raise

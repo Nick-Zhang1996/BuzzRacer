@@ -44,16 +44,19 @@ class Visualization(Extension):
         img_track = self.main.track.draw_track()
         self.img_blank_track = img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(
-            self.img_track.copy())
+            img_track.copy())
         img_track = self.main.track.draw_raceline(img=img_track)
-        self.img_track = self.draw_control_static_for_all_cars(img_track)
 
         img = img_track.copy()
         for car in self.main.cars:
-            car.image = cv2.imread(car.params['rendering'], -1)
+            filename = os.path.join(BASEDIR, 'buzzracer', car.params['rendering'])
+            car.image = cv2.imread(filename, -1)
+            if car.image is None:
+                self.print_error(f'Failed to load car image from {filename}')
             img = self.draw_car(img, car)
 
         # draw static components onto background
+        self.img_track = self.draw_control_static_for_all_cars(img_track)
         self.visualization_img = img
         cv2.imshow('experiment', img)
         cv2.waitKey(200)
@@ -210,7 +213,7 @@ class Visualization(Extension):
         steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
         NOTE: this function modifies img, if you want to recycle base img, send img.copy()
         '''
-        x, y, heading, _ = car.states
+        x, y, heading = car.states[:3]
         steering = car.steering
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
@@ -231,7 +234,7 @@ class Visualization(Extension):
         return img
 
     def overlay_car_rendering(self, img, car):
-        x, y, heading, _ = car.states
+        x, y, heading  = car.states[:3]
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
         if (src is None):
@@ -240,7 +243,7 @@ class Visualization(Extension):
         return self.overlay_car_rendering_raw(img, car, src, heading)
 
     def overlay_car_rendering_raw(self, img, car, src, angle=np.pi/2):
-        ''' overlay Car rendering at specified location in pixel coord, for plotting controls '''
+        ''' Overlay Car rendering at specified location in pixel coord, for plotting controls '''
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
         # dynamic scale

@@ -115,7 +115,7 @@ class Car(PrintObject, LogObject):
         config_name = config.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue
         # pylint: disable-next=exec-used
-        exec(f'from controller.{controller_class_text} import {controller_class_text}')
+        exec(f'from buzzracer.controllers import {controller_class_text}')
         controller = eval(controller_class_text)
 
         car = eval(hardware_class_text)(main)

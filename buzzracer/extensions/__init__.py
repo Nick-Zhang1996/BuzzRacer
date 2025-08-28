@@ -15,7 +15,7 @@ from .replay import Replay
 from .steering_tracker import SteeringTracker
 from .config_logger import ConfigLogger
 from .opponent_collision_checker import OpponentCollisionChecker
-from .simulators import Simulator
+from .simulator import Simulator
 from .step_counter import StepCounter
 from .crosstrack_error_tracker import CrosstrackErrorTracker
 from .lap_counter import LapCounter
