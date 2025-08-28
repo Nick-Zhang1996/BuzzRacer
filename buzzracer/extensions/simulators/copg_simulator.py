@@ -7,8 +7,8 @@ from math import sin, cos
 import numpy as np
 
 from buzzracer.RL.copg.rcvip_simulator.VehicleModel import VehicleModel
-from buzzracer.extension.simulator.kinematic_simulator import KinematicSimulator
-from buzzracer.extension.Simulator import Simulator
+from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulator import Simulator
 
 
 class CopgSimulator(Simulator):

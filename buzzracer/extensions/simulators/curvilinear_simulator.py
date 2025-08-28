@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import  minimize
 from scipy.interpolate import  splev
 
-from buzzracer.extension.Simulator import Simulator
+from buzzracer.extensions.simulator import Simulator
 
 
 def wrap(val):
