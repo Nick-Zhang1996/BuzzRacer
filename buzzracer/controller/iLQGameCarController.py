@@ -1,15 +1,17 @@
-from common import *
 from math import isnan, pi, degrees, radians, sin, cos
-from controller.CarController import CarController
-from controller.PidController import PidController
-from third_party.solve_lq_game import solve_lq_game
-from controller.LQGame import my_solve_lq_game
-from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
-from util.SymbolicDynamics import SymbolicDynamics
-from scipy.linalg import block_diag
-import sympy
-from util.timeUtil import ExecutionTimer
+
 import cv2
+import sympy
+from scipy.linalg import block_diag
+
+from buzzracer.common import *
+from buzzracer.controller.CarController import CarController
+from buzzracer.controller.PidController import PidController
+from buzzracer.third_party.solve_lq_game import solve_lq_game
+from buzzracer.controller.LQGame import my_solve_lq_game
+from buzzracer.extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+from buzzracer.util.SymbolicDynamics import SymbolicDynamics
+from buzzracer.util.timeUtil import ExecutionTimer
 
 
 class iLQGameCarController(CarController):

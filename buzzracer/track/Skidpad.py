@@ -1,12 +1,12 @@
 # a simulated skidpad
-from common import *
+from buzzracer.common import *
 import cv2
 import numpy as np
 from math import cos, sin, pi, atan2, radians, degrees, tan
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 
-from track.Track import Track
+from buzzracer.track.Track import Track
 # from track.car import Car
 
 

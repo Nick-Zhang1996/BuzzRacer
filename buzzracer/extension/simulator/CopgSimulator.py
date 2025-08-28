@@ -1,29 +1,25 @@
-# use curvilinear ref frame dynamics from copg
+''' Copg simulator, use curvilinear ref frame dynamics from Competitive Policy Gradient paper '''
+# NOTE not maintained
+# pylint: disable=all
 
-from math import sin, cos, tan, radians, degrees, pi, atan
-from threading import Event, Lock
-from RL.copg.rcvip_simulator.VehicleModel import VehicleModel
-from simulator.KinematicSimulator import KinematicSimulator
-from common import *
-from Simulator import Simulator
-import matplotlib.pyplot as plt
+from math import sin, cos
+
 import numpy as np
-from sysid.tire import tire_curve
-from extension import Simulator
-import os
-import sys
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
+
+from buzzracer.RL.copg.rcvip_simulator.VehicleModel import VehicleModel
+from buzzracer.extension.simulator.KinematicSimulator import KinematicSimulator
+from buzzracer.extension.Simulator import Simulator
 
 
 class CopgSimulator(Simulator):
+    ''' Copg Simulator'''
     def __init__(self):
-        super().__init__(handle_name='simulator')
+        super().__init__()
+        self.cars = self.main.cars
 
     def init(self):
         super().init()
 
-        self.cars = self.main.cars
         CopgSimulator.dt = self.main.dt
         KinematicSimulator.dt = CopgSimulator.dt
         KinematicSimulator.max_v = 100
@@ -37,7 +33,7 @@ class CopgSimulator(Simulator):
     # add a car to be DynamicSimu
     # car needs to (x,y,heading,v_forward,v_sideway,omega)
     def add_car(self, car):
-        x, y, heading, v_forward, v_sideway, omega = car.states
+        x, y, heading, v_forward, v_sideway, _ = car.states
         car.Vx = v_forward
         car.Vy = v_sideway
 
@@ -57,16 +53,13 @@ class CopgSimulator(Simulator):
         # not implemented: support for artificially added noise
         noise = False
         car.noise = noise
-        if noise:
-            car.noise_cov = noise_cov
-            assert np.array(noise_cov).shape == (6, 6)
 
         # car.states_hist = []
         car.local_states_hist = []
         car.norm = []
 
     @staticmethod
-    def advance_dynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car, dt):
         """# advance vehicle dynamics.
 
         # NOTE using car frame origined at CG with x pointing forward, y leftward
@@ -77,6 +70,8 @@ class CopgSimulator(Simulator):
         # control = steering,throttle
 
         """
+        del car
+        del dt
         local_state = CopgSimulator.vehicle_model.from_global_to_local(car_states)
         new_local_state = CopgSimulator.vehicle_model.dyn_model_blend_batch(
             local_state, (control[1], control[0]))

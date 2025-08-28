@@ -1,13 +1,15 @@
 # Base class for RCPTrack and Skidpad
 # this class provides API for interacting with a Track object
 # a track object provides information on the trajectory and provide access for drawing the track
-from common import *
-import numpy as np
-from scipy.interpolate import splprep, splev, CubicSpline, interp1d
-from math import radians, degrees, cos, sin, ceil, floor, atan, tan
-import cv2
 import os.path
 import pickle
+from math import  cos, sin
+
+import cv2
+import numpy as np
+from scipy.interpolate import splprep, splev
+
+from buzzracer.common import *
 
 
 class Track(ConfigObject):

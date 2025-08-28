@@ -66,16 +66,16 @@ class Simulator(Extension, ABC):
                                  NoiseType.IMPULSE: self.add_state_noise_impulse}
             self.add_state_noise = noise_type_to_fun[self.state_noise_type]
 
-    @abstractmethod
     def add_car(self, car):
-        """register a car to use this simulation."""
+        """register a car to use this simulation. """
+        self.cars.append(car)
         return
 
     # TODO use Replay.VehicleDynamics
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     def advance_dynamics(car_states, control, car, dt):
-        """advance dynamics by self.dt.
+        """advance dynamics by dt.
 
         Args:
             car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
