@@ -1,4 +1,4 @@
-from track.TrackFactory import TrackFactory
+from buzzracer.tracks.track_factory import TrackFactory
 from xml.dom import minidom
 import numpy as np
 from numpy import linalg as LA

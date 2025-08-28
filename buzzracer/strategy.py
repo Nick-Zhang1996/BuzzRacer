@@ -2,7 +2,7 @@
 import pickle
 import numpy as np
 from qpSmooth import QpSmooth
-from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
+from buzzracer.tracks.rcp_track_debug import RCPTrackDebug as RCPTrack
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 

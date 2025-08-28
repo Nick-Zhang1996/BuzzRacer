@@ -1,4 +1,4 @@
-from util.timeUtil import ExecutionTimer
+from buzzracer.utilities.execution_timer import ExecutionTimer
 from rcvip_env_function import getfreeze_timecollosion_reachedreward
 import rcvip_simulator.Track as Track
 import rcvip_simulator.VehicleModel as VehicleModel

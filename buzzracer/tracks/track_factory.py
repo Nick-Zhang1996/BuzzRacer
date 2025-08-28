@@ -1,9 +1,9 @@
 from buzzracer.common import get_logger
-from buzzracer.track.RCPTrack import RCPTrack
-from buzzracer.track.EmptyTrack import EmptyTrack
-from buzzracer.track.Skidpad import Skidpad
-from buzzracer.track.OrcaTrack import OrcaTrack
-from buzzracer.track.NascarTrack import NascarTrack
+from buzzracer.tracks.rcp_track import RCPTrack
+from buzzracer.tracks.empty_track import EmptyTrack
+from buzzracer.tracks.skidpad import Skidpad
+from buzzracer.tracks.orca_track import OrcaTrack
+from buzzracer.tracks.nascar_track import NascarTrack
 
 logger = get_logger('TrackFactory')
 

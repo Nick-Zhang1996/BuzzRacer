@@ -1,6 +1,6 @@
 from math import radians, degrees
 import pygame
-from track import TrackFactory
+from buzzracer.tracks import track_factory
 from xml.dom.minidom import parseString
 import torch
 from RL.copg.rcvip_racing.rcvip_env_function import get_reward_single_agent
@@ -59,7 +59,7 @@ class BuzzRacerEnvDiscrete(gym.Env):
 
         config = parseString('<track>full</track>')
         config_track = config.getElementsByTagName('track')[0]
-        self.track = TrackFactory(self, config_track)
+        self.track = track_factory(self, config_track)
         self.img_track = self.track.draw_track()
         self.img_blank_track = self.img_track.copy()
         self.img_track_raceline = self.track.draw_raceline(img=self.img_track)

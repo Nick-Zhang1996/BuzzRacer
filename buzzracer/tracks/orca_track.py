@@ -5,7 +5,7 @@
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 import json
-from buzzracer.track.Track import Track
+from buzzracer.tracks.track import Track
 from buzzracer.common import *
 import sys
 import os

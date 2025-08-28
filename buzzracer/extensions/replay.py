@@ -10,7 +10,7 @@ import numpy as np
 from scipy.interpolate import splev
 
 from buzzracer.common import BASEDIR
-from buzzracer.util.timeUtil import ExecutionTimer
+from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from buzzracer.extensions.Simulator import Simulator
 from buzzracer.sysid.tire import tire_curve

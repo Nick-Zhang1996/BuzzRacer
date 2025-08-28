@@ -6,9 +6,9 @@ from PIL import Image
 from tire import tire_curve
 from time import sleep
 import cv2
-from track import RCPTrack
+from buzzracer.tracks import rcp_track
 from scipy.signal import savgol_filter
-from util.kalmanFilter import KalmanFilter
+from buzzracer.utilities.kalman_filter import KalmanFilter
 from common import *
 import pickle
 import matplotlib.pyplot as plt
@@ -288,7 +288,7 @@ def run():
     '''
 
     # prep track image
-    track = RCPTrack()
+    track = rcp_track()
     track.load()
     img_track = track.draw_track()
     img_track = track.draw_raceline(img=img_track)

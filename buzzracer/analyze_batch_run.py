@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
-from track import TrackFactory
+from buzzracer.tracks import track_factory
 
 labels = 'experiment_name , config_file_name , log_name , laps , Qop1, Qop2, start_lead_i_j, end_lead_i_j, laptime_mean , laptime_stddev , boundary_violation , obstacle_violation'
 labels = [val.strip() for val in labels.split(',')]
@@ -13,7 +13,7 @@ config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
 config_track = original_config.getElementsByTagName('track')[0]
-track = TrackFactory.build(main=None, config=config_track)
+track = track_factory.build(main=None, config=config_track)
 track.init()
 
 log = '../log/'+name+'/textlog.txt'

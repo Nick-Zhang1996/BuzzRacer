@@ -7,7 +7,7 @@ from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
 from buzzracer.controllers.car_controller import CarController
 from controllers.ccmppi.ccmppi import CCMPPI
-from util.timeUtil import ExecutionTimer
+from buzzracer.utilities.execution_timer import ExecutionTimer
 from common import *
 import random
 import matplotlib.pyplot as plt

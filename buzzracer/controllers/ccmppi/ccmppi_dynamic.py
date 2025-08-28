@@ -2,7 +2,7 @@
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
 from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
-from track.RCPTrack import RCPTrack
+from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from buzzracer.car.car import Car
 from common import *

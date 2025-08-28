@@ -1,5 +1,5 @@
 # RC car dynamics
-from track.TrackFactory import TrackFactory
+from buzzracer.tracks.track_factory import TrackFactory
 import torch
 try:
     from Track import Track

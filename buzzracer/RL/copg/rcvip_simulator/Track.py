@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from math import radians
-from track.TrackFactory import TrackFactory
+from buzzracer.tracks.track_factory import TrackFactory
 import os
 from xml.dom import minidom
 import numpy as np

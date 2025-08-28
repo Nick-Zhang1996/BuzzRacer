@@ -1,4 +1,4 @@
-from buzzracer.track.Track import Track
+from buzzracer.tracks.track import Track
 import numpy as np
 import cv2
 from math import sin, cos

@@ -2,7 +2,7 @@
 # analyze log
 from scipy.signal import savgol_filter
 from math import pi
-from util.kalmanFilter import KalmanFilter
+from buzzracer.utilities.kalman_filter import KalmanFilter
 from common import *
 import pickle
 import matplotlib.pyplot as plt

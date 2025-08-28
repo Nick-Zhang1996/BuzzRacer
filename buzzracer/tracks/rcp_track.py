@@ -14,8 +14,8 @@ from scipy.integrate import solve_ivp
 
 
 from buzzracer.common import *
-from buzzracer.track.Track import Track
-from buzzracer.util.timeUtil import ExecutionTimer
+from buzzracer.tracks.track import Track
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 # debugging
 K_vec = []  # curvature
