@@ -1,5 +1,5 @@
 ''' Check collision with opponents, for iLQGameCarController. '''
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 class OpponentCollisionChecker(Extension):

@@ -1,6 +1,6 @@
 ''' Extension to terminate experiment if stuck or something goes wrong'''
 
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 

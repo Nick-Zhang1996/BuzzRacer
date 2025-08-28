@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from buzzracer.common import ExperimentType
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 @unique

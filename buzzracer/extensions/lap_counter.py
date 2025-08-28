@@ -2,7 +2,7 @@
 from threading import Event
 import cv2
 
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 

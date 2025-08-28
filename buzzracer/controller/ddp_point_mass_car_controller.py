@@ -2,7 +2,7 @@ from common import *
 from math import isnan, pi, degrees, radians, sin, cos
 from buzzracer.controller.car_controller import CarController
 from buzzracer.controller.pid_controller import PidController
-from buzzracer.extension.simulator.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulator.curvilinear_simulator import CurvilinearSimulator
 import matplotlib.pyplot as plt
 
 

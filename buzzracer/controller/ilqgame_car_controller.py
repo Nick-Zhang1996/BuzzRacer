@@ -9,7 +9,7 @@ from buzzracer.controller.car_controller import CarController
 from buzzracer.controller.pid_controller import PidController
 from buzzracer.third_party.solve_lq_game import solve_lq_game
 from buzzracer.controller.lqgame import my_solve_lq_game
-from buzzracer.extension.simulator.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulator.curvilinear_simulator import CurvilinearSimulator
 from buzzracer.util.SymbolicDynamics import SymbolicDynamics
 from buzzracer.util.timeUtil import ExecutionTimer
 

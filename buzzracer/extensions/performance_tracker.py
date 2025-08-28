@@ -1,6 +1,6 @@
 ''' Track position tracking performance and control effort '''
 import numpy as np
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 class PerformanceTracker(Extension):

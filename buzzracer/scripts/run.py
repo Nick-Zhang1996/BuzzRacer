@@ -11,7 +11,7 @@ from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, BAS
 from buzzracer.util.timeUtil import ExecutionTimer
 from buzzracer.track.TrackFactory import TrackFactory
 from buzzracer.car.car import Car
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 logger = get_logger('Run')

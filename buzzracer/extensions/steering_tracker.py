@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 class SteeringTracker(Extension):

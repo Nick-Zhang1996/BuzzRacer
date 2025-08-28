@@ -6,7 +6,7 @@ from time import time
 import pickle
 
 from buzzracer.common import BASEDIR, LogObject
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 class Logger(Extension):

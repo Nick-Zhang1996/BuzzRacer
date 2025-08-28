@@ -9,7 +9,7 @@ import pickle
 import numpy as np
 
 from buzzracer.common import BASEDIR
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 

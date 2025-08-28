@@ -6,7 +6,7 @@ import cv2
 import matplotlib.pyplot as plt
 
 from buzzracer.common import BASEDIR
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 class SnapshotSaver(Extension):
     ''' Extension for saving consecutive multiple snapshots of car as multiple exposure photo'''

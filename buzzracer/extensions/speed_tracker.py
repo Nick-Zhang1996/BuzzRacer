@@ -1,6 +1,6 @@
 ''' Record speed profile in debug_dict '''
 
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 class SpeedTracker(Extension):
     ''' Record speed profile in debug_dict '''

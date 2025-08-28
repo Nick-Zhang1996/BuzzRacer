@@ -2,9 +2,9 @@
 # using model in Ji's paper
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
-from buzzracer.extension.simulator.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulator.kinematic_simulator import KinematicSimulator
 from track.RCPTrack import RCPTrack
-from buzzracer.extension.laptimer import _Laptimer as Laptimer
+from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from common import *
 from cvxpy.atoms.affine.transpose import transpose
 import cvxpy as cp
