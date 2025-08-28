@@ -5,11 +5,11 @@ import sympy
 from scipy.linalg import block_diag
 
 from buzzracer.common import *
-from buzzracer.controller.car_controller import CarController
-from buzzracer.controller.pid_controller import PidController
+from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.pid_controller import PidController
 from buzzracer.third_party.solve_lq_game import solve_lq_game
-from buzzracer.controller.lqgame import my_solve_lq_game
-from buzzracer.extensions.simulator.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.controllers.lqgame import my_solve_lq_game
+from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
 from buzzracer.util.SymbolicDynamics import SymbolicDynamics
 from buzzracer.util.timeUtil import ExecutionTimer
 

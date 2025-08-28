@@ -1,10 +1,10 @@
 # mppi car controller, with dynamic model
-from buzzracer.controller.pid_controller import PidController
+from buzzracer.controllers.pid_controller import PidController
 import pickle
 import matplotlib.pyplot as plt
 from pycuda.compiler import SourceModule
 import pycuda.driver as drv
-from buzzracer.controller.car_controller import CarController
+from buzzracer.controllers.car_controller import CarController
 import numpy as np
 from time import time, sleep
 from math import radians, degrees, cos, sin, ceil, floor, atan, tan
