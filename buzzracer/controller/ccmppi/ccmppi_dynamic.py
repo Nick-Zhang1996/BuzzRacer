@@ -1,9 +1,9 @@
 # CCMPPI for dynamic bicycle model
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
-from buzzracer.extension.simulator.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulator.dynamic_simulator import DynamicSimulator
 from track.RCPTrack import RCPTrack
-from buzzracer.extension.laptimer import _Laptimer as Laptimer
+from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from buzzracer.car.car import Car
 from common import *
 from cvxpy.atoms.affine.transpose import transpose

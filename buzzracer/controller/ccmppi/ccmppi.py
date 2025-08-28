@@ -1,6 +1,6 @@
 # Covariance Control - Model Predictive Path Integral for kinematic bicycle model
-from buzzracer.extension.simulator.dynamic_simulator import DynamicSimulator
-from buzzracer.extension.simulator.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulator.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulator.kinematic_simulator import KinematicSimulator
 from controller.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
 from controller.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
 from util.timeUtil import ExecutionTimer

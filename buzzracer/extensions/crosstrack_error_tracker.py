@@ -1,6 +1,6 @@
 ''' Extension to track crosstrack error (lateral error)'''
 import numpy as np
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 
 class CrosstrackErrorTracker(Extension):

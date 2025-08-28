@@ -1,6 +1,6 @@
 ''' check collision with static obstacles '''
 import numpy as np
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 

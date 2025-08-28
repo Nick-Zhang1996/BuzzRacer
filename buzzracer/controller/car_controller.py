@@ -1,8 +1,8 @@
 # parent class, used as documentation for common function and properties
 from common import *
 import numpy as np
-from buzzracer.extension.simulator.kinematic_simulator import KinematicSimulator
-from buzzracer.extension.simulator.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulator.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulator.dynamic_simulator import DynamicSimulator
 
 
 class CarController(ConfigObject, LogObject):

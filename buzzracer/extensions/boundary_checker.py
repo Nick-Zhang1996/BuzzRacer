@@ -1,7 +1,7 @@
 ''' Extension to check boundary violations '''
 import numpy as np
 
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.car.car import Car
 
 # count number of times car is in collision with boundary

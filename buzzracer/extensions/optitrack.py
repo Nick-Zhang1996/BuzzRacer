@@ -9,7 +9,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from buzzracer.common import ExperimentType, PrintObject
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 from buzzracer.util.kalmanFilter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
 

@@ -1,5 +1,5 @@
 ''' Terminate experiment after a number of time steps'''
-from buzzracer.extension.extension import Extension
+from buzzracer.extensions.extension import Extension
 
 # TODO merge this into LapCounter
 
