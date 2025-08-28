@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 from pycuda.compiler import SourceModule
 import pycuda.driver as drv
-from buzzracer.controller.car_controller import CarController
+from buzzracer.controllers.car_controller import CarController
 import numpy as np
 from time import time, sleep
 from math import radians, degrees, cos, sin, ceil, floor, atan, tan

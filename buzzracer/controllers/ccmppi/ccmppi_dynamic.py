@@ -1,10 +1,10 @@
-# CCMPPI for kinematic bicycle model
-# using model in Ji's paper
+# CCMPPI for dynamic bicycle model
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
-from buzzracer.extensions.simulator.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from track.RCPTrack import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
+from buzzracer.car.car import Car
 from common import *
 from cvxpy.atoms.affine.transpose import transpose
 import cvxpy as cp
@@ -20,11 +20,11 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
 
-class CCMPPI_KINEMATIC():
+class CCMPPI_DYNAMIC():
     def __init__(self, dt, N, noise_cov, track, debug_info=None):
         # set time horizon
         self.N = N
-        self.n = 4
+        self.n = 6
         self.m = 2
         self.l = self.n
         # (x,y,v,heading)
@@ -45,7 +45,9 @@ class CCMPPI_KINEMATIC():
         # set up parameters for the model
         self.setup_param()
         # load track
-        self.get_ref_traj('../log/ref_traj/kinematic.p', show=False)
+        # self.load_track()
+        self.get_ref_traj('../log/ref_traj/dynamic.p', show=False)
+        # self.get_ref_traj("../../log/ref_traj/dynamic.p",show=False)
 
         np.random.seed()
 
@@ -66,6 +68,17 @@ class CCMPPI_KINEMATIC():
 
         self.Caf = Df * C * B * 9.8 * lr / (lr + lf) * m
         self.Car = Dr * C * B * 9.8 * lr / (lr + lf) * m
+
+    def load_track(self):
+        # full RCP track
+        # NOTE load track instead of re-constructing
+        fulltrack = RCPTrack()
+        # for laptimer
+        fulltrack.start_pos = (0.6*3.5, 0.6*1.75)
+        fulltrack.startDir = radians(90)
+        fulltrack.load()
+        self.track = fulltrack
+        return
 
     # read a log
     # use trajectory of second lap as reference trajectory
@@ -104,6 +117,10 @@ class CCMPPI_KINEMATIC():
         '''
 
         # search for log_no lap
+        self.track = RCPTrack()
+        self.track.start_pos = (0.6*3.5, 0.6*1.75)
+        self.track.startDir = radians(90)
+        self.track.load()
         laptimer = Laptimer(self.track.start_pos, self.track.startDir)
         current_lap = 0
         index = 0
@@ -316,7 +333,6 @@ class CCMPPI_KINEMATIC():
     # apply covariance control
     #
     # input:
-    #   state: (x,y,v,heading)
     # return: N K matrices of size (n,m)
     def cc(self, state, return_sx=False, debug=False):
         n = self.n
@@ -328,7 +344,7 @@ class CCMPPI_KINEMATIC():
         ref_xx = self.ref_traj[:, 0]
         ref_yy = self.ref_traj[:, 2]
 
-        x, y, _, _ = state
+        x, y, _, _, _, __ = state
 
         dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
         # start : index of closest ref point to car
@@ -344,9 +360,14 @@ class CCMPPI_KINEMATIC():
         y = ref_traj_wrapped[start:start+self.N, 2]
         vy = ref_traj_wrapped[start:start+self.N, 3]
         heading = ref_traj_wrapped[start:start+self.N, 4]
+        omega = ref_traj_wrapped[start:start+self.N, 5]
         v = np.sqrt(vx*vx + vy*vy)
 
-        self.ref_state_vec = ref_state_vec = np.vstack([x, y, v, heading]).T
+        v_forward = vx*np.cos(heading) + vy*np.sin(heading)
+        v_sideway = -vx*np.sin(heading) + vy*np.cos(heading)
+        self.ref_state_vec = ref_state_vec = np.vstack(
+            [x, y, heading, v_forward, v_sideway, omega]).T
+
         self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
 
         # find reference throttle and steering
@@ -379,7 +400,7 @@ class CCMPPI_KINEMATIC():
         # ds[:,:,0] += state_diff
 
         if (debug):
-            print_info('[cc] ref state x0 (x,y,v,heading)')
+            print_info('[cc] ref state x0 (x,y,heading,vf, vs, omega)')
             print(ref_state_vec[0])
             print_info('[cc] actual state x0')
             print(state)
@@ -475,12 +496,12 @@ class CCMPPI_KINEMATIC():
             return Ks, As, Bs, ds
 
     def simulate(self):
-        if self.debug_info['model'] == 'linear_kinematic':
+        if self.debug_info['model'] == 'linear_dynamic':
             return self.simulate_linear()
-        elif self.debug_info['model'] == 'kinematic':
-            return self.simulate_kinematic()
+        elif self.debug_info['model'] == 'dynamic':
+            return self.simulate_dynamic()
 
-    def simulate_kinematic(self):
+    def simulate_dynamic(self):
         As = self.As
         Bs = self.Bs
         ds = self.ds
@@ -497,6 +518,7 @@ class CCMPPI_KINEMATIC():
             cc_states_vec.append([])
             y_i = np.zeros(self.n)
             x_i = x0.copy()
+            # print("sample %d"%(j))
             for i in range(sim_steps):
                 mean = [0.0]*self.m
                 # generate random variable epsilon or retrieve from self.rand_val
@@ -514,8 +536,7 @@ class CCMPPI_KINEMATIC():
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
 
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                # steering, control
-                x_i = KinematicSimulator.advance_dynamics(
+                x_i = DynamicSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 y_i = As[:, :, i] @ y_i + Bs[:, :, i] @ epsilon
 
@@ -529,6 +550,7 @@ class CCMPPI_KINEMATIC():
         for j in range(samples):
             nocc_states_vec.append([])
             x_i = x0.copy()
+            # print("sample %d"%(j))
             for i in range(sim_steps):
                 # generate random variable epsilon
                 mean = [0.0]*self.m
@@ -545,8 +567,9 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
                 # x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advance_dynamics(
+                x_i = DynamicSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
+                # print("states = %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], x_i[4], x_i[5], control[0], control[1]))
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)
@@ -796,13 +819,17 @@ class CCMPPI_KINEMATIC():
         cc_states_vec = ret_dict['cc_states_vec']
         nocc_states_vec = ret_dict['nocc_states_vec']
 
-        track = self.track
+        # prepare track map
+        track = RCPTrack()
+        track.start_pos = (0.6*3.5, 0.6*1.75)
+        track.startDir = radians(90)
+        track.load()
+
         img = track.draw_track()
         track.draw_raceline(img=img)
         car_steering = 0.0
 
-        x, y, v, heading = state
-        x0 = np.hstack([x, y, heading, 0, 0, 0])
+        x0 = state
         img = track.draw_car(img, x0, car_steering)
 
         for i in range(cc_states_vec.shape[0]):
@@ -888,28 +915,21 @@ class CCMPPI_KINEMATIC():
         plt.show()
 
 
-'''
-if __name__ == "__main__":
-    dt = 0.03
-    state = np.array([0.6*0.7,0.6*0.5, 0.5, radians(130)])
-    #state = np.array([0.6*3.5,0.6*1.75, 1.0, radians(-90)])
-    #state = np.array([0.6*3.7,0.6*1.75, 1.0, radians(-90)])
-    #main = CCMPPI_KINEMATIC(20, x0=state, model = 'linear_kinematic', input_constraint=True)
+if __name__ == '__main__':
+    dt = 0.01
+    # np.vstack([x,y,heading,v_forward, v_sideway,omega]).T
+    state = np.array([0.6*0.7, 0.6*0.5,  radians(130), 0.5, 0.0, 0.0])
+    ratio = 1.0
+    noise_cov = np.diag([(0.7*ratio)**2, radians(20.0*ratio)**2])
+    debug_info = {'x0': state, 'model': 'dynamic', 'input_constraint': True}
 
-    #noise_cov = np.diag([(0.7)**2,radians(40.0/2)**2])
-    ratio = 0.4
-    noise_cov = np.diag([(0.7*ratio)**2,radians(20.0*ratio)**2])
-    debug_info = {'x0':state, 'model':'kinematic', 'input_constraint':True}
-    car = Car(None)
-    car.lr = car.lf = 45e-3
-    car.serial_port = None
-
-    main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
-    KinematicSimulator.dt = dt
-    KinematicSimulator.max_v = 30.0
+    main = CCMPPI_DYNAMIC(dt, 20, noise_cov, debug_info)
+    car = Car.Factory(main, 'porsche', controller=StanleyCarController,
+                      init_states=(3.7*0.6, 1.75*0.6, radians(-90), 1.0))
+    car.noise = False
+    DynamicSimulator.dt = dt
+    DynamicSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
     main.visualize_confidence_ellipse()
-    #main.visualize_on_track()
-
-'''
+    # main.visualize_on_track()

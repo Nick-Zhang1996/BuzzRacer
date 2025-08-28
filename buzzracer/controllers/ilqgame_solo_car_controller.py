@@ -1,7 +1,7 @@
 
 from common import *
-from buzzracer.controller.ilqgame_car_controller import iLQGameCarController
-from buzzracer.controller.lqgame import my_solve_lq_game
+from buzzracer.controllers.ilqgame_car_controller import iLQGameCarController
+from buzzracer.controllers.lqgame import my_solve_lq_game
 from scipy.linalg import block_diag
 
 

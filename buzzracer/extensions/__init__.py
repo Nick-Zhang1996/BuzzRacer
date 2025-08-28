@@ -1,6 +1,6 @@
 ''' Import all classes to buzzracer.extension namespace '''
-from .simulator.dynamic_simulator import DynamicSimulator
-from .simulator.kinematic_simulator import KinematicSimulator
+from .simulators.dynamic_simulator import DynamicSimulator
+from .simulators.kinematic_simulator import KinematicSimulator
 
 from .boundary_checker import BoundaryChecker
 from .extension import Extension
@@ -15,7 +15,7 @@ from .replay import Replay
 from .steering_tracker import SteeringTracker
 from .config_logger import ConfigLogger
 from .opponent_collision_checker import OpponentCollisionChecker
-from .simulator import Simulator
+from .simulators import Simulator
 from .step_counter import StepCounter
 from .crosstrack_error_tracker import CrosstrackErrorTracker
 from .lap_counter import LapCounter

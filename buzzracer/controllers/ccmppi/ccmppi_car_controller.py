@@ -3,10 +3,10 @@ from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, aco
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 from time import time, sleep
 import pickle
-from buzzracer.extensions.simulator.dynamic_simulator import DynamicSimulator
-from buzzracer.extensions.simulator.kinematic_simulator import KinematicSimulator
-from buzzracer.controller.car_controller import CarController
-from controller.ccmppi.ccmppi import CCMPPI
+from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.controllers.car_controller import CarController
+from controllers.ccmppi.ccmppi import CCMPPI
 from util.timeUtil import ExecutionTimer
 from common import *
 import random

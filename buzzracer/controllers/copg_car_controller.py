@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import os
 from common import *
-from buzzracer.controller.car_controller import CarController
+from buzzracer.controllers.car_controller import CarController
 from RL.copg.car_racing.network import Actor as Actor
 from scipy.interpolate import splev as splev
 from scipy.optimize import minimize as minimize
