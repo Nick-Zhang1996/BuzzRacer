@@ -4,7 +4,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from time import sleep
 from math import degrees
-from extension.Optitrack import _Optitrack
+from buzzracer.extension.optitrack import _Optitrack
 import os
 import sys
 sys.path.insert(0, os.path.abspath(

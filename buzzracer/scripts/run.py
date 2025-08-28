@@ -10,8 +10,8 @@ from xml.dom import minidom
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, BASEDIR, get_logger
 from buzzracer.util.timeUtil import ExecutionTimer
 from buzzracer.track.TrackFactory import TrackFactory
-from buzzracer.car.Car import Car
-from buzzracer.extension.Extension import Extension
+from buzzracer.car.car import Car
+from buzzracer.extension.extension import Extension
 
 
 logger = get_logger('Run')
