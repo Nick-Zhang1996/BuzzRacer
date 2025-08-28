@@ -1,2 +1,2 @@
-from planner.Planner import Planner
-from planner.MPC import MPC
+from buzzracer.planner.planner import Planner
+from buzzracer.planner.mpc import MPC

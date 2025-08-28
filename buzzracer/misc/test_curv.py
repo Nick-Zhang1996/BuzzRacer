@@ -7,7 +7,7 @@ import sys
 from math import radians
 from track import TrackFactory
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
-from extension.simulator.CurvilinearSimulator import CurvilinearSimulator
+from buzzracer.extension.simulator.curvilinear_simulator import CurvilinearSimulator
 import matplotlib.pyplot as plt
 
 if (len(sys.argv) == 2):

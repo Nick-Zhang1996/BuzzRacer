@@ -1,3 +1,3 @@
-from .OldOffboard import OldOffboard
-from .Offboard import Offboard
-from .Orca import Orca
+from .old_offboard import OldOffboard
+from .offboard import Offboard
+from .orca import Orca

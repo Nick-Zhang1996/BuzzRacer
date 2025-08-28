@@ -4,7 +4,7 @@ import numpy as np
 from mpc import MPC
 from time import time
 # from timeUtil import ExecutionTimer
-from car import Car
+from buzzracer.car import car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi
 from common import *
 
@@ -14,7 +14,7 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './mppi/')
 sys.path.append(base_dir)
 
 
-class ctrlMpcWrapper(Car):
+class ctrlMpcWrapper(car):
     def __init__(self, car_setting, dt):
         super().__init__(car_setting, dt)
         # self.t = ExecutionTimer(True)

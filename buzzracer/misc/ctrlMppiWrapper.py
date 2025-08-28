@@ -1,5 +1,5 @@
 from mppi import MPPI
-from car import Car
+from buzzracer.car import car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi, atan
 import numpy as np
 from time import time, sleep
@@ -15,7 +15,7 @@ base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), './mppi/')
 sys.path.append(base_dir)
 
 
-class ctrlMppiWrapper(Car):
+class ctrlMppiWrapper(car):
     def __init__(self, car_setting, dt):
         super().__init__(car_setting, dt)
 
