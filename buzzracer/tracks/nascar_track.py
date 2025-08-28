@@ -1,6 +1,6 @@
 from common import *
 import numpy as np
-from track.CurvilinearTrack import CurvilinearTrack
+from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 
 
 class NascarTrack(CurvilinearTrack):

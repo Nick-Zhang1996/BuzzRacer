@@ -5,7 +5,7 @@ from math import cos, sin, atan2
 from scipy.interpolate import splprep, splev
 
 from buzzracer.common import *
-from buzzracer.track.Track import Track
+from buzzracer.tracks.track import Track
 
 
 class CurvilinearTrack(Track):

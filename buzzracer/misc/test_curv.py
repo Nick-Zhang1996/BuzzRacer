@@ -5,7 +5,7 @@ import numpy as np
 from copy import deepcopy
 import sys
 from math import radians
-from track import TrackFactory
+from buzzracer.tracks import track_factory
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
 import matplotlib.pyplot as plt
@@ -19,7 +19,7 @@ config_filename = config_folder + 'master.xml'
 original_config = minidom.parse(config_filename)
 
 config_track = original_config.getElementsByTagName('track')[0]
-track = TrackFactory.build(main=None, config=config_track)
+track = track_factory.build(main=None, config=config_track)
 track.init()
 
 

@@ -10,8 +10,8 @@ from buzzracer.controllers.pid_controller import PidController
 from buzzracer.third_party.solve_lq_game import solve_lq_game
 from buzzracer.controllers.lqgame import my_solve_lq_game
 from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
-from buzzracer.util.SymbolicDynamics import SymbolicDynamics
-from buzzracer.util.timeUtil import ExecutionTimer
+from buzzracer.utilities.symbolic_dynamics import SymbolicDynamics
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 
 class iLQGameCarController(CarController):

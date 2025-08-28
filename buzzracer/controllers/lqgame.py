@@ -1,5 +1,5 @@
 import numpy as np
-from util.timeUtil import ExecutionTimer
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 
 def my_solve_lq_game(As, Bs, Qs, qs, Rs, rs, t):

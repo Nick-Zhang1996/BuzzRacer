@@ -3,7 +3,7 @@ from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
 from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
 from controllers.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
 from controllers.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
-from util.timeUtil import ExecutionTimer
+from buzzracer.utilities.execution_timer import ExecutionTimer
 from common import *
 import os
 import sys

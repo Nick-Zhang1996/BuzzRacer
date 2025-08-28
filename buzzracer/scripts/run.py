@@ -8,8 +8,8 @@ from time import time
 from xml.dom import minidom
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, BASEDIR, get_logger
-from buzzracer.util.timeUtil import ExecutionTimer
-from buzzracer.track.TrackFactory import TrackFactory
+from buzzracer.utilities.execution_timer import ExecutionTimer
+from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.car.car import Car
 from buzzracer.extensions.extension import Extension
 

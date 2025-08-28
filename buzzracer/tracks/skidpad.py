@@ -6,7 +6,7 @@ from math import cos, sin, pi, atan2, radians, degrees, tan
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 
-from buzzracer.track.Track import Track
+from buzzracer.tracks.track import Track
 # from track.car import Car
 
 

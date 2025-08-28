@@ -3,7 +3,7 @@
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
 from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
-from track.RCPTrack import RCPTrack
+from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from common import *
 from cvxpy.atoms.affine.transpose import transpose

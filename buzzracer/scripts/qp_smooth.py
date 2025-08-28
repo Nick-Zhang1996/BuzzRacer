@@ -15,8 +15,8 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 from common import print_ok, print_info, print_error
-from track.RCPTrackDebug import RCPTrackDebug as RCPTrack
-from track.TrackFactory import TrackFactory
+from buzzracer.tracks.rcp_track_debug import RCPTrackDebug as RCPTrack
+from buzzracer.tracks.track_factory import TrackFactory
 
 
 class QpSmooth(RCPTrack):

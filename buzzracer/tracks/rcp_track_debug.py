@@ -14,8 +14,8 @@ import pickle
 from bisect import bisect
 
 from buzzracer.common import *
-from buzzracer.util.timeUtil import ExecutionTimer
-from buzzracer.track.RCPTrack import RCPTrack
+from buzzracer.utilities.execution_timer import ExecutionTimer
+from buzzracer.tracks.rcp_track import RCPTrack
 
 
 class RCPTrackDebug(RCPTrack):
