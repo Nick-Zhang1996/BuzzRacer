@@ -44,11 +44,10 @@ from collections import deque
 
 
 def solve_lq_game(As, Bs, Qs, ls, Rs):
-    """
-    Solve a time-varying, finite horizon LQ game (finds closed-loop Nash
+    """ Solve a time-varying, finite horizon LQ game (finds closed-loop Nash
     feedback strategies for both players).
     Assumes that dynamics are given by
-           ``` dx_{k+1} = A_k dx_k + \sum_i Bs[i]_k du[i]_k ```
+           ``` dx_{k+1} = A_k dx_k + sum_i Bs[i]_k du[i]_k ```
 
     NOTE: Bs, Qs, ls, R1s, R2s are all lists of lists of matrices.
     NOTE: all indices of inner lists correspond to the "current time" k except
