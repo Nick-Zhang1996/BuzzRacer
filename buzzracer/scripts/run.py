@@ -7,15 +7,14 @@ from threading import Event
 from time import time
 from xml.dom import minidom
 
-from buzzracer.common import PrintObject, LogObject, ExperimentType, Config
+from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, BASEDIR, get_logger
 from buzzracer.util.timeUtil import ExecutionTimer
-from buzzracer.track import TrackFactory
+from buzzracer.track.TrackFactory import TrackFactory
 from buzzracer.car.Car import Car
 from buzzracer.extension.Extension import Extension
 
 
-logger = logging.getLogger('Run')
-logger.setLevel(logging.INFO)
+logger = get_logger('Run')
 
 os.environ['PATH'] = (
     os.environ['PATH'] + ':/usr/local/cuda/bin/')  # enables cuda
@@ -26,11 +25,8 @@ class Main(PrintObject, LogObject):
 
     def __init__(self, config: str):
         LogObject.__init__(self)
-        self.basedir = os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
         self.config_filename = config
         self.experiment_name = config
-
         self.simulator = None
 
         # Load config
@@ -169,7 +165,7 @@ if __name__ == '__main__':
 
     # Run default.xml config if none is provided
     name = sys.argv[1] if len(sys.argv) == 2 else 'default'
-    config_filename = './configs/' + name + '.xml'
+    config_filename = os.path.join(BASEDIR, 'buzzracer','configs', f'{name}.xml')
 
     if os.path.exists(config_filename):
         logger.info('using config %s', config_filename)

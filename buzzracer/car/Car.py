@@ -1,6 +1,8 @@
-from common import PrintObject, LogObject, ExperimentType
-import serial
-from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi
+from math import radians, asin
+
+from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
+
+logger = get_logger('Car')
 
 
 class Car(PrintObject, LogObject):
@@ -92,9 +94,10 @@ class Car(PrintObject, LogObject):
         try:
             hardware_class_text = config.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
+            # pylint: disable-next=exec-used
             exec('from car import '+hardware_class_text)
         except IndexError:
-            self.print_warning('no hardware specified')
+            logger.warning('no hardware specified')
 
         config_controller = config.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[
@@ -105,15 +108,15 @@ class Car(PrintObject, LogObject):
                 'init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            print_warning(
+            logger.warning(
                 'Car: no initial state specified, using track default')
             init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
 
         config_name = config.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue
-        exec('from controller import '+controller_class_text)
+        # pylint: disable-next=exec-used
+        exec(f'from controller.{controller_class_text} import {controller_class_text}')
         controller = eval(controller_class_text)
-        config_name = config_name
 
         car = eval(hardware_class_text)(main)
 

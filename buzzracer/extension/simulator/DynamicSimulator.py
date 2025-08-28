@@ -1,40 +1,36 @@
-# dynamic simulator of a passenger vehicle
-# page 30 of book vehicle dynamics and control
-from math import sin, cos, tan, radians, degrees, pi, atan
-from threading import Event, Lock
-from simulator.KinematicSimulator import KinematicSimulator
-from common import *
-from Simulator import Simulator
-import matplotlib.pyplot as plt
-import numpy as np
-from sysid.tire import tire_curve
-from extension import Simulator
-import os
-import sys
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
+''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
+# page 30 of book Vehicle Dynamics and Control
 
+from math import sin, cos, tan, atan
+
+import numpy as np
+
+from buzzracer.extension.simulator.KinematicSimulator import KinematicSimulator
+from buzzracer.extension.Simulator import Simulator
+from buzzracer.car.Car import Car
+from buzzracer.sysid.tire import tire_curve
 
 class DynamicSimulator(Simulator):
-    def __init__(self):
-        super().__init__(handle_name='simulator')
-        DynamicSimulator.max_v = 3.0
-        DynamicSimulator.using_kinematics = False
+    ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
+    max_v = 3.0
+    ''' Maximum speed a car can achieve '''
+    using_kinematics = False
+    ''' Use Kinematics model instead'''
 
     def init(self):
         super().init()
-        self.cars = self.main.cars
         DynamicSimulator.dt = self.main.dt
         KinematicSimulator.dt = DynamicSimulator.dt
-        KinematicSimulator.max_v = 100
-        for car in self.cars:
+        KinematicSimulator.max_v = DynamicSimulator.max_v
+        for car in self.main.cars:
             self.add_car(car)
         self.main.new_state_update.set()
 
-    # add a car to be DynamicSimu
-    # car needs to (x,y,heading,v_forward,v_sideway,omega)
-    def add_car(self, car):
-        x, y, heading, v_forward, v_sideway, omega = car.states
+    def add_car(self, car: Car):
+        '''Add a car to use DynamicSimulator for state updates
+            car needs to (x,y,heading,v_forward,v_sideway,omega)
+        '''
+        x, y, heading, v_forward, v_sideway, _ = car.states
         car.Vx = v_forward
         car.Vy = v_sideway
 
@@ -63,13 +59,21 @@ class DynamicSimulator(Simulator):
         car.local_states_hist = []
         car.norm = []
 
-    # advance vehicle dynamics
-    # NOTE using car frame origined at CG with x pointing forward, y leftward
-    # this method does NOT update car.sim_states, only returns a sim_state
-    # this is to make itself useful for when update is not necessary
-    #    x,y,psi,v_forward,v_sideway,d_psi = car_states
     @staticmethod
-    def advance_dynamics(car_states, control, car):
+    def advance_dynamics(car_states, control, car, dt):
+        """advance dynamics by self.dt.
+        NOTE using car frame origined at CG with x pointing forward, y leftward
+
+        Args:
+            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
+            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
+                    positive indicates acceleration
+            car: Car object, contains information about the car's kinematics, 
+                also contains car.sim_states for simulators that do not use car.states for update
+            dt: Time step to advance dynamics by, unit:seconds
+        Return: 
+            state at next time step.
+        """
         lf = car.lf
         lr = car.lr
         L = car.L
@@ -78,14 +82,14 @@ class DynamicSimulator(Simulator):
         m = car.m
         dt = DynamicSimulator.dt
 
-        # NOTE here vx = vf, vy = vs, different convention
         x, y, heading, vx, vy, omega = car_states
         steering, throttle = control
 
         # for small longitudinal velocity use kinematic model
         if (vx < 0.05):
             beta = atan(lr/L*tan(steering))
-            def norm(a, b): return (a**2+b**2)**0.5
+            def norm(a, b):
+                return (a**2+b**2)**0.5
             # motor model
             d_vx = 6.17*(throttle - vx/15.2 - 0.333)
             vx = vx + d_vx * dt

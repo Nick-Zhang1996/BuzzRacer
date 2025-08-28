@@ -1,13 +1,11 @@
-from common import *
-from track.Track import Track
-from track.RCPTrack import RCPTrack
-from track.EmptyTrack import EmptyTrack
-from track.Skidpad import Skidpad
-from track.OrcaTrack import OrcaTrack
-from track.CurvilinearTrack import CurvilinearTrack
-from track.NascarTrack import NascarTrack
-from math import radians
+from buzzracer.common import get_logger
+from buzzracer.track.RCPTrack import RCPTrack
+from buzzracer.track.EmptyTrack import EmptyTrack
+from buzzracer.track.Skidpad import Skidpad
+from buzzracer.track.OrcaTrack import OrcaTrack
+from buzzracer.track.NascarTrack import NascarTrack
 
+logger = get_logger('TrackFactory')
 
 class TrackFactory:
     @staticmethod
@@ -41,15 +39,14 @@ class TrackFactory:
         mapping = TrackFactory.get_mapping()
         if name is None:
             if (config is None):
-                print_error(
+                logger.error(
                     'either specify [name] or specify a [config] that contains a track configuration')
             else:
                 name = config.firstChild.nodeValue
         if (name in mapping):
             return mapping[name](main, config, track=track)
         else:
-            print_error(f'unknown track name, use one in {mapping.keys()}')
-            return
+            logger.error('unknown track name, use one in %s', mapping.keys())
 
     @staticmethod
     def prepare_saved_track(main, config, track=None):

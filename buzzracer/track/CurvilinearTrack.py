@@ -1,12 +1,11 @@
 # a track defined by a spline
-from common import *
-import cv2
 import numpy as np
-from math import cos, sin, pi, atan2, radians, degrees, tan
-from scipy.interpolate import splprep, splev, CubicSpline, interp1d
-import matplotlib.pyplot as plt
+from math import cos, sin, atan2
 
-from track.Track import Track
+from scipy.interpolate import splprep, splev
+
+from buzzracer.common import *
+from buzzracer.track.Track import Track
 
 
 class CurvilinearTrack(Track):

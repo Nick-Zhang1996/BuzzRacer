@@ -1,61 +1,56 @@
-# refer to paper
-# The Kinematic Bicycle Model: a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles?
-from threading import Event
-from common import *
-from math import radians
+''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model
+Refer to paper
+The Kinematic Bicycle Model: 
+    a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles
+'''
 import numpy as np
-from extension import Simulator
-import os
-import sys
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
-
+from buzzracer.extension.Simulator import Simulator
 
 class KinematicSimulator(Simulator):
+    ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
+
+    max_v = 3.0
+    simple_throttle_model = False
+    ''' If True, throttle is the acceleration without mapping'''
 
     def __init__(self):
-        super().__init__(handle_name='simulator')
+        super().__init__()
+        KinematicSimulator.dt = self.main.dt
 
         # for when a specific car instance is not speciied
         self.lr = 45e-3
         self.lf = 45e-3
-        KinematicSimulator.max_v = 3.0
-        KinematicSimulator.dt = self.main.dt
         self.simple_throttle_model = False
 
     def init(self):
         super().init()
         KinematicSimulator.simple_throttle_model = self.simple_throttle_model
 
-        self.cars = self.main.cars
-        for car in self.cars:
+        for car in self.main.cars:
             self.add_car(car)
+
         self.main.new_state_update.set()
 
-    # add a car to be KinematicSimulator
-    # car needs to have .lf, .lr, .L .states (x,y,heading,v_forward,v_sideways,omega)
-    def add_car(self, car):
-        x, y, heading, v_forward, v_sideways, omega = car.states
-        return
-
     @staticmethod
-    def advance_dynamics(car_states, control, car):
-        """advance dynamics using kinematics model."""
+    def advance_dynamics(car_states, control, car, dt):
+        """advance dynamics by dt.
+
+        Args:
+            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
+            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
+                    positive indicates acceleration
+            car: Car object, contains information about the car's kinematics, 
+                also contains car.sim_states for simulators that do not use car.states for update
+            dt: Time step to advance dynamics by, unit:seconds
+        Return: 
+            state at next time step.
+        """
         lr = car.lr
         lf = car.lf
         dt = KinematicSimulator.dt
 
-        '''
-        throttle = np.clip(throttle, -1.0, 1.0)
-        steering = np.clip(throttle, -radians(27), radians(27))
-        '''
         x, y, heading, v_forward, v_sideway, omega = car_states
         v = v_forward
-        # slow down if car is in collision
-        '''
-        if (car.in_collision):
-            v *= 0.9
-        '''
         throttle = control[1]
         steering = control[0]
 
@@ -83,6 +78,3 @@ class KinematicSimulator(Simulator):
         v_sideway = 0
         car_states = x, y, heading, v_forward, v_sideway, omega
         return np.array(car_states)
-
-
-KinematicSimulator.simple_throttle_model = False

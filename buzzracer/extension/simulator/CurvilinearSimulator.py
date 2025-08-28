@@ -1,17 +1,15 @@
-# Simulation in Curvilinear ref frame
-# uses car.sim_states as internal state
+''' Simulate vehicle dynamics in Curvilinear/Frenet reference frame '''
+# NOTE this module requires extensive re-writing, skipping for now
+# pylint: disable=all
 
-import os
-import sys
+from math import sin, cos
+
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin, cos, tan, radians, degrees, pi, atan
-from threading import Event, Lock
-from scipy.optimize import minimize_scalar, minimize, brentq
-from scipy.interpolate import splprep, splev, CubicSpline, interp1d
+from scipy.optimize import  minimize
+from scipy.interpolate import  splev
 
-from common import *
-from extension import Simulator
+from buzzracer.extension.Simulator import Simulator
 
 
 def wrap(val):
@@ -22,21 +20,26 @@ def wrap(val):
 
 
 class CurvilinearSimulator(Simulator):
-    '''
+    ''' Simulate vehicle dynamics in Curvilinear/Frenet reference frame .
+
         point mass model
-        states = x = car.sim_states = (s, v, n, phi)
-        s: progress along raceline/reference curve
-        v: velocity
-        n: lateral offset from ref curve, left positive
-        phi: heading from ref curve tangend, ccw positive
-        control = u = (ay, ax)
-        ax: acceleration in heading(phi) direction
-        ay: acceleration in lateral direction (left positive)
-        ay is before ax to follow convention of steering before throttle
+
+        Attirbutes:
+            states: car.sim_states = (s, v, n, phi)
+            s: progress along raceline/reference curve
+            v: velocity
+            n: lateral offset from ref curve, left positive
+            phi: heading from ref curve tangend, ccw positive
+            control:  (ay, ax)
+            ax: acceleration in heading(phi) direction
+            ay: acceleration in lateral direction (left positive)
+            ay is before ax to follow convention of steering before throttle
+
+        uses car.sim_states as internal state
     '''
 
     def __init__(self):
-        super().__init__(handle_name='simulator')
+        super().__init__()
         self.track = self.main.track
 
     def init(self):
@@ -50,7 +53,8 @@ class CurvilinearSimulator(Simulator):
 
     def add_car(self, car):
         '''
-        initialize a car
+        Initialize a car
+
         car.states =  (x,y,heading,v_forward,v_sideway,omega)
         car.sim_states = (s, v, n, phi)
         s: progress along raceline/reference curve
@@ -58,7 +62,7 @@ class CurvilinearSimulator(Simulator):
         n: lateral offset from ref curve, left positive
         phi: heading from ref curve tangend, ccw positive
         '''
-        x, y, heading, v_forward, v_sideway, omega = car.states
+        #x, y, heading, v_forward, v_sideway, omega = car.states
         curv = self.cart2_curv(car.states)
         car.sim_states = curv
 
@@ -74,7 +78,7 @@ class CurvilinearSimulator(Simulator):
         [return]: (s,v,n,phi)
 
         """
-        x, y, heading, v_forward, v_sideway, omega = cart
+        x, y, heading, v_forward, _, _ = cart
 
         # dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
         def dist(s):
@@ -109,7 +113,7 @@ class CurvilinearSimulator(Simulator):
 
     # DEBUG
     def debug_plot(self, cart):
-        x, y, heading, v_forward, v_sideway, omega = cart
+        x, y, _ = cart
 
         def dist(s):
             val = np.linalg.norm(np.array(splev(
@@ -155,14 +159,15 @@ class CurvilinearSimulator(Simulator):
         # curvature = interp1d(ss,curvature(ss),kind='cubic')
 
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        r = np.array(splev(s % self.track.raceline_len_m,
-                     self.track.raceline_s, der=0))
+        # r = np.array(splev(s % self.track.raceline_len_m,
+        #              self.track.raceline_s, der=0))
         dr = np.array(splev(s % self.track.raceline_len_m,
                       self.track.raceline_s, der=1))
         ddr = np.array(splev(s % self.track.raceline_len_m,
                        self.track.raceline_s, der=2))
 
-        def _norm(x): return np.linalg.norm(x)
+        def _norm(x):
+            return np.linalg.norm(x)
         dr_norm = _norm(dr)
         curvature = 1.0/(dr_norm**3/(dr_norm**2*_norm(ddr) **
                          2 - np.sum(dr*ddr, axis=0)**2)**0.5)
@@ -172,7 +177,8 @@ class CurvilinearSimulator(Simulator):
             curvature = 0.0
         return np.copysign(curvature, sign)
 
-    def advance_point_mass_dynamics(self, curv_states, control, dt):
+    @staticmethod
+    def advance_point_mass_dynamics(curv_states, control, dt):
         s, v, n, phi = curv_states
         k_s = self.curvature(s)
         ay, ax = control
@@ -185,13 +191,10 @@ class CurvilinearSimulator(Simulator):
             dt = CurvilinearSimulator.dt
 
         dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
-        '''
-        if (np.linalg.norm(dx[:3]) > 1.0):
-            breakpoint()
-        '''
         return curv_states + dx
 
-    def advance_dynamics(self, car_states, control, car, dt=None):
+    @staticmethod
+    def advance_dynamics(car_states, control, car, dt):
         """ignore car_states, update car.sim_states with control and optional
         [dt]
 
@@ -199,23 +202,6 @@ class CurvilinearSimulator(Simulator):
         car.sim_states
 
         """
-
-        # DEBUG
-        '''
-        check1 = np.linalg.norm(self.cart2_curv(car_states,guess_s = car.sim_states[0]) - car.sim_states)
-        check2 = np.linalg.norm(self.curv2_cart(self.cart2_curv(car_states,guess_s = car.sim_states[0])) - car_states)
-        if (check1 > 0.001 or check2 > 0.001):
-            print('inconsistency in coord frame transformation')
-            print(check1,check2)
-            print('card_states: ', car_states)
-            print('curv_states: ', car.sim_states)
-            print('card -> curv: ', self.cart2_curv(car_states))
-            print('card -> curv -> card: ', self.curv2_cart(self.cart2_curv(car_states)))
-            print('curv -> card: ', self.curv2_cart(car.sim_states))
-            print('curv -> card -> curv ', self.cart2_curv(self.curv2_cart(car.sim_states)))
-            breakpoint()
-        '''
-
         car.sim_states = self.advance_point_mass_dynamics(
             car.sim_states, control, dt)
 

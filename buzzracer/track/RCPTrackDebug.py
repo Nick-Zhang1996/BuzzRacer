@@ -13,9 +13,9 @@ from PIL import Image
 import pickle
 from bisect import bisect
 
-from common import *
-from util.timeUtil import ExecutionTimer
-from track.RCPTrack import RCPTrack
+from buzzracer.common import *
+from buzzracer.util.timeUtil import ExecutionTimer
+from buzzracer.track.RCPTrack import RCPTrack
 
 
 class RCPTrackDebug(RCPTrack):

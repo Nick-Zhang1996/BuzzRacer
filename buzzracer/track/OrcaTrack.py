@@ -5,8 +5,8 @@
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 import json
-from track.Track import Track
-from common import *
+from buzzracer.track.Track import Track
+from buzzracer.common import *
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
