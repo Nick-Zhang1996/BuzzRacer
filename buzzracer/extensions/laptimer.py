@@ -57,8 +57,8 @@ class Laptimer(Extension):
 
     def log_laptime(self):
         try:
-            logname = self.main.logger.logFolder + \
-                'laptime'+str(self.main.logger.log_no) + '.p'
+            logname = os.path.join(self.main.logger.log_folder,
+                f'laptime{self.main.logger.log_no}.p')
         except AttributeError:
             logname = os.path.join(BASEDIR, 'log', 'laptime_latest.p')
             self.print_warning(

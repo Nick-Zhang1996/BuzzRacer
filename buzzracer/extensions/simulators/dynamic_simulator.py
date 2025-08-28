@@ -58,6 +58,7 @@ class DynamicSimulator(Simulator):
         # car.states_hist = []
         car.local_states_hist = []
         car.norm = []
+        super().add_car(car)
 
     @staticmethod
     def advance_dynamics(car_states, control, car, dt):

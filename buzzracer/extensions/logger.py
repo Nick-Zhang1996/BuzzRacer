@@ -50,10 +50,10 @@ class Logger(Extension):
             no += 1
 
         self.log_no = no
-        self.log_filename = log_folder + log_prefix + str(no) + log_suffix
+        self.log_filename = os.path.join(log_folder, log_prefix + str(no) + log_suffix)
 
         log_prefix = 'debug_dict'
-        self.log_dict_filename = log_folder + log_prefix + str(no) + log_suffix
+        self.log_dict_filename = os.path.join(log_folder, log_prefix + str(no) + log_suffix)
         self.log_folder = log_folder
 
     def post_update(self):

@@ -12,7 +12,7 @@ from scipy.interpolate import splev
 from buzzracer.common import BASEDIR
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
-from buzzracer.extensions.Simulator import Simulator
+from buzzracer.extensions.simulator import Simulator
 from buzzracer.sysid.tire import tire_curve
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
 from buzzracer.car.car import Car

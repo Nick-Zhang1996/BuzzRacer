@@ -72,7 +72,7 @@ class CarController(ConfigObject, LogObject):
         state = x0
         for i in range(control.shape[0]):
             state = KinematicSimulator.advance_dynamics(
-                state, control[i], self.car)
+                state, control[i], self.car, self.main.dt)
             trajectory.append(state)
         return np.array(trajectory)
 
@@ -81,6 +81,6 @@ class CarController(ConfigObject, LogObject):
         state = x0
         for i in range(control.shape[0]):
             state = DynamicSimulator.advance_dynamics(
-                state, control[i], self.car)
+                state, control[i], self.car, self.main.dt)
             trajectory.append(state)
         return np.array(trajectory)
