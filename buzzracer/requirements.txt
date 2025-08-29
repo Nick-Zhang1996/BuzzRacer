@@ -14,7 +14,6 @@ pyserial==3.5
 pyttsx3==2.99
 scipy==1.8.0
 seaborn==0.13.2
-StepCounter==1.0.7
 sympy==1.12
 torch==2.3.0
 #gpytorch==1.11
