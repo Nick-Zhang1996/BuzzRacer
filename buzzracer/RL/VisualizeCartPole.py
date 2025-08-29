@@ -1,6 +1,6 @@
 # visualize cart pole
 import os
-import gym
+import gymnasium as gym
 import numpy as np
 from DQN import DQN
 import torch

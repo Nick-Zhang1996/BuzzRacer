@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import math
 import random
 import numpy as np
