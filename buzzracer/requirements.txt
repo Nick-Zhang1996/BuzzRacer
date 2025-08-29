@@ -5,7 +5,7 @@ gymnasium==1.2.0
 inputs==0.5
 matplotlib==3.5.1
 mosek==11.0.28
-numpy==1.21.5
+numpy>=1.21.5
 pandas==2.3.2
 Pillow==11.3.0
 progressbar33==2.4
