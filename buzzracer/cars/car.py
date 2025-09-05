@@ -1,9 +1,9 @@
 from math import radians, asin
+from typing import NamedTuple
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
 
 logger = get_logger('Car')
-
 
 class Car(PrintObject, LogObject):
     car_count = 0
