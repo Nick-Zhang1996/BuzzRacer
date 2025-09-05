@@ -58,14 +58,10 @@ pip install -r requirements.txt
 
 Please install these packages using pip.
 
-<<<<<<< HEAD
 Please install these packages using pip or conda. Note the list may not be exhaustive.
 A `requirements.txt` is  provided containing necessary pip packages. 
 
 If you wish to work on GPU-accelerated algorithms, please also install `pycuda`. 
-=======
-If you wish to work on GPU-accelerated algorithms like MPPI, please also install `pycuda`. 
->>>>>>> 8f35085b (update readme, cleanup, add test)
 
 ### Generate Raceline
 
@@ -120,7 +116,7 @@ how many cars to generate, which controller each car uses, which extension to lo
 You can run a different config file, for example, one with multiple vehicles
 
 ```bash
-python run.py planner_stanley
+python -m buzzracer.scripts.run planner_stanley
 ```
 
 ![Buzzracer](docs/sample_sim_multi.gif)
