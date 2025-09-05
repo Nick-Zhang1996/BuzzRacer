@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 from scipy.integrate import solve_ivp
 
 
-from buzzracer.common import BASEDIR
+from buzzracer.common import BASEDIR, get_logger
 from buzzracer.tracks.track import Track
 from buzzracer.utilities.execution_timer import ExecutionTimer
 
@@ -44,6 +44,7 @@ class Node:
         self.entry = entry
         return
 
+logger = get_logger('Run')
 
 class RCPTrack(Track):
     def __init__(self, main=None, config=None):
@@ -477,16 +478,18 @@ class RCPTrack(Track):
 
     # load quadratically smoothed raceline
     def load(self, filename=None):
-        # get data folder abs path
-        thisdir = os.path.dirname(os.path.abspath(__file__))
-        basedir = os.path.dirname(thisdir)
         if filename is None:
             filename = 'raceline.p'
         try:
-            with open(basedir+'/data/'+filename, 'rb') as f:
+            full_path = os.path.join(BASEDIR,'buzzracer','data',filename)
+            with open(full_path, 'rb') as f:
                 save = pickle.load(f)
         except FileNotFoundError:
-            print_error("can't find "+filename+', run qpSmooth.py first')
+            self.print_error(f"can't find saved raceline {filename}, run "
+                " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
+                " Example track name: full"
+            )
+            raise
 
         # restore save data
         self.grid_sequence = save['grid_sequence']

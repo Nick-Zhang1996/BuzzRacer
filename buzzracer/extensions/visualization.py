@@ -76,7 +76,7 @@ class Visualization(Extension):
         except AttributeError:
             pass
 
-        filename = os.path.join(BASEDIR,'resources','track_img.p')
+        filename = os.path.join(BASEDIR,'buzzracer','data','track_img.p')
         with open(filename, 'wb') as f:
             self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)
