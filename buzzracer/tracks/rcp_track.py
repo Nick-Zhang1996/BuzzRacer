@@ -1192,7 +1192,7 @@ class RCPTrack(Track):
 
         t.s()
         if reverse:
-            print_error('reverse is not implemented')
+            self.print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         t.s('local traj')
         retval = self.local_trajectory(
@@ -1306,7 +1306,7 @@ class RCPTrack(Track):
 
         t.s()
         if reverse:
-            print_error('reverse is not implemented')
+            self.print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         t.s('local traj')
         retval = self.local_trajectory(
@@ -1429,7 +1429,7 @@ class RCPTrack(Track):
 
     def predict_opponent(self, state, p, dt, reverse=False):
         if reverse:
-            print_error('reverse is not implemented')
+            self.print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         retval = self.local_trajectory(
             state, wheelbase=0.102/2.0, return_u=True)

@@ -1,14 +1,14 @@
 ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
 # page 30 of book Vehicle Dynamics and Control
 
-from math import sin, cos, tan, atan
+from math import sin, cos
 
 import numpy as np
 
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.types import CartesianState, Control
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.cars.car import Car
-from buzzracer.sysid.tire import tire_curve
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModel
 
 class DynamicSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
@@ -19,9 +19,6 @@ class DynamicSimulator(Simulator):
 
     def init(self):
         super().init()
-        DynamicSimulator.dt = self.main.dt
-        KinematicSimulator.dt = DynamicSimulator.dt
-        KinematicSimulator.max_v = DynamicSimulator.max_v
         for car in self.main.cars:
             self.add_car(car)
         self.main.new_state_update.set()
@@ -75,62 +72,14 @@ class DynamicSimulator(Simulator):
         Return: 
             state at next time step.
         """
-        lf = car.lf
-        lr = car.lr
-        L = car.L
-
-        Iz = car.Iz
-        m = car.m
-        dt = DynamicSimulator.dt
-
         x, y, heading, vx, vy, omega = car_states
+        _state = CartesianState(x=x,
+                               y=y,
+                               heading=heading,
+                               v_forward=vx,
+                               v_sideway=vy,
+                               omega=omega)
         steering, throttle = control
-
-        # for small longitudinal velocity use kinematic model
-        if (vx < 0.05):
-            beta = atan(lr/L*tan(steering))
-            def norm(a, b):
-                return (a**2+b**2)**0.5
-            # motor model
-            d_vx = 6.17*(throttle - vx/15.2 - 0.333)
-            vx = vx + d_vx * dt
-            vy = norm(vx, vy)*sin(beta)
-            d_omega = 0.0
-            omega = vx/L*tan(steering)
-
-            slip_f = 0
-            slip_r = 0
-            Ffy = 0
-            Fry = 0
-
-        else:
-            slip_f = -np.arctan((omega*lf + vy)/vx) + steering
-            slip_r = np.arctan((omega*lr - vy)/vx)
-
-            # Ffy = Df * np.sin( C * np.arctan(B *slip_f)) * 9.8 * lr / (lr + lf) * m
-            # Fry = Dr * np.sin( C * np.arctan(B *slip_r)) * 9.8 * lf / (lr + lf) * m
-            Ffy = tire_curve(slip_f) * m * 9.8 * lr/(lr+lf)
-            Fry = 1.15*tire_curve(slip_r) * m * 9.8 * lf/(lr+lf)
-
-            # Dynamics
-            # d_vx = 1.0/m * (Frx - Ffy * np.sin( steering ) + m * vy * omega)
-            d_vx = 6.17*(throttle - vx/15.2 - 0.333)
-            d_vy = 1.0/m * (Fry + Ffy * np.cos(steering) - m * vx * omega)
-            d_omega = 1.0/Iz * (Ffy * lf * np.cos(steering) - Fry * lr)
-
-            # discretization
-            vx = vx + d_vx * dt
-            vy = vy + d_vy * dt
-            omega = omega + d_omega * dt
-
-        # back to global frame
-        vxg = vx*cos(heading)-vy*sin(heading)
-        vyg = vx*sin(heading)+vy*cos(heading)
-
-        # update x,y, heading
-        x += vxg*dt
-        y += vyg*dt
-        heading += omega*dt + 0.5 * d_omega * dt * dt
-
-        car_states = x, y, heading, vx, vy, omega
-        return np.array(car_states)
+        _control = Control(steering=steering, throttle=throttle)
+        next_car_state = DynamicBicycleModel.advance_dynamics(_state, _control, car, dt)
+        return np.array(next_car_state)

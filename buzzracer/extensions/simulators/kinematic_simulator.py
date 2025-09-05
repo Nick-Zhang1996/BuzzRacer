@@ -5,6 +5,8 @@ The Kinematic Bicycle Model:
 '''
 import numpy as np
 from buzzracer.extensions.simulator import Simulator
+from buzzracer.types import CartesianState, Control
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModel
 
 class KinematicSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
@@ -45,36 +47,14 @@ class KinematicSimulator(Simulator):
         Return: 
             state at next time step.
         """
-        lr = car.lr
-        lf = car.lf
-        dt = KinematicSimulator.dt
-
-        x, y, heading, v_forward, v_sideway, omega = car_states
-        v = v_forward
-        throttle = control[1]
-        steering = control[0]
-
-        beta = np.arctan(np.tan(steering) * lr / (lf+lr))
-        dXdt = v * np.cos(heading + beta)
-        dYdt = v * np.sin(heading + beta)
-        try:
-            if KinematicSimulator.simple_throttle_model:
-                if (v > KinematicSimulator.max_v):
-                    dvdt = -0.01
-                else:
-                    dvdt = throttle
-            else:
-                dvdt = 6.17*(throttle - v/15.2 - 0.333)
-        except AttributeError:
-            dvdt = 6.17*(throttle - v/15.2 - 0.333)
-        omega = dheadingdt = v/lr*np.sin(beta)
-
-        x += dt * dXdt
-        y += dt * dYdt
-        v += dt * dvdt
-        heading += dt * dheadingdt
-
-        v_forward = v
-        v_sideway = 0
-        car_states = x, y, heading, v_forward, v_sideway, omega
-        return np.array(car_states)
+        x, y, heading, vx, vy, omega = car_states
+        _state = CartesianState(x=x,
+                               y=y,
+                               heading=heading,
+                               v_forward=vx,
+                               v_sideway=vy,
+                               omega=omega)
+        steering, throttle = control
+        _control = Control(steering=steering, throttle=throttle)
+        next_car_state = KinematicBicycleModel.advance_dynamics(_state, _control, car, dt)
+        return np.array(next_car_state)
