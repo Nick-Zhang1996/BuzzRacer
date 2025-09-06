@@ -86,7 +86,7 @@ class Replay(Simulator):
                               heading=heading,
                               v_forward=state.v_forward,
                               v_sideway=state.v_sideway,
-                              omega=state.omega)
+                              omega=state.rel_omega)
 
     def update(self):
         if self.timestep >= self.data.shape[0]:

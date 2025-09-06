@@ -36,7 +36,7 @@ class Main(PrintObject, LogObject):
         self.print_ok(' setting main attributes')
         for key, value_text in config_settings.attributes.items():
             setattr(self, key, eval(value_text))
-            self.print_info('f main.{key}.{value_text}')
+            self.print_info(f' main.{key}.{value_text}')
 
         def get_experiment_type_from_config_settings(config_settings):
             config_experiment_text = config_settings.getElementsByTagName(

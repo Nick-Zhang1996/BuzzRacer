@@ -8,7 +8,7 @@ import numpy as np
 from buzzracer.types import CartesianState, Control
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.cars.car import Car
-from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModel
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 class DynamicSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
@@ -81,5 +81,5 @@ class DynamicSimulator(Simulator):
                                omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
-        next_car_state = DynamicBicycleModel.advance_dynamics(_state, _control, car, dt)
+        next_car_state = DynamicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
         return np.array(next_car_state)

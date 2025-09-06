@@ -36,5 +36,5 @@ class CurvilinearState(NamedTuple):
     ''' Longitudinal speed, forward positive '''
     v_sideway: float
     ''' Lateral speed, left positive '''
-    omega: float
+    rel_omega: float
     ''' Relative heading time rate w.r.t. reference curve, ccw positive'''

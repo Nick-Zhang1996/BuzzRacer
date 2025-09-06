@@ -6,7 +6,7 @@ The Kinematic Bicycle Model:
 import numpy as np
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, Control
-from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModel
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
 class KinematicSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
@@ -56,5 +56,5 @@ class KinematicSimulator(Simulator):
                                omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
-        next_car_state = KinematicBicycleModel.advance_dynamics(_state, _control, car, dt)
+        next_car_state = KinematicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
         return np.array(next_car_state)
