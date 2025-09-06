@@ -184,7 +184,7 @@ class CurvilinearSimulator(Simulator):
         ay, ax = control
         dsdt = v*cos(phi)/(1-n*k_s)
         dvdt = ax
-        dndt = v*sin(phi)
+        dndt = v*sin(phi) + np.sqrt(dsdt**2 - (v*cos(phi))**2)
         dphidt = ay/v - k_s*dsdt
 
         if (dt is None):

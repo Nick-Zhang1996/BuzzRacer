@@ -4,9 +4,9 @@ import torch
 from buzzracer.cars.car import Car
 from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
-from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModel
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
-class GpModel(DynamicBicycleModel):
+class GpModel(DynamicBicycleModelCartesian):
     ''' Learned Gaussian Process model based on Dynamic Bicycle Model'''
 
     def __init__(self):

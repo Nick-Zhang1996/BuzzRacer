@@ -52,7 +52,7 @@ class CarController(ConfigObject, LogObject):
         # kinematic
         expected_trajectory = self.get_kinematic_trajectory(
             self.car.states, control)
-        self.plot_trajectory(expected_trajectory)
+        # self.plot_trajectory(expected_trajectory)
         self.predicted_traj = expected_trajectory
         return self.predicted_traj
 
