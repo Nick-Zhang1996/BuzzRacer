@@ -6,17 +6,9 @@ from math import sin, cos
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import  minimize
 from scipy.interpolate import  splev
 
 from buzzracer.extensions.simulator import Simulator
-
-
-def wrap(val):
-    '''
-    wrap angle to [-pi,pi]
-    '''
-    return (val + np.pi) % (2*np.pi) - np.pi
 
 
 class CurvilinearSimulator(Simulator):
@@ -69,89 +61,6 @@ class CurvilinearSimulator(Simulator):
         car.state_dim = 4
         car.control_dim = 2
 
-    def cart2_curv(self, cart, guess_s=None):
-        """transform cartesian states to curvilinear states relies on
-        self.track.raceline_s.
-
-        [cart]: (x,y,heading,v_forward,v_sideway,omega)
-        [guess_s]: estimated s
-        [return]: (s,v,n,phi)
-
-        """
-        x, y, heading, v_forward, _, _ = cart
-
-        # dist = lambda s: np.linalg.norm(np.array(splev(s%self.track.raceline_len_m,self.track.raceline_s,der=0)) - np.array([x,y]))
-        def dist(s):
-            val = np.linalg.norm(np.array(splev(
-                s % self.track.raceline_len_m, self.track.raceline_s, der=0)).flatten() - np.array([x, y]))
-            return val
-
-        if (guess_s is None):
-            # initial guess to avoid local minima
-            xx = np.linspace(0.0, self.track.raceline_len_m, 10)
-            yy = [dist(x) for x in xx]
-            guess_s = xx[np.argmin(yy)]
-            ds = 2*self.track.raceline_len_m/10
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
-                           bounds=((guess_s-ds, guess_s+ds),))
-        else:
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
-                           bounds=((guess_s-0.2, guess_s+0.2),))
-
-        s = fit.x[0]
-
-        r = np.array(splev(s % self.track.raceline_len_m,
-                     self.track.raceline_s, der=0))
-        dr = np.array(splev(s % self.track.raceline_len_m,
-                      self.track.raceline_s, der=1))
-        dr = dr/np.linalg.norm(dr)
-        n = np.cross(dr, np.array([x, y]) - r)
-        # ignore sideway velocity
-        v = v_forward
-        phi = wrap(heading - np.arctan2(dr[1], dr[0]))
-        return np.array([s, v, n, phi])
-
-    # DEBUG
-    def debug_plot(self, cart):
-        x, y, _ = cart
-
-        def dist(s):
-            val = np.linalg.norm(np.array(splev(
-                s % self.track.raceline_len_m, self.track.raceline_s, der=0)).flatten() - np.array([x, y]))
-            return val
-        xx = np.linspace(-1.0, self.track.raceline_len_m, 1000)
-        yy = [dist(x) for x in xx]
-        plt.plot(xx, yy)
-
-        xx = np.linspace(-1.0, self.track.raceline_len_m, 10)
-        yy = [dist(x) for x in xx]
-        plt.plot(xx, yy, 'o')
-        plt.show()
-        return
-
-    def curv2_cart(self, curv):
-        """transform curvilinear states to cartesian states.
-
-        [curv]: (s,v,n,phi)
-        [return]: (x,y,heading,v_forward,v_sideway,omega)
-
-        """
-        s, v, n, phi = curv.flatten()
-        r = np.array(splev(s % self.track.raceline_len_m,
-                     self.track.raceline_s, der=0))
-        dr = np.array(splev(s % self.track.raceline_len_m,
-                      self.track.raceline_s, der=1))
-        dr = dr/np.linalg.norm(dr)
-
-        # ccw 90 deg
-        A = np.array([[0, -1], [1, 0]])
-        x, y = r + (A @ dr)*n
-        ref_heading = np.arctan2(dr[1], dr[0])
-        heading = wrap(phi + ref_heading)
-        v_forward = v
-        v_sideway = 0.0
-        omega = 0.0
-        return np.array([x, y, heading, v_forward, v_sideway, omega])
 
     def curvature(self, s):
         """get signed curvature of raceline at s, ccw positive."""
@@ -176,22 +85,6 @@ class CurvilinearSimulator(Simulator):
             # self.print_warning('curvature is nan, likely because curvature is exactly 0')
             curvature = 0.0
         return np.copysign(curvature, sign)
-
-    @staticmethod
-    def advance_point_mass_dynamics(curv_states, control, dt):
-        s, v, n, phi = curv_states
-        k_s = self.curvature(s)
-        ay, ax = control
-        dsdt = v*cos(phi)/(1-n*k_s)
-        dvdt = ax
-        dndt = v*sin(phi) + np.sqrt(dsdt**2 - (v*cos(phi))**2)
-        dphidt = ay/v - k_s*dsdt
-
-        if (dt is None):
-            dt = CurvilinearSimulator.dt
-
-        dx = np.array([dsdt, dvdt, dndt, dphidt])*dt
-        return curv_states + dx
 
     @staticmethod
     def advance_dynamics(car_states, control, car, dt):

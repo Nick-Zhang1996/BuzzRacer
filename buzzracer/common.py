@@ -202,3 +202,8 @@ def angular_difference(a, b):
     while angle_diff < -np.pi:
         angle_diff += 2 * np.pi
     return angle_diff
+
+def wrap(val):
+    ''' Wrap angle to [-pi,pi]
+    '''
+    return (val + np.pi) % (2*np.pi) - np.pi

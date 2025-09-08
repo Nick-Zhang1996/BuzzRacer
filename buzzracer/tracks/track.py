@@ -1,18 +1,19 @@
-''' Base class for RCPTrack and Skidpad
-This class provides API for interacting with a Track object
-A track object provides information on the trajectory and provide access for drawing the track
-'''
+"""Base class for RCPTrack and Skidpad This class provides API for interacting
+with a Track object A track object provides information on the trajectory and
+provide access for drawing the track."""
 import os.path
 import pickle
-from math import  cos, sin
+from math import cos, sin
 from typing import Callable
 
 import cv2
 import numpy as np
-from scipy.interpolate import  splev
+from scipy.interpolate import splev
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from buzzracer.common import ConfigObject
+from buzzracer.common import ConfigObject, wrap
+from buzzracer.types import CurvilinearState, CartesianState
 
 
 class Track(ConfigObject):
@@ -25,19 +26,23 @@ class Track(ConfigObject):
         self.raceline_len_m: float = 0.0
         ''' Total length of raceline in meters'''
         self.raceline_s = None
-        ''' The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
+        ''' Spline to map track progress to raceline points.
+        The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
         self.sToV: Callable = lambda s: 0.0
         ''' Function to provide reference velocity given raceline s_m'''
         self.precise_track_boundary: Callable = lambda coord, heading: (0, 0)
         ''' left, right = self.precise_track_boundary(coord, heading) '''
+        self.curvature_s = lambda s: 0.0
+        ''' Function to map track progress to signed curvature of raceline, 
+        The tck coefficients from splprep, use as curvature = splev(s_m, self.raceline_s)'''
 
-        self.ss:np.ndarray = np.array(0)
+        self.ss: np.ndarray = np.array(0)
         ''' np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)'''
-        self.raceline_points:np.ndarray = np.array(0)
+        self.raceline_points: np.ndarray = np.array(0)
         ''' dim:(len, 2) splev(ss % self.raceline_len_m, self.raceline_s) '''
-        self.raceline_headings:np.ndarray = np.array(0)
+        self.raceline_headings: np.ndarray = np.array(0)
         ''' dim:(len,) An array of reference headings '''
-        self.raceline_velocity:np.ndarray = np.array(0)
+        self.raceline_velocity: np.ndarray = np.array(0)
         ''' dim:(len,) An array of reference velocity, from self.sToV(ss)'''
         self.discretized_raceline: np.ndarray = np.array(0)
         ''' dim: (len, 5)
@@ -304,3 +309,79 @@ class Track(ConfigObject):
             plt.show()
             return img
         return
+
+    def cart_to_curv(self, cart: CartesianState, guess_s: float = None) -> CurvilinearState:
+        """Transform cartesian states to curvilinear states, relies on
+        self.raceline_s.
+
+        Args:
+            cart: Cartesian state
+            guess_s: estimated s (progress along ref curve)
+        Returns:
+            curv: curvilinear state
+
+        """
+
+        def dist(s):
+            val = np.linalg.norm(
+                np.array(splev(s % self.raceline_len_m,
+                         self.raceline_s)).flatten()
+                - np.array([cart.x, cart.y])
+            )
+            return val
+
+        if (guess_s is None):
+            # initial guess to avoid local minima
+            xx = np.linspace(0.0, self.raceline_len_m, 100)
+            yy = [dist(x) for x in xx]
+            guess_s = xx[np.argmin(yy)]
+            ds = 2*self.raceline_len_m/100
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-ds, guess_s+ds),))
+        else:
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-0.2, guess_s+0.2),))
+
+        s = fit.x[0]
+
+        r = np.array(splev(s % self.raceline_len_m,
+                     self.raceline_s, der=0))
+        dr = np.array(splev(s % self.raceline_len_m,
+                      self.raceline_s, der=1))
+        dr = dr/np.linalg.norm(dr)
+        n = np.cross(dr, np.array([cart.x, cart.y]) - r)
+        phi = wrap(cart.heading - np.arctan2(dr[1], dr[0]))
+        return CurvilinearState(progress=s,
+                                lateral_err=n,
+                                rel_heading=phi,
+                                v_forward=cart.v_forward,
+                                v_sideway=cart.v_sideway,
+                                rel_omega=cart.omega)
+
+    def curv_to_cart(self, curv: CurvilinearState) -> CartesianState:
+        """Transform curvilinear state to cartesian state. Need
+        self.raceline_s.
+
+        Args:
+            curv: Curvilinear state
+        Returns:
+            cart: Transformed cartesian state
+
+        """
+        r = np.array(splev(curv.progress % self.raceline_len_m,
+                     self.raceline_s, der=0))
+        dr = np.array(splev(curv.progress % self.raceline_len_m,
+                      self.raceline_s, der=1))
+        dr = dr/np.linalg.norm(dr)
+
+        # ccw 90 deg
+        A = np.array([[0, -1], [1, 0]])
+        x, y = r + (A @ dr)*curv.lateral_err
+        ref_heading = np.arctan2(dr[1], dr[0])
+        heading = wrap(curv.rel_heading + ref_heading)
+        return CartesianState(x=x,
+                              y=y,
+                              heading=heading,
+                              v_forward=curv.v_forward,
+                              v_sideway=curv.v_sideway,
+                              omega=curv.rel_omega)

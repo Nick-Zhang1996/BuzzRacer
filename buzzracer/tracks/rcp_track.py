@@ -44,7 +44,9 @@ class Node:
         self.entry = entry
         return
 
+
 logger = get_logger('Run')
+
 
 class RCPTrack(Track):
     def __init__(self, main=None, config=None):
@@ -481,14 +483,14 @@ class RCPTrack(Track):
         if filename is None:
             filename = 'raceline.p'
         try:
-            full_path = os.path.join(BASEDIR,'buzzracer','data',filename)
+            full_path = os.path.join(BASEDIR, 'buzzracer', 'data', filename)
             with open(full_path, 'rb') as f:
                 save = pickle.load(f)
         except FileNotFoundError:
             self.print_error(f"can't find saved raceline {filename}, run "
-                " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
-                " Example track name: full"
-            )
+                             " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
+                             " Example track name: full"
+                             )
             raise
 
         # restore save data
@@ -964,7 +966,7 @@ class RCPTrack(Track):
         # render different color based on speed
         # slow - red, fast - green (BGR)
         def get_color(s): return (0, int(s_to_color(s)*255),
-                                 int(255-255*s_to_color(s)))
+                                  int(255-255*s_to_color(s)))
         for i in range(len(u_new)-1):
             s = self.uToS(u_new[i] % self.track_length_grid)
             color = get_color(s)
@@ -1170,8 +1172,23 @@ class RCPTrack(Track):
         # convert self.raceline(parameterized w.r.t. u)
         # to self.raceline_s (parameterized w.r.t. s, distance along path)
         rr = splev(uu % self.track_length_grid, self.raceline)
-        tck, u = splprep(rr, u=ss, s=0, per=1)
+        tck, _ = splprep(rr, u=ss, s=0, per=1)
         self.raceline_s = tck
+
+        def _norm(x): return np.linalg.norm(x, axis=0)
+
+        xx = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
+        dr = np.array(splev(xx, self.raceline_s, der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(xx, self.raceline_s, der=2))
+        def _norm(x): return np.linalg.norm(x, axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        # gives right sign for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
+        curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
+                                           ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+        tck, _ = splprep([curvature_vec], u=xx, s=0, per=1)
+        self.curvature_s = tck
         return
 
     # get future reference point for dynamic MPC
