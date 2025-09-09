@@ -113,8 +113,9 @@ class Offboard(Car):
         self.lf = 0.04824
         self.lr = self.L - self.lf
 
-        self.Iz = 417757e-9
+        # self.Iz = 417757e-9
         self.m = 0.1667
+        self.Iz = 1/12 * self.m * (0.15**2 + 0.1 ** 2)
 
         # ethCarsim moved for ccmppi
 

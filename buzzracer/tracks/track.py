@@ -34,19 +34,19 @@ class Track(ConfigObject):
         ''' left, right = self.precise_track_boundary(coord, heading) '''
         self.curvature_s = lambda s: 0.0
         ''' Function to map track progress to signed curvature of raceline, 
-        The tck coefficients from splprep, use as curvature = splev(s_m, self.raceline_s)'''
+        The tck coefficients from splprep, use as curvature = self.curvature_s(s_m)'''
 
         self.ss: np.ndarray = np.array(0)
         ''' np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)'''
         self.raceline_points: np.ndarray = np.array(0)
-        ''' dim:(len, 2) splev(ss % self.raceline_len_m, self.raceline_s) '''
+        ''' dim:(2, len) splev(ss % self.raceline_len_m, self.raceline_s) '''
         self.raceline_headings: np.ndarray = np.array(0)
         ''' dim:(len,) An array of reference headings '''
         self.raceline_velocity: np.ndarray = np.array(0)
         ''' dim:(len,) An array of reference velocity, from self.sToV(ss)'''
         self.discretized_raceline: np.ndarray = np.array(0)
-        ''' dim: (len, 5)
-        [raceline_points, raceline_headings, vv, raceline_left_boundary, raceline_right_boundary]
+        ''' dim: (len, 6)
+        [raceline_x, raceline_y, raceline_headings, vv, raceline_left_boundary, raceline_right_boundary]
         '''
         self.raceline_left_boundary: np.ndarray = np.array(0)
         ''' dim:(len,) An array of distances from ref raceline to left boundary'''
