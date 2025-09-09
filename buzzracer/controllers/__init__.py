@@ -11,3 +11,4 @@ from .point_mass_car_controller import PointMassCarController
 from .point_mass_mpc_car_controller import PointMassMpcCarController
 from .pure_pursuit_car_controller import PurePursuitCarController
 from .stanley_car_controller import StanleyCarController
+from .immrax_controller import ImmraxController
