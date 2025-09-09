@@ -36,7 +36,13 @@ class ImmraxController(CarController):
         # self.throttle_pid = PidController(P,I,D,dt,1,2)
         self.throttle_pid = PidController(P, I, D, dt, 1, 1000)
 
+        self.planning_dt = 0.02
+        self.planning_horizon = 50  # time steps
+        # TODO: randomly sample control trajectory
+        self.planned_controls: jnp.ndarray = jnp.zeros((self.planning_horizon, 2))  # (throttle, steering)
         self.predictor = DynamicBicycle(car)
+        self.control_action = lambda t, x:  self.planned_controls[jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon]
+        self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
 
     def control(self):
         throttle, steering, valid, debug_dict = self.ctrl_car(
@@ -72,33 +78,15 @@ class ImmraxController(CarController):
     # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
     def ctrl_car(self, state, track, v_override=None, reverse=False):
-        coord = (state[0], state[1])
 
         heading = state[2]
-        omega = state[5]
         vf = state[3]
-        vs = state[4]
 
         x0 = jnp.array(state[0:6])
-        control = lambda t, x: jnp.array([0.0, 0.0]) # TODO: randomly sample control trajectory, index using t
-        disturbance = lambda t, x: jnp.array([0.0, 0.0])
-        traj = self.predictor.compute_trajectory(0.0, 1.0, x0, (control, disturbance), dt=0.02)
+        traj = self.predictor.compute_trajectory(
+            0.0, self.planning_horizon * self.planning_dt, x0, (self.control_action, self.disturbance), dt=self.planning_dt
+        ) # NOTE: this is assuming the system is time-invariant
         self.plot_trajectory(traj.ys)
-
-        # def state_traj_to_cartesian_traj(self, traj):
-        #     cartesian_traj = []
-        #     A = np.array([[0, -1], [1, 0]])
-        #     for i in range(traj.shape[0]):
-        #         idx = np.searchsorted(
-        #             self.ref_path_s, traj[i, 0] % self.track.raceline_len_m, side='left')
-        #         xy = self.ref_path[idx] + A @ self.dr[idx] * traj[i, 1]
-        #         cartesian_traj.append(xy)
-        #     return np.array(cartesian_traj)
-
-        # def plot_state_traj(self, traj):
-        #     traj = self.state_traj_to_cartesian_traj(traj)
-        #     plt.plot(traj[:, 0], traj[:, 1])
-        #     return
 
         ret = (0, 0, False, {"offset": 0})
 
