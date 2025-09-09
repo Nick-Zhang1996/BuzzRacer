@@ -512,6 +512,7 @@ class RCPTrack(Track):
 
         self.print_ok('track and raceline loaded')
         self.reconstruct_raceline()
+        self.prepare_discretized_raceline()
         return
 
     # calculate distance
@@ -1188,7 +1189,7 @@ class RCPTrack(Track):
         curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
                                            ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
         tck, _ = splprep([curvature_vec], u=xx, s=0, per=1)
-        self.curvature_s = tck
+        self.curvature_s = lambda s: splev(s, tck)[0]
         return
 
     # get future reference point for dynamic MPC

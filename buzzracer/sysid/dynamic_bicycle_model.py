@@ -11,6 +11,7 @@ from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 from buzzracer.sysid.tire import tire_curve
 
+
 class DynamicBicycleModelCartesian(VehicleDynamics):
     ''' Dynamic bicycle model with pacjka tire model
     Follows Vehicle Dynamics and Control, 2nd Edition, Sec 2.3 with nonlinear tire function'''
@@ -20,7 +21,7 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
                          control: Control,
                          car: Car,
                          dt: float,
-                         curvature: float=None) -> CartesianState:
+                         curvature: float = None) -> CartesianState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
@@ -87,7 +88,7 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
 
     @staticmethod
     def advance_dynamics(state: CurvilinearState, control: Control,
-                         car: Car, dt: float, curvature: float=None) -> CurvilinearState:
+                         car: Car, dt: float, curvature: float = None) -> CurvilinearState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
@@ -98,8 +99,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
             state at next timestep
-        Ref: https://arxiv.org/pdf/2301.04316
         Ref: Vehicle Dynamics and Control, 2nd Edition, Sec 2.2
+        Ref: https://arxiv.org/pdf/2005.00826
         '''
 
         lf = car.lf
@@ -108,42 +109,50 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         Iz = car.Iz
         m = car.m
 
-        dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        dsdt = (state.v_forward * np.cos(state.rel_heading)
+                - state.v_sideway * np.sin(state.rel_heading)
+                ) / (1-state.lateral_err*curvature)
+        dndt = (state.v_forward * np.sin(state.rel_heading)
+                + state.v_sideway * np.cos(state.rel_heading)
+                )
 
-        vx = state.v_forward
-        vy = state.v_sideway
-        n = state.lateral_err
-        omega_ref = vx * curvature
+        # Reference angular velocity
+        omega_ref = dsdt * curvature
+        # Total angular velocity in inertial frame
+        omega = omega_ref + state.rel_omega
+
         # Slip angle of front/rear tires
-        slip_f = -np.arctan(((state.rel_omega + omega_ref) * lf + vy) / vx) + control.steering
-        slip_r = np.arctan(((state.rel_omega + omega_ref) * lr - vy) / vx)
+        slip_f = -np.arctan(
+            (omega * lf + state.v_sideway) / state.v_forward
+        ) + control.steering
+        slip_r = np.arctan((omega * lr - state.v_sideway) / state.v_forward)
 
         # Lateral forces from front and rear tires
         Ffy = tire_curve(slip_f) * m * 9.8 * lr / (lr + lf)
         Fry = 1.15 * tire_curve(slip_r) * m * 9.8 * lf / (lr + lf)
 
         # in body-aligned inertial frame
-        d_vy_body = 1.0 / m * (Fry + Ffy - m * vx * (state.rel_omega + omega_ref))
-        d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
+        d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) + \
+            omega * state.v_sideway
 
-        # in ref-curve-tangent-aligned inertial frame
-        d_vx = d_vx_body*np.cos(state.rel_heading) - d_vy_body*np.sin(state.rel_heading)
-        d_vy = d_vx_body*np.sin(state.rel_heading) + d_vy_body*np.cos(state.rel_heading)
-
-        dsdt = d_vx /(1-state.lateral_err*curvature)
-        dndt = d_vy
+        # Use rel_omega since dphi is relative to ref heading
+        # dphidt = curvature * (
+        #     (state.v_sideway * np.sin(state.rel_heading)
+        #      - state.v_forward * np.cos(state.rel_heading)) / (1-curvature*state.lateral_err)
+        # )
         dphidt = state.rel_omega
 
-
         # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
-        d_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
-
+        d_rel_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
+        print(f'{slip_f=}, {Ffy=}, {Fry=}, {d_vy_body=}, {d_vx_body=}, {dphidt=}, {d_rel_omega=}')
+        # print(f'{dphidt=}, {d_rel_omega=}')
 
         return CurvilinearState(
-                                progress=state.progress + dsdt * dt,
-                                lateral_err=state.lateral_err + dndt * dt,
-                                rel_heading=state.rel_heading + dphidt * dt,
-                                v_forward=state.v_forward + dvdt * dt,
-                                v_sideway=state.v_sideway + d_vy * dt,
-                                rel_omega=d_omega * dt
-                                )
+            progress=state.progress + dsdt * dt,
+            lateral_err=state.lateral_err + dndt * dt,
+            rel_heading=state.rel_heading + dphidt * dt,
+            v_forward=state.v_forward + d_vx_body * dt,
+            v_sideway=state.v_sideway + d_vy_body * dt,
+            rel_omega=state.rel_omega + d_rel_omega * dt
+        )
