@@ -106,7 +106,7 @@ def test_curv_to_from_cart():
         np.testing.assert_allclose(curv, remake_curv, atol=1e-5, rtol=1e-5)
 
 
-def test_kinematic_bicycle_frenet():
+def test_dynamic_bicycle_frenet():
     dynamics_model_class = DynamicBicycleModelFrenet
     main = get_dummy_main()
     car = main.cars[0]
@@ -189,4 +189,32 @@ def visualize(track, points, msg=''):
     plt.legend()
     plt.title(msg)
     plt.axis('equal')
+    plt.show()
+
+
+def test_angular_stability():
+    ''' Test that the integration step dt=0.01 isn't too large to cause numerical instability'''
+    main = get_dummy_main()
+    car = main.cars[0]
+
+    np.random.seed(0)
+    # If the car starts with large angular velocity, it should eventually converge to zero
+    # with no steering input
+    state = CurvilinearState(progress=0.1,
+                             lateral_err=0.05,
+                             rel_heading=radians(10),
+                             v_forward=1.0,
+                             v_sideway=0.0,
+                             rel_omega=3,
+                             )
+    control = Control(steering=0, throttle=0.0)
+    state_vec = [state]
+    for _ in range(100):
+        state = state_vec[-1]
+        state_vec.append(
+            DynamicBicycleModelFrenet.advance_dynamics(
+                state, control, car, 0.01, main.track.curvature_s(state.progress))
+        )
+    yaw_vec = [val.rel_heading for val in state_vec]
+    plt.plot(yaw_vec)
     plt.show()
