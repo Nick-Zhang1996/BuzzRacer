@@ -33,7 +33,7 @@ class Track(ConfigObject):
         self.precise_track_boundary: Callable = lambda coord, heading: (0, 0)
         ''' left, right = self.precise_track_boundary(coord, heading) '''
         self.curvature_s = lambda s: 0.0
-        ''' Function to map track progress to signed curvature of raceline, 
+        ''' Function to map track progress to signed curvature of raceline, Positive is curving left 
         The tck coefficients from splprep, use as curvature = self.curvature_s(s_m)'''
 
         self.ss: np.ndarray = np.array(0)
@@ -353,7 +353,7 @@ class Track(ConfigObject):
         phi = wrap(cart.heading - np.arctan2(dr[1], dr[0]))
         return CurvilinearState(progress=s,
                                 lateral_err=n,
-                                rel_heading=phi,
+                                heading_err=phi,
                                 v_forward=cart.v_forward,
                                 v_sideway=cart.v_sideway,
                                 rel_omega=cart.omega)
@@ -378,7 +378,7 @@ class Track(ConfigObject):
         A = np.array([[0, -1], [1, 0]])
         x, y = r + (A @ dr)*curv.lateral_err
         ref_heading = np.arctan2(dr[1], dr[0])
-        heading = wrap(curv.rel_heading + ref_heading)
+        heading = wrap(curv.heading_err + ref_heading)
         return CartesianState(x=x,
                               y=y,
                               heading=heading,

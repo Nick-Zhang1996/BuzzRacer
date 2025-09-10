@@ -1186,8 +1186,14 @@ class RCPTrack(Track):
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         # gives right sign for omega,
         # this is indep of track direction since it's calculated based off vehicle orientation
-        curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                                           ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+        # for magnitude only
+        # curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
+        #                                    ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+        dx = dr[0]
+        dy = dr[1]
+        ddx = ddr[0]
+        ddy = ddr[1]
+        curvature_vec = (dx * ddy - ddx * dy) / (dx**2 + dy**2)**1.5
         tck, _ = splprep([curvature_vec], u=xx, s=0, per=1)
         self.curvature_s = lambda s: splev(s % self.raceline_len_m, tck)[0]
         return

@@ -64,34 +64,30 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
             state at next timestep
-        Ref: https://arxiv.org/pdf/2301.04316
-        Ref: Vehicle Dynamics and Control, 2nd Edition, Sec 2.2
         '''
 
-        # Origin at CG
+        # Origin at CG, beta is the angle between CG velocity and car orientation
         beta = np.arctan(np.tan(control.steering) * car.lr / (car.lf + car.lr))
-        # Do not consider rel_omega in kinematic model
-        dphidt = state.v_forward * (
-            np.cos(beta) / (car.lf + car.lr) * np.tan(control.steering)
-            - curvature*np.cos(state.rel_heading) /
-            (1-curvature*state.lateral_err)
-        )
 
-        dsdt = state.v_forward * np.cos(state.rel_heading)/(1-state.lateral_err*curvature)
-        dndt = state.v_forward * np.sin(state.rel_heading)
-        # Origin at rear axle center
-        # dphidt = state.v_forward * (
-        #     np.tan(control.steering) / (car.lf + car.lr)
-        #     - curvature*np.cos(state.rel_heading) /
-        #     (1-curvature*state.lateral_err)
-        # )
-        dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        dsdt = (state.v_forward * np.cos(state.heading_err) - state.v_sideway *
+                np.sin(state.heading_err))/(1-state.lateral_err*curvature)
+        dndt = state.v_forward * np.sin(state.heading_err) + \
+            state.v_sideway * np.cos(state.heading_err)
+        # acceleration at rear wheel
+        acc_rw = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        acc_cg = acc_rw / np.cos(beta)
+        d_v_forward_dt = acc_cg * np.cos(beta)
+        d_v_sideway_dt = acc_cg * np.sin(beta)
+
+        total_v = np.sqrt(state.v_forward**2 + state.v_sideway**2)
+        d_heading_dt = total_v / car.lr * np.sin(beta)
+        d_rel_heading_dt = d_heading_dt - curvature * dsdt
 
         return CurvilinearState(
             progress=state.progress + dsdt * dt,
             lateral_err=state.lateral_err + dndt * dt,
-            rel_heading=state.rel_heading + dphidt * dt,
-            v_forward=state.v_forward + dvdt * dt,
-            v_sideway=0,
+            heading_err=state.heading_err + d_rel_heading_dt * dt,
+            v_forward=state.v_forward + d_v_forward_dt * dt,
+            v_sideway=state.v_sideway + d_v_sideway_dt,
             rel_omega=0
         )
