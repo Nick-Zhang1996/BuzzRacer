@@ -1,5 +1,5 @@
 ''' Dynamic bicycle model with pacjka tire model'''
-# pylint disable-next=line-too-long
+# pylint: disable-next=line-too-long
 # Ref:https://ftp.idu.ac.id/wp-content/uploads/ebook/tdg/TERRAMECHANICS%20AND%20MOBILITY/epdf.pub_vehicle-dynamics-and-control-2nd-edition.pdf
 from math import sin, cos
 
@@ -137,18 +137,10 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
         d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) + \
             omega * state.v_sideway
-
-        # Use rel_omega since dphi is relative to ref heading
-        # dphidt = curvature * (
-        #     (state.v_sideway * np.sin(state.rel_heading)
-        #      - state.v_forward * np.cos(state.rel_heading)) / (1-curvature*state.lateral_err)
-        # )
         d_rel_heading_dt = state.rel_omega
 
         # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
         d_rel_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
-        # print(f'{slip_f=}, {Ffy=}, {Fry=}, {d_vy_body=}, {d_vx_body=}, {d_rel_heading_dt=}, {d_rel_omega=}')
-        print(f'{d_rel_heading_dt=}, {d_rel_omega=}, {state.v_sideway=}, {curvature=}')
 
         return CurvilinearState(
             progress=state.progress + dsdt * dt,
