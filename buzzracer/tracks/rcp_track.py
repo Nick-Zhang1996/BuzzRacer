@@ -1189,7 +1189,7 @@ class RCPTrack(Track):
         curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
                                            ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
         tck, _ = splprep([curvature_vec], u=xx, s=0, per=1)
-        self.curvature_s = lambda s: splev(s, tck)[0]
+        self.curvature_s = lambda s: splev(s % self.raceline_len_m, tck)[0]
         return
 
     # get future reference point for dynamic MPC
