@@ -107,7 +107,7 @@ def test_curv_to_from_cart():
 
 
 def test_dynamic_bicycle_frenet():
-    dynamics_model_class = DynamicBicycleModelFrenet
+    dynamics_model_class = KinematicBicycleModelFrenet
     main = get_dummy_main()
     car = main.cars[0]
 
@@ -139,22 +139,28 @@ def test_dynamic_bicycle_frenet():
                                                        main.track.curvature_s(state_temp.progress))
                               )
     # If no control, we should be travelling in a straight line
-    control = Control(steering=0, throttle=1.0)
+    control = Control(steering=0, throttle=0.3)
     state = state0
     state_vec = [state]
-    for _ in range(40):
+    for _ in range(400):
         state = state_vec[-1]
         state_vec.append(
             dynamics_model_class.advance_dynamics(
-                state, control, car, 0.01, main.track.curvature_s(state.progress))
+                state, control, car, 0.001, main.track.curvature_s(state.progress))
         )
 
     cart_state_vec = [main.track.curv_to_cart(curv) for curv in state_vec]
     points = np.array([[val.x, val.y] for val in cart_state_vec])
     visualize(main.track, points,
               msg='Visually check the car is driving s traight line, starting from *')
-    # plt.plot([val.rel_heading for val in state_vec])
-    # plt.show()
+    yaw_vec = [val.rel_heading for val in state_vec]
+    plt.plot(yaw_vec, label='yaw angle')
+    vx_vec = [val.v_forward for val in state_vec]
+    plt.plot(vx_vec, label='vx')
+    vy_vec = [val.v_sideway for val in state_vec]
+    plt.plot(vy_vec, label='vy')
+    plt.legend()
+    plt.show()
     return
 
     assert are_points_collinear(points)

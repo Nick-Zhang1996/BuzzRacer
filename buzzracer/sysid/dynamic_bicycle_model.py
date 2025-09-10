@@ -148,7 +148,7 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
         d_rel_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
         # print(f'{slip_f=}, {Ffy=}, {Fry=}, {d_vy_body=}, {d_vx_body=}, {d_rel_heading_dt=}, {d_rel_omega=}')
-        print(f'{d_rel_heading_dt=}, {d_rel_omega=}')
+        print(f'{d_rel_heading_dt=}, {d_rel_omega=}, {state.v_sideway=}, {curvature=}')
 
         return CurvilinearState(
             progress=state.progress + dsdt * dt,
