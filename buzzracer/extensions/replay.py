@@ -13,7 +13,6 @@ from buzzracer.extensions.simulator import Simulator
 from buzzracer.sysid.gp_model import GpModel
 
 
-
 class Replay(Simulator):
     ''' Replay state log, also supports visualizing prediction from an alternative
     dynamics model to visually check difference. '''
@@ -79,7 +78,7 @@ class Replay(Simulator):
         lateral = A @ (tangent / np.linalg.norm(tangent))
         car_pos = pos + state.lateral_err * lateral
         x, y = car_pos
-        heading = state.rel_heading + track_heading
+        heading = state.heading_err + track_heading
         # NOTE we ignored second order curvature in reference curve
         return CartesianState(x=x,
                               y=y,
@@ -167,4 +166,3 @@ class Replay(Simulator):
                     img = self.main.track.draw_trajectory(
                         np.array(predicted_traj), img, lineColor)
             self.main.visualization.visualization_img = img
-

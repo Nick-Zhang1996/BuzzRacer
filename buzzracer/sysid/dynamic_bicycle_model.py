@@ -111,11 +111,11 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         Iz = car.Iz
         m = car.m
 
-        dsdt = (state.v_forward * np.cos(state.rel_heading)
-                - state.v_sideway * np.sin(state.rel_heading)
+        dsdt = (state.v_forward * np.cos(state.heading_err)
+                - state.v_sideway * np.sin(state.heading_err)
                 ) / (1-state.lateral_err*curvature)
-        dndt = (state.v_forward * np.sin(state.rel_heading)
-                + state.v_sideway * np.cos(state.rel_heading)
+        dndt = (state.v_forward * np.sin(state.heading_err)
+                + state.v_sideway * np.cos(state.heading_err)
                 )
 
         # Reference angular velocity
@@ -153,7 +153,7 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         return CurvilinearState(
             progress=state.progress + dsdt * dt,
             lateral_err=state.lateral_err + dndt * dt,
-            rel_heading=state.rel_heading + d_rel_heading_dt * dt,
+            heading_err=state.heading_err + d_rel_heading_dt * dt,
             v_forward=state.v_forward + d_vx_body * dt,
             v_sideway=state.v_sideway + d_vy_body * dt,
             rel_omega=state.rel_omega + d_rel_omega * dt

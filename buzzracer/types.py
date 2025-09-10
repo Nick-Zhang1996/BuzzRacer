@@ -32,7 +32,7 @@ class CurvilinearState(NamedTuple):
     ''' Progress along reference curve'''
     lateral_err: float
     ''' Lateral deviation, left positive'''
-    rel_heading: float = 0
+    heading_err: float = 0
     ''' Relative heading w.r.t. reference curve'''
     v_forward: float = 0
     ''' Longitudinal speed, forward positive '''
