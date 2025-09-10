@@ -1,3 +1,4 @@
+''' Test vehicle dynamics '''
 import os
 from math import radians
 
@@ -8,8 +9,13 @@ import matplotlib.pyplot as plt
 from buzzracer.types import CurvilinearState, CartesianState, Control
 from buzzracer.scripts.run import Main
 from buzzracer.common import BASEDIR, wrap
-from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian, KinematicBicycleModelFrenet
-from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian, DynamicBicycleModelFrenet
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelFrenet
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
+
+VISUALIZE = False
+''' If True, plot visualizations. Some tests need human visual checking'''
 
 
 def get_dummy_main():
@@ -84,7 +90,7 @@ def test_curv_to_from_cart():
                                 v_forward=1.0,
                                 v_sideway=0.0,
                                 rel_omega=0.0)
-        cart = track.curv_to_cart(curv)
+        cart: CartesianState = track.curv_to_cart(curv)
         remake_curv = track.cart_to_curv(cart)
         print(f'curv {curv}')
         print(f'cart {cart}')
@@ -92,8 +98,18 @@ def test_curv_to_from_cart():
         np.testing.assert_allclose(curv, remake_curv, atol=1e-5, rtol=1e-5)
 
 
-def test_kinematic_bicycle_frenet():
-    dynamics_model_class = KinematicBicycleModelFrenet
+@pytest.mark.parametrize(
+    'dynamics_model_class',
+    [
+        pytest.param(
+            KinematicBicycleModelFrenet, id='test_kinematic_bicycle_frenet'
+        ),
+        pytest.param(
+            DynamicBicycleModelFrenet, id='test_dynamic_bicycle_frenet'
+        ),
+    ],
+)
+def test_bicycle_model_frenet(dynamics_model_class):
     main = get_dummy_main()
     car = main.cars[0]
 
@@ -126,12 +142,10 @@ def test_kinematic_bicycle_frenet():
                               )
     # If no control, we should be travelling in a straight line
     control = Control(steering=0, throttle=0.4)
-    state = state0
-    state_vec = [state]
+    state_vec = [state0]
     for _ in range(100):
         state = state_vec[-1]
         curvature = main.track.curvature_s(state.progress)
-        print(f'{curvature=}')
         state_vec.append(
             dynamics_model_class.advance_dynamics(
                 state, control, car, 0.01, curvature)
@@ -141,21 +155,29 @@ def test_kinematic_bicycle_frenet():
     points = np.array([[val.x, val.y] for val in cart_state_vec])
     visualize(main.track, points,
               msg='Visually check the car is driving s traight line, starting from *')
-
-    # yaw_vec = [val.heading_err for val in state_vec]
-    # plt.plot(yaw_vec, label='yaw angle')
-    # vx_vec = [val.v_forward for val in state_vec]
-    # plt.plot(vx_vec, label='vx')
-    # vy_vec = [val.v_sideway for val in state_vec]
-    # plt.plot(vy_vec, label='vy')
-    # plt.legend()
-    # plt.show()
-    # return
-
     assert are_points_collinear(points)
 
     # If positive steering, we should be going left
     control = Control(steering=radians(15), throttle=0.4)
+    state_vec = [state0]
+    for _ in range(40):
+        state = state_vec[-1]
+        curvature = main.track.curvature_s(state.progress)
+        state_vec.append(
+            dynamics_model_class.advance_dynamics(
+                state, control, car, 0.01, curvature)
+        )
+
+    cart_state_vec = [main.track.curv_to_cart(curv) for curv in state_vec]
+    points = np.array([[val.x, val.y] for val in cart_state_vec])
+    visualize(main.track, points,
+              msg='Visually check the car is turning a smooth left curve, starting from *')
+    heading_vec = np.array([val.heading for val in cart_state_vec])
+    angular_rate = wrap(np.diff(heading_vec))
+    assert np.all(angular_rate[1:] > 0)
+
+    # If negative steering, we should be going right
+    control = Control(steering=radians(-15), throttle=0.4)
     state = state0
     state_vec = [state]
     for _ in range(40):
@@ -172,27 +194,81 @@ def test_kinematic_bicycle_frenet():
               msg='Visually check the car is turning a smooth right curve, starting from *')
     heading_vec = np.array([val.heading for val in cart_state_vec])
     angular_rate = wrap(np.diff(heading_vec))
-    assert np.all(angular_rate > 0)
+    assert np.all(angular_rate[1:] < 0)
 
-    # If negative steering, we should be going left
-    control = Control(steering=radians(-15), throttle=0.4)
-    state = state0
-    state_vec = [state]
-    for _ in range(40):
+
+@pytest.mark.parametrize(
+    'dynamics_model_class',
+    [
+        pytest.param(
+            KinematicBicycleModelCartesian, id='test_kinematic_bicycle_cartesian'
+        ),
+        pytest.param(
+            DynamicBicycleModelCartesian, id='test_dynamic_bicycle_cartesian'
+        ),
+    ],
+)
+def test_bicycle_model_cartesian(dynamics_model_class):
+    main = get_dummy_main()
+    car = main.cars[0]
+
+    np.random.seed(4)
+    state_curv = CurvilinearState(progress=np.random.uniform(0, main.track.raceline_len_m),
+                                  lateral_err=np.random.uniform(-0.1, 0.1),
+                                  heading_err=np.random.uniform(-0.1, 0.1),
+                                  v_forward=1.0,
+                                  v_sideway=0.0,
+                                  rel_omega=0.0
+                                  )
+    state0 = main.track.curv_to_cart(state_curv)
+    # If no control, we should be travelling in a straight line
+    control = Control(steering=0, throttle=0.4)
+    state_vec: list[CartesianState] = [state0]
+    for _ in range(100):
         state = state_vec[-1]
-        curvature = main.track.curvature_s(state.progress)
         state_vec.append(
             dynamics_model_class.advance_dynamics(
-                state, control, car, 0.01, curvature)
+                state, control, car, 0.01)
         )
 
-    cart_state_vec = [main.track.curv_to_cart(curv) for curv in state_vec]
-    points = np.array([[val.x, val.y] for val in cart_state_vec])
+    points = np.array([[val.x, val.y] for val in state_vec])
+    visualize(main.track, points,
+              msg='Visually check the car is driving s traight line, starting from *')
+    assert are_points_collinear(points)
+
+    # If positive steering, we should be going left
+    control = Control(steering=radians(15), throttle=0.4)
+    state_vec = [state0]
+    for _ in range(40):
+        state = state_vec[-1]
+        state_vec.append(
+            dynamics_model_class.advance_dynamics(
+                state, control, car, 0.01)
+        )
+
+    points = np.array([[val.x, val.y] for val in state_vec])
     visualize(main.track, points,
               msg='Visually check the car is turning a smooth left curve, starting from *')
-    heading_vec = np.array([val.heading for val in cart_state_vec])
+    heading_vec = np.array([val.heading for val in state_vec])
     angular_rate = wrap(np.diff(heading_vec))
-    assert np.all(angular_rate < 0)
+    assert np.all(angular_rate[1:] > 0)
+
+    # If negative steering, we should be going right
+    control = Control(steering=radians(-15), throttle=0.4)
+    state_vec = [state0]
+    for _ in range(40):
+        state = state_vec[-1]
+        state_vec.append(
+            dynamics_model_class.advance_dynamics(
+                state, control, car, 0.01)
+        )
+
+    points = np.array([[val.x, val.y] for val in state_vec])
+    visualize(main.track, points,
+              msg='Visually check the car is turning a smooth right curve, starting from *')
+    heading_vec = np.array([val.heading for val in state_vec])
+    angular_rate = wrap(np.diff(heading_vec))
+    assert np.all(angular_rate[1:] < 0)
 
 
 def visualize(track, points, msg=''):
@@ -201,6 +277,8 @@ def visualize(track, points, msg=''):
         track: Track object
         points: np.ndarray (N, 2)
     '''
+    if (not VISUALIZE):
+        return
     plt.plot(track.raceline_points[0],
              track.raceline_points[1])
     plt.plot(points[:, 0], points[:, 1])
@@ -213,6 +291,8 @@ def visualize(track, points, msg=''):
 
 def test_angular_stability():
     ''' Test that the integration step dt=0.01 isn't too large to cause numerical instability'''
+    if (not VISUALIZE):
+        return
     main = get_dummy_main()
     car = main.cars[0]
 
@@ -236,4 +316,5 @@ def test_angular_stability():
         )
     yaw_vec = [val.heading_err for val in state_vec]
     plt.plot(yaw_vec)
+    plt.title('visually check this is converging')
     plt.show()
