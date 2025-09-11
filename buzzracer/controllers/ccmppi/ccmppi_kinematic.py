@@ -905,8 +905,8 @@ if __name__ == "__main__":
     car.serial_port = None
 
     main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
-    KinematicSimulator.dt = dt
-    KinematicSimulator.max_v = 30.0
+    KinematicBicycleCartesianSimulator.dt = dt
+    KinematicBicycleCartesianSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
     main.visualize_confidence_ellipse()

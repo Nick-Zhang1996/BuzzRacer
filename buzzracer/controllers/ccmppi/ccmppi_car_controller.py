@@ -459,9 +459,9 @@ class CcmppiCarController(CarController):
         for i in range(self.horizon_steps):
             sim_state = self.apply_discrete_dynamics(sim_state,sampled_control[k,i],self.ccmppi_dt)
             _throttle, _steering = sampled_control[k,i]
-            if (self.model == KinematicSimulator):
+            if (self.model == KinematicBicycleCartesianSimulator):
                 x,y,vf,heading = sim_state
-            elif (self.model == DynamicSimulator):
+            elif (self.model == DynamicBicycleCartesianSimulator):
                 x,y, heading,vf,vs,omega = sim_state
             entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
@@ -503,9 +503,9 @@ class CcmppiCarController(CarController):
         debug_traj = []
         for i in range(self.horizon_steps):
             sim_state = self.apply_discrete_dynamics(sim_state,constant_uu,self.ccmppi_dt)
-            if (self.model == KinematicSimulator):
+            if (self.model == KinematicBicycleCartesianSimulator):
                 x,y,vf,heading = sim_state
-            elif (self.model == DynamicSimulator):
+            elif (self.model == DynamicBicycleCartesianSimulator):
                 x,y, heading,vf,vs,omega = sim_state
             coord = (x,y)
             debug_traj.append(coord)

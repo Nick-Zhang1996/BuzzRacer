@@ -19,7 +19,7 @@
         state_noise_enabled='True'
         state_noise_type='uniform'
         state_noise_magnitude='0.2'
-        >DynamicSimulator</extension>
+        >DynamicBicycleCartesianSimulator</extension>
         <!-- <extension handle='boundary_checker'>BoundaryChecker</extension> -->
         <!-- <extension handle='collision_checker'>CollisionChecker</extension> -->
         <!-- <extension handle='lap_counter' lap_count='10'>LapCounter</extension> -->

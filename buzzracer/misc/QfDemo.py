@@ -5,7 +5,7 @@ from threading import Event, Lock
 from math import pi, radians, degrees
 
 
-from KinematicSimulator import KinematicSimulator
+from KinematicBicycleCartesianSimulator import KinematicBicycleCartesianSimulator
 
 from timeUtil import ExecutionTimer
 from TrackFactory import TrackFactory
@@ -61,7 +61,7 @@ class Main():
         # named extensions
         self.visualization = Visualization(self)
         self.extensions.append(self.visualization)
-        self.simulator = KinematicSimulator(self)
+        self.simulator = KinematicBicycleCartesianSimulator(self)
         self.simulator.match_real_time = True
         self.collision_checker = CollisionChecker(self)
         # Laptimer

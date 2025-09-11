@@ -25,7 +25,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
         self.main.new_state_update.set()
 
     def add_car(self, car: Car):
-        '''Add a car to use DynamicSimulator for state updates
+        '''Add a car to use DynamicBicycleCartesianSimulator for state updates
             car needs to (x,y,heading,v_forward,v_sideway,omega)
         '''
         x, y, heading, v_forward, v_sideway, _ = car.state
