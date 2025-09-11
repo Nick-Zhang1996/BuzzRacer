@@ -6,7 +6,7 @@
   <track>saved</track>
 
   <extensions>
-      <extension match_time='False'>KinematicBicycleCurvilinearSimulator</extension>
+      <extension>KinematicBicycleCurvilinearSimulator</extension>
       <extension total_count='20' >StepCounter</extension>
   </extensions>
 

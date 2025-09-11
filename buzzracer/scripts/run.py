@@ -164,7 +164,7 @@ if __name__ == '__main__':
 
     # Run default.xml config if none is provided
     name = sys.argv[1] if len(sys.argv) == 2 else 'default'
-    config_filename = os.path.join(BASEDIR, 'buzzracer','configs', f'{name}.xml')
+    config_filename = os.path.join(BASEDIR, 'buzzracer', 'configs', f'{name}.xml')
 
     if os.path.exists(config_filename):
         logger.info('using config %s', config_filename)

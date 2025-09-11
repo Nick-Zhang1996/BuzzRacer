@@ -17,6 +17,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
     ''' Maximum speed a car can achieve '''
     using_kinematics = False
     ''' Use Kinematics model instead'''
+    state_type = CartesianState
 
     def init(self):
         super().init()
@@ -62,7 +63,8 @@ class DynamicBicycleCartesianSimulator(Simulator):
     def advance_dynamics(state: CartesianState,
                          control: Control,
                          car: Car,
-                         dt: float) -> CartesianState:
+                         dt: float,
+                         curvature: float = None) -> CartesianState:
         """advance dynamics by dt.
 
         Args:
@@ -72,6 +74,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
             car: Car object, contains information about the car's kinematics, 
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
+            curvature: unused, only for curvilinear
         Return: 
             state at next time step.
         """
