@@ -39,7 +39,7 @@ class Optitrack(Extension):
             (x, y, v, theta, omega) = self.vi.get_k_fstate(car.internal_id)
             # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
-            car.states = (x, y, theta, v, 0, omega)
+            car.state = (x, y, theta, v, 0, omega)
         self.main.new_state_update.set()
 
     def final(self):

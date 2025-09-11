@@ -641,9 +641,9 @@ class LinearizeDynamics():
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
         '''
-        self.sim.states = np.array(x0.copy())
+        self.sim.state = np.array(x0.copy())
         self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
+        x_post = np.array(self.sim.state)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
 
@@ -690,9 +690,9 @@ class LinearizeDynamics():
         i = i
         x_a_prior = (x[i], dx[i], y[i], dy[i], heading[i], dheading[i])
         u_a = (throttle[i], steering[i])
-        self.sim.states = np.array(x_a_prior)
+        self.sim.state = np.array(x_a_prior)
         self.sim.update_car(self.dt, None, u_a[0], u_a[1])
-        x_a_post_truth = np.array(self.sim.states)
+        x_a_post_truth = np.array(self.sim.state)
 
         x_a_post_guess = A @ x_a_prior + B @ u_a + d
 
@@ -833,10 +833,10 @@ class LinearizeDynamics():
         self.get_ref_traj('../log/ethsim/full_state1.p', show=False)
         for i in range(self.ref_traj.shape[0]-1):
             x = self.ref_traj[i, :]
-            self.sim.states = np.array(x)
+            self.sim.state = np.array(x)
             self.sim.update_car(
                 self.dt, None, self.ref_ctrl[i, 0], self.ref_ctrl[i, 1])
-            x_post = np.array(self.sim.states)
+            x_post = np.array(self.sim.state)
             self.ref_traj[i+1, :] = x_post
         return
 

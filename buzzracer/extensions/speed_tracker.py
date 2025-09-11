@@ -2,8 +2,10 @@
 
 from buzzracer.extensions.extension import Extension
 
+
 class SpeedTracker(Extension):
     ''' Record speed profile in debug_dict '''
+
     def __init__(self):
         Extension.__init__(self, 'speed_tracker')
 
@@ -13,8 +15,8 @@ class SpeedTracker(Extension):
 
     def update(self):
         for car in self.main.cars:
-            state = car.states
+            state = car.state
             retval = self.main.track.local_trajectory(state)
-            #(local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
+            # (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
             (_, _, _, _, v_target) = retval
             car.debug_dict['target_v'].append(v_target)

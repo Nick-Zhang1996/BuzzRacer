@@ -28,7 +28,7 @@ class DynamicSimulator(Simulator):
         '''Add a car to use DynamicSimulator for state updates
             car needs to (x,y,heading,v_forward,v_sideway,omega)
         '''
-        x, y, heading, v_forward, v_sideway, _ = car.states
+        x, y, heading, v_forward, v_sideway, _ = car.state
         car.Vx = v_forward
         car.Vy = v_sideway
 
@@ -53,7 +53,7 @@ class DynamicSimulator(Simulator):
             car.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6, 6)
 
-        # car.states_hist = []
+        # car.state_hist = []
         car.local_states_hist = []
         car.norm = []
         super().add_car(car)
@@ -68,7 +68,7 @@ class DynamicSimulator(Simulator):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_state for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.

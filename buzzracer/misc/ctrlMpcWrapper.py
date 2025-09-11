@@ -125,7 +125,7 @@ class ctrlMpcWrapper(car):
         B = np.array([[0, 2*Caf/mass, 0, 2*Caf*lf/Iz, 0]]).T
 
         # since
-        # self.states = self.states + (Ak @ self.states + Bk @ u)*dt
+        # self.state = self.state + (Ak @ self.state + Bk @ u)*dt
         # we now compute augmented A and B
         In = np.eye(n)
         def get_a(Vx, dpsi_r): return In + getA_raw(Vx, dpsi_r) * dt

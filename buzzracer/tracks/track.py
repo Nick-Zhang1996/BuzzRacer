@@ -138,7 +138,7 @@ class Track(ConfigObject):
         for obs in self.obstacles:
             img = self.draw_circle(img, obs, 0.1, color=(255, 100, 100))
         for car in self.main.cars:
-            has_collided, obs_id = self.is_in_obstacle(car.states)
+            has_collided, obs_id = self.is_in_obstacle(car.state)
             if has_collided:
                 # plot obstacle in collision red
                 img = self.draw_circle(

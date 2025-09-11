@@ -141,7 +141,7 @@ class hybridDynamicSimNew(nn.Module):
             lateral_acc_r = self.tire_curve(slip_r)
 
             forward_acc_r = self.get_longitudinal_acc(Vx, throttle)
-            # self.states: x,vx,y,vy,psi,dpsi
+            # self.state: x,vx,y,vy,psi,dpsi
             # state derivative in local frame
 
             Vx = Vx + (forward_acc_r - lateral_acc_f *

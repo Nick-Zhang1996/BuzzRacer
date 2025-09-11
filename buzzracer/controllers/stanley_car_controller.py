@@ -74,10 +74,10 @@ class StanleyCarController(CarController):
                 self.print_info('planner failed, override')
 
         throttle, steering, valid, debug_dict = self.ctrl_car(
-            self.car.states, self.track)
+            self.car.state, self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        #self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        # self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering

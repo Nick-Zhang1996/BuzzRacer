@@ -223,7 +223,7 @@ class ctrlMppiWrapper(car):
         dx = vf*cos(heading) - vs*sin(heading)
         dy = vf*sin(heading) + vs*cos(heading)
 
-        self.states = np.array([x, dx, y, dy, heading, omega])
+        self.state = np.array([x, dx, y, dy, heading, omega])
         state = np.array([x, dx, y, dy, heading, omega])
 
         ref_control = np.zeros([self.horizon_steps, self.control_dim])

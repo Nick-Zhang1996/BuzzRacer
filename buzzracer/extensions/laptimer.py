@@ -38,7 +38,7 @@ class Laptimer(Extension):
     def update(self):
         for car in self.main.cars:
             is_new_lap = self.laptimer_by_car[car].update(
-                (car.states[0], car.states[1]), current_time=self.main.time)
+                (car.state[0], car.state[1]), current_time=self.main.time)
             if is_new_lap:
                 # Audio announcement with text-to-voice
                 # car.laptimer.announce()
@@ -58,7 +58,7 @@ class Laptimer(Extension):
     def log_laptime(self):
         try:
             logname = os.path.join(self.main.logger.log_folder,
-                f'laptime{self.main.logger.log_no}.p')
+                                   f'laptime{self.main.logger.log_no}.p')
         except AttributeError:
             logname = os.path.join(BASEDIR, 'log', 'laptime_latest.p')
             self.print_warning(

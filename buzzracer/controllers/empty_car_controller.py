@@ -21,5 +21,5 @@ class EmptyCarController(CarController):
         return valid
 
     def calc_throttle(self, ax):
-        vx = self.car.states[3]
+        vx = self.car.state[3]
         return ax/6.17+0.333 + vx/15.2

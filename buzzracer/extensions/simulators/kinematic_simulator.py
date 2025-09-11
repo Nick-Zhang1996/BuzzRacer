@@ -43,7 +43,7 @@ class KinematicSimulator(Simulator):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_state for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.

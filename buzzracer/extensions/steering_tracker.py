@@ -7,7 +7,7 @@ from buzzracer.extensions.extension import Extension
 
 class SteeringTracker(Extension):
     def __init__(self):
-        Extension.__init__(self,'steering_tracker')
+        Extension.__init__(self, 'steering_tracker')
         self.pos_vec = None
 
         self.vi = None
@@ -31,7 +31,7 @@ class SteeringTracker(Extension):
             return
         # filter down to markers close to car
         car = self.main.cars[0]
-        states = car.states
+        states = car.state
         x, y, heading, _, _, _ = states
         dx = -self.pos_vec[:, 0] - x
         dy = self.pos_vec[:, 2] - y

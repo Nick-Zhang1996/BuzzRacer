@@ -282,12 +282,12 @@ class UKF:
         debug = False
         if debug:
             eth = ethCarSim(0.0, 0.0, 0.0)
-            eth.states[0] = x[0]
-            eth.states[1] = vxg[0]
-            eth.states[2] = y[0]
-            eth.states[3] = vyg[0]
-            eth.states[4] = psi[0]
-            eth.states[5] = omega[0]
+            eth.state[0] = x[0]
+            eth.state[1] = vxg[0]
+            eth.state[2] = y[0]
+            eth.state[3] = vyg[0]
+            eth.state[4] = psi[0]
+            eth.state[5] = omega[0]
             eth.update_car(0.01, None, throttle, steering)
 
         # convert to local frame
@@ -359,13 +359,13 @@ class UKF:
 
         if debug:
             print('eth predict')
-            print(np.array(eth.states))
+            print(np.array(eth.state))
 
             print('ukf predict')
             print(ukf_predict)
 
             print('diff')
-            print(np.array(eth.states) - ukf_predict)
+            print(np.array(eth.state) - ukf_predict)
 
         new_param = (Df_ratio, Dr_ratio, C_ratio, B_ratio,
                      Cm1_ratio, Cm2_ratio, Cr_ratio, Cd_ratio, Iz_ratio)

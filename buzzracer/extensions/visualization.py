@@ -76,7 +76,7 @@ class Visualization(Extension):
         except AttributeError:
             pass
 
-        filename = os.path.join(BASEDIR,'buzzracer','data','track_img.p')
+        filename = os.path.join(BASEDIR, 'buzzracer', 'data', 'track_img.p')
         with open(filename, 'wb') as f:
             self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)
@@ -176,10 +176,10 @@ class Visualization(Extension):
         # x1 and y1 are the origin values -- need to be changed if origin changes
         x1 = coord[0] + 30
         y1 = coord[1]
-        #x, y, heading, vf_lf, vs_lf, omega_lf = car.states
+        # x, y, heading, vf_lf, vs_lf, omega_lf = car.state
         # Add steering bar
         steering, oob = fmap(car.steering, -car.max_steering_left,
-                            car.max_steering_right, 100, 0)
+                             car.max_steering_right, 100, 0)
         img = cv2.rectangle(img, (x1, y1 + 25),
                             (x1 + 100, y1 + 40), (0, 0, 255), 1)
         if (oob):
@@ -192,7 +192,7 @@ class Visualization(Extension):
                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
         # Add Throttle bar
         throttle, oob = fmap(car.throttle, car.min_throttle,
-                            car.max_throttle, 0, 100)
+                             car.max_throttle, 0, 100)
         img = cv2.rectangle(img, (x1, y1 + 45),
                             (x1 + 100, y1 + 60), (0, 0, 255), 1)
         if (oob):
@@ -213,7 +213,7 @@ class Visualization(Extension):
         steering : steering of the vehicle, left positive, in radians, w/ respect to vehicle heading
         NOTE: this function modifies img, if you want to recycle base img, send img.copy()
         '''
-        x, y, heading = car.states[:3]
+        x, y, heading = car.state[:3]
         steering = car.steering
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
@@ -234,7 +234,7 @@ class Visualization(Extension):
         return img
 
     def overlay_car_rendering(self, img, car):
-        x, y, heading  = car.states[:3]
+        x, y, heading = car.state[:3]
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
         if (src is None):

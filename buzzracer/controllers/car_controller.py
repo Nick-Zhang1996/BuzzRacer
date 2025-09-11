@@ -51,7 +51,7 @@ class CarController(ConfigObject, LogObject):
         control = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
         # kinematic
         expected_trajectory = self.get_kinematic_trajectory(
-            self.car.states, control)
+            self.car.state, control)
         # self.plot_trajectory(expected_trajectory)
         self.predicted_traj = expected_trajectory
         return self.predicted_traj
