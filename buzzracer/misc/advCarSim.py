@@ -52,14 +52,14 @@ class advCarSim:
     # update vehicle state
     # NOTE vx != 0
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    def update_car(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_state, throttle, steering):
         # simulator carries internal state and doesn't really need these
         '''
-        x = sim_states['coord'][0]
-        y = sim_states['coord'][1]
-        psi = sim_states['heading']
-        d_psi = sim_states['omega']
-        Vx = sim_states['vf']
+        x = sim_state['coord'][0]
+        y = sim_state['coord'][1]
+        psi = sim_state['heading']
+        d_psi = sim_state['omega']
+        Vx = sim_state['vf']
         '''
 
         self.t += dt
@@ -116,9 +116,9 @@ class advCarSim:
         # lateral, sideway velocity, left positive
         Vy = -self.states[1] * sin(heading) + self.states[3] * cos(heading)
         omega = self.states[5]
-        sim_states = {'coord': coord, 'heading': heading,
-                      'vf': Vx, 'vs': Vy, 'omega': omega}
-        return sim_states
+        sim_state = {'coord': coord, 'heading': heading,
+                     'vf': Vx, 'vs': Vy, 'omega': omega}
+        return sim_state
 
     def debug(self):
         data = np.array(self.states_hist)
@@ -160,21 +160,21 @@ class advCarSim:
         car.throttle = throttle = 0
 
         car.states = (x, y, heading, 0, 0, 0)
-        car.sim_states = {
+        car.sim_state = {
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
     def update_dynamic_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.update_car(
-            self.sim_dt, car.sim_states, car.throttle, car.steering)
+        sim_state = car.sim_state = car.simulator.update_car(
+            self.sim_dt, car.sim_state, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
-                              sim_states['heading'], sim_states['vf'], sim_states['vs'], sim_states['omega']])
-        if isnan(sim_states['heading']):
+        car.states = np.array([sim_state['coord'][0], sim_state['coord'][1],
+                              sim_state['heading'], sim_state['vf'], sim_state['vs'], sim_state['omega']])
+        if isnan(sim_state['heading']):
             print('error')
         # print(car.states)
-        # print("v = %.2f"%(sim_states['vf']))
+        # print("v = %.2f"%(sim_state['vf']))
         car.new_state_update.set()
 
     def stop_dynamic_simulation(self, car):

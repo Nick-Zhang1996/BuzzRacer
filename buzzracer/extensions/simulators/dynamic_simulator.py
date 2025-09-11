@@ -10,6 +10,7 @@ from buzzracer.extensions.simulator import Simulator
 from buzzracer.cars.car import Car
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
+
 class DynamicSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
     max_v = 3.0
@@ -38,7 +39,7 @@ class DynamicSimulator(Simulator):
         car.d_x = car.Vx*cos(car.psi)-car.Vy*sin(car.psi)
         car.d_y = car.Vx*sin(car.psi)+car.Vy*cos(car.psi)
         car.d_psi = 0
-        car.sim_states = np.array(
+        car.sim_state = np.array(
             [car.x, car.d_x, car.y, car.d_y, car.psi, car.d_psi])
 
         car.state_dim = 6
@@ -67,18 +68,18 @@ class DynamicSimulator(Simulator):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_states for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.states for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.
         """
         x, y, heading, vx, vy, omega = car_states
         _state = CartesianState(x=x,
-                               y=y,
-                               heading=heading,
-                               v_forward=vx,
-                               v_sideway=vy,
-                               omega=omega)
+                                y=y,
+                                heading=heading,
+                                v_forward=vx,
+                                v_sideway=vy,
+                                omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
         next_car_state = DynamicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
