@@ -2,7 +2,7 @@ from common import *
 from math import isnan, pi, degrees, radians, sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
-from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 import matplotlib.pyplot as plt
 
 
@@ -34,7 +34,7 @@ class DdpPointMassCarController(CarController):
 
     def init(self):
         self.simulator = self.main.simulator
-        assert (isinstance(self.simulator, CurvilinearSimulator))
+        assert (isinstance(self.simulator, KinematicBicycleCurvilinearSimulator))
         self.predicted_traj = self.x_ref
 
     def control(self):

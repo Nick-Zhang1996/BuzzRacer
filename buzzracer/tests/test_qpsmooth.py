@@ -7,4 +7,4 @@ def test_qp_smooth():
     # optimize and save
     track: QpSmooth = QpSmooth()
     track = TrackFactory.build('full', track=track)
-    track.optimize_path(max_iter=2, offset=0.1)
+    track.optimize_path(max_iter=2, offset=0.1, visualize_final_result=False)

@@ -17,6 +17,8 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
     ''' Dynamic bicycle model with pacjka tire model
     Follows Vehicle Dynamics and Control, 2nd Edition, Sec 2.3 with nonlinear tire function'''
 
+    state_type = CartesianState
+
     @staticmethod
     def advance_dynamics(state: CartesianState,
                          control: Control,
@@ -86,6 +88,7 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
 
 class DynamicBicycleModelFrenet(VehicleDynamics):
     ''' Dynamic Bicycle Model (Frenet frame)'''
+    state_type = CurvilinearState
 
     @staticmethod
     def advance_dynamics(state: CurvilinearState, control: Control,

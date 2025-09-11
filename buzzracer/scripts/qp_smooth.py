@@ -735,12 +735,21 @@ class QpSmooth(RCPTrack):
         plt.show()
         '''
 
-    def optimize_path(self, *, max_iter=20, offset=0, visualize=False, save_gif=False, save_steps=False,):
+    def optimize_path(self,
+                      *,
+                      max_iter=20,
+                      offset=0,
+                      visualize=False,
+                      visualize_final_result=True,
+                      save_gif=False,
+                      save_steps=False,
+                      ):
         ''' Optimize path and save to pickle file
         Args:
             max_iter: max iteration for path smoothing
             offset: offset from lateral constraints, higher means more room left
-            visualize: if True, visualize with pyplot
+            visualize: if True, visualize each iteration in plt
+            visualize_final_result: if True, visualize final result
             save_gif: if True, save a gif of the optimization
             save_steps: if True, save each optimization step as a png
         Return:
@@ -883,11 +892,12 @@ class QpSmooth(RCPTrack):
                                    append_images=self.gifimages, save_all=True, duration=600, loop=0)
             print_ok('gif saved at '+gif_filename)
 
-        img_track = self.draw_track()
-        img_track = self.draw_raceline(img=img_track)
-        img_track_rgb = cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)
-        plt.imshow(img_track_rgb)
-        plt.show()
+        if visualize_final_result:
+            img_track = self.draw_track()
+            img_track = self.draw_raceline(img=img_track)
+            img_track_rgb = cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)
+            plt.imshow(img_track_rgb)
+            plt.show()
 
 
 if __name__ == '__main__':

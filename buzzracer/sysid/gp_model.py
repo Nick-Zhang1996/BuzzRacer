@@ -6,12 +6,12 @@ from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
+
 class GpModel(DynamicBicycleModelCartesian):
     ''' Learned Gaussian Process model based on Dynamic Bicycle Model'''
 
     def __init__(self):
         super().__init__()
-        self.curvilinear = False
 
         # should move to config, but again this is pretty one-off
         model_filename = '/home/nickzhang/rcvip/src/sysid/gaussian_process/model.p'

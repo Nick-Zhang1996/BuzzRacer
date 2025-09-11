@@ -8,7 +8,7 @@ from scipy.interpolate import splev
 from buzzracer.types import CurvilinearState, CartesianState
 from buzzracer.common import BASEDIR
 from buzzracer.utilities.execution_timer import ExecutionTimer
-from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.sysid.gp_model import GpModel
 
@@ -42,7 +42,7 @@ class Replay(Simulator):
         self.data = None
         ''' Loaded full state log, List of (x,y,heading ...)'''
 
-        DynamicSimulator.dt = self.main.dt
+        DynamicBicycleCartesianSimulator.dt = self.main.dt
 
     def init(self):
         super().init()

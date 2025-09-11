@@ -6,7 +6,7 @@
   <track>saved</track>
 
   <extensions>
-      <extension match_time='False'>DynamicSimulator</extension>
+      <extension match_time='False'>DynamicBicycleCartesianSimulator</extension>
       <extension total_count='20' >StepCounter</extension>
   </extensions>
 

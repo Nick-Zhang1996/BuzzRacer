@@ -1,7 +1,7 @@
 # CCMPPI for dynamic bicycle model
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
-from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
 from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from buzzracer.cars.car import Car
@@ -536,7 +536,7 @@ class CCMPPI_DYNAMIC():
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
 
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
-                x_i = DynamicSimulator.advance_dynamics(
+                x_i = DynamicBicycleCartesianSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 y_i = As[:, :, i] @ y_i + Bs[:, :, i] @ epsilon
 
@@ -567,7 +567,7 @@ class CCMPPI_DYNAMIC():
                         control[k] = np.clip(
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
                 # x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = DynamicSimulator.advance_dynamics(
+                x_i = DynamicBicycleCartesianSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], x_i[4], x_i[5], control[0], control[1]))
                 nocc_states_vec[j].append(x_i.flatten())
@@ -927,8 +927,8 @@ if __name__ == '__main__':
     car = Car.Factory(main, 'porsche', controller=StanleyCarController,
                       init_states=(3.7*0.6, 1.75*0.6, radians(-90), 1.0))
     car.noise = False
-    DynamicSimulator.dt = dt
-    DynamicSimulator.max_v = 30.0
+    DynamicBicycleCartesianSimulator.dt = dt
+    DynamicBicycleCartesianSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
     main.visualize_confidence_ellipse()

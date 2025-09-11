@@ -6,8 +6,7 @@
   <track>saved</track>
 
   <extensions>
-      <extension car_graphics='True'>Visualization</extension>
-      <extension match_time='False'>DynamicBicycleCartesianSimulator</extension>
+      <extension match_time='False'>KinematicBicycleCurvilinearSimulator</extension>
       <extension total_count='20' >StepCounter</extension>
   </extensions>
 
@@ -16,8 +15,8 @@
       <name>Red Porsche</name>
       <hardware>Offboard</hardware>
       <config_name>audi_11</config_name>
-      <controller max_speed='2.0' horizon='30'>
-        <type>StanleyCarController</type>
+      <controller>
+        <type>EmptyCarController</type>
       </controller>
     </car>
 
