@@ -6,10 +6,11 @@ The Kinematic Bicycle Model:
 import numpy as np
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, Control
+from buzzracer.cars.car import Car
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
 
-class KinematicSimulator(Simulator):
+class KinematicBicycleCartesianSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
 
     max_v = 3.0
@@ -18,7 +19,7 @@ class KinematicSimulator(Simulator):
 
     def __init__(self):
         super().__init__()
-        KinematicSimulator.dt = self.main.dt
+        KinematicBicycleCartesianSimulator.dt = self.main.dt
 
         # for when a specific car instance is not speciied
         self.lr = 45e-3
@@ -27,7 +28,7 @@ class KinematicSimulator(Simulator):
 
     def init(self):
         super().init()
-        KinematicSimulator.simple_throttle_model = self.simple_throttle_model
+        KinematicBicycleCartesianSimulator.simple_throttle_model = self.simple_throttle_model
 
         for car in self.main.cars:
             self.add_car(car)
@@ -35,11 +36,14 @@ class KinematicSimulator(Simulator):
         self.main.new_state_update.set()
 
     @staticmethod
-    def advance_dynamics(car_states, control, car, dt):
+    def advance_dynamics(state:  CartesianState,
+                         control: Control,
+                         car: Car,
+                         dt: float) -> CartesianState:
         """advance dynamics by dt.
 
         Args:
-            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
+            state: state of the car, may be CartesianState or CurvilinearState
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
@@ -48,7 +52,7 @@ class KinematicSimulator(Simulator):
         Return: 
             state at next time step.
         """
-        x, y, heading, vx, vy, omega = car_states
+        x, y, heading, vx, vy, omega = state
         _state = CartesianState(x=x,
                                 y=y,
                                 heading=heading,

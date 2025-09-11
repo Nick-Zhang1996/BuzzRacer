@@ -9,7 +9,7 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 from buzzracer.third_party.solve_lq_game import solve_lq_game
 from buzzracer.controllers.lqgame import my_solve_lq_game
-from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 from buzzracer.utilities.symbolic_dynamics import SymbolicDynamics
 from buzzracer.utilities.execution_timer import ExecutionTimer
 
@@ -86,7 +86,7 @@ class iLQGameCarController(CarController):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
-        assert (isinstance(self.simulator, CurvilinearSimulator))
+        assert (isinstance(self.simulator, KinematicBicycleCurvilinearSimulator))
         assert (len(self.main.cars) == 2)
         self.ego_car = self.car
         for car in self.main.cars:

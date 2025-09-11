@@ -3,8 +3,8 @@ from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, aco
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 from time import time, sleep
 import pickle
-from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.controllers.car_controller import CarController
 from controllers.ccmppi.ccmppi import CCMPPI
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -113,12 +113,12 @@ class CcmppiCarController(CarController):
                     'cuda_filename': 'controller/ccmppi/ccmppi.cu',
                     'max_v': self.max_speed,
                     'R_diag': self.R_diag}
-        if (self.model == KinematicSimulator):
+        if (self.model == KinematicBicycleCartesianSimulator):
             arg_list['state_dim'] = 4
-            arg_list['model_name'] = KinematicSimulator
-        elif (self.model == DynamicSimulator):
+            arg_list['model_name'] = KinematicBicycleCartesianSimulator
+        elif (self.model == DynamicBicycleCartesianSimulator):
             arg_list['state_dim'] = 6
-            arg_list['model_name'] = DynamicSimulator
+            arg_list['model_name'] = DynamicBicycleCartesianSimulator
 
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
@@ -274,9 +274,9 @@ class CcmppiCarController(CarController):
         #    to state in ccmppi : x,y,v,heading
         x, y, heading, vf, vs, omega = car_states
 
-        if self.model == KinematicSimulator:
+        if self.model == KinematicBicycleCartesianSimulator:
             self.state = states = np.array([x, y, vf, heading])
-        elif self.model == DynamicSimulator:
+        elif self.model == DynamicBicycleCartesianSimulator:
             self.state = states = np.array([x, y, heading, vf, vs, omega])
 
         # NOTE may need revision to use previous results
@@ -435,10 +435,10 @@ class CcmppiCarController(CarController):
             for i in range(self.horizon_steps):
                 sim_state = self.apply_discrete_dynamics(
                     sim_state, sampled_control[k, i], self.ccmppi_dt)
-                if (self.model == KinematicSimulator):
+                if (self.model == KinematicBicycleCartesianSimulator):
                     # x,y,vf,heading = sim_state
                     x, y, heading, vf, vs, omega = sim_state
-                elif (self.model == DynamicSimulator):
+                elif (self.model == DynamicBicycleCartesianSimulator):
                     x, y, heading, vf, vs, omega = sim_state
                 coord = (x, y)
                 this_rollout_traj.append(coord)
@@ -473,10 +473,10 @@ class CcmppiCarController(CarController):
         for i in range(self.horizon_steps):
             sim_state = self.apply_discrete_dynamics(
                 sim_state, self.debug_uu[i], self.ccmppi_dt)
-            if (self.model == KinematicSimulator):
+            if (self.model == KinematicBicycleCartesianSimulator):
                 # x,y,vf,heading = sim_state
                 x, y, heading, vf, vs, omega = sim_state
-            elif (self.model == DynamicSimulator):
+            elif (self.model == DynamicBicycleCartesianSimulator):
                 x, y, heading, vf, vs, omega = sim_state
             coord = (x, y)
             self.debug_dict['ideal_traj'].append(coord)

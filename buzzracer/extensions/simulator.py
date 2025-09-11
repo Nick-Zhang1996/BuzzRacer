@@ -8,6 +8,8 @@ import numpy as np
 from buzzracer.common import ExperimentType
 from buzzracer.extensions.extension import Extension
 from buzzracer.cars.car import Car
+from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
+from buzzracer.types import CartesianState, CurvilinearState, Control
 
 
 @unique
@@ -25,12 +27,17 @@ class Simulator(Extension, ABC):
     however simulator can establish a property car.sim_state
     that use different state representation for simulation
     '''
+    state_type: type[CartesianState] | type[CurvilinearState] = CartesianState
+    ''' State type used by this simulator, default cartesian'''
 
     def __init__(self):
         super().__init__(handle_name='simulator')
         self.match_time: bool = None
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
         self.print_info('match_time: ' + str(self.match_time))
+        self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
+        ''' Dynamics model to use for simulation, must be overridden in config
+        possible values: KinematicBicycleModelFrenet, DynamicBicycleModelCartesian, etc.'''
         self.state_noise_enabled: bool = None
         ''' If True, enable state noise '''
         self.state_noise_magnitude: float = None
@@ -52,6 +59,7 @@ class Simulator(Extension, ABC):
 
         self.sim_t = 0
         ''' Elapsed time in simulation'''
+        self.cars: Car = []
 
         if (self.main.experiment_type != ExperimentType.Simulation):
             self.print_error(
@@ -74,11 +82,14 @@ class Simulator(Extension, ABC):
     # TODO use Replay.VehicleDynamics
     @staticmethod
     @abstractmethod
-    def advance_dynamics(car_states, control, car, dt):
+    def advance_dynamics(state: CurvilinearState | CartesianState,
+                         control: Control,
+                         car: Car,
+                         dt: float) -> CurvilinearState | CartesianState:
         """advance dynamics by dt.
 
         Args:
-            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
+            state: state of the car, may be CartesianState or CurvilinearState
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
@@ -91,8 +102,14 @@ class Simulator(Extension, ABC):
 
     def update(self):
         for car in self.cars:
-            car.state = self.advance_dynamics(
-                car.state, (car.steering, car.throttle), car, self.main.dt)
+            if self.state_type == CartesianState:
+                # NOTE cartesian state is passed directly as a tuple for now
+                car.state = self.advance_dynamics(
+                    car.state, (car.steering, car.throttle), car, self.main.dt)
+            elif self.state_type == CurvilinearState:
+                control = Control(steering=car.steering, throttle=car.throttle)
+                car.sim_state = self.advance_dynamics(car.sim_state, control, car, self.main.dt)
+
         if self.state_noise_enabled:
             self.addStateNoise()
         self.main.new_state_update.set()

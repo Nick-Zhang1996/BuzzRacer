@@ -7,7 +7,7 @@ from math import sin, cos
 import numpy as np
 
 from buzzracer.RL.copg.rcvip_simulator.VehicleModel import VehicleModel
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.extensions.simulator import Simulator
 
 
@@ -22,8 +22,8 @@ class CopgSimulator(Simulator):
         super().init()
 
         CopgSimulator.dt = self.main.dt
-        KinematicSimulator.dt = CopgSimulator.dt
-        KinematicSimulator.max_v = 100
+        KinematicBicycleCartesianSimulator.dt = CopgSimulator.dt
+        KinematicBicycleCartesianSimulator.max_v = 100
         for car in self.cars:
             self.add_car(car)
         self.main.new_state_update.set()

@@ -11,7 +11,7 @@ from buzzracer.cars.car import Car
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 
-class DynamicSimulator(Simulator):
+class DynamicBicycleCartesianSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
     max_v = 3.0
     ''' Maximum speed a car can achieve '''
@@ -59,12 +59,14 @@ class DynamicSimulator(Simulator):
         super().add_car(car)
 
     @staticmethod
-    def advance_dynamics(car_states, control, car, dt):
-        """advance dynamics by self.dt.
-        NOTE using car frame origined at CG with x pointing forward, y leftward
+    def advance_dynamics(state: CartesianState,
+                         control: Control,
+                         car: Car,
+                         dt: float) -> CartesianState:
+        """advance dynamics by dt.
 
         Args:
-            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
+            state: state of the car, may be CartesianState or CurvilinearState
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
@@ -73,7 +75,7 @@ class DynamicSimulator(Simulator):
         Return: 
             state at next time step.
         """
-        x, y, heading, vx, vy, omega = car_states
+        x, y, heading, vx, vy, omega = state
         _state = CartesianState(x=x,
                                 y=y,
                                 heading=heading,

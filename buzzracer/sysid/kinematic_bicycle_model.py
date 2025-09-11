@@ -11,6 +11,7 @@ from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 class KinematicBicycleModelCartesian(VehicleDynamics):
     ''' Kinematic Bicycle Model (Cartesian frame)
     Follows Vehicle Dynamics and Control, 2nd Edition, Sec 2.2'''
+    state_type = CartesianState
 
     @staticmethod
     def advance_dynamics(state: CartesianState, control: Control,
@@ -50,6 +51,7 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
 
 class KinematicBicycleModelFrenet(VehicleDynamics):
     ''' Kinematic Bicycle Model (Frenet frame)'''
+    state_type = CurvilinearState
 
     @staticmethod
     def advance_dynamics(state: CurvilinearState, control: Control,

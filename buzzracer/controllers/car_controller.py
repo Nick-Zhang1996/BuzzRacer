@@ -1,8 +1,8 @@
 # parent class, used as documentation for common function and properties
 from common import *
 import numpy as np
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
-from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
+from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
 
 
 class CarController(ConfigObject, LogObject):
@@ -16,7 +16,7 @@ class CarController(ConfigObject, LogObject):
         self.horizon = 30
 
         self.predicted_traj = []
-        KinematicSimulator.dt = self.car.main.dt
+        KinematicBicycleCartesianSimulator.dt = self.car.main.dt
         super().__init__(config)
 
     def pre_init(self):
@@ -71,7 +71,7 @@ class CarController(ConfigObject, LogObject):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = KinematicSimulator.advance_dynamics(
+            state = KinematicBicycleCartesianSimulator.advance_dynamics(
                 state, control[i], self.car, self.main.dt)
             trajectory.append(state)
         return np.array(trajectory)
@@ -80,7 +80,7 @@ class CarController(ConfigObject, LogObject):
         trajectory = []
         state = x0
         for i in range(control.shape[0]):
-            state = DynamicSimulator.advance_dynamics(
+            state = DynamicBicycleCartesianSimulator.advance_dynamics(
                 state, control[i], self.car, self.main.dt)
             trajectory.append(state)
         return np.array(trajectory)
