@@ -5,8 +5,8 @@ from threading import Event, Lock
 from math import pi, radians, degrees
 
 
-from KinematicSimulator import KinematicSimulator
-from DynamicSimulator import DynamicSimulator
+from KinematicBicycleCartesianSimulator import KinematicBicycleCartesianSimulator
+from DynamicBicycleCartesianSimulator import DynamicBicycleCartesianSimulator
 
 from timeUtil import ExecutionTimer
 from TrackFactory import TrackFactory
@@ -37,7 +37,7 @@ class Main():
 
         self.track = TrackFactory(name='full')
 
-        self.simulator = DynamicSimulator(self)
+        self.simulator = DynamicBicycleCartesianSimulator(self)
         # car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         Car.reset()
         car0 = Car.Factory(self, 'porsche', controller=CcmppiCarController, init_states=(
