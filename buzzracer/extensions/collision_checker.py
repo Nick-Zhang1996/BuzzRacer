@@ -24,7 +24,7 @@ class CollisionChecker(Extension):
 
     def update(self):
         for car in self.main.cars:
-            if (self.main.track.is_in_obstacle(car.states)[0]):
+            if (self.main.track.is_in_obstacle(car.state)[0]):
                 self.print_info('collision with obstacle')
                 self.collision_count[car] += 1
                 self.car_is_in_collision[car] = True

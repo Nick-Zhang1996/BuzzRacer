@@ -358,7 +358,7 @@ class CvarCarController(CarController):
         # vf: forward v
         # vs: lateral v, left positive
         # omega: angular velocity
-        x, y, heading, vf, vs, omega = self.car.states
+        x, y, heading, vf, vs, omega = self.car.state
 
         # prepare opponent info
         opponent_count, opponent_traj = self.get_opponent_status()
@@ -380,7 +380,7 @@ class CvarCarController(CarController):
 
         # cuda inputs
         device_ref_control_rate = self.to_device(ref_control_rate)
-        device_initial_state = self.to_device(self.car.states)
+        device_initial_state = self.to_device(self.car.state)
         device_last_control = self.to_device(self.last_control)
 
         # cuda outputs
@@ -499,7 +499,7 @@ class CvarCarController(CarController):
         # display expected trajectory
         # 5Hz impact
         '''
-        expected_trajectory = self.get_dynamic_trajectory( self.car.states, control )
+        expected_trajectory = self.get_dynamic_trajectory( self.car.state, control )
         self.expected_trajectory = expected_trajectory
         self.plot_trajectory(expected_trajectory)
         '''
@@ -510,7 +510,7 @@ class CvarCarController(CarController):
         self.car.throttle += control_rate[0, 0]*self.dt
         # XXX
 
-        retval = self.track.local_trajectory(self.car.states)
+        retval = self.track.local_trajectory(self.car.state)
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
         self.car.throttle = self.throttle_pid.control(
             v_target, vf) + self.steady_state_throttle(v_target)

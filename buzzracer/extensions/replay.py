@@ -94,11 +94,11 @@ class Replay(Simulator):
 
         if self.curvilinear:
             for (i, car) in enumerate(self.main.cars):
-                car.states = self.CurvilinearToCartesian(
+                car.state = self.CurvilinearToCartesian(
                     self.data[self.timestep, i])
         else:
             for (i, car) in enumerate(self.main.cars):
-                car.states = tuple(self.data[self.timestep, i, 1:7].flatten())
+                car.state = tuple(self.data[self.timestep, i, 1:7].flatten())
         car.throttle = self.data[self.timestep, i, 8]
         car.steering = self.data[self.timestep, i, 7]
 

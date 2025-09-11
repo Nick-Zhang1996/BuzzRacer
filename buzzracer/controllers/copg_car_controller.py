@@ -57,7 +57,7 @@ class CopgCarController(CarController):
     # curvi_state: s,d,rel_heading,v_forward,v_sideways,omega
     def cartesian_to_curvilinear_fast(self, car):
         # every inquiry
-        cart_state = car.states
+        cart_state = car.state
         coord = (cart_state[0], cart_state[1])
         dist = np.sum((self.track.r-coord)**2, axis=1)
         idx = np.argmin(dist)
@@ -71,7 +71,7 @@ class CopgCarController(CarController):
         return (s, d, rel_heading, cart_state[3], cart_state[4], cart_state[5])
 
     def cartesian_to_curvilinear(self, car):
-        cart_state = car.states
+        cart_state = car.state
         coord = np.array((cart_state[0], cart_state[1]))
 
         def dist_fun(u):

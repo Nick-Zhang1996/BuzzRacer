@@ -21,7 +21,7 @@ class Simulator(Extension, ABC):
     '''
     Base class for simulators
 
-    car.states = x,y,heading,v_forward,v_sideway,omega
+    car.state = x,y,heading,v_forward,v_sideway,omega
     however simulator can establish a property car.sim_state
     that use different state representation for simulation
     '''
@@ -82,7 +82,7 @@ class Simulator(Extension, ABC):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_state for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.
@@ -91,8 +91,8 @@ class Simulator(Extension, ABC):
 
     def update(self):
         for car in self.cars:
-            car.states = self.advance_dynamics(
-                car.states, (car.steering, car.throttle), car, self.main.dt)
+            car.state = self.advance_dynamics(
+                car.state, (car.steering, car.throttle), car, self.main.dt)
         if self.state_noise_enabled:
             self.addStateNoise()
         self.main.new_state_update.set()
@@ -117,16 +117,16 @@ class Simulator(Extension, ABC):
 
     def add_state_noise_normal(self):
         for car in self.cars:
-            car.states += np.random.normal(size=car.states.shape) * \
+            car.state += np.random.normal(size=car.state.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
     def add_state_noise_uniform(self):
         for car in self.cars:
-            car.states += np.random.uniform(low=-1.0, high=1.0, size=car.states.shape) * \
+            car.state += np.random.uniform(low=-1.0, high=1.0, size=car.state.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
     def add_state_noise_impulse(self):
         for car in self.cars:
             val = np.random.uniform()
             if val < self.impulse_state_noise_probability:
-                car.states += self.state_noise_magnitude * self.main.dt
+                car.state += self.state_noise_magnitude * self.main.dt

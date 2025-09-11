@@ -5,6 +5,7 @@ from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
 
 logger = get_logger('Car')
 
+
 class Car(PrintObject, LogObject):
     car_count = 0
     cars = []
@@ -17,7 +18,7 @@ class Car(PrintObject, LogObject):
         self._throttle = 0.0
         self._steering = 0.0
         # x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
-        self.states = (0, 0, 0, 0, 0, 0)
+        self.state = (0, 0, 0, 0, 0, 0)
         # default values, will be overridden
         self.max_throttle = 1.0
         self.min_throttle = -1.0
@@ -76,7 +77,7 @@ class Car(PrintObject, LogObject):
             # TODO: address when controller can't find a valid solution
             self.controller.control()
             # print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
-            # print_info(self.states)
+            # print_info(self.state)
 
         if (self.main.slowdown.is_set()):
             self.throttle = 0.0
@@ -122,7 +123,7 @@ class Car(PrintObject, LogObject):
 
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
-        car.states = (x, y, heading, v_forward, 0, 0)
+        car.state = (x, y, heading, v_forward, 0, 0)
 
         porsche = {'wheelbase': 90e-3,
                    'max_steering_left': radians(27.1),

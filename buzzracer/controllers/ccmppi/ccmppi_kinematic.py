@@ -223,9 +223,9 @@ class CCMPPI_KINEMATIC():
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
         '''
-        self.sim.states = np.array(x0.copy())
+        self.sim.state = np.array(x0.copy())
         self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
+        x_post = np.array(self.sim.state)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
 

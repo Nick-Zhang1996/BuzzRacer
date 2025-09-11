@@ -33,15 +33,15 @@ class CurvilinearSimulator(Simulator):
         '''
         Initialize a car
 
-        car.states =  (x,y,heading,v_forward,v_sideway,omega)
+        car.state =  (x,y,heading,v_forward,v_sideway,omega)
         car.sim_state = (s, v, n, phi)
         s: progress along raceline/reference curve
         v: velocity
         n: lateral offset from ref curve, left positive
         phi: heading from ref curve tangend, ccw positive
         '''
-        # x, y, heading, v_forward, v_sideway, omega = car.states
-        curv = self.cart2_curv(car.states)
+        # x, y, heading, v_forward, v_sideway, omega = car.state
+        curv = self.cart2_curv(car.state)
         car.sim_state = curv
 
         car.state_dim = 4

@@ -232,7 +232,7 @@ class CcmppiCarController(CarController):
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
 
     def control(self):
-        car_states = self.car.states
+        car_states = self.car.state
         track = self.car.main.track
         debug_dict = {'ideal_traj': [], 'rollout_traj_vec': []}
         # profiling
@@ -275,9 +275,9 @@ class CcmppiCarController(CarController):
         x, y, heading, vf, vs, omega = car_states
 
         if self.model == KinematicSimulator:
-            self.states = states = np.array([x, y, vf, heading])
+            self.state = states = np.array([x, y, vf, heading])
         elif self.model == DynamicSimulator:
-            self.states = states = np.array([x, y, heading, vf, vs, omega])
+            self.state = states = np.array([x, y, heading, vf, vs, omega])
 
         # NOTE may need revision to use previous results
         ref_control = np.zeros([self.horizon_steps, self.control_dim])

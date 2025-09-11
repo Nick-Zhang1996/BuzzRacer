@@ -34,7 +34,7 @@ class CopgSimulator(Simulator):
     # add a car to be DynamicSimu
     # car needs to (x,y,heading,v_forward,v_sideway,omega)
     def add_car(self, car):
-        x, y, heading, v_forward, v_sideway, _ = car.states
+        x, y, heading, v_forward, v_sideway, _ = car.state
         car.Vx = v_forward
         car.Vy = v_sideway
 
@@ -55,7 +55,7 @@ class CopgSimulator(Simulator):
         noise = False
         car.noise = noise
 
-        # car.states_hist = []
+        # car.state_hist = []
         car.local_states_hist = []
         car.norm = []
 

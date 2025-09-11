@@ -138,7 +138,7 @@ class hybridKinematicSim(nn.Module):
             long_acc = self.get_longitudinal_acc(throttle)
             # u = torch.cat((long_acc.unsqueeze(1),steering.unsqueeze(1)),dim=1)
 
-            # self.states: x,vx,y,vy,psi,dpsi
+            # self.state: x,vx,y,vy,psi,dpsi
             # state derivative in local frame
             R = (self.lr+self.lf)/torch.tan(steering)
             beta = torch.atan(self.lr/R)

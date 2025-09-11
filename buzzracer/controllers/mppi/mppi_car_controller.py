@@ -168,7 +168,7 @@ class MppiCarController(CarController):
         # vf: forward v
         # vs: lateral v, left positive
         # omega: angular velocity
-        x, y, heading, vf, vs, omega = self.car.states
+        x, y, heading, vf, vs, omega = self.car.state
 
         # ref_control = np.vstack([self.old_ref_control[1:,:],np.zeros([1,self.m],dtype=np.float32)])
         ref_control_rate = np.zeros([self.horizon, self.m], dtype=np.float32)
@@ -193,7 +193,7 @@ class MppiCarController(CarController):
 
         # evaluate control sequence
         device_ref_control_rate = self.to_device(ref_control_rate)
-        device_initial_state = self.to_device(self.car.states)
+        device_initial_state = self.to_device(self.car.state)
         costs = np.zeros((self.samples_count), dtype=np.float32)
         sampled_control_rate = np.zeros(
             self.samples_count*self.horizon*self.m, dtype=np.float32)
@@ -225,7 +225,7 @@ class MppiCarController(CarController):
         # display expected trajectory
         # 5Hz impact
         '''
-        expected_trajectory = self.get_dynamic_trajectory( self.car.states, control )
+        expected_trajectory = self.get_dynamic_trajectory( self.car.state, control )
         self.expected_trajectory = expected_trajectory
         self.plot_trajectory(expected_trajectory)
         '''
@@ -251,7 +251,7 @@ class MppiCarController(CarController):
 
         # verify GPU against cpu
         '''
-        x0 = self.car.states
+        x0 = self.car.state
         index = 50
         cpu_control = sampled_control[index,:,:]
         cpu_trajectory = self.get_trajectory(x0, cpu_control)
