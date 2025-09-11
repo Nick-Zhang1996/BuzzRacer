@@ -8,7 +8,8 @@ import numpy as np
 from buzzracer.cars.car import Car
 from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
-from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian, KinematicBicycleModelFrenet
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 from buzzracer.sysid.tire import tire_curve
 
 

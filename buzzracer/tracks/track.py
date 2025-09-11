@@ -30,7 +30,7 @@ class Track(ConfigObject):
         The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
         self.sToV: Callable = lambda s: 0.0
         ''' Function to provide reference velocity given raceline s_m'''
-        self.precise_track_boundary: Callable = lambda coord, heading: (0, 0)
+        # self.precise_track_boundary: Callable = lambda coord, heading: (0, 0)
         ''' left, right = self.precise_track_boundary(coord, heading) '''
         self.curvature_s = lambda s: 0.0
         ''' Function to map track progress to signed curvature of raceline, Positive is curving left 
@@ -46,7 +46,8 @@ class Track(ConfigObject):
         ''' dim:(len,) An array of reference velocity, from self.sToV(ss)'''
         self.discretized_raceline: np.ndarray = np.array(0)
         ''' dim: (len, 6)
-        [raceline_x, raceline_y, raceline_headings, vv, raceline_left_boundary, raceline_right_boundary]
+        [raceline_x, raceline_y, raceline_headings, vv, raceline_left_boundary, 
+        raceline_right_boundary]
         '''
         self.raceline_left_boundary: np.ndarray = np.array(0)
         ''' dim:(len,) An array of distances from ref raceline to left boundary'''
@@ -74,31 +75,30 @@ class Track(ConfigObject):
 
     # NOTE need to be overridden in each subclass Track
 
-    # draw a raceline
-    def draw_raceline(self, img=None):
+    def draw_raceline(self, img=None, points=None):
+        ''' draw a raceline '''
         raise NotImplementedError
 
-    # draw a picture of the track
     def draw_track(self, img=None, show=False):
+        ''' draw a picture of the track '''
         raise NotImplementedError
 
     def local_trajectory(self, state):
         raise NotImplementedError
 
-    # NOTE universal function for all Track classes
-    def set_resolution(self, res):
+    def set_resolution(self, res: int):
         self.resolution = res
         return
 
-    # determine if an coordinate is outside of track boundary, used in watchdog
     def is_outside(self, coord):
+        ''' Determine if an coordinate is outside of track boundary, used in watchdog '''
         grace = 1.0
         x, y = coord
         return x < -grace or y < -grace or x > self.x_limit+grace or y > self.y_limit+grace
 
-    # check if vehicle is currently in collision with obstacle
-    # only give index of the first obstacle if multiple obstacle is in collision
     def is_in_obstacle(self, state):
+        ''' check if vehicle is currently in collision with obstacle
+         only give index of the first obstacle if multiple obstacle is in collision'''
         if not self.obstacle:
             return (False, -1)
         dist = self.obstacle_radius
@@ -113,15 +113,14 @@ class Track(ConfigObject):
                 return (True, i)
         return (False, -1)
 
-    # NOTE plotting related
     def m2canvas(self, coord):
         x_new = int(np.clip(coord[0], 0, self.x_limit) * self.resolution)
         y_new = int(
             (self.y_limit-np.clip(coord[1], 0, self.y_limit)) * self.resolution)
         return (x_new, y_new)
 
-    # draw a circle on canvas at coord
     def draw_circle(self, img, coord, radius_m, color=(0, 0, 0)):
+        ''' draw a circle on canvas at coord '''
         src = self.m2canvas(coord)
         radius_pix = int(radius_m * self.resolution)
         img = cv2.circle(img, src, radius_pix, color, -1)
@@ -330,7 +329,7 @@ class Track(ConfigObject):
             )
             return val
 
-        if (guess_s is None):
+        if guess_s is None:
             # initial guess to avoid local minima
             xx = np.linspace(0.0, self.raceline_len_m, 100)
             yy = [dist(x) for x in xx]

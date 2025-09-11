@@ -1,9 +1,13 @@
 ''' Subclass of Track for RCP style modular track.
 Desperately need cleanup and refactoring '''
+
+from __future__ import annotations
 import os
 import pickle
-from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan
+from math import atan2, degrees, sin, cos, pi, copysign, isnan
 from bisect import bisect
+from typing import NamedTuple
+from enum import Enum
 
 import cv2
 import numpy as np
@@ -18,140 +22,169 @@ from buzzracer.common import BASEDIR, get_logger
 from buzzracer.tracks.track import Track
 from buzzracer.utilities.execution_timer import ExecutionTimer
 
-# debugging
-K_vec = []  # curvature
-steering_vec = []
-sim_omega_vec = []
-sim_log_vec = {}
 
-# one tile in RCPTrack
+class Dir(Enum):
+    ''' Directions for grid'''
+    UP = 1
+    DOWN = 2
+    LEFT = 3
+    RIGHT = 4
+
+    @staticmethod
+    def from_char(char: str) -> Dir:
+        _char_to_dir = {'u': Dir.UP, 'd': Dir.DOWN, 'l': Dir.LEFT, 'r': Dir.RIGHT}
+        try:
+            return _char_to_dir[char]
+        except KeyError:
+            logger.error('unexpected value in description')
+            raise
+
+    @staticmethod
+    def move(initial: tuple[int, int], direction: Dir) -> tuple[int, int]:
+        _dir_to_tuple = {Dir.UP: (0, 1), Dir.DOWN: (0, -1), Dir.RIGHT: (1, 0), Dir.LEFT: (-1, 0)}
+        move = _dir_to_tuple[direction]
+        return (initial[0]+move[0], initial[1]+move[1])
+
+
+class GridSize(NamedTuple):
+    rows: int
+    cols: int
 
 
 class Node:
-    def __init__(self, previous=None, entrydir=None):
-        # entry direction
-        self.entry = entrydir
-        # previous node
-        self.previous = previous
-        # exit direction
-        self.exit = None
-        self.next = None
+    ''' One tile in RCPTrack '''
+    _lut = {'WE': [(Dir.RIGHT, Dir.RIGHT), (Dir.LEFT, Dir.LEFT)],  # Left/Right straight tile
+            'NS': [(Dir.UP, Dir.UP), (Dir.DOWN, Dir.DOWN)],  # Up/Down straight tile
+            'SE': [(Dir.UP, Dir.RIGHT), (Dir.LEFT, Dir.DOWN)],  # Apex at south east
+            'SW': [(Dir.UP, Dir.LEFT), (Dir.RIGHT, Dir.DOWN)],
+            'NE': [(Dir.DOWN, Dir.RIGHT), (Dir.LEFT, Dir.UP)],
+            'NW': [(Dir.RIGHT, Dir.UP), (Dir.DOWN, Dir.LEFT)]
+            }
+
+    def __init__(self, previous: Node = None, entrydir: Node = None):
+        self.entry: Dir | None = entrydir
+        ''' entry direction '''
+        self.previous: Node | None = previous
+        ''' previous node '''
+        self.next: Node | None = None
+        ''' next node '''
+        self.exit: Dir | None = None
+        ''' exit direction '''
         return
 
-    def set_exit(self, exit=None):
-        self.exit = exit
-        return
+    def set_exit(self, val: Dir):
+        ''' Set exit direction for this node'''
+        self.exit = val
 
-    def set_entry(self, entry=None):
-        self.entry = entry
-        return
+    def set_entry(self, val: Dir):
+        ''' Set entry direction for this node'''
+        self.entry = val
+
+    def __repr__(self):
+        return f'Node(entry={self.entry}, exit={self.exit})'
+
+    def to_name(self) -> str:
+        signature = (self.entry, self.exit)
+        for name, signature_vec in Node._lut.items():
+            if signature in signature_vec:
+                return name
+        raise RuntimeError(f"Invalid entry/exit tuple,{signature}")
 
 
-logger = get_logger('Run')
+logger = get_logger('RCPTrack')
 
 
 class RCPTrack(Track):
+    # TODO: remove main, set main as class variable for Track
     def __init__(self, main=None, config=None):
         Track.__init__(self, main, config)
         self.t = ExecutionTimer(True)
-        # resolution : pixels per grid side length
-        self.set_resolution(200)
-        # for calculating derivative and integral of offset
-        # for PID to use
-        self.offset_history = []
-        self.offset_timestamp = []
-        self.log_no = 0
-        self.debug = {}
-        # Moved to Car.py and Visualization.py
-        # self.car = cv2.imread('data/image.png',-1)
+        # TODO set variable directly
+        self.resolution = 200
+        ''' resolution : pixels per grid side length '''
+        self.debug = {}  # TODO: remove
+        ''' Dictionary for debugging'''
 
-        # when local_trajectory is called multiple times, we need an initial guess for the parameter for raceline
-        self.last_u = None
+        self.scale: float = 0.6
+        ''' Edge length of one grid in meters (default 0.6m)'''
+        self.gridsize: GridSize = GridSize(0, 0)
+        ''' (rows, cols), grid size of the track '''
+        self.track_length_grid: int = 0
+        ''' Total grid length of the track'''
+        self.grid_sequence: list[tuple[int, int]] = []
+        ''' List of the grid (row, col) that defines the track'''
+        self.grid: list[list[Node | str | None]] = []
+        self.x_limit: float = 0
+        ''' X-direction bound in meters, i.e. width of track'''
+        self.y_limit: float = 0
+        ''' Y-direction bound in meters, i.e. height of track'''
 
-    def init_track(self, description, gridsize, scale, savepath=None):
-        # build a track and save it
-        # description: direction to go to reach next grid u(p), r(ight),d(own), l(eft)
-        # e.g For a track like this
-        #         /-\
-        #         | |
-        #         \_/
-        # The trajectory description, starting from the bottom left corner (origin) would be
-        # uurrddll (cw)(string), it does not matter which direction is usd
+    def init_track(self, description: str, gridsize: GridSize, start_grid: tuple[int, int] = (0, 0), scale: float = 0.6):
+        ''' Build an RCP style track.
+        Args:
+            description: directions to go to reach next grid.
+                includes u(p), r(ight),d(own), l(eft)
+                e.g For a basic 3 by 3 square track like this
+                        |-|
+                        | |
+                        |_|
+                The trajectory description, starting from the bottom left corner (origin), clockwise
+                is 'uurrddll'. The direction does not matter
+            gridsize: Gridsize(rows, cols), size of the track
+            start_grid: The grid to start the track (row, col)
+            scale: Edge length of one grid in meters (default 0.6m)
+        '''
 
-        # gridsize (rows, cols), size of thr track
-        # savepath, where to store the track file
-
-        # scale : meters per grid width 0.6m
         self.scale = scale
         self.gridsize = gridsize
         self.track_length_grid = len(description)
         self.grid_sequence = []
 
-        self.x_limit = self.gridsize[1]*self.scale
-        self.y_limit = self.gridsize[0]*self.scale
+        self.x_limit = self.gridsize.cols*self.scale
+        self.y_limit = self.gridsize.rows*self.scale
 
-        grid = [[None for i in range(gridsize[0])] for j in range(gridsize[1])]
+        grid = [[None for _ in range(gridsize.rows)] for _ in range(gridsize.cols)]
 
-        current_index = np.array([0, 0])
-        self.grid_sequence.append(list(current_index))
-        grid[0][0] = Node()
-        current_node = grid[0][0]
-        lookup_table_dir = {'u': (0, 1), 'd': (
-            0, -1), 'r': (1, 0), 'l': (-1, 0)}
+        current_index = start_grid
+        self.grid_sequence.append(current_index)
+        current_node = grid[start_grid[0]][start_grid[1]] = Node()
+        for i, dir_char in enumerate(description):
+            move_dir = Dir.from_char(dir_char)
+            current_node.set_exit(move_dir)
+            next_index = Dir.move(current_index, move_dir)
+            self.grid_sequence.append(next_index)
 
-        for i in range(len(description)):
-            current_node.set_exit(description[i])
-
-            previous_node = current_node
-            if description[i] in lookup_table_dir:
-                current_index += lookup_table_dir[description[i]]
-                self.grid_sequence.append(list(current_index))
-            else:
-                print('error, unexpected value in description')
-                exit(1)
-            if all(current_index == [0, 0]):
-                grid[0][0].set_entry(description[i])
-                # if not met, description does not lead back to origin
-                assert i == len(description)-1
+            if next_index == start_grid:
+                grid[start_grid[0]][start_grid[1]].set_entry(move_dir)
+                if i != len(description)-1:
+                    raise RuntimeError('Description str does not lead to start grid',
+                                       ' or track has intersections')
                 break
 
-            # assert description does not go beyond defined grid
-            assert (current_index[0] < gridsize[1]) & (
-                current_index[1] < gridsize[0])
+            # assert description does not go beyond defined grid size
+            assert (current_index[0] < gridsize.cols)
+            assert (current_index[1] < gridsize.rows)
 
-            current_node = Node(previous=previous_node,
-                                entrydir=description[i])
-            grid[current_index[0]][current_index[1]] = current_node
-
-        # grid[0][0].set_entry(description[-1])
+            next_node = Node(previous=current_node, entrydir=move_dir)
+            grid[next_index[0]][next_index[1]] = next_node
+            current_node = next_node
+            current_index = next_index
 
         # process the linked list, replace with the following
         # straight segment = WE(EW), NS(SN)
         # curved segment = SE,SW,NE,NW, orientation of apex wrt center of grid
-        lookup_table = {'WE': ['rr', 'll'], 'NS': ['uu', 'dd'], 'SE': [
-            'ur', 'ld'], 'SW': ['ul', 'rd'], 'NE': ['dr', 'lu'], 'NW': ['ru', 'dl']}
         for i in range(gridsize[1]):
             for j in range(gridsize[0]):
                 node = grid[i][j]
-                if node == None:
+                if node is None:
                     continue
+                grid[i][j] = grid[i][j].to_name()
 
-                signature = node.entry+node.exit
-                for entry in lookup_table:
-                    if signature in lookup_table[entry]:
-                        grid[i][j] = entry
-
-                if grid[i][j] is Node:
-                    print('bad track description: '+signature)
-                    exit(1)
-
-        self.track = grid
+        self.grid = grid
         return
 
     def draw_track(self, img=None, show=False):
-        # show a picture of the track
-        # resolution : pixels per peter
-        # scale: side length of a grid (meter)
+        ''' show a picture of the track '''
         color_side = (255, 0, 0)
         # boundary width / grid width
         deadzone = 0.087
@@ -189,19 +222,19 @@ class RCPTrack(Track):
         lookup_table = {'SE': 0, 'SW': 270, 'NE': 90, 'NW': 180}
         for i in range(cols):
             for j in range(rows):
-                signature = self.track[i][rows-1-j]
-                if signature == None:
+                signature = self.grid[i][rows-1-j]
+                if signature is None:
                     continue
 
-                if (signature == 'WE'):
+                if signature == 'WE':
                     img[j*gs:(j+1)*gs, i*gs:(i+1)*gs] = WE
                     continue
-                elif (signature == 'NS'):
+                elif signature == 'NS':
                     M = cv2.getRotationMatrix2D((gs/2, gs/2), 90, 1.01)
                     NS = cv2.warpAffine(WE, M, (gs, gs))
                     img[j*gs:(j+1)*gs, i*gs:(i+1)*gs] = NS
                     continue
-                elif (signature in lookup_table):
+                elif signature in lookup_table:
                     M = cv2.getRotationMatrix2D(
                         (gs/2, gs/2), lookup_table[signature], 1.01)
                     dst = cv2.warpAffine(SE, M, (gs, gs))
@@ -212,34 +245,35 @@ class RCPTrack(Track):
 
         # some rotation are not perfect and leave a black gap
         img = cv2.medianBlur(img, 5)
-        '''
-        if show:
-            plt.imshow(img)
-            plt.show()
-        '''
-
         return img
 
     # create a heuristic raceline
     # this function stores result in self.raceline
-    # Note self.raceline takes u, a dimensionless variable that corresponds to the control point on track
-    # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of the starting grid,
+    # Note self.raceline takes u, a dimensionless variable that corresponds to
+    # the control point on track
+    # rance of u is (0,len(self.ctrl_pts) with 1 corresponding to the exit point out of
+    # the starting grid,
     # both 0 and len(self.ctrl_pts) pointing to the entry ctrl point for the starting grid
     # and gives a pair of coordinates in METER
-    def init_raceline(self, start, start_direction, offset=None, filename=None):
-        # init a raceline from current track, save if specified
-        # start: which grid to start from, e.g. (3,3)
-        # start_direction: which direction to go.
-        # note use the direction for ENTERING that grid element
-        # e.g. 'l' or 'd' for a NE oriented turn
-        # NOTE you MUST start on a straight section
+    def init_raceline(self, start: tuple[int, int], start_direction: Dir, offset=None):
+        ''' Init a raceline from current track.
+        Args:
+            start: which grid to start from, e.g. (3,3), origin is at bottom left (0,0)
+                    you MUST start on a straight section
+            start_direction: which direction to ENTER start grid.
+                note use the direction for ENTERING that grid element
+                e.g. 'l' or 'd' for a NE oriented turn
+            offset: np.array of size self.track_length_grid, lateral offset for each control grid
+        '''
         self.ctrl_pts = []
         self.ctrl_pts_w = []
-
-        for i in range(len(self.grid_sequence)):
-            if start[0] == self.grid_sequence[i][0] and start[1] == self.grid_sequence[i][1]:
+        # TODO continue the refactor
+        origin_seq = None
+        start_seq = None
+        for i, seq in enumerate(self.grid_sequence):
+            if start[0] == seq[0] and start[1] == seq[1]:
                 start_seq = i
-            if 0 == self.grid_sequence[i][0] and 0 == self.grid_sequence[i][1]:
+            if 0 == seq[0] and 0 == seq[1]:
                 origin_seq = i
         # starting from [start], the sequence number for origin (0,0)
         self.origin_seq_no = (origin_seq - start_seq) % self.track_length_grid
@@ -261,21 +295,28 @@ class RCPTrack(Track):
             'SE': (1, -1), 'NE': (1, 1), 'SW': (-1, -1), 'NW': (-1, 1)}
         turns = ['SE', 'SW', 'NE', 'NW']
 
-        def center(x, y): return [(x+0.5)*self.scale, (y+0.5)*self.scale]
+        def center(x, y):
+            return [(x+0.5)*self.scale, (y+0.5)*self.scale]
 
-        def left(x, y): return [(x)*self.scale, (y+0.5)*self.scale]
-        def right(x, y): return [(x+1)*self.scale, (y+0.5)*self.scale]
-        def up(x, y): return [(x+0.5)*self.scale, (y+1)*self.scale]
-        def down(x, y): return [(x+0.5)*self.scale, (y)*self.scale]
+        def left(x, y):
+            return [(x)*self.scale, (y+0.5)*self.scale]
+
+        def right(x, y):
+            return [(x+1)*self.scale, (y+0.5)*self.scale]
+
+        def up(x, y):
+            return [(x+0.5)*self.scale, (y+1)*self.scale]
+
+        def down(x, y):
+            return [(x+0.5)*self.scale, (y)*self.scale]
 
         # direction of entry
         entry = start_direction
         current_coord = np.array(start, dtype='uint8')
-        signature = self.track[current_coord[0]][current_coord[1]]
+        signature = self.grid[current_coord[0]][current_coord[1]]
         # find the previous signature, reverse entry to find ancestor
         # the precedent grid for start grid is also the final grid
         final_coord = current_coord - lookup_table_dir[start_direction]
-        last_signature = self.track[final_coord[0]][final_coord[1]]
         self.start_pos = ((0.5+start[0])*self.scale, (0.5+start[1])*self.scale)
 
         dire = lookup_table_dir[start_direction]
@@ -284,16 +325,13 @@ class RCPTrack(Track):
         # for referencing offset
         index = 0
         while (1):
-            signature = self.track[current_coord[0]][current_coord[1]]
+            signature = self.grid[current_coord[0]][current_coord[1]]
 
             # lookup exit direction
             for record in lookup_table[signature]:
                 if record[0] == entry:
                     exit = record[1]
                     break
-
-            # 0~0.5, 0 means no offset at all, 0.5 means hitting apex
-            apex_offset = 0.2
 
             # find the coordinate of the exit point
             # offset from grid center to centerpoint of exit boundary
@@ -365,7 +403,9 @@ class RCPTrack(Track):
         dr = np.array(splev(xx, self.raceline, der=1))
         # ddr = r''(u)
         ddr = np.array(splev(xx, self.raceline, der=2))
-        def _norm(x): return np.linalg.norm(x, axis=0)
+
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
                          ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
@@ -373,7 +413,8 @@ class RCPTrack(Track):
         # first pass, based on lateral acceleration
         v1 = (mu*g/curvature)**0.5
 
-        def dist(a, b): return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        def dist(a, b):
+            return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         # second pass, based on engine capacity and available longitudinal traction
         # start from the index with lowest speed
         min_xx = np.argmin(v1)
@@ -422,7 +463,6 @@ class RCPTrack(Track):
             v3[(i-1+n_steps) % n_steps] = min((v3[i % n_steps] **
                                                2 + 2*a_lon*ds)**0.5, v2[(i-1+n_steps) % n_steps])
             # print(v3[(i-1+n_steps)%n_steps],v2[(i-1+n_steps)%n_steps])
-            pass
 
         v3[-1] = v3[0]
 
@@ -444,8 +484,8 @@ class RCPTrack(Track):
         # plt.show()
 
         # three pass of velocity profile
-        if (show):
-            p0, = plt.plot(curvature, label='curvature')
+        if show:
+            # p0, = plt.plot(curvature, label='curvature')
             p1, = plt.plot(v1, label='1st pass')
             p2, = plt.plot(v2, label='2nd pass')
             p3, = plt.plot(v3, label='3rd pass')
@@ -469,7 +509,7 @@ class RCPTrack(Track):
         save['gridsize'] = self.gridsize
         save['resolution'] = self.resolution
         save['targetVfromU'] = self.targetVfromU
-        save['track'] = self.track
+        save['track'] = self.grid
         save['min_v'] = self.min_v
         save['max_v'] = self.max_v
         save['start_pos'] = self.start_pos
@@ -504,7 +544,7 @@ class RCPTrack(Track):
         self.gridsize = save['gridsize']
         # self.resolution = save['resolution']
         self.targetVfromU = save['targetVfromU']
-        self.track = save['track']
+        self.grid = save['track']
         self.min_v = save['min_v']
         self.max_v = save['max_v']
         self.start_pos = save['start_pos']
@@ -544,7 +584,9 @@ class RCPTrack(Track):
         dr = np.array(splev(u, self.raceline, der=1))
         # ddr = r''(u)
         ddr = np.array(splev(u, self.raceline, der=2))
-        def _norm(x): return np.linalg.norm(x, axis=0)
+
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
                          ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
@@ -564,13 +606,6 @@ class RCPTrack(Track):
 
         self.phi0 = atan2(y, x)
         self.x0, self.y0 = splev(0, self.raceline, der=0)
-
-        # DEBUG
-        '''
-        plt.plot(S,curvature)
-        plt.plot(self.S,self.K)
-        plt.show()
-        '''
 
     def get_orca_style_track(self):
         # ORCA compatible representation
@@ -593,7 +628,6 @@ class RCPTrack(Track):
         # raceline heading
         # dr = splev(s_vec%self.raceline_len_m,self.raceline_s,der=1)
         phi = np.arctan2(dr[:, 1], dr[:, 0])
-        old_phi = phi.copy()
         # wrap angle
         d_phi = np.diff(phi)
         d_phi = (d_phi + np.pi) % (2*np.pi) - np.pi
@@ -643,17 +677,20 @@ class RCPTrack(Track):
         curvature = np.sum(a*b, axis=1).flatten()
         return curvature
 
-    # given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
-    # return: 2*3, tuple
-    #       ((al, a, ar),
-    #        (bl, b, br))
-    # where f'@r = al*rl + a*r + ar*rr
-    # where f''@r = bl*rl + b*r + br*rr
-    # ds, arc length between rl,r and r, rr
-    # if not specified, |r-rl|_2 will be used as approximation
     def lagrange_der(self, points, ds=None):
+        ''' Given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
+        return: 2*3, tuple
+              ((al, a, ar),
+               (bl, b, br))
+        where f'@r = al*rl + a*r + ar*rr
+        where f''@r = bl*rl + b*r + br*rr
+        ds, arc length between rl,r and r, rr
+        if not specified, |r-rl|_2 will be used as approximation
+        '''
         rl, r, rr = points
-        def dist(x, y): return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
+
+        def dist(x, y):
+            return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
         if ds is None:
             sl = -dist(rl, r)
             sr = dist(r, rr)
@@ -682,11 +719,11 @@ class RCPTrack(Track):
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
-        nondim[0] = np.clip(nondim[0], 0, len(self.track)-1).astype(int)
-        nondim[1] = np.clip(nondim[1], 0, len(self.track[0])-1).astype(int)
+        nondim[0] = np.clip(nondim[0], 0, len(self.grid)-1).astype(int)
+        nondim[1] = np.clip(nondim[1], 0, len(self.grid[0])-1).astype(int)
 
         # e.g. 'WE','SE'
-        grid_type = self.track[nondim[0]][nondim[1]]
+        grid_type = self.grid[nondim[0]][nondim[1]]
 
         # change ref frame to tile local ref frame
         x_local = coord[0]/self.scale - nondim[0]
@@ -697,6 +734,7 @@ class RCPTrack(Track):
         deadzone = 0.087
         straights = ['WE', 'NS']
         turns = ['SE', 'SW', 'NE', 'NW']
+        wl, wr = (0, 0)
         if grid_type in straights:
             if grid_type == 'WE':
                 # track section is staight, arranged horizontally
@@ -709,6 +747,7 @@ class RCPTrack(Track):
                 wl = x_local - deadzone
                 wr = 1 - deadzone - x_local
         elif grid_type in turns:
+            apex = None
             if grid_type == 'SE':
                 apex = (1, 0)
             if grid_type == 'SW':
@@ -722,18 +761,18 @@ class RCPTrack(Track):
             wr = radius - deadzone
         return min(wl, wr)
 
-    # given coordinate and heading, calculate precise boundary to left and right
-    # return a vector (dist_to_left, dist_to_right)
     def precise_track_boundary(self, coord, heading):
+        ''' given coordinate and heading, calculate precise boundary to left and right
+        return a vector (dist_to_left, dist_to_right)'''
         heading = (heading + np.pi) % (2*np.pi) - np.pi
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
-        nondim[0] = np.clip(nondim[0], 0, len(self.track)-1).astype(int)
-        nondim[1] = np.clip(nondim[1], 0, len(self.track[0])-1).astype(int)
+        nondim[0] = np.clip(nondim[0], 0, len(self.grid)-1).astype(int)
+        nondim[1] = np.clip(nondim[1], 0, len(self.grid[0])-1).astype(int)
 
         # e.g. 'WE','SE'
-        grid_type = self.track[nondim[0]][nondim[1]]
+        grid_type = self.grid[nondim[0]][nondim[1]]
         # NOTE grid_type may be None if coord is not on track
 
         # change ref frame to tile local ref frame
@@ -797,60 +836,10 @@ class RCPTrack(Track):
             left /= self.scale
             right /= self.scale
 
-            '''
-            if grid_type == 'SE':
-                apex = (1,0)
-            if grid_type == 'SW':
-                apex = (0,0)
-            if grid_type == 'NE':
-                apex = (1,1)
-            if grid_type == 'NW':
-                apex = (0,1)
-            radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
-            grid_out = 1-deadzone-radius
-            grid_in = radius - deadzone
-
-
-
-            if grid_type == 'SE':
-                if (heading > -0.25*np.pi and heading < 0.75*np.pi):
-                    left = 0.1
-                    right = 0.1
-                else:
-                    left = 0.1
-                    right = 0.1
-            if grid_type == 'SW':
-                if (heading > -0.75*np.pi and heading < 0.25*np.pi):
-                    left = 0.1
-                    right = 0.1
-                else:
-                    left = 0.1
-                    right = 0.1
-            if grid_type == 'NE':
-                if (heading > 0.25*np.pi and heading < 1.25*np.pi):
-                    left = 0.1
-                    right = 0.1
-                else:
-                    left = 0.1
-                    right = 0.1
-            if grid_type == 'NW':
-                if (heading > 0.35*np.pi and heading < -0.25*np.pi):
-                    left = 0.1
-                    right = 0.1
-                else:
-                    left = 0.1
-                    right = 0.1
-            '''
-
         return (left*self.scale, right*self.scale)
 
-    # distance between start and end of path,
-    # must be sufficiently close
-    def path_gap(self,):
-        return
-
-    # convert from K(s) space to cartesian X,Y(s) space using Fresnel integral
     def kensel_transform(self, K, ds):
+        ''' convert from K(s) space to cartesian X,Y(s) space using Fresnel integral '''
         steps = K.shape[0]
         s_total = ds*(steps-1)
         S = np.linspace(0, s_total, steps)
@@ -871,18 +860,10 @@ class RCPTrack(Track):
     def boundary_clearance_vector(self, k):
         x, y = self.kensel_transform(k, self.ds)
         retval = [self.check_track_boundary((xx, yy)) for xx, yy in zip(x, y)]
-        # DEBUG
-        '''
-        for i in retval:
-            if i<0:
-                print("unmet constrain!")
-                break
-        '''
         return retval
 
     # draw point corresponding to u
     def draw_point_u(self, img, uu):
-        rows = self.gridsize[0]
         x_new, y_new = splev(uu, self.raceline, der=0)
 
         for x, y in zip(x_new, y_new):
@@ -890,7 +871,7 @@ class RCPTrack(Track):
         return img
 
     # draw the raceline from self.raceline
-    def draw_raceline(self, lineColor=(0, 0, 255), img=None, points=None):
+    def draw_raceline(self,  img=None, points=None):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -917,8 +898,12 @@ class RCPTrack(Track):
         pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
-        def v2c(x): return int((x-self.min_v)/(self.max_v-self.min_v)*255)
-        def get_color(v): return (0, v2c(v), 255-v2c(v))
+
+        def v2c(x):
+            return int((x-self.min_v)/(self.max_v-self.min_v)*255)
+
+        def get_color(v):
+            return (0, v2c(v), 255-v2c(v))
         for i in range(len(u_new)-1):
             img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=get_color(
                 self.targetVfromU(u_new[i] % self.track_length_grid)), thickness=3)
@@ -937,7 +922,7 @@ class RCPTrack(Track):
 
         return img
 
-    def draw_raceline_with_color(self, lineColor=(0, 0, 255), img=None, thickness=3, s_to_color=lambda s: 0):
+    def draw_raceline_with_color(self, img=None, thickness=3, s_to_color=lambda s: 0):
         '''
         draw the raceline with specified color scheme
         s_to_color: lambda: s: color (0-1)
@@ -968,8 +953,9 @@ class RCPTrack(Track):
         pts = pts.astype(int)
         # render different color based on speed
         # slow - red, fast - green (BGR)
-        def get_color(s): return (0, int(s_to_color(s)*255),
-                                  int(255-255*s_to_color(s)))
+
+        def get_color(s):
+            return (0, int(s_to_color(s)*255), int(255-255*s_to_color(s)))
         for i in range(len(u_new)-1):
             s = self.uToS(u_new[i] % self.track_length_grid)
             color = get_color(s)
@@ -977,14 +963,17 @@ class RCPTrack(Track):
                 pts[i+1]), color=color, thickness=thickness)
         return img
 
-    # given state of robot
-    # find the closest point on raceline to center of FRONT axle
-    # calculate the lateral offset (in meters), this will be reported as offset, which can be added directly to raceline orientation (after multiplied with an aggressiveness coefficient) to obtain desired front wheel orientation
-    # calculate the local derivative
-    # coord should be referenced from the origin (bottom left(edited)) of the track, in meters
-    # negative offset means coord is to the right of the raceline, viewing from raceline init direction
-    # wheelbase is needed to calculate the local trajectory closes to the front axle instead of the old axle
     def local_trajectory(self, state, wheelbase=90e-3, return_u=False):
+        ''' given state of the car, 
+        find the closest point on raceline to center of FRONT axle
+        calculate the lateral offset (in meters), this will be reported as offset, 
+        which can be added directly to raceline orientation 
+        (after multiplied with an aggressiveness coefficient)
+        to obtain desired front wheel orientation calculate the local derivative
+        coord should be referenced from the origin (bottom left(edited)) of the track, in meters
+        negative offset means coord is to the right of the raceline, viewing from raceline init direction
+        wheelbase is needed to calculate the local trajectory closes to the front axle instead of the old axle
+        '''
         # figure out which grid the coord is in
         coord = np.array([state[0], state[1]])
         heading = state[2]
@@ -997,9 +986,11 @@ class RCPTrack(Track):
         nondim = np.array((coord/self.scale)//1, dtype=int)
 
         # distance squared, not need to find distance here
-        def dist_2(a, b): return (a[0]-b[0])**2+(a[1]-b[1])**2
-        def fun(u): return dist_2(
-            splev(u % self.track_length_grid, self.raceline), coord)
+        def dist_2(a, b):
+            return (a[0]-b[0])**2+(a[1]-b[1])**2
+
+        def fun(u):
+            return dist_2(splev(u % self.track_length_grid, self.raceline), coord)
         # last_u is the seq found last time, which should be a good estimate of where to start
         # disable this functionality since it doesn't handle multiple cars
         self.last_u = None
@@ -1007,8 +998,8 @@ class RCPTrack(Track):
             # the seq here starts from origin
             seq = -1
             # figure out which u this grid corresponds to
-            for i in range(len(self.grid_sequence)):
-                if nondim[0] == self.grid_sequence[i][0] and nondim[1] == self.grid_sequence[i][1]:
+            for i, seq in enumerate(self.grid_sequence):
+                if nondim[0] == seq[0] and nondim[1] == seq[1]:
                     seq = i
                     break
 
@@ -1021,16 +1012,20 @@ class RCPTrack(Track):
             # print("in grid : " + str(self.grid_sequence[seq]))
 
             # find the closest point to the coord
-            # because we wrapped the end point to the beginning of sample point, we need to add this offset
-            # Now seq would correspond to u in raceline, i.e. allow us to locate the raceline at that section
+            # because we wrapped the end point to the beginning of sample point,
+            # we need to add this offset
+            # Now seq would correspond to u in raceline,
+            # i.e. allow us to locate the raceline at that section
             seq += self.origin_seq_no
             seq %= self.track_length_grid
 
-            # this gives a close, usually preceding raceline point, this does not give the closest ctrl point
+            # this gives a close, usually preceding raceline point,
+            # this does not give the closest ctrl point
             # due to smoothing factor
             # print("neighbourhood raceline pt " + str(splev(seq,self.raceline)))
 
-            # determine which end is the coord closer to, since seq points to the previous control point,
+            # determine which end is the coord closer to,
+            # since seq points to the previous control point,
             # not necessarily the closest one
             if fun(seq+1) < fun(seq):
                 seq += 1
@@ -1423,7 +1418,8 @@ class RCPTrack(Track):
                          ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
 
         # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        # a cross product gives right signage for omega, this is indep of track direction
+        # since it's calculated based off vehicle orientation
         cross_curvature = der[0, :]*vec_curvature[1, :] - \
             der[1, :]*vec_curvature[0, :]
 
@@ -1442,18 +1438,22 @@ class RCPTrack(Track):
         t.e()
         return np.array(xy_vec), np.array(v_vec), np.array(heading_vec)
 
-    # predict an opponent car's future trajectory, assuming they are on ref raceline and will remain there, traveling at current speed
-    # Inputs:
-    # state: opponent vehicle state, same as in self.local_trajectory()
-    # p : lookahead steps
-    # dt : time between each lookahead steps
-
-    # Return:
-    # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
-    # valid : a boolean indicating whether the function was able to find a valid result
-    # The function first finds a point on trajectory closest to vehicle location with local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
-
     def predict_opponent(self, state, p, dt, reverse=False):
+        ''' Predict an opponent car's future trajectory, assuming they are on ref raceline 
+            and will remain there, traveling at current speed
+        Args:
+            state: opponent vehicle state, same as in self.local_trajectory()
+            p : lookahead steps
+            dt : time between each lookahead steps
+
+        Returns:
+            xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point 
+            for current location, and then there are p projection points
+            valid : a boolean indicating whether the function was able to find a valid result
+            The function first finds a point on trajectory closest to vehicle location with 
+            local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart
+            in path length. vk is the reference velocity at those points
+        '''
         if reverse:
             self.print_error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
@@ -1474,12 +1474,13 @@ class RCPTrack(Track):
         # use actual velocity
         v0 = state[3]
 
-        def _norm(x): return np.linalg.norm(x, axis=0)
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
 
         s_vec = [s0]
         v_vec = [v0]
 
-        for k in range(1, p+1):
+        for _ in range(1, p+1):
             s_k = s_vec[-1] + v_vec[-1] * dt
             s_vec.append(s_k)
             # find ref velocity for projection ref points
