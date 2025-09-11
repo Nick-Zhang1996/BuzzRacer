@@ -39,4 +39,4 @@ class CurvilinearState(NamedTuple):
     v_sideway: float = 0
     ''' Lateral speed, left positive '''
     rel_omega: float = 0
-    ''' Relative angular velocity w.r.t. desired on reference curve at current speed, ccw positive'''
+    ''' Relative angular velocity w.r.t. desired on ref curve at current speed, ccw positive'''

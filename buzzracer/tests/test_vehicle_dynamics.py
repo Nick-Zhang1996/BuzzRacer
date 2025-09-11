@@ -277,7 +277,7 @@ def visualize(track, points, msg=''):
         track: Track object
         points: np.ndarray (N, 2)
     '''
-    if (not VISUALIZE):
+    if not VISUALIZE:
         return
     plt.plot(track.raceline_points[0],
              track.raceline_points[1])
@@ -291,7 +291,7 @@ def visualize(track, points, msg=''):
 
 def test_angular_stability():
     ''' Test that the integration step dt=0.01 isn't too large to cause numerical instability'''
-    if (not VISUALIZE):
+    if not VISUALIZE:
         return
     main = get_dummy_main()
     car = main.cars[0]

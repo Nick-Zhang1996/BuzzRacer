@@ -1,11 +1,12 @@
 from buzzracer.common import get_logger
-from buzzracer.tracks.rcp_track import RCPTrack
+from buzzracer.tracks.rcp_track import RCPTrack, GridSize
 from buzzracer.tracks.empty_track import EmptyTrack
 from buzzracer.tracks.skidpad import Skidpad
 from buzzracer.tracks.orca_track import OrcaTrack
 from buzzracer.tracks.nascar_track import NascarTrack
 
 logger = get_logger('TrackFactory')
+
 
 class TrackFactory:
     @staticmethod
@@ -62,7 +63,7 @@ class TrackFactory:
     @staticmethod
     def prepare_rcp_track(main, config, track=None):
         # row, col
-        track_size = (6, 4)
+        track_size = GridSize(6, 4)
         if (track is None):
             track = RCPTrack(main=main, config=config)
         # drivable surface width 0.563, square tile side length 0.6
@@ -115,7 +116,7 @@ class TrackFactory:
         # width 0.563, length 0.6
         if (track is None):
             track = RCPTrack()
-        track.init_track('uuruurddddll', (5, 3), scale=0.6)
+        track.init_track('uuruurddddll', GridSize(5, 3), scale=0.6)
         # add manual offset for each control points
         adjustment = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         adjustment[4] = -0.5
@@ -129,7 +130,7 @@ class TrackFactory:
     def prepare_rcp_track_big(main, config, track=None):
         if (track is None):
             track = RCPTrack()
-        track.init_track('urruulluururrdrdddlddlll', (7, 5), scale=0.6)
+        track.init_track('urruulluururrdrdddlddlll', GridSize(7, 5), scale=0.6)
         track.init_raceline((2, 0), 'l')
         return track
 
@@ -137,9 +138,9 @@ class TrackFactory:
     def prepare_easy_track(main, config, track=None):
         if (track is None):
             track = RCPTrack()
-        # track.init_track('uuruluurrrddddldll',(6,4),scale=0.6)
+        # track.init_track('uuruluurrrddddldll',GridSize(6,4),scale=0.6)
         # track.init_raceline((3,3),'d')
-        track.init_track('uuuuurrrddddldll', (6, 4), scale=0.6)
+        track.init_track('uuuuurrrddddldll', GridSize(6, 4), scale=0.6)
         track.init_raceline((3, 3), 'd')
         return track
 
@@ -147,7 +148,7 @@ class TrackFactory:
     def prepare_circle(main, config, track=None):
         if (track is None):
             track = RCPTrack()
-        track_size = (6, 6)
+        track_size = GridSize(6, 6)
         track.init_track('uuuururrrdrdddldllll', track_size, scale=0.6)
         track.init_raceline((0, 2), 'u', offset=None)
         return track
