@@ -32,7 +32,8 @@ class Simulator(Extension, ABC):
 
     def __init__(self):
         super().__init__(handle_name='simulator')
-        self.match_time: bool = None
+        self.print_debug_disable()
+        self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
         self.print_info('match_time: ' + str(self.match_time))
         self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
@@ -51,7 +52,7 @@ class Simulator(Extension, ABC):
 
         self.t0 = None
         self.real_sim_time_ratio = 1.0
-        ''' Real time / sim time. If larger than 1.0, simulation will be slowed down. 
+        ''' Real time / sim time. If larger than 1.0, simulation will be slowed down.
             This allow easier human interpretation of fast simulations.
             Only useful if match_time = True '''
         self.print_info('real/sim time ratio = %.1f ' %
@@ -77,7 +78,6 @@ class Simulator(Extension, ABC):
     def add_car(self, car):
         """register a car to use this simulation. """
         self.cars.append(car)
-        return
 
     # TODO use Replay.VehicleDynamics
     @staticmethod
@@ -85,17 +85,19 @@ class Simulator(Extension, ABC):
     def advance_dynamics(state: CurvilinearState | CartesianState,
                          control: Control,
                          car: Car,
-                         dt: float) -> CurvilinearState | CartesianState:
+                         dt: float,
+                         curvature: float = None) -> CurvilinearState | CartesianState:
         """advance dynamics by dt.
 
         Args:
             state: state of the car, may be CartesianState or CurvilinearState
-            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
+            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1],
                     positive indicates acceleration
-            car: Car object, contains information about the car's kinematics, 
+            car: Car object, contains information about the car's kinematics,
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
-        Return: 
+            curvature: signed curvature
+        Return:
             state at next time step.
         """
         return
@@ -108,7 +110,10 @@ class Simulator(Extension, ABC):
                     car.state, (car.steering, car.throttle), car, self.main.dt)
             elif self.state_type == CurvilinearState:
                 control = Control(steering=car.steering, throttle=car.throttle)
-                car.sim_state = self.advance_dynamics(car.sim_state, control, car, self.main.dt)
+                curvature = self.main.track.curvature_s(car.sim_state.progress)
+                car.sim_state = self.advance_dynamics(
+                    car.sim_state, control, car, self.main.dt, curvature)
+                car.state = self.main.track.curv_to_cart(car.sim_state)
 
         if self.state_noise_enabled:
             self.addStateNoise()

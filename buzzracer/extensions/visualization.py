@@ -62,7 +62,8 @@ class Visualization(Extension):
         cv2.waitKey(200)
 
     def post_init(self,):
-        self.save_blank_img()
+        # self.save_blank_img()
+        pass
 
     def save_blank_img(self):
         ''' Save the blank background as pickle dump'''

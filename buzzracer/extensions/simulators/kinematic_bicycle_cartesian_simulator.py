@@ -15,6 +15,7 @@ class KinematicBicycleCartesianSimulator(Simulator):
 
     max_v = 3.0
     simple_throttle_model = False
+    state_type = CartesianState
     ''' If True, throttle is the acceleration without mapping'''
 
     def __init__(self):
@@ -39,7 +40,8 @@ class KinematicBicycleCartesianSimulator(Simulator):
     def advance_dynamics(state:  CartesianState,
                          control: Control,
                          car: Car,
-                         dt: float) -> CartesianState:
+                         dt: float,
+                         curvature: float = None) -> CartesianState:
         """advance dynamics by dt.
 
         Args:
@@ -49,6 +51,7 @@ class KinematicBicycleCartesianSimulator(Simulator):
             car: Car object, contains information about the car's kinematics, 
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
+            curvature: unused, only for curvilinear
         Return: 
             state at next time step.
         """
