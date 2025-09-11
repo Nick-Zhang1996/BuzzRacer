@@ -1,6 +1,6 @@
 ''' Base class for all simulators '''
 from time import time, sleep
-from enum import Enum,unique
+from enum import Enum, unique
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -9,6 +9,7 @@ from buzzracer.common import ExperimentType
 from buzzracer.extensions.extension import Extension
 from buzzracer.cars.car import Car
 
+
 @unique
 class NoiseType(Enum):
     NORMAL = 1
@@ -16,13 +17,12 @@ class NoiseType(Enum):
     IMPULSE = 3
 
 
-
 class Simulator(Extension, ABC):
     '''
     Base class for simulators
 
     car.states = x,y,heading,v_forward,v_sideway,omega
-    however simulator can establish a property car.sim_states
+    however simulator can establish a property car.sim_state
     that use different state representation for simulation
     '''
 
@@ -61,8 +61,8 @@ class Simulator(Extension, ABC):
             assert (self.state_noise_type is not None)
             assert (self.state_noise_magnitude is not None)
             self.state_noise_magnitude = np.array(self.state_noise_magnitude)
-            noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform, 
-                                 NoiseType.NORMAL: self.add_state_noise_normal, 
+            noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform,
+                                 NoiseType.NORMAL: self.add_state_noise_normal,
                                  NoiseType.IMPULSE: self.add_state_noise_impulse}
             self.add_state_noise = noise_type_to_fun[self.state_noise_type]
 
@@ -82,7 +82,7 @@ class Simulator(Extension, ABC):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_states for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.states for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.
@@ -111,7 +111,7 @@ class Simulator(Extension, ABC):
             self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
         if time_to_reach-time() < 0:
             lag_time = time()-time_to_reach
-            self.print_debug("Simulation loop can't keep up ..... lagging %.3f s"%lag_time)
+            self.print_debug("Simulation loop can't keep up ..... lagging %.3f s" % lag_time)
 
         sleep(max(0, time_to_reach - time()))
 

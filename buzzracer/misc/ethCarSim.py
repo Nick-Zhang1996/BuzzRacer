@@ -56,9 +56,9 @@ class ethCarSim:
 
     # update vehicle state
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    # sim_states is no longer used but kept to maintain the same API
+    # sim_state is no longer used but kept to maintain the same API
     # should be changed in next update
-    def update_car(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_state, throttle, steering):
         # simulator carries internal state and doesn't really need these
         lf = self.lf
         lr = self.lr
@@ -162,9 +162,9 @@ class ethCarSim:
 
         coord = (x, y)
 
-        sim_states = {'coord': coord, 'heading': heading,
-                      'vf': vx, 'vs': vy, 'omega': omega}
-        return sim_states
+        sim_state = {'coord': coord, 'heading': heading,
+                     'vf': vx, 'vs': vy, 'omega': omega}
+        return sim_state
 
     def debug(self):
         data = np.array(self.states_hist)
@@ -206,21 +206,21 @@ class ethCarSim:
         car.throttle = throttle = 0
 
         car.states = (x, y, heading, 0, 0, 0)
-        car.sim_states = {
+        car.sim_state = {
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
     def update_eth_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.update_car(
-            self.sim_dt, car.sim_states, car.throttle, car.steering)
+        sim_state = car.sim_state = car.simulator.update_car(
+            self.sim_dt, car.sim_state, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
-                              sim_states['heading'], sim_states['vf'], sim_states['vs'], sim_states['omega']])
-        if isnan(sim_states['heading']):
+        car.states = np.array([sim_state['coord'][0], sim_state['coord'][1],
+                              sim_state['heading'], sim_state['vf'], sim_state['vs'], sim_state['omega']])
+        if isnan(sim_state['heading']):
             print('error')
         # print(car.states)
-        # print("v = %.2f"%(sim_states['vf']))
+        # print("v = %.2f"%(sim_state['vf']))
         car.new_state_update.set()
 
     def stop_eth_simulation(self, car):

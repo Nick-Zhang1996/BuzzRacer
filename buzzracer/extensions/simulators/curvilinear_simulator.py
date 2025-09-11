@@ -6,28 +6,14 @@ from math import sin, cos
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import  splev
+from scipy.interpolate import splev
 
 from buzzracer.extensions.simulator import Simulator
 
 
 class CurvilinearSimulator(Simulator):
-    ''' Simulate vehicle dynamics in Curvilinear/Frenet reference frame .
-
-        point mass model
-
-        Attirbutes:
-            states: car.sim_states = (s, v, n, phi)
-            s: progress along raceline/reference curve
-            v: velocity
-            n: lateral offset from ref curve, left positive
-            phi: heading from ref curve tangend, ccw positive
-            control:  (ay, ax)
-            ax: acceleration in heading(phi) direction
-            ay: acceleration in lateral direction (left positive)
-            ay is before ax to follow convention of steering before throttle
-
-        uses car.sim_states as internal state
+    ''' Simulate vehicle dynamics in Curvilinear/Frenet reference frame.
+        uses car.sim_state as internal state
     '''
 
     def __init__(self):
@@ -48,19 +34,18 @@ class CurvilinearSimulator(Simulator):
         Initialize a car
 
         car.states =  (x,y,heading,v_forward,v_sideway,omega)
-        car.sim_states = (s, v, n, phi)
+        car.sim_state = (s, v, n, phi)
         s: progress along raceline/reference curve
         v: velocity
         n: lateral offset from ref curve, left positive
         phi: heading from ref curve tangend, ccw positive
         '''
-        #x, y, heading, v_forward, v_sideway, omega = car.states
+        # x, y, heading, v_forward, v_sideway, omega = car.states
         curv = self.cart2_curv(car.states)
-        car.sim_states = curv
+        car.sim_state = curv
 
         car.state_dim = 4
         car.control_dim = 2
-
 
     def curvature(self, s):
         """get signed curvature of raceline at s, ccw positive."""
@@ -88,14 +73,14 @@ class CurvilinearSimulator(Simulator):
 
     @staticmethod
     def advance_dynamics(car_states, control, car, dt):
-        """ignore car_states, update car.sim_states with control and optional
+        """ignore car_states, update car.sim_state with control and optional
         [dt]
 
         [return] cartesian states corresponding to updated
-        car.sim_states
+        car.sim_state
 
         """
-        car.sim_states = self.advance_point_mass_dynamics(
-            car.sim_states, control, dt)
+        car.sim_state = self.advance_point_mass_dynamics(
+            car.sim_state, control, dt)
 
-        return self.curv2_cart(car.sim_states)
+        return self.curv2_cart(car.sim_state)

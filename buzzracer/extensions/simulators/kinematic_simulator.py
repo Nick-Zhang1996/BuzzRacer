@@ -8,6 +8,7 @@ from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
+
 class KinematicSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
 
@@ -42,18 +43,18 @@ class KinematicSimulator(Simulator):
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
             car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_states for simulators that do not use car.states for update
+                also contains car.sim_state for simulators that do not use car.states for update
             dt: Time step to advance dynamics by, unit:seconds
         Return: 
             state at next time step.
         """
         x, y, heading, vx, vy, omega = car_states
         _state = CartesianState(x=x,
-                               y=y,
-                               heading=heading,
-                               v_forward=vx,
-                               v_sideway=vy,
-                               omega=omega)
+                                y=y,
+                                heading=heading,
+                                v_forward=vx,
+                                v_sideway=vy,
+                                omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
         next_car_state = KinematicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)

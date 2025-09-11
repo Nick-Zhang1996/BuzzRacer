@@ -40,13 +40,13 @@ class DdpPointMassCarController(CarController):
     def control(self):
         car = self.car
         # s,v,n,phi
-        # throttle = 1.0 if car.sim_states[1] < 1.0 else -1.0
-        # steering = -car.sim_states[3] - car.sim_states[2]
-        # print(car.sim_states)
+        # throttle = 1.0 if car.sim_state[1] < 1.0 else -1.0
+        # steering = -car.sim_state[3] - car.sim_state[2]
+        # print(car.sim_state)
         # print(f'T = {throttle} S = {steering}')
 
         print(car.id)
-        steering, throttle = self.ddp_control(car.sim_states)
+        steering, throttle = self.ddp_control(car.sim_state)
 
         car.throttle = throttle
         car.steering = steering

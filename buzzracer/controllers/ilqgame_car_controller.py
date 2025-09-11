@@ -94,19 +94,19 @@ class iLQGameCarController(CarController):
                 self.oppo_car = car
                 break
 
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         self.start_lead_i_j = delta_x[0]
 
     def final(self):
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         self.end_lead_i_j = delta_x[0]
-        self.print_info(f'ego car : {self.ego_car.sim_states}')
-        self.print_info(f'opponent car : {self.oppo_car.sim_states}')
+        self.print_info(f'ego car : {self.ego_car.sim_state}')
+        self.print_info(f'opponent car : {self.oppo_car.sim_state}')
         self.t.summary()
         self.lqt.summary()
 
     def is_in_collision(self):
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         is_in_collision = np.abs(delta_x[0]) < self.opponent_min_distance_s and np.abs(
             delta_x[2]) < self.opponent_min_distance_n
         return is_in_collision
@@ -115,7 +115,7 @@ class iLQGameCarController(CarController):
         self.debug_dict = {}
         # s,v,n,phi
         ctrl0, ctrl1 = self.lq_control(
-            self.ego_car.sim_states, self.oppo_car.sim_states)
+            self.ego_car.sim_state, self.oppo_car.sim_state)
 
         # car i
         car_i = self.ego_car

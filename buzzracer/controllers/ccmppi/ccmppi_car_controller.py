@@ -390,11 +390,11 @@ class CcmppiCarController(CarController):
         # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
-            sim_states = states.copy()
+            sim_state = states.copy()
             for i in range(self.horizon_steps):
-                sim_states = self.apply_discrete_dynamics(
-                    sim_states, sampled_control[k, i], self.ccmppi_dt)
-                x, y, heading, v_forward, v_sideway, omega = sim_states
+                sim_state = self.apply_discrete_dynamics(
+                    sim_state, sampled_control[k, i], self.ccmppi_dt)
+                x, y, heading, v_forward, v_sideway, omega = sim_state
                 coord = (x, y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -431,15 +431,15 @@ class CcmppiCarController(CarController):
         # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
-            sim_states = states.copy()
+            sim_state = states.copy()
             for i in range(self.horizon_steps):
-                sim_states = self.apply_discrete_dynamics(
-                    sim_states, sampled_control[k, i], self.ccmppi_dt)
+                sim_state = self.apply_discrete_dynamics(
+                    sim_state, sampled_control[k, i], self.ccmppi_dt)
                 if (self.model == KinematicSimulator):
-                    # x,y,vf,heading = sim_states
-                    x, y, heading, vf, vs, omega = sim_states
+                    # x,y,vf,heading = sim_state
+                    x, y, heading, vf, vs, omega = sim_state
                 elif (self.model == DynamicSimulator):
-                    x, y, heading, vf, vs, omega = sim_states
+                    x, y, heading, vf, vs, omega = sim_state
                 coord = (x, y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -454,30 +454,30 @@ class CcmppiCarController(CarController):
         # apply the kth sampled control
         '''
         full_state_vec = []
-        sim_states = states.copy()
+        sim_state = states.copy()
         k = 0
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+            sim_state = self.apply_discrete_dynamics(sim_state,sampled_control[k,i],self.ccmppi_dt)
             _throttle, _steering = sampled_control[k,i]
             if (self.model == KinematicSimulator):
-                x,y,vf,heading = sim_states
+                x,y,vf,heading = sim_state
             elif (self.model == DynamicSimulator):
-                x,y, heading,vf,vs,omega = sim_states
+                x,y, heading,vf,vs,omega = sim_state
             entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
         '''
 
         # DEBUG
         # trajectory following synthesized control sequence
-        sim_states = states.copy()
+        sim_state = states.copy()
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(
-                sim_states, self.debug_uu[i], self.ccmppi_dt)
+            sim_state = self.apply_discrete_dynamics(
+                sim_state, self.debug_uu[i], self.ccmppi_dt)
             if (self.model == KinematicSimulator):
-                # x,y,vf,heading = sim_states
-                x, y, heading, vf, vs, omega = sim_states
+                # x,y,vf,heading = sim_state
+                x, y, heading, vf, vs, omega = sim_state
             elif (self.model == DynamicSimulator):
-                x, y, heading, vf, vs, omega = sim_states
+                x, y, heading, vf, vs, omega = sim_state
             coord = (x, y)
             self.debug_dict['ideal_traj'].append(coord)
 
@@ -498,15 +498,15 @@ class CcmppiCarController(CarController):
 
         # plot resultant trajectory from constant control
         '''
-        sim_states = states.copy()
+        sim_state = states.copy()
         constant_uu = np.array([0.0, 0.0])
         debug_traj = []
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(sim_states,constant_uu,self.ccmppi_dt)
+            sim_state = self.apply_discrete_dynamics(sim_state,constant_uu,self.ccmppi_dt)
             if (self.model == KinematicSimulator):
-                x,y,vf,heading = sim_states
+                x,y,vf,heading = sim_state
             elif (self.model == DynamicSimulator):
-                x,y, heading,vf,vs,omega = sim_states
+                x,y, heading,vf,vs,omega = sim_state
             coord = (x,y)
             debug_traj.append(coord)
         for coord in debug_traj:
