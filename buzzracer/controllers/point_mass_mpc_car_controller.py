@@ -12,14 +12,14 @@ class PointMassMpcCarController(CarController):
 
     def init(self):
         self.simulator = self.main.simulator
-        assert (isinstance(self.simulator, CurvilinearSimulator))
+        assert (isinstance(self.simulator, KinematicBicycleCurvilinearSimulator))
 
     def control(self):
         for car in self.main.cars:
             # s,v,n,phi
-            throttle = 1.0 if car.sim_states[1] < 1.0 else -1.0
-            steering = -car.sim_states[3] - car.sim_states[2]
-            print(car.sim_states)
+            throttle = 1.0 if car.sim_state[1] < 1.0 else -1.0
+            steering = -car.sim_state[3] - car.sim_state[2]
+            print(car.sim_state)
             print(f'T = {throttle} S = {steering}')
 
             car.throttle = throttle

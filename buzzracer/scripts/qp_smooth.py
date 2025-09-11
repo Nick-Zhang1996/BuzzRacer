@@ -44,7 +44,8 @@ class QpSmooth(RCPTrack):
             (bl, b, br))
         '''
         rl, r, rr = points
-        def dist(x, y): 
+
+        def dist(x, y):
             return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
         if ds is None:
             sl = -dist(rl, r)
@@ -82,7 +83,7 @@ class QpSmooth(RCPTrack):
         drl, drr = dr
         ddrl, ddrr = ddr
 
-        def dist(x, y): 
+        def dist(x, y):
             return ((x[0]-y[0])**2 + (x[1]-y[1])**2)**0.5
         if ds is None:
             ds = dist(rl, rr)
@@ -394,11 +395,11 @@ class QpSmooth(RCPTrack):
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
-        nondim[0] = np.clip(nondim[0], 0, len(self.track)-1).astype(int)
-        nondim[1] = np.clip(nondim[1], 0, len(self.track[0])-1).astype(int)
+        nondim[0] = np.clip(nondim[0], 0, len(self.grid)-1).astype(int)
+        nondim[1] = np.clip(nondim[1], 0, len(self.grid[0])-1).astype(int)
 
         # e.g. 'WE','SE'
-        grid_type = self.track[nondim[0]][nondim[1]]
+        grid_type = self.grid[nondim[0]][nondim[1]]
 
         # change ref frame to tile local ref frame
         x_local = coord[0]/self.scale - nondim[0]
@@ -734,12 +735,21 @@ class QpSmooth(RCPTrack):
         plt.show()
         '''
 
-    def optimize_path(self, *, max_iter=20, offset=0, visualize=False, save_gif=False, save_steps=False,):
+    def optimize_path(self,
+                      *,
+                      max_iter=20,
+                      offset=0,
+                      visualize=False,
+                      visualize_final_result=True,
+                      save_gif=False,
+                      save_steps=False,
+                      ):
         ''' Optimize path and save to pickle file
         Args:
             max_iter: max iteration for path smoothing
             offset: offset from lateral constraints, higher means more room left
-            visualize: if True, visualize with pyplot
+            visualize: if True, visualize each iteration in plt
+            visualize_final_result: if True, visualize final result
             save_gif: if True, save a gif of the optimization
             save_steps: if True, save each optimization step as a png
         Return:
@@ -882,11 +892,12 @@ class QpSmooth(RCPTrack):
                                    append_images=self.gifimages, save_all=True, duration=600, loop=0)
             print_ok('gif saved at '+gif_filename)
 
-        img_track = self.draw_track()
-        img_track = self.draw_raceline(img=img_track)
-        img_track_rgb = cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)
-        plt.imshow(img_track_rgb)
-        plt.show()
+        if visualize_final_result:
+            img_track = self.draw_track()
+            img_track = self.draw_raceline(img=img_track)
+            img_track_rgb = cv2.cvtColor(img_track.copy(), cv2.COLOR_BGR2RGB)
+            plt.imshow(img_track_rgb)
+            plt.show()
 
 
 if __name__ == '__main__':
@@ -896,7 +907,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # optimize and save
-    track = QpSmooth()
+    track: QpSmooth = QpSmooth()
     track = TrackFactory.build(args.track_name, track=track)
     track.optimize_path(offset=0.1)
     track.save()

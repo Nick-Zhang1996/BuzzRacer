@@ -14,7 +14,7 @@ class CrosstrackErrorTracker(Extension):
 
     def update(self):
         if (self.car.critical_lap.is_set()):
-            states = self.car.states
+            states = self.car.state
             retval = self.main.track.local_trajectory(states,
                                                       wheelbase=self.car.lr,
                                                       return_u=True)
@@ -22,7 +22,7 @@ class CrosstrackErrorTracker(Extension):
                 self.print_warning('local_trajectory returned None')
             else:
                 # parse return value from local_trajectory
-                #(local_ctrl_pnt, offset, orientation, curvature, v_target,
+                # (local_ctrl_pnt, offset, orientation, curvature, v_target,
                 # u0) = retval
                 offset = retval[1]
                 err = np.abs(offset)

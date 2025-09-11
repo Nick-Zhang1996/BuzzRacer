@@ -1,6 +1,6 @@
 ''' Base class for all simulators '''
 from time import time, sleep
-from enum import Enum,unique
+from enum import Enum, unique
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -8,6 +8,9 @@ import numpy as np
 from buzzracer.common import ExperimentType
 from buzzracer.extensions.extension import Extension
 from buzzracer.cars.car import Car
+from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
+from buzzracer.types import CartesianState, CurvilinearState, Control
+
 
 @unique
 class NoiseType(Enum):
@@ -16,21 +19,26 @@ class NoiseType(Enum):
     IMPULSE = 3
 
 
-
 class Simulator(Extension, ABC):
     '''
     Base class for simulators
 
-    car.states = x,y,heading,v_forward,v_sideway,omega
-    however simulator can establish a property car.sim_states
+    car.state = x,y,heading,v_forward,v_sideway,omega
+    however simulator can establish a property car.sim_state
     that use different state representation for simulation
     '''
+    state_type: type[CartesianState] | type[CurvilinearState] = CartesianState
+    ''' State type used by this simulator, default cartesian'''
 
     def __init__(self):
         super().__init__(handle_name='simulator')
-        self.match_time: bool = None
+        self.print_debug_disable()
+        self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
         self.print_info('match_time: ' + str(self.match_time))
+        self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
+        ''' Dynamics model to use for simulation, must be overridden in config
+        possible values: KinematicBicycleModelFrenet, DynamicBicycleModelCartesian, etc.'''
         self.state_noise_enabled: bool = None
         ''' If True, enable state noise '''
         self.state_noise_magnitude: float = None
@@ -44,7 +52,7 @@ class Simulator(Extension, ABC):
 
         self.t0 = None
         self.real_sim_time_ratio = 1.0
-        ''' Real time / sim time. If larger than 1.0, simulation will be slowed down. 
+        ''' Real time / sim time. If larger than 1.0, simulation will be slowed down.
             This allow easier human interpretation of fast simulations.
             Only useful if match_time = True '''
         self.print_info('real/sim time ratio = %.1f ' %
@@ -52,6 +60,7 @@ class Simulator(Extension, ABC):
 
         self.sim_t = 0
         ''' Elapsed time in simulation'''
+        self.cars: Car = []
 
         if (self.main.experiment_type != ExperimentType.Simulation):
             self.print_error(
@@ -61,38 +70,51 @@ class Simulator(Extension, ABC):
             assert (self.state_noise_type is not None)
             assert (self.state_noise_magnitude is not None)
             self.state_noise_magnitude = np.array(self.state_noise_magnitude)
-            noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform, 
-                                 NoiseType.NORMAL: self.add_state_noise_normal, 
+            noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform,
+                                 NoiseType.NORMAL: self.add_state_noise_normal,
                                  NoiseType.IMPULSE: self.add_state_noise_impulse}
             self.add_state_noise = noise_type_to_fun[self.state_noise_type]
 
     def add_car(self, car):
         """register a car to use this simulation. """
         self.cars.append(car)
-        return
 
     # TODO use Replay.VehicleDynamics
     @staticmethod
     @abstractmethod
-    def advance_dynamics(car_states, control, car, dt):
+    def advance_dynamics(state: CurvilinearState | CartesianState,
+                         control: Control,
+                         car: Car,
+                         dt: float,
+                         curvature: float = None) -> CurvilinearState | CartesianState:
         """advance dynamics by dt.
 
         Args:
-            car_states: Cartesian state of the car, (x,y,heading,v_forward,v_sideway,omega)
-            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
+            state: state of the car, may be CartesianState or CurvilinearState
+            control: (steering,throttle) steering in rad, left positive, throttle in [-1,1],
                     positive indicates acceleration
-            car: Car object, contains information about the car's kinematics, 
-                also contains car.sim_states for simulators that do not use car.states for update
+            car: Car object, contains information about the car's kinematics,
+                also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
-        Return: 
+            curvature: signed curvature
+        Return:
             state at next time step.
         """
         return
 
     def update(self):
         for car in self.cars:
-            car.states = self.advance_dynamics(
-                car.states, (car.steering, car.throttle), car, self.main.dt)
+            if self.state_type == CartesianState:
+                # NOTE cartesian state is passed directly as a tuple for now
+                car.state = self.advance_dynamics(
+                    car.state, (car.steering, car.throttle), car, self.main.dt)
+            elif self.state_type == CurvilinearState:
+                control = Control(steering=car.steering, throttle=car.throttle)
+                curvature = self.main.track.curvature_s(car.sim_state.progress)
+                car.sim_state = self.advance_dynamics(
+                    car.sim_state, control, car, self.main.dt, curvature)
+                car.state = self.main.track.curv_to_cart(car.sim_state)
+
         if self.state_noise_enabled:
             self.addStateNoise()
         self.main.new_state_update.set()
@@ -111,22 +133,22 @@ class Simulator(Extension, ABC):
             self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
         if time_to_reach-time() < 0:
             lag_time = time()-time_to_reach
-            self.print_debug("Simulation loop can't keep up ..... lagging %.3f s"%lag_time)
+            self.print_debug("Simulation loop can't keep up ..... lagging %.3f s" % lag_time)
 
         sleep(max(0, time_to_reach - time()))
 
     def add_state_noise_normal(self):
         for car in self.cars:
-            car.states += np.random.normal(size=car.states.shape) * \
+            car.state += np.random.normal(size=car.state.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
     def add_state_noise_uniform(self):
         for car in self.cars:
-            car.states += np.random.uniform(low=-1.0, high=1.0, size=car.states.shape) * \
+            car.state += np.random.uniform(low=-1.0, high=1.0, size=car.state.shape) * \
                 self.state_noise_magnitude * self.main.dt
 
     def add_state_noise_impulse(self):
         for car in self.cars:
             val = np.random.uniform()
             if val < self.impulse_state_noise_probability:
-                car.states += self.state_noise_magnitude * self.main.dt
+                car.state += self.state_noise_magnitude * self.main.dt

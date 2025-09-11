@@ -149,8 +149,8 @@ class hybridSim(nn.Module):
             u = torch.cat(
                 (long_acc.unsqueeze(1), steering.unsqueeze(1)), dim=1)
 
-            # self.states: x,vx,y,vy,psi,dpsi
-            # self.states = self.states + R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
+            # self.state: x,vx,y,vy,psi,dpsi
+            # self.state = self.state + R(psi) @ (A @ R(-psi) @ self.state + B @ u)*dt
             # state derivative in local frame
             state_der_local = torch.matmul(A, torch.matmul(
                 self.get_R(-psi), latest_state.unsqueeze(2)))+torch.matmul(B, u.unsqueeze(2))

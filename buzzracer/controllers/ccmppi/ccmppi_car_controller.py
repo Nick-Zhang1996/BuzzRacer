@@ -3,8 +3,8 @@ from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, aco
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 from time import time, sleep
 import pickle
-from buzzracer.extensions.simulators.dynamic_simulator import DynamicSimulator
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.controllers.car_controller import CarController
 from controllers.ccmppi.ccmppi import CCMPPI
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -113,12 +113,12 @@ class CcmppiCarController(CarController):
                     'cuda_filename': 'controller/ccmppi/ccmppi.cu',
                     'max_v': self.max_speed,
                     'R_diag': self.R_diag}
-        if (self.model == KinematicSimulator):
+        if (self.model == KinematicBicycleCartesianSimulator):
             arg_list['state_dim'] = 4
-            arg_list['model_name'] = KinematicSimulator
-        elif (self.model == DynamicSimulator):
+            arg_list['model_name'] = KinematicBicycleCartesianSimulator
+        elif (self.model == DynamicBicycleCartesianSimulator):
             arg_list['state_dim'] = 6
-            arg_list['model_name'] = DynamicSimulator
+            arg_list['model_name'] = DynamicBicycleCartesianSimulator
 
         self.control_dim = arg_list['control_dim']
         self.horizon_steps = arg_list['horizon']
@@ -232,7 +232,7 @@ class CcmppiCarController(CarController):
 # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
 
     def control(self):
-        car_states = self.car.states
+        car_states = self.car.state
         track = self.car.main.track
         debug_dict = {'ideal_traj': [], 'rollout_traj_vec': []}
         # profiling
@@ -274,10 +274,10 @@ class CcmppiCarController(CarController):
         #    to state in ccmppi : x,y,v,heading
         x, y, heading, vf, vs, omega = car_states
 
-        if self.model == KinematicSimulator:
-            self.states = states = np.array([x, y, vf, heading])
-        elif self.model == DynamicSimulator:
-            self.states = states = np.array([x, y, heading, vf, vs, omega])
+        if self.model == KinematicBicycleCartesianSimulator:
+            self.state = states = np.array([x, y, vf, heading])
+        elif self.model == DynamicBicycleCartesianSimulator:
+            self.state = states = np.array([x, y, heading, vf, vs, omega])
 
         # NOTE may need revision to use previous results
         ref_control = np.zeros([self.horizon_steps, self.control_dim])
@@ -390,11 +390,11 @@ class CcmppiCarController(CarController):
         # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
-            sim_states = states.copy()
+            sim_state = states.copy()
             for i in range(self.horizon_steps):
-                sim_states = self.apply_discrete_dynamics(
-                    sim_states, sampled_control[k, i], self.ccmppi_dt)
-                x, y, heading, v_forward, v_sideway, omega = sim_states
+                sim_state = self.apply_discrete_dynamics(
+                    sim_state, sampled_control[k, i], self.ccmppi_dt)
+                x, y, heading, v_forward, v_sideway, omega = sim_state
                 coord = (x, y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -431,15 +431,15 @@ class CcmppiCarController(CarController):
         # plot sampled trajectories
         for k in range(samples):
             this_rollout_traj = []
-            sim_states = states.copy()
+            sim_state = states.copy()
             for i in range(self.horizon_steps):
-                sim_states = self.apply_discrete_dynamics(
-                    sim_states, sampled_control[k, i], self.ccmppi_dt)
-                if (self.model == KinematicSimulator):
-                    # x,y,vf,heading = sim_states
-                    x, y, heading, vf, vs, omega = sim_states
-                elif (self.model == DynamicSimulator):
-                    x, y, heading, vf, vs, omega = sim_states
+                sim_state = self.apply_discrete_dynamics(
+                    sim_state, sampled_control[k, i], self.ccmppi_dt)
+                if (self.model == KinematicBicycleCartesianSimulator):
+                    # x,y,vf,heading = sim_state
+                    x, y, heading, vf, vs, omega = sim_state
+                elif (self.model == DynamicBicycleCartesianSimulator):
+                    x, y, heading, vf, vs, omega = sim_state
                 coord = (x, y)
                 this_rollout_traj.append(coord)
             rollout_traj_vec.append(this_rollout_traj)
@@ -454,30 +454,30 @@ class CcmppiCarController(CarController):
         # apply the kth sampled control
         '''
         full_state_vec = []
-        sim_states = states.copy()
+        sim_state = states.copy()
         k = 0
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(sim_states,sampled_control[k,i],self.ccmppi_dt)
+            sim_state = self.apply_discrete_dynamics(sim_state,sampled_control[k,i],self.ccmppi_dt)
             _throttle, _steering = sampled_control[k,i]
-            if (self.model == KinematicSimulator):
-                x,y,vf,heading = sim_states
-            elif (self.model == DynamicSimulator):
-                x,y, heading,vf,vs,omega = sim_states
+            if (self.model == KinematicBicycleCartesianSimulator):
+                x,y,vf,heading = sim_state
+            elif (self.model == DynamicBicycleCartesianSimulator):
+                x,y, heading,vf,vs,omega = sim_state
             entry = (x,y,vf,heading,_throttle,_steering)
             full_state_vec.append(entry)
         '''
 
         # DEBUG
         # trajectory following synthesized control sequence
-        sim_states = states.copy()
+        sim_state = states.copy()
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(
-                sim_states, self.debug_uu[i], self.ccmppi_dt)
-            if (self.model == KinematicSimulator):
-                # x,y,vf,heading = sim_states
-                x, y, heading, vf, vs, omega = sim_states
-            elif (self.model == DynamicSimulator):
-                x, y, heading, vf, vs, omega = sim_states
+            sim_state = self.apply_discrete_dynamics(
+                sim_state, self.debug_uu[i], self.ccmppi_dt)
+            if (self.model == KinematicBicycleCartesianSimulator):
+                # x,y,vf,heading = sim_state
+                x, y, heading, vf, vs, omega = sim_state
+            elif (self.model == DynamicBicycleCartesianSimulator):
+                x, y, heading, vf, vs, omega = sim_state
             coord = (x, y)
             self.debug_dict['ideal_traj'].append(coord)
 
@@ -498,15 +498,15 @@ class CcmppiCarController(CarController):
 
         # plot resultant trajectory from constant control
         '''
-        sim_states = states.copy()
+        sim_state = states.copy()
         constant_uu = np.array([0.0, 0.0])
         debug_traj = []
         for i in range(self.horizon_steps):
-            sim_states = self.apply_discrete_dynamics(sim_states,constant_uu,self.ccmppi_dt)
-            if (self.model == KinematicSimulator):
-                x,y,vf,heading = sim_states
-            elif (self.model == DynamicSimulator):
-                x,y, heading,vf,vs,omega = sim_states
+            sim_state = self.apply_discrete_dynamics(sim_state,constant_uu,self.ccmppi_dt)
+            if (self.model == KinematicBicycleCartesianSimulator):
+                x,y,vf,heading = sim_state
+            elif (self.model == DynamicBicycleCartesianSimulator):
+                x,y, heading,vf,vs,omega = sim_state
             coord = (x,y)
             debug_traj.append(coord)
         for coord in debug_traj:

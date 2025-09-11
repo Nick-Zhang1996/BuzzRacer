@@ -112,7 +112,7 @@ class Planner(ConfigObject):
 
         vs = 1.3
         # x0 = [0,0,vs]
-        coord = self.car.states[0:2]
+        coord = self.car.state[0:2]
         car_state_curvi = self.cartesian_to_curvilinear(coord, skip_wrap=True)
         x0 = [car_state_curvi[0], car_state_curvi[1], vs]
 
@@ -211,7 +211,7 @@ class Planner(ConfigObject):
             if (car == self.car):
                 continue
             # x,y,heading,v_forward,v_sideways,omega
-            coord = (car.states[0], car.states[1])
+            coord = (car.state[0], car.state[1])
             # NOTE optimization possible
             car_state_curvi = self.cartesian_to_curvilinear(coord)
             opponent_state_vec.append(car_state_curvi)
@@ -463,7 +463,7 @@ class Planner(ConfigObject):
         mpc = self.mpc
         # calculate plan tangent at p0
         # current heading:
-        heading = self.car.states[2]
+        heading = self.car.state[2]
         heading_x = np.cos(heading)  # = dp x
         heading_y = np.sin(heading)  # = dp y
         # dp
@@ -493,7 +493,7 @@ class Planner(ConfigObject):
         p = (r.T.reshape(-1, 1) + D_Adr @ n)
         dp = np.kron(M1, I_2) @ p
         dp0 = C(1) @ dp
-        heading = self.car.states[2]
+        heading = self.car.state[2]
         heading_x = np.cos(heading)  # = dp x
         heading_y = np.sin(heading)  # = dp y
         dp0_ref = np.array([[heading_x, heading_y]]).T
@@ -506,7 +506,7 @@ class Planner(ConfigObject):
         mpc = self.mpc
         # calculate plan tangent at p0
         # current heading:
-        heading = self.car.states[2]
+        heading = self.car.state[2]
         heading_x = np.cos(heading)  # = dp x
         heading_y = np.sin(heading)  # = dp y
         # dp
@@ -533,7 +533,7 @@ class Planner(ConfigObject):
         Mat = A @ dr
         D_Adr = block_diag(* [Mat[:, [i]] for i in range(N+1)])
         dp0 = C(1) @ np.kron(M1, I_2) @ (r.T.reshape(-1, 1) + D_Adr @ (M @ u + K))
-        heading = self.car.states[2]
+        heading = self.car.state[2]
         heading_x = np.cos(heading)  # = dp x
         heading_y = np.sin(heading)  # = dp y
         dp0_ref = np.array([[heading_x, heading_y]]).T
@@ -555,7 +555,7 @@ class Planner(ConfigObject):
         # constrain path tangent to equal vehicle current heading
         mpc = self.mpc
         # current heading:
-        heading = self.car.states[2]
+        heading = self.car.state[2]
         heading_x = np.cos(heading)  # = dp x
         heading_y = np.sin(heading)  # = dp y
         dp0_ref = np.array([[heading_x, heading_y]]).T

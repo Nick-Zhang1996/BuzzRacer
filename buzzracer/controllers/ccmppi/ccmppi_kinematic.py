@@ -2,7 +2,7 @@
 # using model in Ji's paper
 from math import pi, radians, degrees, asin, acos, isnan, sin, cos
 from cvxpy.atoms.affine.trace import trace
-from buzzracer.extensions.simulators.kinematic_simulator import KinematicSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from common import *
@@ -223,9 +223,9 @@ class CCMPPI_KINEMATIC():
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
         '''
-        self.sim.states = np.array(x0.copy())
+        self.sim.state = np.array(x0.copy())
         self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
+        x_post = np.array(self.sim.state)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
 
@@ -515,7 +515,7 @@ class CCMPPI_KINEMATIC():
 
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
                 # steering, control
-                x_i = KinematicSimulator.advance_dynamics(
+                x_i = KinematicBicycleCartesianSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 y_i = As[:, :, i] @ y_i + Bs[:, :, i] @ epsilon
 
@@ -545,7 +545,7 @@ class CCMPPI_KINEMATIC():
                         control[k] = np.clip(
                             control[k], self.control_limit[k, 0], self.control_limit[k, 1])
                 # x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
-                x_i = KinematicSimulator.advance_dynamics(
+                x_i = KinematicBicycleCartesianSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
                 nocc_states_vec[j].append(x_i.flatten())
 
@@ -905,8 +905,8 @@ if __name__ == "__main__":
     car.serial_port = None
 
     main = CCMPPI_KINEMATIC(dt,20,noise_cov, debug_info)
-    KinematicSimulator.dt = dt
-    KinematicSimulator.max_v = 30.0
+    KinematicBicycleCartesianSimulator.dt = dt
+    KinematicBicycleCartesianSimulator.max_v = 30.0
     main.car = car
     main.debug_info = debug_info
     main.visualize_confidence_ellipse()

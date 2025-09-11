@@ -63,7 +63,7 @@ class Logger(Extension):
         # omega in vehicle frame, axis pointing upward
         log_entry = []
         for car in self.main.cars:
-            (x, y, theta, v_forward, v_sideway, omega) = car.states
+            (x, y, theta, v_forward, v_sideway, omega) = car.state
             # (time, x,y,theta, vforward,vsideway=0,omega)
             log_entry.append([
                 time(), x, y, theta, v_forward, v_sideway, omega, car.steering,

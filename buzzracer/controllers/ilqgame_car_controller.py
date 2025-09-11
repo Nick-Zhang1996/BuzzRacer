@@ -9,7 +9,7 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 from buzzracer.third_party.solve_lq_game import solve_lq_game
 from buzzracer.controllers.lqgame import my_solve_lq_game
-from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 from buzzracer.utilities.symbolic_dynamics import SymbolicDynamics
 from buzzracer.utilities.execution_timer import ExecutionTimer
 
@@ -86,7 +86,7 @@ class iLQGameCarController(CarController):
         if (self.linearize_around_zero_control):
             self.print_warning('----- Linearizing around u=0 ----- ')
         self.simulator = self.main.simulator
-        assert (isinstance(self.simulator, CurvilinearSimulator))
+        assert (isinstance(self.simulator, KinematicBicycleCurvilinearSimulator))
         assert (len(self.main.cars) == 2)
         self.ego_car = self.car
         for car in self.main.cars:
@@ -94,19 +94,19 @@ class iLQGameCarController(CarController):
                 self.oppo_car = car
                 break
 
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         self.start_lead_i_j = delta_x[0]
 
     def final(self):
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         self.end_lead_i_j = delta_x[0]
-        self.print_info(f'ego car : {self.ego_car.sim_states}')
-        self.print_info(f'opponent car : {self.oppo_car.sim_states}')
+        self.print_info(f'ego car : {self.ego_car.sim_state}')
+        self.print_info(f'opponent car : {self.oppo_car.sim_state}')
         self.t.summary()
         self.lqt.summary()
 
     def is_in_collision(self):
-        delta_x = self.ego_car.sim_states - self.oppo_car.sim_states
+        delta_x = self.ego_car.sim_state - self.oppo_car.sim_state
         is_in_collision = np.abs(delta_x[0]) < self.opponent_min_distance_s and np.abs(
             delta_x[2]) < self.opponent_min_distance_n
         return is_in_collision
@@ -115,7 +115,7 @@ class iLQGameCarController(CarController):
         self.debug_dict = {}
         # s,v,n,phi
         ctrl0, ctrl1 = self.lq_control(
-            self.ego_car.sim_states, self.oppo_car.sim_states)
+            self.ego_car.sim_state, self.oppo_car.sim_state)
 
         # car i
         car_i = self.ego_car
@@ -126,14 +126,14 @@ class iLQGameCarController(CarController):
         car_i.steering = bounded_ctrl[0]
         car_i.throttle = bounded_ctrl[1]
 
-        car0_coord = car_i.states[0:2]
-        car0_heading = car_i.states[2]
+        car0_coord = car_i.state[0:2]
+        car0_heading = car_i.state[2]
         left, right = self.main.track.precise_track_boundary(
             car0_coord, car0_heading)
         ctrl0_normalized = np.linalg.norm(
             [ctrl0[0]/car_i.max_ay, ctrl0[1]/car_i.max_ax])
         '''
-        ctrl0_text = f'car0 red: v = {car_i.states[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
+        ctrl0_text = f'car0 red: v = {car_i.state[3]:.2f} S: {car_i.steering:.2f} T: {car_i.throttle:.2f}'
         if (left<0 or right<0):
             self.print_warning(ctrl0_text+' ---- out of track ')
         else:
@@ -149,14 +149,14 @@ class iLQGameCarController(CarController):
             car_j.steering = bounded_ctrl[0]
             car_j.throttle = bounded_ctrl[1]
 
-            car1_coord = car_j.states[0:2]
-            car1_heading = car_j.states[2]
+            car1_coord = car_j.state[0:2]
+            car1_heading = car_j.state[2]
             left, right = self.main.track.precise_track_boundary(
                 car1_coord, car1_heading)
             ctrl1_normalized = np.linalg.norm(
                 [ctrl1[0]/car_j.max_ay, ctrl1[1]/car_j.max_ax])
             '''
-            ctrl1_text = f'car1 gre: v = {car_j.states[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
+            ctrl1_text = f'car1 gre: v = {car_j.state[3]:.2f} S: {car_j.steering:.2f} T: {car_j.throttle:.2f}'
             if (left<0 or right<0):
                 self.print_warning(ctrl1_text+' ---- out of track ')
             else:
@@ -170,7 +170,7 @@ class iLQGameCarController(CarController):
 
     def bound_control(self, control, car):
         violated = False
-        v = car.states[3]
+        v = car.state[3]
         max_acc = car.max_ax * (1-v/car.max_v)
         # first scale to ellipse y/aym^2+x/axm^2=1
         # then cap ax to  (-infty,max_acc]
@@ -645,9 +645,9 @@ class iLQGameCarController(CarController):
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
         '''
-        self.sim.states = np.array(x0.copy())
+        self.sim.state = np.array(x0.copy())
         self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
+        x_post = np.array(self.sim.state)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
 
@@ -718,7 +718,7 @@ class iLQGameCarController(CarController):
             # x1 and y1 are the origin values -- need to be changed if origin changes
             x1 = coord[0] + 30
             y1 = coord[1]
-            x, y, heading, vf_lf, vs_lf, omega_lf = car.states
+            x, y, heading, vf_lf, vs_lf, omega_lf = car.state
             # Add steering bar
             steering, oob = map(
                 car.steering, -ctrl_limit[0], ctrl_limit[0], 100, 0)

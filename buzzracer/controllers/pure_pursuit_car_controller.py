@@ -65,7 +65,7 @@ class PurePursuitCarController(CarController):
             raceline_speed = np.ones_like(raceline_pnts[:, 0])*2.0
             self.planner.plot_all_solutions()
 
-        x, y, heading, vf, vs, omega = self.car.states
+        x, y, heading, vf, vs, omega = self.car.state
         # find control point of distance lookahead
         dist = ((raceline_pnts[:, 0] - x)**2 +
                 (raceline_pnts[:, 1] - y)**2)**0.5
@@ -125,7 +125,7 @@ class PurePursuitCarController(CarController):
         elif (steering < -self.car.max_steering_right):
             steering = -self.car.max_steering_right
 
-        throttle = self.calc_throttle(self.car.states, v_target)
+        throttle = self.calc_throttle(self.car.state, v_target)
         self.car.throttle = throttle
         self.car.steering = steering
 

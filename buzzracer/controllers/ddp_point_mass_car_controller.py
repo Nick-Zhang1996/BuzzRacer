@@ -2,7 +2,7 @@ from common import *
 from math import isnan, pi, degrees, radians, sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
-from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 import matplotlib.pyplot as plt
 
 
@@ -34,19 +34,19 @@ class DdpPointMassCarController(CarController):
 
     def init(self):
         self.simulator = self.main.simulator
-        assert (isinstance(self.simulator, CurvilinearSimulator))
+        assert (isinstance(self.simulator, KinematicBicycleCurvilinearSimulator))
         self.predicted_traj = self.x_ref
 
     def control(self):
         car = self.car
         # s,v,n,phi
-        # throttle = 1.0 if car.sim_states[1] < 1.0 else -1.0
-        # steering = -car.sim_states[3] - car.sim_states[2]
-        # print(car.sim_states)
+        # throttle = 1.0 if car.sim_state[1] < 1.0 else -1.0
+        # steering = -car.sim_state[3] - car.sim_state[2]
+        # print(car.sim_state)
         # print(f'T = {throttle} S = {steering}')
 
         print(car.id)
-        steering, throttle = self.ddp_control(car.sim_states)
+        steering, throttle = self.ddp_control(car.sim_state)
 
         car.throttle = throttle
         car.steering = steering
@@ -294,9 +294,9 @@ class DdpPointMassCarController(CarController):
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
         '''
-        self.sim.states = np.array(x0.copy())
+        self.sim.state = np.array(x0.copy())
         self.sim.update_car(self.dt,None,nominal_ctrl[0],nominal_ctrl[1])
-        x_post = np.array(self.sim.states)
+        x_post = np.array(self.sim.state)
         '''
         x_post = self.update_dynamics(x0, u0, self.dt)
 

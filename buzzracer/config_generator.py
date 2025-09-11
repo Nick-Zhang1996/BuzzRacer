@@ -10,7 +10,7 @@ import sys
 from math import radians
 from buzzracer.tracks import track_factory
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
-from buzzracer.extensions.simulators.curvilinear_simulator import CurvilinearSimulator
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 
 if (len(sys.argv) == 2):
     name = sys.argv[1]
@@ -33,7 +33,7 @@ class FakeMain():
         self.track = None
 
 
-sim = CurvilinearSimulator(FakeMain())
+sim = KinematicBicycleCurvilinearSimulator(FakeMain())
 sim.track = track
 
 

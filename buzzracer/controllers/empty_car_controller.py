@@ -1,7 +1,5 @@
-from common import *
-from math import isnan, pi, degrees, radians
+''' Empty Car contorller, doesn't do anything, mainly for testing'''
 from buzzracer.controllers.car_controller import CarController
-from buzzracer.controllers.pid_controller import PidController
 
 
 class EmptyCarController(CarController):
@@ -12,14 +10,12 @@ class EmptyCarController(CarController):
 
     def control(self):
         valid = True
-        # may be needed to keep car steady
-        # throttle = self.calc_throttle(0)
-        # steering = 0
-        # self.car.throttle = throttle
-        # self.car.steering = steering
+        throttle = self.calc_throttle(0) + 0.1
+        self.car.throttle = throttle
+        self.car.steering = 0
 
         return valid
 
     def calc_throttle(self, ax):
-        vx = self.car.states[3]
+        vx = self.car.state[3]
         return ax/6.17+0.333 + vx/15.2

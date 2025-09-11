@@ -36,7 +36,7 @@ class Main(PrintObject, LogObject):
         self.print_ok(' setting main attributes')
         for key, value_text in config_settings.attributes.items():
             setattr(self, key, eval(value_text))
-            self.print_info('f main.{key}.{value_text}')
+            self.print_info(f' main.{key}.{value_text}')
 
         def get_experiment_type_from_config_settings(config_settings):
             config_experiment_text = config_settings.getElementsByTagName(
@@ -164,7 +164,7 @@ if __name__ == '__main__':
 
     # Run default.xml config if none is provided
     name = sys.argv[1] if len(sys.argv) == 2 else 'default'
-    config_filename = os.path.join(BASEDIR, 'buzzracer','configs', f'{name}.xml')
+    config_filename = os.path.join(BASEDIR, 'buzzracer', 'configs', f'{name}.xml')
 
     if os.path.exists(config_filename):
         logger.info('using config %s', config_filename)

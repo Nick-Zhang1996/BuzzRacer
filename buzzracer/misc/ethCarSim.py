@@ -32,7 +32,7 @@ class ethCarSim:
         self.Cd = 0.00000
 
         # x,vx(global frame),y,vy,heading.omega(angular velocity)
-        self.states = np.array([x, 0, y, 0, heading, 0])
+        self.state = np.array([x, 0, y, 0, heading, 0])
 
         self.state_dim = 6
         self.control_dim = 2
@@ -46,7 +46,7 @@ class ethCarSim:
         else:
             self.noise = False
 
-        self.states_hist = []
+        self.state_hist = []
         self.local_states_hist = []
         self.norm = []
         # control signal: throttle(acc),steering
@@ -56,9 +56,9 @@ class ethCarSim:
 
     # update vehicle state
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    # sim_states is no longer used but kept to maintain the same API
+    # sim_state is no longer used but kept to maintain the same API
     # should be changed in next update
-    def update_car(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_state, throttle, steering):
         # simulator carries internal state and doesn't really need these
         lf = self.lf
         lr = self.lr
@@ -80,15 +80,15 @@ class ethCarSim:
             process_noise_car = np.random.multivariate_normal(
                 [0.0]*self.state_dim, self.noise_cov, size=None, check_valid='warn', tol=1e-8)
 
-        x = self.states[0]
-        y = self.states[2]
-        psi = heading = self.states[4]
-        omega = self.states[5]
+        x = self.state[0]
+        y = self.state[2]
+        psi = heading = self.state[4]
+        omega = self.state[5]
         # change ref frame to car frame
 
         # vehicle longitudinal velocity
-        self.Vx = vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
-        self.Vy = vy = -self.states[1]*sin(psi) + self.states[3]*cos(psi)
+        self.Vx = vx = self.state[1]*cos(psi) + self.state[3]*sin(psi)
+        self.Vy = vy = -self.state[1]*sin(psi) + self.state[3]*cos(psi)
 
         # for small longitudinal velocity use kinematic model
         if (vx < 0.05):
@@ -153,21 +153,21 @@ class ethCarSim:
         y += vyg*dt
         heading += omega*dt + 0.5 * d_omega * dt * dt
 
-        self.states = (x, vxg, y, vyg, heading, omega)
+        self.state = (x, vxg, y, vyg, heading, omega)
 
-        self.states_hist.append(self.states)
+        self.state_hist.append(self.state)
 
         self.throttle = throttle
         self.steering = steering
 
         coord = (x, y)
 
-        sim_states = {'coord': coord, 'heading': heading,
-                      'vf': vx, 'vs': vy, 'omega': omega}
-        return sim_states
+        sim_state = {'coord': coord, 'heading': heading,
+                     'vf': vx, 'vs': vy, 'omega': omega}
+        return sim_state
 
     def debug(self):
-        data = np.array(self.states_hist)
+        data = np.array(self.state_hist)
         data_local = np.array(self.local_states_hist)
 
         print('x,y')
@@ -205,22 +205,22 @@ class ethCarSim:
         car.steering = steering = 0
         car.throttle = throttle = 0
 
-        car.states = (x, y, heading, 0, 0, 0)
-        car.sim_states = {
+        car.state = (x, y, heading, 0, 0, 0)
+        car.sim_state = {
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
     def update_eth_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.update_car(
-            self.sim_dt, car.sim_states, car.throttle, car.steering)
+        sim_state = car.sim_state = car.simulator.update_car(
+            self.sim_dt, car.sim_state, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
-                              sim_states['heading'], sim_states['vf'], sim_states['vs'], sim_states['omega']])
-        if isnan(sim_states['heading']):
+        car.state = np.array([sim_state['coord'][0], sim_state['coord'][1],
+                              sim_state['heading'], sim_state['vf'], sim_state['vs'], sim_state['omega']])
+        if isnan(sim_state['heading']):
             print('error')
-        # print(car.states)
-        # print("v = %.2f"%(sim_states['vf']))
+        # print(car.state)
+        # print("v = %.2f"%(sim_state['vf']))
         car.new_state_update.set()
 
     def stop_eth_simulation(self, car):
@@ -234,5 +234,5 @@ if __name__ == '__main__':
         steering = radians(10)
         print('step %d' % (i))
         sim.update_car(0.01, None, throttle, steering)
-        print(sim.states)
+        print(sim.state)
     sim.debug()

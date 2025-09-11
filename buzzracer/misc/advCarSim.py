@@ -30,7 +30,7 @@ class advCarSim:
         self.d_x = self.Vx*cos(self.psi)-self.Vy*sin(self.psi)
         self.d_y = self.Vx*sin(self.psi)+self.Vy*cos(self.psi)
         self.d_psi = 0
-        self.states = np.array(
+        self.state = np.array(
             [self.x, self.d_x, self.y, self.d_y, self.psi, self.d_psi])
 
         self.state_dim = 6
@@ -41,7 +41,7 @@ class advCarSim:
             self.noise_cov = noise_cov
             assert np.array(noise_cov).shape == (6, 6)
 
-        self.states_hist = []
+        self.state_hist = []
         self.local_states_hist = []
         self.norm = []
         # control signal: throttle(acc),steering
@@ -52,24 +52,24 @@ class advCarSim:
     # update vehicle state
     # NOTE vx != 0
     # NOTE using car frame origined at CG with x pointing forward, y leftward
-    def update_car(self, dt, sim_states, throttle, steering):
+    def update_car(self, dt, sim_state, throttle, steering):
         # simulator carries internal state and doesn't really need these
         '''
-        x = sim_states['coord'][0]
-        y = sim_states['coord'][1]
-        psi = sim_states['heading']
-        d_psi = sim_states['omega']
-        Vx = sim_states['vf']
+        x = sim_state['coord'][0]
+        y = sim_state['coord'][1]
+        psi = sim_state['heading']
+        d_psi = sim_state['omega']
+        Vx = sim_state['vf']
         '''
 
         self.t += dt
         # NOTE page 30 of book vehicle dynamics and control
         # ref frame vehicle CG, x forward y leftward
         # this is in car frame, rotate to world frame
-        psi = self.states[4]
+        psi = self.state[4]
         # change ref frame to car frame
         # vehicle longitudinal velocity
-        self.Vx = self.states[1]*cos(psi) + self.states[3]*sin(psi)
+        self.Vx = self.state[1]*cos(psi) + self.state[3]*sin(psi)
 
         A = np.array([[0, 1, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0],
@@ -90,7 +90,7 @@ class advCarSim:
                                        [0, sin(angle), 0, cos(angle), 0, 0],
                                        [0, 0, 0, 0, 1, 0],
                                        [0, 0, 0, 0, 0, 1]])
-        self.old_states = self.states.copy()
+        self.old_states = self.state.copy()
         # A and B work in vehicle frame
         # we use R() to convert state to vehicle frame
         # before we apply A,B
@@ -98,30 +98,30 @@ class advCarSim:
         if (self.noise):
             plant_noise = np.random.multivariate_normal(
                 [0.0]*self.state_dim, self.noise_cov, size=1).flatten()
-            self.states = self.states + \
-                R(psi) @ (A @ R(-psi) @ self.states + B @ u + plant_noise)*dt
+            self.state = self.state + \
+                R(psi) @ (A @ R(-psi) @ self.state + B @ u + plant_noise)*dt
         else:
-            self.states = self.states + \
-                R(psi) @ (A @ R(-psi) @ self.states + B @ u)*dt
-        self.states_hist.append(self.states)
-        self.local_states_hist.append(R(-psi)@self.states)
+            self.state = self.state + \
+                R(psi) @ (A @ R(-psi) @ self.state + B @ u)*dt
+        self.state_hist.append(self.state)
+        self.local_states_hist.append(R(-psi)@self.state)
 
         self.throttle = throttle
         self.steering = steering
 
-        coord = (self.states[0], self.states[2])
-        heading = self.states[4]
+        coord = (self.state[0], self.state[2])
+        heading = self.state[4]
         # longitidunal,velocity forward positive
-        Vx = self.states[1] * cos(heading) + self.states[3] * sin(heading)
+        Vx = self.state[1] * cos(heading) + self.state[3] * sin(heading)
         # lateral, sideway velocity, left positive
-        Vy = -self.states[1] * sin(heading) + self.states[3] * cos(heading)
-        omega = self.states[5]
-        sim_states = {'coord': coord, 'heading': heading,
-                      'vf': Vx, 'vs': Vy, 'omega': omega}
-        return sim_states
+        Vy = -self.state[1] * sin(heading) + self.state[3] * cos(heading)
+        omega = self.state[5]
+        sim_state = {'coord': coord, 'heading': heading,
+                     'vf': Vx, 'vs': Vy, 'omega': omega}
+        return sim_state
 
     def debug(self):
-        data = np.array(self.states_hist)
+        data = np.array(self.state_hist)
         data_local = np.array(self.local_states_hist)
 
         print('x,y')
@@ -159,22 +159,22 @@ class advCarSim:
         car.steering = steering = 0
         car.throttle = throttle = 0
 
-        car.states = (x, y, heading, 0, 0, 0)
-        car.sim_states = {
+        car.state = (x, y, heading, 0, 0, 0)
+        car.sim_state = {
             'coord': (x, y), 'heading': heading, 'vf': throttle, 'vs': 0, 'omega': 0}
         self.sim_dt = self.dt
 
     def update_dynamic_simulation(self, car):
         # update car
-        sim_states = car.sim_states = car.simulator.update_car(
-            self.sim_dt, car.sim_states, car.throttle, car.steering)
+        sim_state = car.sim_state = car.simulator.update_car(
+            self.sim_dt, car.sim_state, car.throttle, car.steering)
         # (x,y,theta,vforward,vsideway=0,omega)
-        car.states = np.array([sim_states['coord'][0], sim_states['coord'][1],
-                              sim_states['heading'], sim_states['vf'], sim_states['vs'], sim_states['omega']])
-        if isnan(sim_states['heading']):
+        car.state = np.array([sim_state['coord'][0], sim_state['coord'][1],
+                              sim_state['heading'], sim_state['vf'], sim_state['vs'], sim_state['omega']])
+        if isnan(sim_state['heading']):
             print('error')
-        # print(car.states)
-        # print("v = %.2f"%(sim_states['vf']))
+        # print(car.state)
+        # print("v = %.2f"%(sim_state['vf']))
         car.new_state_update.set()
 
     def stop_dynamic_simulation(self, car):
