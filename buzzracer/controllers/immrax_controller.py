@@ -76,7 +76,7 @@ class ImmraxController(CarController):
 
     def control(self):
         throttle, steering, valid, debug_dict = self.ctrl_car(
-            self.car.states, self.track
+            self.car.state, self.track
         )
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
