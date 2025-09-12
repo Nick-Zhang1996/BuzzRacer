@@ -8,7 +8,7 @@
   <extensions>
       <extension car_graphics='True'>Visualization</extension>
       <extension>DynamicBicycleCartesianSimulator</extension>
-      <extension total_count='20' >StepCounter</extension>
+      <extension total_count='200' >StepCounter</extension>
   </extensions>
 
   <cars>

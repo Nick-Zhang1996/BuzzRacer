@@ -82,17 +82,6 @@ class RCPTrackDebug(RCPTrack):
         # let's use it as a starting point for now
         K0 = self.K
 
-        # DEBUG sensitivity analysis
-        '''
-        eps = 1e-5
-        k = self.K
-        k -= 3*eps
-        self.verify(k)
-        tmp = self.boundary_clearance_vector(k)
-        plt.plot(tmp)
-        plt.show()
-        '''
-
         # steps = 1000
         # optimize on curvature norm
         # var:
@@ -133,7 +122,32 @@ class RCPTrackDebug(RCPTrack):
         print(self.K)
         self.verify(steps)
 
+    def kensel_transform(self, K, ds):
+        ''' convert from K(s) space to cartesian X, Y(s) space using Fresnel integral '''
+        steps = K.shape[0]
+        s_total = ds*(steps-1)
+        S = np.linspace(0, s_total, steps)
+        # state variable X,Y,Heading
+        Kfun = interp1d(S, K)
+
+        def kensel(s, x):
+            return [cos(x[2]), sin(x[2]), Kfun(s)]
+
+        s_span = [0, s_total]
+        x0 = (self.x0, self.y0, self.phi0)
+        sol = solve_ivp(kensel, s_span, x0, method='LSODA', t_eval=S)
+        x = sol.y[0]
+        y = sol.y[1]
+        return x, y
+
+    # generate an array of boundary clearance
+    def boundary_clearance_vector(self, k):
+        x, y = self.kensel_transform(k, self.ds)
+        retval = [self.check_track_boundary((xx, yy)) for xx, yy in zip(x, y)]
+        return retval
+
     # verify that we can restore x,y coordinate from K(s)/curvature path distance space
+
     def verify(self, K=None):
         # convert from K(s) space to X,Y(s) space using Fresnel integral
         # state variable X,Y,Heading
@@ -274,3 +288,42 @@ class RCPTrackDebug(RCPTrack):
 
         self.reconstruct_raceline()
         return t_total
+
+    def discretize_path(self, steps=1000):
+        ''' new representation of raceline via piecewise curvature map along path'''
+        u = np.linspace(0, self.u[-1], steps)
+        # s[k]: path distance from k to k+1
+        s = np.zeros_like(u)
+        for i in range(1, steps):
+            s[i] = self.calc_path_distance(u[i-1], u[i])
+        S = np.cumsum(s)
+        print('discretized path total length is: %.2f' % S[-1])
+
+        # K: curvature
+        # let raceline curve be r(u)
+        # dr = r'(u), parameterized with xx/u
+        dr = np.array(splev(u, self.raceline, der=1))
+        # ddr = r''(u)
+        ddr = np.array(splev(u, self.raceline, der=2))
+
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
+        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
+                         ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+
+        # we need signed curvature, get that with cross product dr and ddr
+        cross = np.cross(dr.T, ddr.T)
+        curvature = np.copysign(curvature, cross)
+
+        # resample K at uniform interval of s
+        S_interp = interp1d(S, curvature, kind='cubic')
+        self.S = np.linspace(0, S[-1], steps)
+        self.ds = S[-1]/(steps-1)
+        self.K = S_interp(self.S)
+
+        # phi0: heading at u=0
+        x, y = splev(0, self.raceline, der=1)
+
+        self.phi0 = atan2(y, x)
+        self.x0, self.y0 = splev(0, self.raceline, der=0)

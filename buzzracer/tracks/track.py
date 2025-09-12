@@ -25,8 +25,11 @@ class Track(ConfigObject):
         self.discretized_raceline_len = 1024
         self.raceline_len_m: float = 0.0
         ''' Total length of raceline in meters'''
+        self.raceline = None
+        ''' Spline to map track progress to raceline points. Parameterized by u, grid unit
+        The tck coefficients from splprep, use as track_point = splev(u, self.raceline)'''
         self.raceline_s = None
-        ''' Spline to map track progress to raceline points.
+        ''' Spline to map track progress to raceline points. Parameterized by distance
         The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
         self.sToV: Callable = lambda s: 0.0
         ''' Function to provide reference velocity given raceline s_m'''
