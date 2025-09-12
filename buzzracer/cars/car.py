@@ -1,25 +1,32 @@
-from math import radians, asin
-from typing import NamedTuple
+''' Defines the interface for working with physical and simulated cars'''
+from math import radians, degrees, asin
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
+from buzzracer.controllers.car_controller import CarController
+from buzzracer.types import CartesianState
+
 
 logger = get_logger('Car')
 
 
 class Car(PrintObject, LogObject):
+    ''' Base class for various types of cars,
+    Subclasses should implement communication details to interact with different
+    types of physical car.'''
     car_count = 0
+    ''' Total number of cars'''
     cars = []
-    # initialization for variables common to all subclass
+    ''' List of cars '''
 
     def __init__(self, main):
         LogObject.__init__(self)
         self.main = main
-        self.controller = None
+        self.controller: CarController = None
         self._throttle = 0.0
         self._steering = 0.0
-        # x,y,heading,v_forward,v_sideways(left positive),omega(angular speed,turning to left positive)
-        self.state = (0, 0, 0, 0, 0, 0)
-        # default values, will be overridden
+        self.state = CartesianState(0,0,0,0,0,0)
+
+        # default values, will be overridden in config
         self.max_throttle = 1.0
         self.min_throttle = -1.0
         self.max_steering_left = radians(26.1)
@@ -48,40 +55,35 @@ class Car(PrintObject, LogObject):
 
     def pre_init(self):
         self.controller.pre_init()
-        return
 
     def post_init(self):
         self.controller.post_init()
-        return
 
-    # this will be run when initialization for all other extensions(visualization, track, vision tracking, simulation etc)
-    # have concluded
     def init(self):
-        if (self.main.experiment_type == ExperimentType.Realworld):
+        ''' Initialization for cars.
+        This will be run after initialization for all other extensions have concluded
+        '''
+        if self.main.experiment_type is ExperimentType.Realworld:
             self.init_hardware()
         self.controller.init()
 
-    # initialize code that require hardware here
     def init_hardware(self):
-        pass
+        ''' Initialize code that require hardware initializations here '''
 
     def actuate(self):
-        # self.print_info(self.throttle, self.steering)
-        pass
+        ''' Send control commands to the car'''
 
     def control(self):
-        if (self.controller is None):
+        if self.controller is None:
             self.throttle = 0.0
             self.steering = 0.0
         else:
-            # TODO: address when controller can't find a valid solution
             self.controller.control()
-            # print_info("[Car]: "+"T=%4.1f, S=%4.1f"%(self.throttle, degrees(self.steering)))
-            # print_info(self.state)
+            self.text_logger.debug('T=%4.1f, S=%4.1f deg'%(self.throttle, degrees(self.steering)))
 
-        if (self.main.slowdown.is_set()):
+        if self.main.slowdown.is_set():
             self.throttle = 0.0
-        if (self.main.experiment_type == ExperimentType.Realworld):
+        if self.main.experiment_type == ExperimentType.Realworld:
             self.actuate()
 
     @classmethod
@@ -91,7 +93,6 @@ class Car(PrintObject, LogObject):
 
     @classmethod
     def Factory(cls, main, config):
-        # TODO error handling, it's ok there's no hardware
         try:
             hardware_class_text = config.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
@@ -105,16 +106,13 @@ class Car(PrintObject, LogObject):
             0].firstChild.nodeValue
 
         try:
-            init_states_text = config.getElementsByTagName(
-                'init_states')[0].firstChild.nodeValue
+            init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            logger.warning(
-                'Car: no initial state specified, using track default')
+            logger.warning('Car: no initial state specified, using track default')
             init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
 
-        config_name = config.getElementsByTagName(
-            'config_name')[0].firstChild.nodeValue
+        config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
         # pylint: disable-next=exec-used
         exec(f'from buzzracer.controllers import {controller_class_text}')
         controller = eval(controller_class_text)
@@ -203,12 +201,10 @@ class Car(PrintObject, LogObject):
                          'rendering': 'data/porsche_orange.png'}
 
         car.params = eval(config_name)
-        # print_error("Unrecognized car config")
 
         if not controller is None:
             car.controller = controller(car, config_controller)
 
-        # ----
         car.init_param()
 
         car.id = Car.car_count
