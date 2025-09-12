@@ -1,8 +1,11 @@
 ''' Extension to check boundary violations '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 # count number of times car is in collision with boundary
 

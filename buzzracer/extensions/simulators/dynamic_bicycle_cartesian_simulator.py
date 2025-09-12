@@ -1,15 +1,17 @@
 ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
 # page 30 of book Vehicle Dynamics and Control
-
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from math import sin, cos
 
 import numpy as np
 
 from buzzracer.types import CartesianState, Control
 from buzzracer.extensions.simulator import Simulator
-from buzzracer.cars.car import Car
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 class DynamicBicycleCartesianSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''

@@ -1,8 +1,13 @@
 ''' Base class for vehicle dynamics'''
+from __future__ import annotations
 from abc import ABC, abstractmethod
-from buzzracer.types import CartesianState, CurvilinearState, Control
-from buzzracer.cars.car import Car
+from typing import TYPE_CHECKING
 
+from buzzracer.types import CartesianState, CurvilinearState, Control
+
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 class VehicleDynamics(ABC):
     """ Base class for vehicle dynamics model."""

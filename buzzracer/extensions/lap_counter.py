@@ -1,9 +1,12 @@
 ''' Extension Lapcounter sets quit flag after a certain number of laps'''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from threading import Event
 import cv2
 
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class LapCounter(Extension):
