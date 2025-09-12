@@ -3,6 +3,7 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 
 from buzzracer.extensions.simulators.immrax_dynamic_bycicle import DynamicBicycle
+
 import jax
 import jax.numpy as jnp
 
@@ -41,7 +42,7 @@ class ImmraxController(CarController):
 
         self.planning_dt = 0.02
         self.planning_horizon = 50  # time steps
-        self.num_samples = 100
+        self.num_samples = 2
         # TODO: randomly sample control trajectory
         self.throttle_std = car.max_throttle / 2.0
         self.steering_std = car.max_steering_left / 2.0
@@ -58,6 +59,10 @@ class ImmraxController(CarController):
         ]
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.predictor = DynamicBicycle(car)
+
+        self.rollout_sampled_trajectories = jax.vmap(
+            self.rollout_sampled_trajectory, in_axes=(None, 0)
+        )
 
     def control(self):
         throttle, steering, valid, debug_dict = self.ctrl_car(
@@ -97,12 +102,13 @@ class ImmraxController(CarController):
         vf = state[3]
 
         self.sample_controls()
-        traj = self.rollout_sampled_trajectories(jnp.array(state[0:6]))
-        self.plot_trajectory(traj.ys)
+        traj = self.rollout_sampled_trajectories(
+            jnp.array(state[0:6]), self.sampled_controls
+        )
 
         # TODO: evaluate cost of each sampled trajectory, pick the best one
         self.planned_controls = self.sampled_controls[0, :, :]
-        # jax.debug.print("{0}", self.planned_controls.shape)
+        self.plot_trajectory(traj.ys[0])
 
         ret = (0, 0, False, {"offset": 0})
 
@@ -152,14 +158,18 @@ class ImmraxController(CarController):
 
     def sample_controls(self):
         self.sampled_controls.at[:, :, 0].set(
-            self.planned_controls[:, 0] + self.throttle_std * jax.random.normal(
+            self.planned_controls[:, 0]
+            + self.throttle_std
+            * jax.random.normal(
                 self.prng_key,
                 shape=(self.num_samples, self.planning_horizon),
             )
         )  # TODO: may want to consider steady_state_throttle explicitly
         self.prng_key = jax.random.split(self.prng_key)[1]
         self.sampled_controls.at[:, :, 1].set(
-            self.planned_controls[:, 1] + self.steering_std * jax.random.normal(
+            self.planned_controls[:, 1]
+            + self.steering_std
+            * jax.random.normal(
                 self.prng_key,
                 shape=(self.num_samples, self.planning_horizon),
             )
@@ -167,7 +177,7 @@ class ImmraxController(CarController):
         self.prng_key = jax.random.split(self.prng_key)[1]
         # TODO: clip to max steering, throttle
 
-    def rollout_sampled_trajectories(self, x0): 
+    def rollout_sampled_trajectory(self, x0, control_traj):
         traj = self.predictor.compute_trajectory(
             0.0,
             self.planning_horizon * self.planning_dt,
