@@ -2,7 +2,7 @@ from math import isnan, pi
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle import DynamicBicycle
+from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import DynamicBicycleCartesian
 
 import jax
 import jax.numpy as jnp
@@ -67,7 +67,7 @@ class ImmraxController(CarController):
         self.prng_key = jax.random.key(PRNG_SEED)
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
-        self.predictor = DynamicBicycle(car)
+        self.predictor = DynamicBicycleCartesian(car)
 
         # TODO: eventually, I want to jit only plan_control_trajectory
         self.rollout_sampled_trajectories = jax.jit(

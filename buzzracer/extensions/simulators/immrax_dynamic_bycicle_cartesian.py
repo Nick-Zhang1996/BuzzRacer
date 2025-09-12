@@ -17,7 +17,7 @@ def tire_curve(slip):
     return retval
 
 
-class DynamicBicycle(System):
+class DynamicBicycleCartesian(System):
     max_v: float = 3.0
 
     def __init__(self, car: Car) -> None:
