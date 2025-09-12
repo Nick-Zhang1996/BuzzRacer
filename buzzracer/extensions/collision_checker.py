@@ -1,7 +1,10 @@
 ''' check collision with static obstacles '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class CollisionChecker(Extension):

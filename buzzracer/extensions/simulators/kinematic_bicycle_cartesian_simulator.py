@@ -3,12 +3,15 @@ Refer to paper
 The Kinematic Bicycle Model: 
     a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles
 '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, Control
-from buzzracer.cars.car import Car
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 class KinematicBicycleCartesianSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''

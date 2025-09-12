@@ -1,10 +1,14 @@
 ''' Learned model from Gaussian Process NOTE this has not been refactored'''
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import torch
 
-from buzzracer.cars.car import Car
 from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.gaussian_process.gpModel import MultitaskDeepGP
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class GpModel(DynamicBicycleModelCartesian):

@@ -1,17 +1,12 @@
 ''' Simulate vehicle dynamics in Curvilinear/Frenet reference frame with Kinematic Bicycle Model '''
-# NOTE this module requires extensive re-writing, skipping for now
-# pylint: disable=all
-
-from math import sin, cos
-
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import splev
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, CurvilinearState, Control
-from buzzracer.cars.car import Car
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class KinematicBicycleCurvilinearSimulator(Simulator):
@@ -54,7 +49,7 @@ class KinematicBicycleCurvilinearSimulator(Simulator):
                          control: Control,
                          car: Car,
                          dt: float,
-                         curvature: float):
+                         curvature: float=None):
         """advance dynamics by self.dt.
         using car frame origined at CG with x pointing forward, y leftward
         Args:

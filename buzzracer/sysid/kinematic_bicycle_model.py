@@ -1,11 +1,16 @@
 ''' Kinematic bicycle model with pacjka tire model'''
 # pylint: disable-next=line-too-long
 # Reference: https://ftp.idu.ac.id/wp-content/uploads/ebook/tdg/TERRAMECHANICS%20AND%20MOBILITY/epdf.pub_vehicle-dynamics-and-control-2nd-edition.pdf
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from buzzracer.types import CartesianState, CurvilinearState, Control
-from buzzracer.cars.car import Car
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class KinematicBicycleModelCartesian(VehicleDynamics):

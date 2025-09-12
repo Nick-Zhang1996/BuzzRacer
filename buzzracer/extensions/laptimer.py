@@ -1,4 +1,6 @@
 ''' Track laptimes of cars'''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import os
 from time import time
@@ -10,7 +12,8 @@ import numpy as np
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class Laptimer(Extension):
