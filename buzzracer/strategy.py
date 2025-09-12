@@ -90,40 +90,40 @@ if __name__ == '__main__':
     fulltrack.load()
     dt = 0.01
 
-    # create 2 speed profile with similar laptime
+    # Create 2 speed profile with similar laptime
 
-    # agent i, faster in straights
+    # Agent i, faster in straights
     retval = fulltrack.generate_speed_profile(
         mu=0.6,
         acc_max_fun=lambda x: 5.0,
         dec_max_fun=lambda x: 5.0,
     )
-    fulltrack.targetVfromU = speed_profile_fun_i = retval['speed_profile_fun']
-    # this calls reconstruct Raceline, which updates sToV
+    fulltrack.targetVfromU = speed_profile_fun_i = retval.speed_profile_fun
+    # This calls reconstruct Raceline, which updates sToV
     fulltrack.verify_speed_profile(speed_profile_fun=speed_profile_fun_i)
     pos_i, phi_i, tt_i, ss_i, vv_i = build_statefrom_speed_profile(
         fulltrack, speed_profile_fun_i, dt=dt)
 
-    # agent j, faster in corners
+    # Agent j, faster in corners
     retval = fulltrack.generate_speed_profile(
         mu=0.9,
         acc_max_fun=lambda x: 1,
         dec_max_fun=lambda x: 1,
     )
-    fulltrack.targetVfromU = speed_profile_fun_j = retval['speed_profile_fun']
+    fulltrack.targetVfromU = speed_profile_fun_j = retval.speed_profile_fun
     fulltrack.verify_speed_profile(speed_profile_fun=speed_profile_fun_j)
     pos_j, phi_j, tt_j, ss_j, vv_j = build_statefrom_speed_profile(
         fulltrack, speed_profile_fun_j, dt=dt)
 
-    # calculate relative lead
+    # Calculate relative lead
     s0_to_Lij, Lij_min, Lij_max = build_lead_fun(
         tt_i, ss_i, vv_i, tt_j, ss_j, vv_j)
 
-    # visualize L_ij
+    # Visualize L_ij
 
     img_track = fulltrack.draw_track()
-    img_track = fulltrack.draw_raceline_with_color(
-        img=img_track, thickness=10, s_to_color=lambda s: s0_to_Lij(s % ss_i[-1])/Lij_max)
+    img_track = fulltrack.draw_raceline(
+        img=img_track, s_to_color=lambda s: s0_to_Lij(s % ss_i[-1])/Lij_max)
     plt.imshow(img_track[:, :, ::-1])
     plt.show()
 
