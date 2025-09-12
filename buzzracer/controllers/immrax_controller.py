@@ -42,7 +42,7 @@ class ImmraxController(CarController):
 
         self.planning_dt = 0.02
         self.planning_horizon = 50  # time steps
-        self.num_samples = 2
+        self.num_samples = 5
         # TODO: randomly sample control trajectory
         self.throttle_std = car.max_throttle / 2.0
         self.steering_std = car.max_steering_left / 2.0
@@ -54,14 +54,12 @@ class ImmraxController(CarController):
         )  # (throttle, steering)
         self.prng_key = jax.random.key(PRNG_SEED)
 
-        self.control_action = lambda t, x: self.planned_controls[
-            jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
-        ]
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.predictor = DynamicBicycle(car)
 
-        self.rollout_sampled_trajectories = jax.vmap(
-            self.rollout_sampled_trajectory, in_axes=(None, 0)
+        # TODO: eventually, I want to jit only plan_control_trajectory
+        self.rollout_sampled_trajectories = jax.jit(
+            jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))
         )
 
     def control(self):
@@ -178,11 +176,15 @@ class ImmraxController(CarController):
         # TODO: clip to max steering, throttle
 
     def rollout_sampled_trajectory(self, x0, control_traj):
+        control_action = lambda t, x: control_traj[
+            jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
+        ]
+
         traj = self.predictor.compute_trajectory(
             0.0,
             self.planning_horizon * self.planning_dt,
             x0,
-            (self.control_action, self.disturbance),
+            (control_action, self.disturbance),
             dt=self.planning_dt,
         )  # NOTE: this is assuming the system is time-invariant
         return traj
