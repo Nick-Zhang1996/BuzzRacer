@@ -55,7 +55,7 @@ class DynamicBicycleCurvilinear(System):
             d_heading_dt = total_v / self.lr * jnp.sin(beta)
             d_rel_heading_dt = d_heading_dt - curvature * dsdt
 
-            return dsdt, dndt, d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0
+            return dsdt, dndt, d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0.0
 
         def dynamic_model():
             dsdt = (

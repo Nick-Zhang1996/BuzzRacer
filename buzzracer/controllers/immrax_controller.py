@@ -1,8 +1,14 @@
 from math import isnan, pi
+from Buzzracer.buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
+    DynamicBicycleCurvilinear,
+)
+from Buzzracer.buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import DynamicBicycleCartesian
+from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import (
+    DynamicBicycleCartesian,
+)
 
 import jax
 import jax.numpy as jnp
@@ -16,6 +22,24 @@ class SampleBounds:
     min: float
     std: float
     max: float
+
+
+# track class is not jittable, so we precompute curvature along raceline
+# store in buffer for jittability (pure function of s)
+class CurvatureLib:
+    def __init__(self, track):
+        self.ds = 0.01
+        self.len = track.raceline_len_m
+        self.buffer = jnp.zeros(int(self.len / self.ds) + 1)
+
+        for s in jnp.arange(0, self.len, self.ds):
+            self.buffer = self.buffer.at[int(s / self.ds)].set(track.curvature_s(s))
+
+    def __call__(self, s):
+        s = s % self.len
+        idx = (s / self.ds).astype(int)
+        # jax.debug.print("curvature lookup s={:.2f}, idx={}", s, idx)
+        return self.buffer[(idx)]
 
 
 class ImmraxController(CarController):
@@ -48,6 +72,8 @@ class ImmraxController(CarController):
         # self.throttle_pid = PidController(P,I,D,dt,1,2)
         self.throttle_pid = PidController(P, I, D, dt, 1, 1000)
 
+        self.prng_key = jax.random.key(PRNG_SEED)
+
         self.planning_dt = 0.02
         self.planning_horizon = 50  # time steps
         self.num_samples = 5
@@ -58,25 +84,33 @@ class ImmraxController(CarController):
         self.steering_bounds = SampleBounds(
             -car.max_steering_left, car.max_steering_right / 2, car.max_steering_right
         )
+
         self.planned_controls: jnp.ndarray = jnp.zeros(
             (self.planning_horizon, 2)
         )  # (throttle, steering)
         self.sampled_controls: jnp.ndarray = jnp.zeros(
             (self.num_samples, self.planning_horizon, 2)
         )  # (throttle, steering)
-        self.prng_key = jax.random.key(PRNG_SEED)
+
+        # self.curvature_lib = jax.vmap(car.main.)
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
-        self.predictor = DynamicBicycleCartesian(car)
+        self.curvature_lib = CurvatureLib(car.main.track)
+        self.curvature = lambda t, x: self.curvature_lib(x[0])
+        self.predictor = DynamicBicycleCurvilinear(car)
 
         # TODO: eventually, I want to jit only plan_control_trajectory
         self.rollout_sampled_trajectories = jax.jit(
             jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))
         )
 
+        self.track = car.main.track
+
     def control(self):
+        curv_state = self.track.cart_to_curv(CartesianState(*self.car.state))
+        # print(f"progress: {curv_state[0]:.2f}, lateral err: {curv_state[1]:.2f}")
         throttle, steering, valid, debug_dict = self.ctrl_car(
-            self.car.state, self.track
+            self.car.state, self.car.sim_state, self.track
         )
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
@@ -107,21 +141,24 @@ class ImmraxController(CarController):
     #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
     # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
     # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
-    def ctrl_car(self, state, track, v_override=None, reverse=False):
+    def ctrl_car(self, state, sim_state, track, v_override=None, reverse=False):
         heading = state[2]
         vf = state[3]
 
         self.sample_controls()
-        # print("sampled throttle: ", self.sampled_controls[0, 0, 0])
+        # print("progress: %.2f, lat err: %.2f" % (sim_state[0], sim_state[1]))
         trajs = self.rollout_sampled_trajectories(
-            jnp.array(state[0:6]), self.sampled_controls
+            jnp.array(sim_state[0:6]), self.sampled_controls
         )
+
+        cart_traj = [
+            self.track.curv_to_cart(CurvilinearState(*curv_state))
+            for curv_state in trajs.ys[0]
+        ]
+        self.plot_trajectory(cart_traj)
 
         # TODO: evaluate cost of each sampled trajectory, pick the best one
         self.planned_controls = self.sampled_controls[0, :, :]
-        # for i in range(self.num_samples):
-        for i in range(1):
-            self.plot_trajectory(trajs.ys[i])
 
         ret = (0, 0, False, {"offset": 0})
 
@@ -208,7 +245,7 @@ class ImmraxController(CarController):
             0.0,
             self.planning_horizon * self.planning_dt,
             x0,
-            (control_action, self.disturbance),
+            (control_action, self.disturbance, self.curvature),
             dt=self.planning_dt,
         )  # NOTE: this is assuming the system is time-invariant
         return traj
