@@ -6,13 +6,10 @@ from Buzzracer.buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import (
-    DynamicBicycleCartesian,
-)
-
 import jax
 import jax.numpy as jnp
 from dataclasses import dataclass
+from functools import partial
 
 PRNG_SEED = 0
 
@@ -76,8 +73,7 @@ class ImmraxController(CarController):
 
         self.planning_dt = 0.02
         self.planning_horizon = 50  # time steps
-        self.num_samples = 5
-        # TODO: randomly sample control trajectory
+        self.num_samples = 100
         self.throttle_bounds = SampleBounds(
             min=car.min_throttle, std=car.max_throttle / 2, max=car.max_throttle
         )
@@ -88,21 +84,17 @@ class ImmraxController(CarController):
         self.planned_controls: jnp.ndarray = jnp.zeros(
             (self.planning_horizon, 2)
         )  # (throttle, steering)
-        self.sampled_controls: jnp.ndarray = jnp.zeros(
-            (self.num_samples, self.planning_horizon, 2)
-        )  # (throttle, steering)
-
-        # self.curvature_lib = jax.vmap(car.main.)
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.curvature_lib = CurvatureLib(car.main.track)
         self.curvature = lambda t, x: self.curvature_lib(x[0])
         self.predictor = DynamicBicycleCurvilinear(car)
 
-        # TODO: eventually, I want to jit only plan_control_trajectory
-        self.rollout_sampled_trajectories = jax.jit(
-            jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))
-        )
+        self.progress_reward_weight = 1.0
+        self.lateral_err_penalty_weight = 1.0
+        self.track_width = 0.4  # FIXME: this should be read from track
+
+        self.track = car.main.track
 
         self.track = car.main.track
 
@@ -145,20 +137,17 @@ class ImmraxController(CarController):
         heading = state[2]
         vf = state[3]
 
-        self.sample_controls()
-        # print("progress: %.2f, lat err: %.2f" % (sim_state[0], sim_state[1]))
-        trajs = self.rollout_sampled_trajectories(
-            jnp.array(sim_state[0:6]), self.sampled_controls
+        self.planned_controls, traj, self.prng_key = self.update_planned_controls(
+            sim_state, self.planned_controls, self.prng_key
         )
 
+        ### PLOTTING ###
         cart_traj = [
             self.track.curv_to_cart(CurvilinearState(*curv_state))
-            for curv_state in trajs.ys[0]
+            for curv_state in traj
         ]
         self.plot_trajectory(cart_traj)
-
-        # TODO: evaluate cost of each sampled trajectory, pick the best one
-        self.planned_controls = self.sampled_controls[0, :, :]
+        ### END PLOTTING ###
 
         ret = (0, 0, False, {"offset": 0})
 
@@ -206,34 +195,30 @@ class ImmraxController(CarController):
 
         return ret
 
-    def sample_controls(self):
-        throttle_key, steering_key, next_key = jax.random.split(self.prng_key, 3)
-        self.sampled_controls = jnp.clip(
-            self.sampled_controls.at[:, :, 0].set(
-                self.planned_controls[:, 0]
-                + self.throttle_bounds.std
-                * jax.random.normal(
-                    throttle_key,
-                    shape=(self.num_samples, self.planning_horizon),
-                )
+    def sample_controls(self, planned_controls: jax.Array, prng_key):
+        throttle_key, steering_key, next_key = jax.random.split(prng_key, 3)
+        sampled_throttle = jnp.clip(
+            planned_controls[:, 0]
+            + self.throttle_bounds.std
+            * jax.random.normal(
+                throttle_key,
+                shape=(self.num_samples, self.planning_horizon),
             ),
             self.throttle_bounds.min,
             self.throttle_bounds.max,
         )  # TODO: may want to consider steady_state_throttle explicitly
-        self.sampled_controls = jnp.clip(
-            self.sampled_controls.at[:, :, 1].set(
-                self.planned_controls[:, 1]
-                + self.steering_bounds.std
-                * jax.random.normal(
-                    steering_key,
-                    shape=(self.num_samples, self.planning_horizon),
-                )
+        sampled_steering = jnp.clip(
+            planned_controls[:, 1]
+            + self.steering_bounds.std
+            * jax.random.normal(
+                steering_key,
+                shape=(self.num_samples, self.planning_horizon),
             ),
             self.steering_bounds.min,
             self.steering_bounds.max,
         )
 
-        self.prng_key = next_key
+        return jnp.stack([sampled_throttle, sampled_steering], axis=-1), next_key
         # print(self.sampled_controls[:, :, 0])
 
     def rollout_sampled_trajectory(self, x0, control_traj):
@@ -249,6 +234,40 @@ class ImmraxController(CarController):
             dt=self.planning_dt,
         )  # NOTE: this is assuming the system is time-invariant
         return traj
+
+    def evaluate_trajectory_cost(self, state, traj):
+        # NOTE: can't use traj.ys here since we are inside jitted code - should consider rework
+        progress = traj._ys[self.planning_horizon - 1, 0] - state[0]
+        lateral_err = traj._ys[: self.planning_horizon, 1]
+
+        progress_reward = self.progress_reward_weight * progress**2
+        lateral_err_penalty = jnp.sum(
+            jax.vmap(lambda err: self.lateral_err_penalty_weight * err**2)(lateral_err)
+        )
+        collision = jnp.max(jnp.abs(lateral_err)) > self.track_width
+
+        return jax.lax.cond(
+            collision,
+            lambda: jnp.inf,
+            lambda: lateral_err_penalty - progress_reward,
+        )
+
+    @partial(jax.jit, static_argnums=0)
+    def update_planned_controls(self, state, planned_controls, prng_key):
+        # print("compiling plan_control_trajectory")
+        sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
+        trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
+            jnp.array(state[0:6]), sampled_controls
+        )
+        costs = jax.vmap(lambda traj: self.evaluate_trajectory_cost(state, traj))(trajs)
+
+        best_idx = jnp.argmin(costs)
+
+        return (
+            sampled_controls[best_idx],
+            trajs._ys[best_idx, : self.planning_horizon, :],
+            next_key,
+        )
 
     # get ss throttle, given ss velocity, linearfit
     def steady_state_throttle(self, velocity_ss):
