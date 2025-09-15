@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from buzzracer.common import ConfigObject, LogObject
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
@@ -38,7 +38,7 @@ class CarController(ConfigObject, LogObject):
         return
 
     # TODO refactor to use Control
-    def control(self) -> tuple[float,float]:
+    def control(self) -> tuple[float, float]:
         ''' Main control logic, set output throttle and steering
         Returns:
             control: tuple(throttle, steering)'''
@@ -52,10 +52,10 @@ class CarController(ConfigObject, LogObject):
         update predicted_traj vector
         '''
         control = np.array((self.car.steering, self.car.throttle))
-        control = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
+        control_vec = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
         # kinematic
         expected_trajectory = self.get_kinematic_trajectory(
-            self.car.state, control)
+            self.car.state, control_vec)
         # self.plot_trajectory(expected_trajectory)
         self.predicted_traj = expected_trajectory
         return self.predicted_traj
@@ -71,12 +71,12 @@ class CarController(ConfigObject, LogObject):
         return
 
     # debugging functions
-    def get_kinematic_trajectory(self, x0, control):
+    def get_kinematic_trajectory(self, x0, control_vec):
         trajectory = []
         state = CartesianState(*x0)
-        for i in range(control.shape[0]):
+        for control in control_vec:
             state = KinematicBicycleModelCartesian.advance_dynamics(
-                state, control[i], self.car, self.main.dt)
+                state, Control(*control), self.car, self.main.dt)
             trajectory.append(state)
         return np.array(trajectory)
 
