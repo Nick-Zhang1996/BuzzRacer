@@ -13,6 +13,7 @@ from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
+
 class DynamicBicycleCartesianSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
     max_v = 3.0
@@ -31,19 +32,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
         '''Add a car to use DynamicBicycleCartesianSimulator for state updates
             car needs to (x,y,heading,v_forward,v_sideway,omega)
         '''
-        x, y, heading, v_forward, v_sideway, _ = car.state
-        car.Vx = v_forward
-        car.Vy = v_sideway
-
-        car.x = x
-        car.y = y
-        car.psi = heading
-
-        car.d_x = car.Vx*cos(car.psi)-car.Vy*sin(car.psi)
-        car.d_y = car.Vx*sin(car.psi)+car.Vy*cos(car.psi)
-        car.d_psi = 0
-        car.sim_state = np.array(
-            [car.x, car.d_x, car.y, car.d_y, car.psi, car.d_psi])
+        car.sim_state = CartesianState(*car.state)
 
         car.state_dim = 6
         car.control_dim = 2

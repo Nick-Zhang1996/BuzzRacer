@@ -6,6 +6,7 @@ from math import sin, cos
 
 import numpy as np
 
+from buzzracer.types import CartesianState
 from buzzracer.RL.copg.rcvip_simulator.VehicleModel import VehicleModel
 from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.extensions.simulator import Simulator
@@ -35,18 +36,17 @@ class CopgSimulator(Simulator):
     # car needs to (x,y,heading,v_forward,v_sideway,omega)
     def add_car(self, car):
         x, y, heading, v_forward, v_sideway, _ = car.state
-        car.Vx = v_forward
-        car.Vy = v_sideway
+        # car.Vx = v_forward
+        # car.Vy = v_sideway
 
-        car.x = x
-        car.y = y
-        car.psi = heading
+        # car.x = x
+        # car.y = y
+        # car.psi = heading
 
-        car.d_x = car.Vx*cos(car.psi)-car.Vy*sin(car.psi)
-        car.d_y = car.Vx*sin(car.psi)+car.Vy*cos(car.psi)
-        car.d_psi = 0
-        car.sim_state = np.array(
-            [car.x, car.d_x, car.y, car.d_y, car.psi, car.d_psi])
+        # car.d_x = car.Vx*cos(car.psi)-car.Vy*sin(car.psi)
+        # car.d_y = car.Vx*sin(car.psi)+car.Vy*cos(car.psi)
+        # car.d_psi = 0
+        car.sim_state = CartesianState(*car.state)
 
         car.state_dim = 6
         car.control_dim = 2

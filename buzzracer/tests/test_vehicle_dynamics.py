@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 import matplotlib.pyplot as plt
 
+from buzzracer.extensions import Extension
 from buzzracer.types import CurvilinearState, CartesianState, Control
 from buzzracer.scripts.run import Main
 from buzzracer.common import BASEDIR, wrap
@@ -16,6 +17,17 @@ from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 VISUALIZE = False
 ''' If True, plot visualizations. Some tests need human visual checking'''
+
+
+@pytest.fixture(autouse=True)
+def reset_car_class_variable():
+    """
+    This fixture runs automatically before each test function,
+    ensuring the class variable is reset.
+    """
+    Extension.extensions = []
+    # 'yield' allows teardown code to run after the test, though none is needed here.
+    yield
 
 
 def get_dummy_main():
@@ -63,6 +75,7 @@ def are_points_collinear(points, tol=1e-2):
     ],
 )
 def test_run_with_config(config_filename):
+    ''' Cartesian models'''
     config_filename = os.path.join(
         BASEDIR, 'buzzracer', 'tests', 'test_configs', config_filename)
 
