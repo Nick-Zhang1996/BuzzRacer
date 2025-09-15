@@ -13,6 +13,7 @@ from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesi
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
+
 class KinematicBicycleCartesianSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
 
@@ -23,11 +24,6 @@ class KinematicBicycleCartesianSimulator(Simulator):
 
     def __init__(self):
         super().__init__()
-        KinematicBicycleCartesianSimulator.dt = self.main.dt
-
-        # for when a specific car instance is not speciied
-        self.lr = 45e-3
-        self.lf = 45e-3
         self.simple_throttle_model = False
 
     def init(self):

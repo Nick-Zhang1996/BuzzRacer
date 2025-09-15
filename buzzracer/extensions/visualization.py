@@ -49,7 +49,7 @@ class Visualization(Extension):
 
         img = img_track.copy()
         for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.params['rendering'])
+            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
             car.image = cv2.imread(filename, -1)
             if car.image is None:
                 self.print_error(f'Failed to load car image from {filename}')
@@ -86,7 +86,7 @@ class Visualization(Extension):
         ''' Show visualization image
             Do this last since controllers may need to alter the image
         '''
-        if (self.update_visualization.is_set()):
+        if self.update_visualization.is_set():
             self.update_visualization.clear()
             self.visualization_ts = time()
             cv2.imshow('experiment', self.visualization_img)
@@ -121,10 +121,10 @@ class Visualization(Extension):
     def pre_update(self,):
         # restrict update rate to 0.02s/frame, a rate higher than this can lead to frozen frames
         # print_info(self.prefix(), "preupdate %.1f"%(time()-self.visualization_ts))
-        if (time()-self.visualization_ts > self.frame_dt):
+        if time()-self.visualization_ts > self.frame_dt:
             self.update_visualization.set()
 
-        if (self.update_visualization.is_set()):
+        if self.update_visualization.is_set():
             img = self.img_track.copy()
             for car in self.main.cars:
                 img = self.draw_car(img, car)
@@ -166,10 +166,10 @@ class Visualization(Extension):
         def fmap(val, in_l, in_h, out_low, out_high):
             # out of bound flag
             oob = False
-            if (val < in_l):
+            if val < in_l:
                 val = in_l
                 oob = True
-            elif (val > in_h):
+            elif val > in_h:
                 val = in_h
                 oob = True
             return (val-in_l)/(in_h-in_l)*(out_high-out_low)+out_low, oob
@@ -183,7 +183,7 @@ class Visualization(Extension):
                              car.max_steering_right, 100, 0)
         img = cv2.rectangle(img, (x1, y1 + 25),
                             (x1 + 100, y1 + 40), (0, 0, 255), 1)
-        if (oob):
+        if oob:
             img = cv2.rectangle(img, (x1 + 50, y1 + 25),
                                 (x1 + int(steering), y1 + 40), (0, 0, 255), -1)
         else:
@@ -196,7 +196,7 @@ class Visualization(Extension):
                              car.max_throttle, 0, 100)
         img = cv2.rectangle(img, (x1, y1 + 45),
                             (x1 + 100, y1 + 60), (0, 0, 255), 1)
-        if (oob):
+        if oob:
             img = cv2.rectangle(img, (x1 + 52, y1 + 45),
                                 (x1 + int(throttle), y1 + 60), (0, 0, 255), -1)
         else:
@@ -223,7 +223,7 @@ class Visualization(Extension):
             return img
         # overlay vehicle image, orientation as headed
         # significant performance impact
-        if (self.car_graphics):
+        if self.car_graphics:
             img = self.overlay_car_rendering(img, car)
         else:
             # draw vehicle, orientation as black arrow
@@ -238,7 +238,7 @@ class Visualization(Extension):
         x, y, heading = car.state[:3]
         coord = (x, y)
         src = self.main.track.m2canvas(coord)
-        if (src is None):
+        if src is None:
             print('overlay_car_rendering err -- coordinate outside canvas')
             return img
         return self.overlay_car_rendering_raw(img, car, src, heading)
@@ -248,7 +248,7 @@ class Visualization(Extension):
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
         # dynamic scale
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.width
+        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.params.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(
