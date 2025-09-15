@@ -95,6 +95,6 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
             lateral_err=state.lateral_err + dndt * dt,
             heading_err=state.heading_err + d_rel_heading_dt * dt,
             v_forward=state.v_forward + d_v_forward_dt * dt,
-            v_sideway=state.v_sideway + d_v_sideway_dt,
+            v_sideway=state.v_sideway + d_v_sideway_dt * dt,
             rel_omega=0
         )
