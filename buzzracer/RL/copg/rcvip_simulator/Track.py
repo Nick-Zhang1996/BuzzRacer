@@ -49,7 +49,7 @@ class Track:
 
         config_track = config.getElementsByTagName('track')[0]
         self.track = TrackFactory(None, config_track, 'full')
-        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.track.get_orca_style_track()
+        N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower = self.get_orca_style_track()
 
         self.N = N
         self.X = X
@@ -65,6 +65,48 @@ class Track:
         self.border_angle_upper = border_angle_upper
         self.border_angle_lower = border_angle_lower
         return
+
+    def get_orca_style_track(self):
+        ''' load rcp track as ORCA compatible representation '''
+        N = self.track.discretized_raceline_len = 1024
+        s = self.track.s_vec = s_vec = np.linspace(
+            0, self.track.raceline_len_m, self.track.discretized_raceline_len)
+        # resample to fixed interval s_vec
+        self.track.r = ref_path = np.array(
+            splev(s_vec % self.track.raceline_len_m, self.track.raceline_s, der=0)).T
+        X = self.track.r[:, 0].flatten()
+        Y = self.track.r[:, 1].flatten()
+
+        diff_s = s_vec[1]-s_vec[0]
+        dr, ddr = self.track.calc_derivative(ref_path, ds=diff_s)
+        self.track.dr = dr
+        self.track.ddr = ddr
+        # TODO verify sign
+        kappa = self.track.calc_curvature(dr, ddr)
+
+        # raceline heading
+        # dr = splev(s_vec%self.track.raceline_len_m,self.track.raceline_s,der=1)
+        phi = np.arctan2(dr[:, 1], dr[:, 0])
+        # wrap angle
+        d_phi = np.diff(phi)
+        d_phi = (d_phi + np.pi) % (2*np.pi) - np.pi
+        phi = phi[0] + np.hstack([0, np.cumsum(d_phi)]) + 2*np.pi
+
+        # describe track boundary as offset from raceline
+        left_limit, right_limit = self.track.create_boundary(ref_path, phi)
+        # TODO: verify sign and upper/lower ordering
+        d_upper = np.array(left_limit)
+        d_lower = -np.array(right_limit)
+
+        border_angle_upper = phi + 40/180*np.pi
+        border_angle_lower = phi - 40/180*np.pi
+
+        # ccw 90 deg
+        # R = np.array([[0,-1],[1,0]])
+        # tangent_dir = (R @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
+        # self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
+        # self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
+        return (N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower)
 
     def pos_at_index(self, i):
         return np.array([self.X[i], self.Y[i]])

@@ -1,11 +1,16 @@
 ''' Kinematic bicycle model with pacjka tire model'''
 # pylint: disable-next=line-too-long
 # Reference: https://ftp.idu.ac.id/wp-content/uploads/ebook/tdg/TERRAMECHANICS%20AND%20MOBILITY/epdf.pub_vehicle-dynamics-and-control-2nd-edition.pdf
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from buzzracer.types import CartesianState, CurvilinearState, Control
-from buzzracer.cars.car import Car
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class KinematicBicycleModelCartesian(VehicleDynamics):
@@ -30,12 +35,12 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
         '''
 
         del curvature
-        beta = np.arctan(np.tan(control.steering) * car.lr / (car.lf + car.lr))
+        beta = np.arctan(np.tan(control.steering) * car.params.lr / (car.params.lf + car.params.lr))
         dxdt = state.v_forward * np.cos(state.heading + beta)
         dydt = state.v_forward * np.sin(state.heading + beta)
         dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
         dheadingdt = state.v_forward * \
-            np.cos(beta) / (car.lf + car.lr) * np.tan(control.steering)
+            np.cos(beta) / (car.params.lf + car.params.lr) * np.tan(control.steering)
 
         x = state.x + dt * dxdt
         y = state.y + dt * dydt
@@ -69,7 +74,7 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
         '''
 
         # Origin at CG, beta is the angle between CG velocity and car orientation
-        beta = np.arctan(np.tan(control.steering) * car.lr / (car.lf + car.lr))
+        beta = np.arctan(np.tan(control.steering) * car.params.lr / (car.params.lf + car.params.lr))
 
         dsdt = (state.v_forward * np.cos(state.heading_err) - state.v_sideway *
                 np.sin(state.heading_err))/(1-state.lateral_err*curvature)
@@ -82,7 +87,7 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
         d_v_sideway_dt = acc_cg * np.sin(beta)
 
         total_v = np.sqrt(state.v_forward**2 + state.v_sideway**2)
-        d_heading_dt = total_v / car.lr * np.sin(beta)
+        d_heading_dt = total_v / car.params.lr * np.sin(beta)
         d_rel_heading_dt = d_heading_dt - curvature * dsdt
 
         return CurvilinearState(

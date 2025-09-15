@@ -8,6 +8,7 @@ from math import atan2, degrees, sin, cos, pi, copysign, isnan
 from bisect import bisect
 from typing import NamedTuple
 from enum import Enum
+from collections.abc import Callable
 
 import cv2
 import numpy as np
@@ -89,6 +90,13 @@ class Node:
             if signature in signature_vec:
                 return name
         raise RuntimeError(f"Invalid entry/exit tuple,{signature}")
+
+
+class SpeedProfileOutput(NamedTuple):
+    ''' u -> reference_speed, 0 < u < len(self.ctrl_pts)]'''
+    speed_profile_fun: Callable
+    min_v: float
+    max_v: float
 
 
 logger = get_logger('RCPTrack')
@@ -355,7 +363,8 @@ class RCPTrack(Track):
             if (all(start == current_coord)):
                 break
 
-        # add end point to the beginning, otherwise splprep will replace pts[-1] with pts[0] for a closed loop
+        # add end point to the beginning,
+        # otherwise splprep will replace pts[-1] with pts[0] for a closed loop
         # This ensures that splev(u=0) gives us the beginning point
         pts = np.array(self.ctrl_pts)
         # start_point = np.array(self.ctrl_pts[0])
@@ -366,7 +375,8 @@ class RCPTrack(Track):
         # weights = np.array(self.ctrl_pts_w + [self.ctrl_pts_w[-1]])
 
         # s= smoothing factor
-        # a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)), m being number of datapoints
+        # a good s value should be found in the range (m-sqrt(2*m),m+sqrt(2*m)),
+        # m being number of datapoints
         m = len(self.ctrl_pts)+1
         smoothing_factor = 0.01*(m)
         tck, u = splprep(pts.T, u=np.linspace(
@@ -379,44 +389,51 @@ class RCPTrack(Track):
         self.u = u
         self.raceline = tck
         retval = self.generate_speed_profile()
-        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
-        self.max_v = retval['max_v']
-        self.min_v = retval['min_v']
+        self.targetVfromU = speed_profile_fun = retval.speed_profile_fun
+        self.max_v = retval.max_v
+        self.min_v = retval.min_v
 
-    def generate_speed_profile(self, *, mu=0.7, acc_max_fun=lambda x: 1.5, dec_max_fun=lambda x: 1.5, n_steps=1000, show=False):
-        """generate speed profile given traction constraints,
-        braking/acceleration limit.
+    def generate_speed_profile(self,
+                               *,
+                               mu: float = 0.7,
+                               acc_max_fun=lambda x: 1.5,
+                               dec_max_fun=lambda x: 1.5,
+                               n_steps=1000,
+                               show=False):
+        """ Generate speed profile given traction constraints, braking/acceleration limit.
 
-        [mu]: coefficient of friction for the radius of traction circle. maximum traction = mu*g
-        [acc_max_fun]: function (velocity) => maximum acceleration available from motor. Given velocity, provide maximum acceleration available, for miniz ~3.3m/s2
-        [dec_max_fun]: same as acc_max_fun, for deceleration ~4.5
-
+        Args:
+            mu: Coefficient of friction for the radius of traction circle. maximum traction = mu*g
+            acc_max_fun: Given velocity, provide maximum acceleration available. ~3.3m/s2 for miniz
+            dec_max_fun: Given velocity, provide maximum deceleration available. ~4.5m/s2 for miniz
+            n_steps: Discretization steps,
+            show: If True, plot speed profile
         """
         g = 9.81
 
-        # generate velocity profile
         # u values for control points
-        xx = np.linspace(0, self.track_length_grid, n_steps+1)
+        uu = np.linspace(0, self.track_length_grid, n_steps+1)
 
         # let raceline curve be r(u)
-        # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(xx, self.raceline, der=1))
+        # dr = r'(u), parameterized with uu
+        dr = np.array(splev(uu, self.raceline, der=1))
         # ddr = r''(u)
-        ddr = np.array(splev(xx, self.raceline, der=2))
+        ddr = np.array(splev(uu, self.raceline, der=2))
 
         def _norm(x):
             return np.linalg.norm(x, axis=0)
-        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                         ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
 
-        # first pass, based on lateral acceleration
+        # Radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
+        # curvature = 1/R, always positive
+        curvature = (_norm(dr)**2*_norm(ddr) ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5 / _norm(dr)**3
+
+        # First pass, based on lateral acceleration
         v1 = (mu*g/curvature)**0.5
 
         def dist(a, b):
             return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
-        # second pass, based on engine capacity and available longitudinal traction
-        # start from the index with lowest speed
+        # Second pass, based on engine capacity and available longitudinal traction
+        # Start from the index with lowest speed
         min_xx = np.argmin(v1)
         v2 = np.zeros_like(v1)
         v2[min_xx] = v1[min_xx]
@@ -431,8 +448,8 @@ class RCPTrack(Track):
                 a_lon = min(acc_max_fun(
                     v2[i % n_steps]), a_lon_available_traction)
 
-                (x_i, y_i) = splev(xx[i % n_steps], self.raceline, der=0)
-                (x_i_1, y_i_1) = splev(xx[(i+1) %
+                (x_i, y_i) = splev(uu[i % n_steps], self.raceline, der=0)
+                (x_i_1, y_i_1) = splev(uu[(i+1) %
                                           n_steps], self.raceline, der=0)
                 # distance between two steps
                 ds = dist((x_i, y_i), (x_i_1, y_i_1))
@@ -443,7 +460,7 @@ class RCPTrack(Track):
                 v2[(i+1) % n_steps] = v1[(i+1) % n_steps]
 
         v2[-1] = v2[0]
-        # third pass, backwards for braking
+        # Third pass, backwards for braking capacity (deceleration)
         min_xx = np.argmin(v2)
         v3 = np.zeros_like(v1)
         v3[min_xx] = v2[min_xx]
@@ -452,10 +469,9 @@ class RCPTrack(Track):
             a_lat = v3[i % n_steps]**2*curvature[(i-1+n_steps) % n_steps]
             a_lon_available_traction = abs((mu*g)**2-a_lat**2)**0.5
             a_lon = min(dec_max_fun(v3[i % n_steps]), a_lon_available_traction)
-            # print(a_lon)
 
-            (x_i, y_i) = splev(xx[i % n_steps], self.raceline, der=0)
-            (x_i_1, y_i_1) = splev(xx[(i-1+n_steps) %
+            (x_i, y_i) = splev(uu[i % n_steps], self.raceline, der=0)
+            (x_i_1, y_i_1) = splev(uu[(i-1+n_steps) %
                                       n_steps], self.raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i), (x_i_1, y_i_1))
@@ -466,22 +482,11 @@ class RCPTrack(Track):
 
         v3[-1] = v3[0]
 
-        # when callingmake sure u is in range [0,len(self.ctrl_pts)]
-        speed_profile_fun = interp1d(xx, v3, kind='cubic')
-        # self.v1 = interp1d(xx,v1,kind='cubic')
-        # self.v2 = interp1d(xx,v2,kind='cubic')
-        # self.v3 = interp1d(xx,v3,kind='cubic')
+        # when calling, make sure u is in range [0,len(self.ctrl_pts)]
+        speed_profile_fun = interp1d(uu, v3, kind='cubic')
 
         max_v = max(v3)
         min_v = min(v3)
-
-        # debug target v curve fitting
-        # p0, = plt.plot(xx,v3,'*',label='original')
-        # xxx = np.linspace(0,self.track_length_grid,10*n_steps)
-        # sampleV = self.targetVfromU(xxx)
-        # p1, = plt.plot(xxx,sampleV,label='fitted')
-        # plt.legend(handles=[p0,p1])
-        # plt.show()
 
         # three pass of velocity profile
         if show:
@@ -492,10 +497,10 @@ class RCPTrack(Track):
             plt.legend(handles=[p1, p2, p3])
             plt.show()
 
-        return {'speed_profile_fun': speed_profile_fun, 'min_v': min_v, 'max_v': max_v}
+        return SpeedProfileOutput(speed_profile_fun, min_v, max_v)
 
-    # save raceline to pickle file
     def save(self, filename=None):
+        ''' Save raceline to pickle file'''
         if filename is None:
             filename = 'raceline.p'
 
@@ -520,8 +525,8 @@ class RCPTrack(Track):
             pickle.dump(save, f)
         self.print_ok(f'Track and raceline saved at {full_filename}')
 
-    # load quadratically smoothed raceline
     def load(self, filename=None):
+        ''' Load quadratically smoothed raceline '''
         if filename is None:
             filename = 'raceline.p'
         try:
@@ -535,7 +540,8 @@ class RCPTrack(Track):
                              )
             raise
 
-        # restore save data
+        # Restore saved data
+        # pylint: disable=attribute-defined-outside-init
         self.grid_sequence = save['grid_sequence']
         self.scale = save['scale']
         self.origin_seq_no = save['origin_seq_no']
@@ -549,16 +555,17 @@ class RCPTrack(Track):
         self.max_v = save['max_v']
         self.start_pos = save['start_pos']
         self.start_dir = save['start_dir']
-        self.x_limit = self.gridsize[1]*self.scale
-        self.y_limit = self.gridsize[0]*self.scale
+        self.x_limit = self.gridsize.cols*self.scale
+        self.y_limit = self.gridsize.rows*self.scale
+        # pylint: enable=attribute-defined-outside-init
 
-        self.print_ok('track and raceline loaded')
+        self.print_ok('Track and raceline loaded')
         self.reconstruct_raceline()
         self.prepare_discretized_raceline()
         return
 
-    # calculate distance
     def calc_path_distance(self, u0, u1):
+        ''' calculate distance '''
         s = 0
         steps = 10
         uu = np.linspace(u0, u1, steps)
@@ -567,87 +574,6 @@ class RCPTrack(Track):
         dy = np.diff(yy)
         s = np.sum(np.sqrt(dx**2+dy**2))
         return s
-
-    # new representation of raceline via piecewise curvature map along path
-    def discretize_path(self, steps=1000):
-        u = np.linspace(0, self.u[-1], steps)
-        # s[k]: path distance from k to k+1
-        s = np.zeros_like(u)
-        for i in range(1, steps):
-            s[i] = self.calc_path_distance(u[i-1], u[i])
-        S = np.cumsum(s)
-        print('discretized path total length is: %.2f' % S[-1])
-
-        # K: curvature
-        # let raceline curve be r(u)
-        # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(u, self.raceline, der=1))
-        # ddr = r''(u)
-        ddr = np.array(splev(u, self.raceline, der=2))
-
-        def _norm(x):
-            return np.linalg.norm(x, axis=0)
-        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                         ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
-
-        # we need signed curvature, get that with cross product dr and ddr
-        cross = np.cross(dr.T, ddr.T)
-        curvature = np.copysign(curvature, cross)
-
-        # resample K at uniform interval of s
-        S_interp = interp1d(S, curvature, kind='cubic')
-        self.S = np.linspace(0, S[-1], steps)
-        self.ds = S[-1]/(steps-1)
-        self.K = S_interp(self.S)
-
-        # phi0: heading at u=0
-        x, y = splev(0, self.raceline, der=1)
-
-        self.phi0 = atan2(y, x)
-        self.x0, self.y0 = splev(0, self.raceline, der=0)
-
-    def get_orca_style_track(self):
-        # ORCA compatible representation
-        N = self.discretized_raceline_len = 1024
-        s = self.s_vec = s_vec = np.linspace(
-            0, self.raceline_len_m, self.discretized_raceline_len)
-        # resample to fixed interval s_vec
-        self.r = ref_path = np.array(
-            splev(s_vec % self.raceline_len_m, self.raceline_s, der=0)).T
-        X = self.r[:, 0].flatten()
-        Y = self.r[:, 1].flatten()
-
-        diff_s = s_vec[1]-s_vec[0]
-        dr, ddr = self.calc_derivative(ref_path, ds=diff_s)
-        self.dr = dr
-        self.ddr = ddr
-        # TODO verify sign
-        kappa = self.calc_curvature(dr, ddr)
-
-        # raceline heading
-        # dr = splev(s_vec%self.raceline_len_m,self.raceline_s,der=1)
-        phi = np.arctan2(dr[:, 1], dr[:, 0])
-        # wrap angle
-        d_phi = np.diff(phi)
-        d_phi = (d_phi + np.pi) % (2*np.pi) - np.pi
-        phi = phi[0] + np.hstack([0, np.cumsum(d_phi)]) + 2*np.pi
-
-        # describe track boundary as offset from raceline
-        left_limit, right_limit = self.create_boundary(ref_path, phi)
-        # TODO: verify sign and upper/lower ordering
-        d_upper = np.array(left_limit)
-        d_lower = -np.array(right_limit)
-
-        border_angle_upper = phi + 40/180*np.pi
-        border_angle_lower = phi - 40/180*np.pi
-
-        # ccw 90 deg
-        # R = np.array([[0,-1],[1,0]])
-        # tangent_dir = (R @ self.dr.T)/np.linalg.norm(self.dr,axis=1)
-        # self.left_boundary = (tangent_dir * self.left_limit).T + self.ref_path
-        # self.right_boundary = (tangent_dir * self.right_limit).T + self.ref_path
-        return (N, X, Y, s, phi, kappa, diff_s, d_upper, d_lower, border_angle_upper, border_angle_lower)
 
     def calc_derivative(self, curve, ds):
         # find first and second derivative
@@ -678,14 +604,18 @@ class RCPTrack(Track):
         return curvature
 
     def lagrange_der(self, points, ds=None):
-        ''' Given three points, calculate first and second derivative as a linear combination of the three points rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
-        return: 2*3, tuple
-              ((al, a, ar),
-               (bl, b, br))
-        where f'@r = al*rl + a*r + ar*rr
-        where f''@r = bl*rl + b*r + br*rr
-        ds, arc length between rl,r and r, rr
-        if not specified, |r-rl|_2 will be used as approximation
+        ''' Given three points, calculate first and second derivative 
+        as a linear combination of the three points rl, r, rr.
+
+        Args:
+            points: Iterable of rl, r, rr, which stand for r_(k-1), r_k, r_(k+1)
+
+        Returns:
+            retval: 2*3, tuple ((al, a, ar),(bl, b, br))
+            where f'@ r = al*rl + a*r + ar*rr
+            where f''@r = bl*rl + b*r + br*rr
+            ds, arc length between rl, r and r, rr
+            if not specified, | r-rl | _2 will be used as approximation
         '''
         rl, r, rr = points
 
@@ -711,11 +641,14 @@ class RCPTrack(Track):
 
         return ((al, a, ar), (bl, b, br))
 
-    # constrain >= 0
-    # given coord=(x,y) unit:m
-    # calculate distance to left/right boundary
-    # return min(wl, wr), distance to closest side
     def check_track_boundary(self, coord):
+        ''' Check if a point is inside track boudnary
+
+        Args:
+            coord: (x,y)
+        Returns:
+            val: min distance to left/right boundary
+        '''
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
@@ -762,11 +695,12 @@ class RCPTrack(Track):
         return min(wl, wr)
 
     def precise_track_boundary(self, coord, heading):
-        ''' given coordinate and heading, calculate precise boundary to left and right
-        return a vector (dist_to_left, dist_to_right)'''
+        ''' Given coordinate and heading, calculate precise boundary to left and right
+        return a vector(dist_to_left, dist_to_right)'''
         heading = (heading + np.pi) % (2*np.pi) - np.pi
         # figure out which grid the coord is in
-        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        # grid coordinate, (col, row), col starts from left and row starts from bottom,
+        # both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
         nondim[0] = np.clip(nondim[0], 0, len(self.grid)-1).astype(int)
         nondim[1] = np.clip(nondim[1], 0, len(self.grid[0])-1).astype(int)
@@ -810,14 +744,13 @@ class RCPTrack(Track):
                 else:
                     left = - grid_right / sin(heading)
                     right = - grid_left / sin(heading)
-                    # TODO
         elif grid_type in turns:
             step_size = 0.01
 
             # find left boundary
             left = 0.0
             flag_in_limit = True
-            while (flag_in_limit):
+            while flag_in_limit:
                 left_point = (coord[0] + left * cos(heading+np.pi/2),
                               coord[1] + left * sin(heading+np.pi/2))
                 flag_in_limit = self.check_track_boundary(left_point) > 0
@@ -826,7 +759,7 @@ class RCPTrack(Track):
             # find right boundary
             right = 0.0
             flag_in_limit = True
-            while (flag_in_limit):
+            while flag_in_limit:
                 right_point = (coord[0] + right * cos(heading-np.pi/2),
                                coord[1] + right * sin(heading-np.pi/2))
                 flag_in_limit = self.check_track_boundary(right_point) > 0
@@ -838,40 +771,23 @@ class RCPTrack(Track):
 
         return (left*self.scale, right*self.scale)
 
-    def kensel_transform(self, K, ds):
-        ''' convert from K(s) space to cartesian X,Y(s) space using Fresnel integral '''
-        steps = K.shape[0]
-        s_total = ds*(steps-1)
-        S = np.linspace(0, s_total, steps)
-        # state variable X,Y,Heading
-        Kfun = interp1d(S, K)
-
-        def kensel(s, x):
-            return [cos(x[2]), sin(x[2]), Kfun(s)]
-
-        s_span = [0, s_total]
-        x0 = (self.x0, self.y0, self.phi0)
-        sol = solve_ivp(kensel, s_span, x0, method='LSODA', t_eval=S)
-        x = sol.y[0]
-        y = sol.y[1]
-        return x, y
-
-    # generate an array of boundary clearance
-    def boundary_clearance_vector(self, k):
-        x, y = self.kensel_transform(k, self.ds)
-        retval = [self.check_track_boundary((xx, yy)) for xx, yy in zip(x, y)]
-        return retval
-
-    # draw point corresponding to u
     def draw_point_u(self, img, uu):
+        ''' draw point corresponding to u, the parameter for race line '''
         x_new, y_new = splev(uu, self.raceline, der=0)
 
         for x, y in zip(x_new, y_new):
             img = self.draw_point(img, (x, y))
         return img
 
-    # draw the raceline from self.raceline
-    def draw_raceline(self,  img=None, points=None):
+    def draw_raceline(self,  img=None, points=None, s_to_color=None):
+        ''' draw the raceline from self.raceline 
+        Args:
+            img: Base image to draw onto
+            points: List[tuple[x,y]] additional points to draw
+            s_to_color: lambda: s: color(0-1), map progress to color
+        Return:
+            img: result image
+        '''
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
@@ -899,18 +815,21 @@ class RCPTrack(Track):
         # render different color based on speed
         # slow - red, fast - green (BGR)
 
-        def v2c(x):
-            return int((x-self.min_v)/(self.max_v-self.min_v)*255)
+        def s2c(s):
+            return (self.sToV(s)-self.min_v)/(self.max_v-self.min_v)
+        if s_to_color is None:
+            s_to_color = s2c
 
-        def get_color(v):
-            return (0, v2c(v), 255-v2c(v))
+        def get_color(s):
+            return (0, int(s_to_color(s)*255), int(255-255*s_to_color(s)))
         for i in range(len(u_new)-1):
-            img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=get_color(
-                self.targetVfromU(u_new[i] % self.track_length_grid)), thickness=3)
+            s = self.uToS(u_new[i] % self.track_length_grid)
+            color = get_color(s)
+            img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=color, thickness=3)
 
         # plot reference points
         # img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3)
-        if not (points is None):
+        if points is not None:
             for point in points:
                 x = point[0]
                 y = point[1]
@@ -922,57 +841,19 @@ class RCPTrack(Track):
 
         return img
 
-    def draw_raceline_with_color(self, img=None, thickness=3, s_to_color=lambda s: 0):
-        '''
-        draw the raceline with specified color scheme
-        s_to_color: lambda: s: color (0-1)
-        '''
-
-        rows = self.gridsize[0]
-        cols = self.gridsize[1]
-        res = int(self.resolution*self.scale)
-
-        # this gives smoother result, but difficult to relate u to actual grid
-        # u_new = np.linspace(self.u.min(),self.u.max(),1000)
-
-        # the range of u is len(self.ctrl_pts) + 1, since we copied one to the end
-        # x_new and y_new are in non-dimensional grid unit
-        u_new = np.linspace(0, self.track_length_grid, 1000)
-        x_new, y_new = splev(u_new, self.raceline, der=0)
-        # convert to visualization coordinate
-        x_new *= self.resolution
-        y_new *= self.resolution
-        y_new = self.resolution*self.scale*rows - y_new
-
-        if img is None:
-            img = np.zeros([res*rows, res*cols, 3], dtype='uint8')
-
-        pts = np.vstack([x_new, y_new]).T
-        # for polylines, pts = pts.reshape((-1,1,2))
-        pts = pts.reshape((-1, 2))
-        pts = pts.astype(int)
-        # render different color based on speed
-        # slow - red, fast - green (BGR)
-
-        def get_color(s):
-            return (0, int(s_to_color(s)*255), int(255-255*s_to_color(s)))
-        for i in range(len(u_new)-1):
-            s = self.uToS(u_new[i] % self.track_length_grid)
-            color = get_color(s)
-            img = cv2.line(img, tuple(pts[i]), tuple(
-                pts[i+1]), color=color, thickness=thickness)
-        return img
-
     def local_trajectory(self, state, wheelbase=90e-3, return_u=False):
-        ''' given state of the car, 
+        # TODO refactor here onwards
+        ''' Given state of the car,
         find the closest point on raceline to center of FRONT axle
-        calculate the lateral offset (in meters), this will be reported as offset, 
-        which can be added directly to raceline orientation 
+        calculate the lateral offset ( in meters), this will be reported as offset, 
+        which can be added directly to raceline orientation
         (after multiplied with an aggressiveness coefficient)
         to obtain desired front wheel orientation calculate the local derivative
-        coord should be referenced from the origin (bottom left(edited)) of the track, in meters
-        negative offset means coord is to the right of the raceline, viewing from raceline init direction
-        wheelbase is needed to calculate the local trajectory closes to the front axle instead of the old axle
+        coord should be referenced from the origin(bottom left(edited)) of the track, in meters
+        negative offset means coord is to the right of the raceline, viewing from raceline 
+        init direction
+        wheelbase is needed to calculate the local trajectory closes to the front axle instead 
+        of the old axle
         '''
         # figure out which grid the coord is in
         coord = np.array([state[0], state[1]])
@@ -1076,11 +957,11 @@ class RCPTrack(Track):
         #    min_fun_val = a*x*x*x + b*x*x + c*x + d
 
         '''
-        xx = np.linspace(seq-0.6,seq+0.6)
-        plt.plot(xx,fun(xx),'b--')
-        plt.plot(iv,fun(iv),'bo')
-        plt.plot(xx,a*xx**3+b*xx**2+c*xx+d,'r-')
-        plt.plot(iv,a*iv**3+b*iv**2+c*iv+d,'ro')
+        xx = np.linspace(seq-0.6, seq+0.6)
+        plt.plot(xx, fun(xx), 'b--')
+        plt.plot(iv, fun(iv), 'bo')
+        plt.plot(xx, a*xx**3+b*xx**2+c*xx+d, 'r-')
+        plt.plot(iv, a*iv**3+b*iv**2+c*iv+d, 'ro')
         plt.show()
         '''
 
@@ -1439,18 +1320,18 @@ class RCPTrack(Track):
         return np.array(xy_vec), np.array(v_vec), np.array(heading_vec)
 
     def predict_opponent(self, state, p, dt, reverse=False):
-        ''' Predict an opponent car's future trajectory, assuming they are on ref raceline 
+        ''' Predict an opponent car's future trajectory, assuming they are on ref raceline
             and will remain there, traveling at current speed
         Args:
             state: opponent vehicle state, same as in self.local_trajectory()
-            p : lookahead steps
-            dt : time between each lookahead steps
+            p: lookahead steps
+            dt: time between each lookahead steps
 
         Returns:
-            xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point 
+            xref: np array of size(p+1)*2, there are p+1 entries because xref0 is the ref point
             for current location, and then there are p projection points
-            valid : a boolean indicating whether the function was able to find a valid result
-            The function first finds a point on trajectory closest to vehicle location with 
+            valid: a boolean indicating whether the function was able to find a valid result
+            The function first finds a point on trajectory closest to vehicle location with
             local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart
             in path length. vk is the reference velocity at those points
         '''

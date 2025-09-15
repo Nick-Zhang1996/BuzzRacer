@@ -374,15 +374,17 @@ class QpSmooth(RCPTrack):
 
         return img
 
-    def check_track_boundary(self, coord, n, delta_max, offset=0):
-        '''
-            # input:
-            # coord: r=(x,y) unit:m
-            # n: normal direction vector n, NOTE |n|!=1
-            # delta_max: upper bound for returned value
-            # offset: offset from positive boundary
-            # return:
-            # F,R such that r+F*n and r-R*n are boundaries of the track
+    def check_track_boundary_along_dir(self, coord, n, delta_max=np.inf, offset=0):
+        ''' Find positive distance to left / right boundary, whichever is larger.
+
+        Args:
+            coord: (x,y)
+            n:     Normal direction to measure the boundary distance along
+            delta_max: Upper bound for returned value, return min(delta_max, val) instead
+            offset: Offset / shrink amount for the boundary to get tighter boundary
+        Returns:
+            F,R: Distance to left/right boundary.  
+                Such that coord+F*n and coord-R*n are offseted boundaries of the track
         '''
         # since we use 1/sin and 1/cos
         # if n[0]or n[1] = 0, then there's numerical instability
@@ -815,7 +817,7 @@ class QpSmooth(RCPTrack):
             delta_max = 5e-2
             for i in range(N):
                 coord = self.break_pts[i]
-                F, R = self.check_track_boundary(
+                F, R = self.check_track_boundary_along_dir(
                     coord, self.n[i], delta_max, offset)
                 h1.append(F)
                 h2.append(R)
@@ -879,9 +881,9 @@ class QpSmooth(RCPTrack):
         # retval = self.generate_speed_profile()
         retval = self.generate_speed_profile(
             mu=1.2, acc_max_fun=lambda x: 8.0, dec_max_fun=lambda x: 3.3)
-        self.targetVfromU = speed_profile_fun = retval['speed_profile_fun']
-        self.max_v = retval['max_v']
-        self.min_v = retval['min_v']
+        self.targetVfromU = speed_profile_fun = retval.speed_profile_fun
+        self.max_v = retval.max_v
+        self.min_v = retval.min_v
 
         self.verify_speed_profile(speed_profile_fun=speed_profile_fun)
         if save_gif:

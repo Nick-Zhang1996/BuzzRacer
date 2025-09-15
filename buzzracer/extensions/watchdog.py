@@ -1,7 +1,10 @@
 ''' Extension to terminate experiment if stuck or something goes wrong'''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class Watchdog(Extension):

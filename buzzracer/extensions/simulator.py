@@ -1,4 +1,6 @@
 ''' Base class for all simulators '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from time import time, sleep
 from enum import Enum, unique
 from abc import ABC, abstractmethod
@@ -7,9 +9,10 @@ import numpy as np
 
 from buzzracer.common import ExperimentType
 from buzzracer.extensions.extension import Extension
-from buzzracer.cars.car import Car
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, CurvilinearState, Control
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 @unique

@@ -3,11 +3,15 @@ Refer to paper
 The Kinematic Bicycle Model: 
     a Consistent Model for Planning Feasible Trajectories for Autonomous Vehicles
 '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 from buzzracer.extensions.simulator import Simulator
 from buzzracer.types import CartesianState, Control
-from buzzracer.cars.car import Car
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class KinematicBicycleCartesianSimulator(Simulator):
@@ -20,11 +24,6 @@ class KinematicBicycleCartesianSimulator(Simulator):
 
     def __init__(self):
         super().__init__()
-        KinematicBicycleCartesianSimulator.dt = self.main.dt
-
-        # for when a specific car instance is not speciied
-        self.lr = 45e-3
-        self.lf = 45e-3
         self.simple_throttle_model = False
 
     def init(self):

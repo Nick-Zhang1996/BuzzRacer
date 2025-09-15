@@ -1,16 +1,20 @@
 ''' Dynamic bicycle model with pacjka tire model'''
 # pylint: disable-next=line-too-long
 # Ref:https://ftp.idu.ac.id/wp-content/uploads/ebook/tdg/TERRAMECHANICS%20AND%20MOBILITY/epdf.pub_vehicle-dynamics-and-control-2nd-edition.pdf
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from math import sin, cos
 
 import numpy as np
 
-from buzzracer.cars.car import Car
 from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 from buzzracer.sysid.tire import tire_curve
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class DynamicBicycleModelCartesian(VehicleDynamics):
@@ -36,11 +40,11 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
         Return:
             states at next timestep
         '''
-        lf = car.lf
-        lr = car.lr
+        lf = car.params.lf
+        lr = car.params.lr
 
-        Iz = car.Iz
-        m = car.m
+        Iz = car.params.Iz
+        m = car.params.m
 
         # for small longitudinal velocity use kinematic model
         # to avoid numerical instability caused by 1/vx
@@ -109,11 +113,11 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         if state.v_forward < 0.1:
             return KinematicBicycleModelFrenet.advance_dynamics(state, control, car, dt, curvature)
 
-        lf = car.lf
-        lr = car.lr
+        lf = car.params.lf
+        lr = car.params.lr
 
-        Iz = car.Iz
-        m = car.m
+        Iz = car.params.Iz
+        m = car.params.m
 
         dsdt = (state.v_forward * np.cos(state.heading_err)
                 - state.v_sideway * np.sin(state.heading_err)

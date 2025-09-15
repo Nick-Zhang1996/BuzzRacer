@@ -323,20 +323,20 @@ class ctrlMppiWrapper(car):
         # left pos(+)
         steering = control[1]
 
-        lf = self.lf
-        lr = self.lr
-        L = self.L
+        lf = self.params.lf
+        lr = self.params.lr
+        L = self.params.L
 
-        Df = self.Df
-        Dr = self.Dr
-        B = self.B
-        C = self.C
-        Cm1 = self.Cm1
-        Cm2 = self.Cm2
-        Cr = self.Cr
-        Cd = self.Cd
-        Iz = self.Iz
-        m = self.m
+        Df = self.params.Df
+        Dr = self.params.Dr
+        B = self.params.B
+        C = self.params.C
+        Cm1 = self.params.Cm1
+        Cm2 = self.params.Cm2
+        Cr = self.params.Cr
+        Cd = self.params.Cd
+        Iz = self.params.Iz
+        m = self.params.m
 
         # forward
         vx = vxg*cos(heading) + vyg*sin(heading)

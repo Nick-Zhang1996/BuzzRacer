@@ -1,30 +1,26 @@
-# code to communicate with offboard miniz
-# An updated version of this file can be found at:
-# https://github.com/Nick-Zhang1996/miniz-board/blob/main/Offboard.py
-from common import *
-import socket
-from struct import pack, unpack
-import numpy as np
-# from time import clock_gettime_ns, CLOCK_REALTIME,time,sleep
-from time import time, sleep, time_ns
-from math import degrees, radians
+''' Subclass of Car for the offboard miniz (audi 11, 12) equipped with Nano 33 IoT '''
+from __future__ import annotations
 
-from threading import Thread, Event, Lock
+import socket
 import select
 import queue
-from .car import Car
+from time import time, time_ns
+from struct import pack, unpack
+from threading import Thread, Event
+
+from buzzracer.common import PrintObject
+from buzzracer.cars.car import Car, CarParams
 
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages
 
 
 class OffboardPacket(PrintObject):
+    ''' UDP packet structure for comms between car and PC'''
     out_seq_no = 0
     packet_size = 64
 
     def __init__(self):
-        # self.print_debug_enable()
-        # actual whole packet
         self.seq_no = None
         self.type = None
         self.subtype = None
@@ -34,13 +30,22 @@ class OffboardPacket(PrintObject):
         self.payload = None
         # package encoded ts
         self.ts = None
-        return
+
+        self.steering = 0
+        self.throttle = 0
+        self.steering_requested = 0
+        self.steering_measured = 0
+
+        self.sensor_update = 0
+        self.steering_P = 0
+        self.steering_I = 0
+        self.steering_D = 0
 
     def empty_payload(self):
         self.payload = b''
 
-    # encode all fields into .packet
     def make_packet(self):
+        ''' Encode all fields into .packet '''
         self.seq_no = OffboardPacket.out_seq_no
         self.ts = int(time_ns() / 1000) % 4294967295
         # B: uint8_t
@@ -49,6 +54,7 @@ class OffboardPacket(PrintObject):
         # f: float (4 Byte)
         # d: double (8 Byte)
         # x: padding (1 Byte)
+        # NOTE if anything changes here, the car firmware needs to be updated too
         header = pack('IIBBBB', self.seq_no, self.ts,
                       self.dest_addr, self.src_addr, self.type, self.subtype)
         padding_size = OffboardPacket.packet_size - \
@@ -63,26 +69,26 @@ class OffboardPacket(PrintObject):
         header = packet[:12]
         self.seq_no, self.ts, self.dest_addr, self.src_addr, self.type, self.subtype = unpack(
             'IIBBBB', header)
-        if (self.type == 0):
+        if self.type == 0:
             # ping packet
-            if (self.subtype == 0):
+            if self.subtype == 0:
                 # ping request
                 pass
-            elif (self.subtype == 1):
+            elif self.subtype == 1:
                 # ping response
                 pass
-        if (self.type == 1):
+        if self.type == 1:
             self.throttle, self.steering = unpack('ff', packet[12:20])
 
         # sensor update
-        if (self.type == 2):
+        if self.type == 2:
             self.steering_requested, self.steering_measured = unpack(
                 'ff', packet[12:20])
             # self.print_info('sensor update',self.steering_requested, self.steering_measured)
 
         # parameter
-        if (self.type == 3):
-            if (self.subtype == 0):
+        if self.type == 3:
+            if self.subtype == 0:
                 sensor_update, steering_P, steering_I, steering_D = unpack(
                     '?fff', packet[12:12+4+3*4])
                 self.print_info('parameter response')
@@ -98,96 +104,75 @@ class OffboardPacket(PrintObject):
 
 
 class Offboard(Car):
+    ''' Subclass of Car to handle communication with Offboard Cars'''
     available_local_port = 58998
 
     def __init__(self, main):
-        # self.print_debug_enable()
         Car.__init__(self, main)
 
-    # parameter initialization, this will run immediately after self.params is set
-    # put all parameters here.
-    def init_param(self):
-        # default physics properties
-        # used when a specific car subclass is not speciied
-        self.L = 0.09
-        self.lf = 0.04824
-        self.lr = self.L - self.lf
-
-        # self.Iz = 417757e-9
-        self.m = 0.1667
-        self.Iz = 1/12 * self.m * (0.15**2 + 0.1 ** 2)
-
-        # ethCarsim moved for ccmppi
-
-        # tire model
-        self.Df = 3.93731
-        self.Dr = 6.23597
-        self.C = 2.80646
-        self.B = 0.51943
-        # motor/longitudinal model
-        self.Cm1 = 6.03154
-        self.Cm2 = 0.96769
-        self.Cr = -0.20375
-        self.Cd = 0.00000
-
-        self.width = 0.0461
-        self.wheelbase = 98e-3
-
-        for key in self.params.keys():
-            setattr(self, key, self.params[key])
-
-        self.car_ip = self.params['ip']
-        self.optitrack_id = self.params['optitrack_streaming_id']
-
-    def init_hardware(self):
+        # Network related attributes
         self.car_port = 2390
-        self.init_socket()
-        self.init_log()
+        ''' Network port on the car'''
+        self.local_ip = '192.168.10.3'
+        self.car_ip = None
+        ''' To be set by parameters '''
+        self.local_port = Offboard.available_local_port
+        Offboard.available_local_port += 1
+        self.sock = None
+        self.last_sent_ts = 0
+        ''' Timestamp for last packet sent, unit:us'''
+        self.last_response_ts = 0
+        ''' Timestamp for last packet received, unit:us'''
 
-        # threading
         self.child_threads = []
-        # ready to take new command
         self.ready = Event()
+        ''' ready to take new command '''
         self.flag_quit = Event()
         self.out_queue = queue.Queue(maxsize=8)
 
-        self.throttle = 0.0
-        self.steering = 0.0
+        # Log related attributes
+        self.log_t_vec = []
+        self.steering_requested_vec = []
+        self.steering_measured_vec = []
+
+        # Car parameters
+        self.params: CarParams | None = None
+        self.optitrack_id: int = -1
+
+    def init_param(self):
+        ''' Parameter initialization, this will run immediately after self.params is set
+        put all parameters here. '''
+
+        # Rename some params
+        self.car_ip = self.params.car_ip
+        self.optitrack_id = self.params.optitrack_id
+
+    def init_hardware(self):
+        self.init_socket()
 
         # Create a separate thread for handling data packets
-        comm_thread = Thread(target=self.__commThreadFunction, args=(None, ))
-        comm_thread.daemon = True
+        comm_thread = Thread(target=self.__comm_thread_function, daemon=True)
         comm_thread.start()
         self.child_threads.append(comm_thread)
         self.setup()
 
     def init_socket(self):
-        self.local_ip = '192.168.10.3'
-        self.local_port = Offboard.available_local_port
-        Offboard.available_local_port += 1
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # non-blocking
         sock.setblocking(0)
         sock.bind((self.local_ip, self.local_port))
         self.sock = sock
 
-    def init_log(self):
-        self.log_t_vec = []
-        self.steering_requested_vec = []
-        self.steering_measured_vec = []
-
-    # one-time process
-
     def setup(self):
+        ''' One-time packets to send for initialization '''
         # steering servo PID
         # old firmware
         # self.set_param(300.0,0,30)
         # new firmware
         # self.car.set_param(1.5,0,0.05)
-        pass
 
-    def __commThreadFunction(self, arg):
-        self.print_debug('commThread started')
+    def __comm_thread_function(self):
+        self.print_debug('comm trhead started')
         while not self.flag_quit.is_set():
             # send control command
             packet = self.prepare_command_packet(self.throttle, self.steering)
@@ -214,9 +199,10 @@ class Offboard(Car):
                 # wait for at least one packet before sending new commands
                 select.select([self.sock], [], [], 0.1)
                 while True:
+                    # TODO verify addr == self.car_ip
                     data, addr = self.sock.recvfrom(
                         OffboardPacket.packet_size)  # read 1 packet
-                    if (len(data) > 0):
+                    if len(data) > 0:
                         assert len(data) == OffboardPacket.packet_size
                         self.parse_response(data)
                         # self.print_debug('got packet')
@@ -231,16 +217,14 @@ class Offboard(Car):
         self.throttle = 0.0
         self.steering = 0.0
         self.flag_quit.set()
-        # TODO collect thread
-        self.print_info('quitting, waiting for threads to complete')
+        self.print_info('Quitting, waiting for threads to complete')
         for thread in self.child_threads:
             thread.join()
-        self.print_info('quit success')
+        self.print_info('Quit success')
 
     def get_param(self):
         packet = self.prepare_parameter_request_packet()
         self.out_queue.put_nowait(packet)
-        # TODO add Event to wait for response
 
     def set_param(self, p, i, d):
         self.print_info('setting parameters')
@@ -256,6 +240,7 @@ class Offboard(Car):
     def send_packet(self, packet):
         sent_size = self.sock.sendto(
             packet.packet, (self.car_ip, self.car_port))
+        self.print_debug('Sent packet of size %d', sent_size)
         self.last_sent_ts = packet.ts
 
     def parse_response(self, data):
@@ -265,7 +250,7 @@ class Offboard(Car):
         self.last_response_ts = int(time_ns() / 1000) % 4294967295
 
         # sensor update
-        if (packet_type == 2):
+        if packet_type == 2:
             self.log_t_vec.append(time())
             self.steering_requested_vec.append(packet.steering_requested)
             self.steering_measured_vec.append(packet.steering_measured)
