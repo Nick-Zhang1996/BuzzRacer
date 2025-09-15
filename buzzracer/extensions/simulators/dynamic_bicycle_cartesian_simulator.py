@@ -2,7 +2,6 @@
 # page 30 of book Vehicle Dynamics and Control
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from math import sin, cos
 
 import numpy as np
 
