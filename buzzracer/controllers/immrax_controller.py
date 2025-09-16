@@ -2,15 +2,19 @@ from math import isnan, pi
 from Buzzracer.buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
     DynamicBicycleCurvilinear,
 )
-from Buzzracer.buzzracer.types import CartesianState, CurvilinearState
+from Buzzracer.buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
+
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
+
 
 import jax
 import jax.numpy as jnp
 from dataclasses import dataclass
 from functools import partial
 
+# jax.config.update("jax_debug_nans", True)
 PRNG_SEED = 0
 
 
@@ -37,6 +41,12 @@ class CurvatureLib:
         idx = (s / self.ds).astype(int)
         # jax.debug.print("curvature lookup s={:.2f}, idx={}", s, idx)
         return self.buffer[(idx)]
+
+class TempCar():
+    def __init__(self, lr, lf):
+        self.lr = lr
+        self.lf = lf
+    
 
 
 class ImmraxController(CarController):
@@ -94,9 +104,9 @@ class ImmraxController(CarController):
         self.lateral_err_penalty_weight = 1.0
         self.track_width = 0.4  # FIXME: this should be read from track
 
+        # TODO: I do not expect to need these long term, should remove eventually
         self.track = car.main.track
-
-        self.track = car.main.track
+        self.car_ref = TempCar(car.lr, car.lf)
 
     def control(self):
         curv_state = self.track.cart_to_curv(CartesianState(*self.car.state))
@@ -137,19 +147,109 @@ class ImmraxController(CarController):
         heading = state[2]
         vf = state[3]
 
-        self.planned_controls, traj, self.prng_key = self.update_planned_controls(
-            sim_state, self.planned_controls, self.prng_key
-        )
+        if sim_state[3] > 1:
+            self.planned_controls, traj, self.prng_key = self.update_planned_controls(
+                sim_state, self.planned_controls, self.prng_key
+            )
 
-        ### PLOTTING ###
-        cart_traj = [
-            self.track.curv_to_cart(CurvilinearState(*curv_state))
-            for curv_state in traj
-        ]
-        self.plot_trajectory(cart_traj)
-        ### END PLOTTING ###
+            # return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
 
-        ret = (0, 0, False, {"offset": 0})
+
+            ### PLOTTING ###
+            # dsdts = jnp.diff(traj[:, 0])
+            # max_jump_idx = jnp.argmax(dsdts)
+            # max_jump = dsdts[max_jump_idx]
+            # if max_jump > 5:
+            #     print(f"ERROR: huge jump in immrax ({max_jump})")
+            #
+            #     x = traj[max_jump_idx]
+            #     u = self.planned_controls[max_jump_idx]
+            #     dx = self.predictor.f(0, x, u, jnp.array([0, 0]), self.curvature(0, x))
+            #
+            #     curv_state = CurvilinearState(*x)
+            #     curv_state = KinematicBicycleModelFrenet.advance_dynamics(
+            #         curv_state,
+            #         Control(u[1], u[0]),
+            #         self.car,
+            #         dt=self.planning_dt,
+            #         curvature=self.curvature(0, x),
+            #     )
+            #     xp1 = jnp.array([*curv_state])
+            #     buzz_dx = (xp1 - x) / self.planning_dt
+
+            # print(f"Computed dynamics:\nmy dx={dx},\nbuzz_dx={buzz_dx}")
+
+            curv_state = CurvilinearState(*sim_state)
+            curv_traj = [curv_state]
+
+            for i in range(self.planning_horizon):
+                curv_state = KinematicBicycleModelFrenet.advance_dynamics(
+                    curv_state,
+                    Control( 
+                        steering=self.planned_controls[i, 0],
+                        throttle=self.planned_controls[i, 1],
+                    ),
+                    self.car_ref,
+                    dt=self.planning_dt,
+                    # curvature=self.curvature(0, jnp.array([*curv_state])),
+                    curvature=0,
+                )
+                curv_traj.append(curv_state)
+
+                jump_size = (
+                    curv_state.progress - curv_traj[-2].progress
+                ) / self.planning_dt
+                if jump_size > 5:
+                    print(f"ERROR: huge jump in buzzracer ({jump_size})")
+                buzz_dsdt = (
+                    curv_state.progress - curv_traj[-2].progress
+                ) / self.planning_dt
+
+                # # compare to my dynamics
+                # progress, lateral_err, heading_err, v_forward, v_sideway, rel_omega = curv_state
+                # steering, throttle = self.planned_controls[i]
+                # dsdt = (
+                #     v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
+                # ) / (1 - lateral_err * self.curvature(0, sim_state))
+
+            cart_traj = [
+                self.track.curv_to_cart(curv_state) for curv_state in curv_traj
+            ]
+
+            # for i in range(self.planning_horizon):
+            #     print(jnp.array([*cart_traj[i]]) - traj[i])
+
+            # TODO: compare cart_traj[0] to sim_state to traj[0]
+            # Before and after curv to cart conversion?
+            # print(
+            #     f"buzzracer traj:\t{jnp.array([*curv_traj[0]])},\nimmrax traj:\t{traj[0]},\nsim_state:\t{jnp.array([*sim_state])}"
+            # )
+            # print()
+
+            self.plot_trajectory(cart_traj)
+
+            # print(f"{self.curvature(0, sim_state)}*{state[1]}={self.curvature(0, sim_state)*state[1]}")
+            # control_action = lambda t, x: self.planned_controls[
+            #     jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
+            # ]
+            #
+            # traj = self.predictor.compute_trajectory(
+            #     0.0,
+            #     self.planning_horizon * self.planning_dt,
+            #     jnp.array([*sim_state]),
+            #     (control_action, self.disturbance, lambda t, x: 0),
+            #     # (control_action, self.disturbance, self.curvature),
+            #     dt=self.planning_dt,
+            #     solver="euler",
+            # )  # NOTE: this is assuming the system is time-invariant
+
+            cart_traj = [
+                self.track.curv_to_cart(CurvilinearState(*curv_state))
+                for curv_state in traj
+                # for curv_state in traj.ys
+            ]
+            # self.plot_trajectory(cart_traj, color=(0, 0, 255))
+            ### END PLOTTING ###
 
         # inquire information about desired trajectory close to the vehicle
         retval = track.local_trajectory(state)
@@ -196,19 +296,9 @@ class ImmraxController(CarController):
         return ret
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
-        throttle_key, steering_key, next_key = jax.random.split(prng_key, 3)
-        sampled_throttle = jnp.clip(
-            planned_controls[:, 0]
-            + self.throttle_bounds.std
-            * jax.random.normal(
-                throttle_key,
-                shape=(self.num_samples, self.planning_horizon),
-            ),
-            self.throttle_bounds.min,
-            self.throttle_bounds.max,
-        )  # TODO: may want to consider steady_state_throttle explicitly
+        steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
         sampled_steering = jnp.clip(
-            planned_controls[:, 1]
+            planned_controls[:, 0]
             + self.steering_bounds.std
             * jax.random.normal(
                 steering_key,
@@ -217,9 +307,18 @@ class ImmraxController(CarController):
             self.steering_bounds.min,
             self.steering_bounds.max,
         )
+        sampled_throttle = jnp.clip(
+            planned_controls[:, 1]
+            + self.throttle_bounds.std
+            * jax.random.normal(
+                throttle_key,
+                shape=(self.num_samples, self.planning_horizon),
+            ),
+            self.throttle_bounds.min,
+            self.throttle_bounds.max,
+        )  # TODO: may want to consider steady_state_throttle explicitly
 
-        return jnp.stack([sampled_throttle, sampled_steering], axis=-1), next_key
-        # print(self.sampled_controls[:, :, 0])
+        return jnp.stack([sampled_steering, sampled_throttle], axis=-1), next_key
 
     def rollout_sampled_trajectory(self, x0, control_traj):
         control_action = lambda t, x: control_traj[
@@ -230,8 +329,10 @@ class ImmraxController(CarController):
             0.0,
             self.planning_horizon * self.planning_dt,
             x0,
-            (control_action, self.disturbance, self.curvature),
+            (control_action, self.disturbance, lambda t, x: 0),
+            # (control_action, self.disturbance, self.curvature),
             dt=self.planning_dt,
+            solver="euler",
         )  # NOTE: this is assuming the system is time-invariant
         return traj
 
@@ -239,6 +340,12 @@ class ImmraxController(CarController):
         # NOTE: can't use traj.ys here since we are inside jitted code - should consider rework
         progress = traj._ys[self.planning_horizon - 1, 0] - state[0]
         lateral_err = traj._ys[: self.planning_horizon, 1]
+
+        # conditional_log(
+        #     jnp.any(jnp.isnan(traj._ys[0])),
+        #     "NaN in planned trajectory!",
+        # )
+        # jax.debug.print("{}", jnp.any(jnp.isnan(traj._ys[:self.planning_horizon])))
 
         progress_reward = self.progress_reward_weight * progress**2
         lateral_err_penalty = jnp.sum(

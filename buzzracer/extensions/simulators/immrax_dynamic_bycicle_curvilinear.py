@@ -16,7 +16,6 @@ def tire_curve(slip):
     retval = D * jnp.sin(C * jnp.arctan(B * slip))
     return retval
 
-
 class DynamicBicycleCurvilinear(System):
     max_v: float = 3.0
 
@@ -94,9 +93,10 @@ class DynamicBicycleCurvilinear(System):
 
             return dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega
 
-        dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
-            v_forward < 0.1, kinematic_model, dynamic_model
-        )
+        # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
+        #     v_forward < 0.1, kinematic_model, dynamic_model
+        # )
+        dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = kinematic_model()
 
         return jnp.array(
             [dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega]
