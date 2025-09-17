@@ -78,7 +78,7 @@ class Gifsaver(Extension):
         self.print_ok(self.prefix() + 'saving final frame')
 
         self.print_ok('saving gif.. This may take a while')
-        gif_filename = '../gifs/test' + str(self.log_no) + '.gif'
+        gif_filename = os.path.join(BASEDIR, 'gifs', f'run{self.log_no}.gif')
         self.gifimages[0].save(fp=gif_filename,
                                format='GIF',
                                append_images=self.gifimages,
