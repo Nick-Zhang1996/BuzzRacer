@@ -9,7 +9,7 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.types import CartesianState
 
 
-logger = get_logger('Car')
+_logger = get_logger('Car')
 
 
 class CarParams(NamedTuple):
@@ -189,7 +189,7 @@ class Car(PrintObject, LogObject):
             self.steering = 0.0
         else:
             self.controller.control()
-            self.text_logger.debug('T=%4.1f, S=%4.1f deg' % (self.throttle, degrees(self.steering)))
+            _logger.debug('T=%4.1f, S=%4.1f deg' % (self.throttle, degrees(self.steering)))
 
         if self.main.slowdown.is_set():
             self.throttle = 0.0
@@ -209,7 +209,7 @@ class Car(PrintObject, LogObject):
             # pylint: disable-next=exec-used
             exec('from buzzracer.cars import '+hardware_class_text)
         except IndexError:
-            logger.warning('no hardware specified')
+            _logger.warning('no hardware specified')
 
         config_controller = config.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[
@@ -219,7 +219,7 @@ class Car(PrintObject, LogObject):
             init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            logger.warning('Car: no initial state specified, using track default')
+            _logger.warning('Car: no initial state specified, using track default')
             init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
 
         config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
