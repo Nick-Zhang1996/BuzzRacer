@@ -22,7 +22,7 @@ class ExperimentType(Enum):
 
 class LogObject:
     """ Base class for logging attributes of a class recursively.
-    
+
     To use this, user need to add LogObject as a parent class for the class
     they wish to log.
 
@@ -85,9 +85,9 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{prefix} {levelname}: {message}{RESET}"
 
 
-def get_logger(name: str):
+def get_logger(name: str, level=logging.INFO):
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)  # set min log level
+    logger.setLevel(level)  # set min log level
 
     # avoid duplicate handlers if already configured
     if not logger.handlers:
@@ -202,6 +202,7 @@ def angular_difference(a, b):
     while angle_diff < -np.pi:
         angle_diff += 2 * np.pi
     return angle_diff
+
 
 def wrap(val):
     ''' Wrap angle to [-pi,pi]
