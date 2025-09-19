@@ -61,23 +61,12 @@ class VisualizationGL(Extension):
         self.moderngl_thread.start()
 
     def _moderngl_thread_function(self):
-        try:
-            Window = moderngl_window.find_window_classes()[0]
-            window = Window(title=_WindowConfig.title,
-                            size=self.img_track.shape[:2])
-            _WindowConfig.wnd = window
-            timer = Timer()
-            vis_instance = _WindowConfig(
-                ctx=window.ctx, wnd=window, timer=timer, host=self)
-
-            while not window.is_closing and not self.main.exit_request.is_set():
-                current_time, frame_time = timer.next_frame()
-                vis_instance.render(current_time, frame_time)
-                window.swap_buffers()
-        finally:
-            if 'window' in locals() and not window.is_closing:
-                window.destroy()
-            self.print_debug("Visualization thread: Window destroyed.")
+        _WindowConfig.host = self
+        # Don't really need args, but must provide a non-empty one so it doesn't
+        # try to parse the actual sys.argv
+        rows, cols = self.img_track.shape[:2]
+        _WindowConfig.window_size = (cols, rows)
+        moderngl_window.run_window_config(_WindowConfig, args=['-wnd', 'pyglet'])
 
     def post_init(self,):
         # self.save_blank_img()
@@ -156,7 +145,7 @@ class VisualizationGL(Extension):
         return self.img_track
 
     def get_car_img(self):
-        return [car.img for car in self.main.cars]
+        return [car.image for car in self.main.cars]
 
 
 class _WindowConfig(moderngl_window.WindowConfig):
@@ -169,25 +158,24 @@ class _WindowConfig(moderngl_window.WindowConfig):
     title = "BuzzRacer"
     resizable = True
     # The window size will be set dynamically from the track image
+    host = None
+    ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
-    def __init__(self, ctx, wnd, timer, host):
-        super().__init__(ctx=ctx, wnd=wnd, timer=timer)
-        self.host = host
-        ''' Access point to VisualizationGL instance to retrieve current car/track state '''
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         # --- Shaders ---
         # A single, versatile program for drawing textured sprites or solid colors.
         self.prog = self.ctx.program(
             vertex_shader="""
                 #version 330
-                in vec2 in_vert;
-                in vec2 in_uv;
+                in vec2 in_position;
+                in vec2 in_texcoord_0;
                 out vec2 uv;
                 uniform mat4 model; // Transform for object (translate, rotate, scale)
-                uniform mat4 view;  // Transform for camera (orthographic projection)
                 void main() {
-                    gl_Position = view * model * vec4(in_vert, 0.0, 1.0);
-                    uv = in_uv;
+                    gl_Position = model * vec4(in_position, 0.0, 1.0);
+                    uv = in_texcoord_0;
                 }
             """,
             fragment_shader="""
@@ -212,25 +200,18 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # --- Uniforms ---
         # Get locations of shader variables for quick access
         self.model_matrix_loc = self.prog['model']
-        self.view_matrix_loc = self.prog['view']
         self.color_loc = self.prog['color']
         self.use_texture_loc = self.prog['use_texture']
         self.prog['tex'].value = 0  # Tell the shader to use texture unit 0
 
         # --- Geometry ---
         # A single unit quad is sufficient; we'll transform it for every object.
-        self.quad = geometry.quad_2d(size=(1.0, 1.0))
+        self.quad = geometry.quad_2d(size=(2.0, 2.0))
 
         # --- Textures ---
         self.bg_texture = self.texture_from_image(self.host.get_background_img())
 
         self.car_textures = [self.texture_from_image(img) for img in self.host.get_car_img()]
-
-        # --- View Matrix (Orthographic Projection) ---
-        # This matrix maps your track's pixel coordinates directly to the screen space.
-        width, height = self.window_size
-        ortho_matrix = self.ortho(0, width, height, 0, -1, 1)
-        self.view_matrix_loc.write(ortho_matrix.astype('f4'))
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
@@ -238,9 +219,10 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # car_img = Image.open(car.params.rendering).convert("RGBA")
         # texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
         rgba = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).convert("RGBA")
+        print(rgba.size)
         return self.ctx.texture(rgba.size, 4, rgba.tobytes())
 
-    def render(self, time: float, frame_time: float):
+    def on_render(self, time: float, frame_time: float):
         """The main drawing method, called automatically every frame."""
         self.ctx.clear(0.1, 0.1, 0.1)
         self.ctx.enable(moderngl.BLEND)
@@ -248,8 +230,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # 1. Draw the background
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
-        width, height = self.window_size
-        model = self.create_transform_matrix(pos=(width / 2, height / 2), scale=(width, height))
+        # model = self.create_transform_matrix(pos=(width / 2, height / 2))
+        model = self.create_transform_matrix()
         self.model_matrix_loc.write(model.astype('f4'))
         self.quad.render(self.prog)
 
@@ -257,9 +239,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # self.draw_obstacles()
 
         # 3. Draw each car and its dynamic UI
-        for i, car in enumerate(self.host.main.cars):
-            self.draw_car(car, i)
-            self.draw_car_ui(car, i)
+        # for i, car in enumerate(self.host.main.cars):
+        #     self.draw_car(car, i)
+        #     self.draw_car_ui(car, i)
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""
@@ -371,24 +353,13 @@ class _WindowConfig(moderngl_window.WindowConfig):
     @staticmethod
     def create_transform_matrix(pos=(0, 0), rot=0, scale=(1, 1)):
         """Creates a 2D model matrix for position, rotation, and scale."""
-        cos_r, sin_r = cos(np.radians(rot)), sin(np.radians(rot))
+        cos_r, sin_r = cos(rot), sin(rot)
         return np.array([
             [scale[0] * cos_r, -scale[1] * sin_r, 0, 0],
             [scale[0] * sin_r,  scale[1] * cos_r, 0, 0],
             [0, 0, 1, 0],
             [pos[0], pos[1], 0, 1]
-        ], dtype='f4').T
-
-    @staticmethod
-    def ortho(left, right, bottom, top, near=-1, far=1):
-        """Creates an orthographic projection matrix."""
-        return np.array([
-            [2 / (right - left), 0, 0, 0],
-            [0, 2 / (top - bottom), 0, 0],
-            [0, 0, -2 / (far - near), 0],
-            [-(right + left) / (right - left), -(top + bottom) /
-             (top - bottom), -(far + near) / (far - near), 1]
-        ], dtype='f4').T
+        ], dtype='f4', order='C')
 
     def final(self):
         """Clean up GPU resources."""

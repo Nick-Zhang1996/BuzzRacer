@@ -6,6 +6,7 @@ import os
 from time import time
 from threading import Thread, Event
 from math import sin, cos
+import logging
 
 import pickle
 import numpy as np
@@ -21,6 +22,7 @@ class Laptimer(Extension):
 
     def __init__(self):
         Extension.__init__(self, 'laptimer')
+        self.text_logger.setLevel(logging.WARNING)
 
         cars = self.main.cars
         self.laptime_mean_by_car: dict[Car, float] = {car: 0 for car in cars}
