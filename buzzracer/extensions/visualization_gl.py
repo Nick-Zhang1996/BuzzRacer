@@ -3,6 +3,8 @@
     operations to the GPU.
 '''
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import os
 from math import degrees, sin, cos
 import pickle
@@ -11,13 +13,14 @@ from threading import Event, Thread
 import moderngl
 import moderngl_window
 from moderngl_window import geometry
-from moderngl_window.timers.clock import Timer
 import numpy as np
 from PIL import Image
 import cv2
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 class VisualizationGL(Extension):
@@ -44,19 +47,11 @@ class VisualizationGL(Extension):
         self.img_blank_track = img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(
             img_track.copy())
-        img_track = self.main.track.draw_raceline(img=img_track)
-
-        img = img_track.copy()
-        for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
-            car.image = cv2.imread(filename, -1)
-            if car.image is None:
-                self.print_error(f'Failed to load car image from {filename}')
-            # img = self.draw_car(img, car)
-
+        self.img_track = self.main.track.draw_raceline(img=img_track)
+        # img = img_track.copy()
         # draw static components onto background
-        self.img_track = self.draw_control_static_for_all_cars(img_track)
-        self.visualization_img = img
+        # self.img_track = self.draw_control_static_for_all_cars(img_track)
+        # self.visualization_img = img
         self.moderngl_thread = Thread(target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
 
@@ -120,7 +115,7 @@ class VisualizationGL(Extension):
 
     def overlay_car_rendering_raw(self, img, car, src, angle=np.pi/2):
         ''' Overlay Car rendering at specified location in pixel coord, for plotting controls '''
-        height, width = car.image.shape[:2]
+        height, width = self.car_textures[car].size
         center = (width/2, height/2)
         # dynamic scale
         scale = 40.0/height/200.0*self.track.resolution/0.0461*car.params.width
@@ -142,6 +137,7 @@ class VisualizationGL(Extension):
         return bg_img
 
     def get_background_img(self):
+        # return np.random.randint(0, 255, (400, 400, 3), dtype=np.uint8)
         return self.img_track
 
     def get_car_img(self):
@@ -156,8 +152,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
     operations to the GPU.
     """
     title = "BuzzRacer"
-    resizable = True
-    # The window size will be set dynamically from the track image
+    resizable = False
     host = None
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
@@ -196,6 +191,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
                 }
             """
         )
+        self.ctx.gc_mode = 'context_gc'
 
         # --- Uniforms ---
         # Get locations of shader variables for quick access
@@ -211,21 +207,23 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # --- Textures ---
         self.bg_texture = self.texture_from_image(self.host.get_background_img())
 
-        self.car_textures = [self.texture_from_image(img) for img in self.host.get_car_img()]
+        self.car_textures = {}
+        for car in self.host.main.cars:
+            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
+            car_img = Image.open(filename).convert("RGBA")
+            texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
+            self.car_textures[car] = texture
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
-        # Alternatively load with Image.open() directly
-        # car_img = Image.open(car.params.rendering).convert("RGBA")
-        # texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
-        rgba = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).convert("RGBA")
-        print(rgba.size)
+        rgba = Image.fromarray(cv2.cvtColor(cv2.flip(img, 0), cv2.COLOR_BGR2RGB)).convert("RGBA")
         return self.ctx.texture(rgba.size, 4, rgba.tobytes())
 
     def on_render(self, time: float, frame_time: float):
         """The main drawing method, called automatically every frame."""
         self.ctx.clear(0.1, 0.1, 0.1)
         self.ctx.enable(moderngl.BLEND)
+        self.ctx.viewport = (0, 0, self.window_size[0], self.window_size[1])
 
         # 1. Draw the background
         self.bg_texture.use(location=0)
@@ -239,9 +237,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # self.draw_obstacles()
 
         # 3. Draw each car and its dynamic UI
-        # for i, car in enumerate(self.host.main.cars):
-        #     self.draw_car(car, i)
-        #     self.draw_car_ui(car, i)
+        for car in self.host.main.cars:
+            self.draw_car(car)
+            # self.draw_car_ui(car, i)
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""
@@ -260,28 +258,45 @@ class _WindowConfig(moderngl_window.WindowConfig):
         except (AttributeError, IndexError):
             pass  # No obstacles to draw
 
-    def draw_car(self, car, car_index):
-        """Draws the car's sprite."""
-        if car_index >= len(self.car_textures) or self.car_textures[car_index] is None:
-            return
+    def track_to_ndc(self, track_coord: tuple[float, float]):
+        ''' Convert coordinate in track frame to Normalized Device Coordinate (NDC)
+        Args:
+            track_coord: (x,y, ...) coordinate in track frame unit: meters
+        Returns:
+            ndc_coord: (x,y) coordinate in NDC frame
+        '''
+        # track: (0,0), bottom left, (track.x_limit, track.y_limit)
+        # ndc: (-1,-1), (1,1)
+        track = self.host.main.track
+        x_ndc = track_coord[0] / track.x_limit * 2.0 - 1.0
+        y_ndc = track_coord[1] / track.y_limit * 2.0 - 1.0
+        return (x_ndc, y_ndc)
 
-        x, y, heading = car.state[:3]
-        pixel_pos = self.host.main.track.m2canvas((x, y))
-        if pixel_pos is None:
-            return  # Car is off the track
+    def draw_car_pose(self, car: Car, pose: tuple[float, ...]):
+        ''' Draw car at specified pose
+        Args:
+            car: Car object, for finding correct car texture
+            pose: tuple with (x,y,heading(rad), ... )
+        '''
+        # Normalized Display Coordinates [-1,1] * [-1,1], maps to track dimensiosn
+        ndc_coord = self.track_to_ndc(pose)
 
-        self.car_textures[car_index].use(location=0)
+        self.car_textures[car].use(location=0)
         self.use_texture_loc.value = 1
 
         # Scale sprite based on the car's physical width in meters
-        pixel_width = car.params.width * self.host.main.track.resolution
+        # pixel_width = car.params.width * self.host.main.track.resolution
         model = self.create_transform_matrix(
-            pos=pixel_pos,
-            rot=-degrees(heading),  # Y-axis is inverted in pixel coordinates vs math
-            scale=(pixel_width * 1.5, pixel_width)  # TODO: Adjust aspect ratio if needed
+            pos=ndc_coord,
+            rot=-pose[2],  # Y-axis is inverted in pixel coordinates vs math
+            scale=(0.1, 0.1)
         )
         self.model_matrix_loc.write(model.astype('f4'))
         self.quad.render(self.prog)
+
+    def draw_car(self, car):
+        """Draws the car's sprite."""
+        self.draw_car_pose(car, car.state)
 
     def draw_car_ui(self, car, car_index):
         """Draws the dynamic steering and throttle bars for a car."""
@@ -318,7 +333,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.model_matrix_loc.write(model.astype('f4'))
         self.quad.render(self.prog)
 
-    def key_event(self, key, action, modifiers):
+    def on_key_event(self, key, action, modifiers):
         """Handles keyboard inputs."""
         if action != self.wnd.keys.ACTION_PRESS:
             return
@@ -339,6 +354,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
                 else:
                     self.host.main.exit_request.set()
                     self.wnd.close()
+                    # self.final()
             elif command == 'pause':
                 print('Paused. Check console to continue.')
                 input('Press Enter in the console to continue...')

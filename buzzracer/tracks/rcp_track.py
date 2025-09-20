@@ -879,8 +879,8 @@ class RCPTrack(Track):
             # the seq here starts from origin
             seq = -1
             # figure out which u this grid corresponds to
-            for i, seq in enumerate(self.grid_sequence):
-                if nondim[0] == seq[0] and nondim[1] == seq[1]:
+            for i, grid in enumerate(self.grid_sequence):
+                if nondim[0] == grid[0] and nondim[1] == grid[1]:
                     seq = i
                     break
 
