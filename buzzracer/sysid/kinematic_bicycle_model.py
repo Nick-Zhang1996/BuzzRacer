@@ -38,7 +38,7 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
         beta = np.arctan(np.tan(control.steering) * car.params.lr / (car.params.lf + car.params.lr))
         dxdt = state.v_forward * np.cos(state.heading + beta)
         dydt = state.v_forward * np.sin(state.heading + beta)
-        dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
         dheadingdt = state.v_forward * \
             np.cos(beta) / (car.params.lf + car.params.lr) * np.tan(control.steering)
 
@@ -81,7 +81,7 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
         dndt = state.v_forward * np.sin(state.heading_err) + \
             state.v_sideway * np.cos(state.heading_err)
         # acceleration at rear wheel
-        acc_rw = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333)
+        acc_rw = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
         acc_cg = acc_rw / np.cos(beta)
         d_v_forward_dt = acc_cg * np.cos(beta)
         d_v_sideway_dt = acc_cg * np.sin(beta)
