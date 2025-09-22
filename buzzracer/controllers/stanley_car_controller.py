@@ -1,8 +1,9 @@
-from common import *
-from math import isnan, pi, degrees, radians, sin, cos
+''' Stanley controller, see https://ai.stanford.edu/~gabeh/papers/hoffmann_stanley_control07.pdf'''
+
+from math import isnan, pi, sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
-from planner import Planner
+from buzzracer.planner.planner import Planner
 
 
 class StanleyCarController(CarController):
@@ -42,13 +43,12 @@ class StanleyCarController(CarController):
             self.print_info(" controller.",key,'=',value_text)
         '''
 
-        # if there's planner set it up
-        # TODO put this in a parent class constructor
         self.no_planner_override = True
         try:
             config_planner = config.getElementsByTagName('planner')[0]
             planner_class = eval(config_planner.firstChild.nodeValue)
             self.planner = planner_class(config_planner)
+            assert self.planner is Planner
             self.planner.main = self.main
             self.planner.car = self.car
             '''
@@ -58,15 +58,14 @@ class StanleyCarController(CarController):
                 self.print_info(" main.",key,'=',value_text)
             '''
             self.planner.init()
-        except IndexError as e:
+        except IndexError:
             self.print_info('planner not available')
             self.planner = None
 
     def control(self):
-        # TODO do this more carefully
-        if (self.planner is not None):
+        if self.planner is not None:
             retval = self.planner.plan()
-            if (retval):
+            if retval:
                 self.planner.plot_all_solutions()
                 self.no_planner_override = False
             else:
@@ -77,7 +76,8 @@ class StanleyCarController(CarController):
             self.car.state, self.track)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        # self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"%(self.car.id, throttle,degrees(steering)))
+        # self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"
+        # %(self.car.id, throttle,degrees(steering)))
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -89,29 +89,29 @@ class StanleyCarController(CarController):
         # self.predict()
         return valid
 
-# given state of the vehicle and an instance of track, provide throttle and steering output
-# input:
-#   state: (x,y,heading,v_forward,v_sideway,omega)
-#   track: track object, can be RCPTrack or skidpad
-#   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
-#   reverse: true if running in opposite direction of raceline init direction
-
-# output:
-#   (throttle,steering,valid,debug)
-# ranges for output:
-#   throttle -1.0,self.max_throttle
-#   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
-#   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
-#           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
-# debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
     def ctrl_car(self, state, track, v_override=None, reverse=False):
+        ''' Given state of the vehicle and an instance of track,
+        provide throttle and steering output
+        Args:
+          state: (x,y,heading,v_forward,v_sideway,omega)
+          track: track object, can be RCPTrack or skidpad
+          v_override: If specified, use this as target velocity
+          instead of the optimal value provided by track object
+          reverse: true if running in opposite direction of raceline init direction
+
+        Outputs:
+          throttle: [-1.0, self.max_throttle]
+          steering: Steering angle in radians, clipped to self.max_steering, left(+), right(-)
+          valid:    If the car can be controlled here, false if too far off reference.
+                    If this is false, then throttle will also be set to 0
+          debug: A dictionary of objects to be debugged, e.g. {offset, error in v}
+        '''
         coord = (state[0], state[1])
 
         heading = state[2]
-        omega = state[5]
+        # omega = state[5]
         vf = state[3]
-        vs = state[4]
+        # vs = state[4]
 
         # add in a slight lookahead distance
         lookahead = 3e-2
@@ -131,7 +131,8 @@ class StanleyCarController(CarController):
             # return ret
 
         # parse return value from local_trajectory
-        (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
+        # (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
+        (_, offset, orientation, _, v_target) = retval
         # for experiments
         # v_target = min(v_target*0.8, 2.2)
         v_target = min(v_target, self.max_speed)
@@ -144,27 +145,27 @@ class StanleyCarController(CarController):
             orientation += pi
 
         # if vehicle cross error exceeds maximum allowable error, stop the car
-        if (abs(offset) > self.max_offset):
+        if abs(offset) > self.max_offset:
             return (0, 0, False, {'offset': offset})
         else:
             # sign convention for offset: negative offset(-) requires left steering(+)
             # this is the convention used in track class, determined arbituarily
             # control logic
-            # steering = (orientation-heading) - (offset * self.car.P) - (omega-curvature*vf)*self.car.D
+            # steering = (orientation-heading) - (offset * self.car.P)
+            # - (omega-curvature*vf)*self.car.D
             steering = (orientation-heading) - (offset * self.Pfun(abs(vf)))
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi) % (2*pi) - pi
-            if (steering > self.car.max_steering_left):
+            if steering > self.car.max_steering_left:
                 steering = self.car.max_steering_left
-            elif (steering < -self.car.max_steering_right):
+            elif steering < -self.car.max_steering_right:
                 steering = -self.car.max_steering_right
-            if (v_override is None):
+            if v_override is None:
                 throttle = self.calc_throttle(state, v_target)
             else:
                 throttle = self.calc_throttle(state, v_override)
 
-            # ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
             ret = (throttle, steering, True, {})
 
         return ret
@@ -174,8 +175,8 @@ class StanleyCarController(CarController):
         # 0.25 -> 0.94
         # 0.28 -> 1.4
         # 0.31 -> 1.9
-        p = np.array([0.06246385, 0.19171776])
-        if (velocity_ss > 0):
+        p = (0.06246385, 0.19171776)
+        if velocity_ss > 0:
             return velocity_ss * p[0] + p[1]
         else:
             return 0
