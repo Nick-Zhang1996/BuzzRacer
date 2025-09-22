@@ -172,8 +172,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
                 in vec2 in_texcoord_0;
                 out vec2 uv;
                 uniform mat4 model; // Transform for object (translate, rotate, scale)
+                uniform mat4 ortho; // Project from track frame to NDC
                 void main() {
-                    gl_Position = model * vec4(in_position, 0.0, 1.0);
+                    gl_Position = ortho * model * vec4(in_position, 0.0, 1.0);
                     uv = in_texcoord_0;
                 }
             """,
@@ -204,9 +205,15 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.use_texture_loc = self.prog['use_texture']
         self.prog['tex'].value = 0  # Tell the shader to use texture unit 0
 
+        # track_dim_pixel = self.host.img_track.shape[:2]
+        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        # Project matrix from track frame to NDC
+        ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
+        self.prog['ortho'].write(ortho_mtx.astype('f4'))
+
         # --- Geometry ---
-        # A single unit quad is sufficient; we'll transform it for every object.
-        self.quad = geometry.quad_2d(size=(2.0, 2.0))
+        # Full window quad, track coordinate frame
+        self.quad = geometry.quad_2d(size=track_dim_m, pos=(track_dim_m[0]/2, track_dim_m[1]/2))
 
         # --- Textures ---
         self.bg_texture = self.texture_from_image(self.host.get_background_img())
@@ -233,10 +240,22 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # 1. Draw the background
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
-        # model = self.create_transform_matrix(pos=(width / 2, height / 2))
-        model = self.create_transform_matrix()
+        # track_dim_pixel = self.host.img_track.shape[:2]
+        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        model = self.create_transform_matrix(pos=(0, 0),
+                                             scale=(1, 1))
         self.model_matrix_loc.write(model.astype('f4'))
         self.quad.render(self.prog)
+
+        # DEBUG
+        # width, height
+        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
+        pos = (track_dim_m[0]/2, track_dim_m[1]/2)
+        # Bottom left
+        bl = model @ np.array([0, 0, 0, 1.0]).reshape(-1, 1)
+        # Top Right
+        tr = model @ np.array([track_dim_m[0], track_dim_m[1], 0, 1.0]).reshape(-1, 1)
 
         # 2. Draw obstacles (if any)
         # self.draw_obstacles()
@@ -276,6 +295,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
         x_ndc = track_coord[0] / track.x_limit * 2.0 - 1.0
         y_ndc = track_coord[1] / track.y_limit * 2.0 - 1.0
         return (x_ndc, y_ndc)
+
+    def size_to_ndc(self, size_m: tuple[float, float]) -> tuple[float, float]:
+        ''' Convert size in meters (width, height) to size in NDC, accounting for warp'''
+
+    def pixel_to_ndc(self, size_m: tuple[float, float]) -> tuple[float, float]:
+        ''' Convert size in pixels to NDC'''
 
     def draw_car_pose(self, car: Car, pose: tuple[float, ...]):
         ''' Draw car at specified pose
@@ -374,13 +399,24 @@ class _WindowConfig(moderngl_window.WindowConfig):
     @staticmethod
     def create_transform_matrix(pos=(0, 0), rot=0, scale=(1, 1)):
         """Creates a 2D model matrix for position, rotation, and scale."""
+        # input: (x,y,z, 1.0)
         cos_r, sin_r = cos(rot), sin(rot)
         return np.array([
-            [scale[0] * cos_r, -scale[1] * sin_r, 0, 0],
-            [scale[0] * sin_r,  scale[1] * cos_r, 0, 0],
+            [scale[0] * cos_r, -scale[1] * sin_r, 0, pos[0]],
+            [scale[0] * sin_r,  scale[1] * cos_r, 0, pos[1]],
             [0, 0, 1, 0],
-            [pos[0], pos[1], 0, 1]
+            [0, 0, 0, 1]
         ], dtype='f4', order='C')
+
+    @staticmethod
+    def ortho(left, right, bottom, top, near=-1, far=1):
+        # Creates an orthographic projection matrix
+        return np.array((
+            (2 / (right - left), 0, 0, -1),
+            (0, 2 / (top - bottom), 0, -1),
+            (0, 0, 0, 0),
+            (0, 0, 0, 1)
+        ))
 
     def final(self):
         """Clean up GPU resources."""
