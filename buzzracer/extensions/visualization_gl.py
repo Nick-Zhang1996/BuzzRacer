@@ -41,8 +41,12 @@ class VisualizationGL(Extension):
         self.visualization_img = None
         ''' The current visualization image'''
         self.moderngl_thread = None
+        self.car_images = {}
 
     def init(self):
+        for car in self.main.cars:
+            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
+            self.car_images[car] = cv2.imread(filename, -1)
         img_track = self.main.track.draw_track()
         self.img_blank_track = img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(
@@ -115,7 +119,7 @@ class VisualizationGL(Extension):
 
     def overlay_car_rendering_raw(self, img, car, src, angle=np.pi/2):
         ''' Overlay Car rendering at specified location in pixel coord, for plotting controls '''
-        height, width = self.car_textures[car].size
+        height, width = self.car_images[car].shape[:2]
         center = (width/2, height/2)
         # dynamic scale
         scale = 40.0/height/200.0*self.track.resolution/0.0461*car.params.width
@@ -222,6 +226,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
     def on_render(self, time: float, frame_time: float):
         """The main drawing method, called automatically every frame."""
         self.ctx.clear(0.1, 0.1, 0.1)
+        # pylint: disable-next=no-member
         self.ctx.enable(moderngl.BLEND)
         self.ctx.viewport = (0, 0, self.window_size[0], self.window_size[1])
 
