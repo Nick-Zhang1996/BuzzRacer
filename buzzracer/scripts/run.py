@@ -136,10 +136,7 @@ class Main(PrintObject, LogObject):
         t = self.timer
         # -- Extension update --
         t.s()
-        for item in Extension.extensions:
-            t.s(item.name)
-            item.pre_update()
-            t.e(item.name)
+        Extension.pre_update_all(t)
 
         self.new_state_update.wait()
         self.new_state_update.clear()
@@ -151,12 +148,8 @@ class Main(PrintObject, LogObject):
         t.e('control')
 
         # -- Extension update --
-        t.s('update')
-        Extension.update_all()
-        t.e('update')
-        t.s('post')
-        Extension.post_update_all()
-        t.e('post')
+        Extension.update_all(t)
+        Extension.post_update_all(t)
         t.e()
 
 
