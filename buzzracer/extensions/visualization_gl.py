@@ -208,8 +208,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # track_dim_pixel = self.host.img_track.shape[:2]
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         # Project matrix from track frame to NDC
-        ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
-        self.prog['ortho'].write(ortho_mtx.astype('f4'))
+        self.ortho_matrix_loc = self.prog['ortho']
 
         # --- Geometry ---
         # Full window quad, track coordinate frame
@@ -240,22 +239,16 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # 1. Draw the background
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
-        # track_dim_pixel = self.host.img_track.shape[:2]
+        # width, height
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         model = self.create_transform_matrix(pos=(0, 0),
                                              scale=(1, 1))
-        self.model_matrix_loc.write(model.astype('f4'))
-        self.quad.render(self.prog)
+        self.model_matrix_loc.write(model.astype('f4').tobytes())
 
-        # DEBUG
-        # width, height
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
-        pos = (track_dim_m[0]/2, track_dim_m[1]/2)
-        # Bottom left
-        bl = model @ np.array([0, 0, 0, 1.0]).reshape(-1, 1)
-        # Top Right
-        tr = model @ np.array([track_dim_m[0], track_dim_m[1], 0, 1.0]).reshape(-1, 1)
+        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+
+        self.quad.render(self.prog)
 
         # 2. Draw obstacles (if any)
         # self.draw_obstacles()
@@ -308,21 +301,23 @@ class _WindowConfig(moderngl_window.WindowConfig):
             car: Car object, for finding correct car texture
             pose: tuple with (x,y,heading(rad), ... )
         '''
-        # Normalized Display Coordinates [-1,1] * [-1,1], maps to track dimensiosn
-        ndc_coord = self.track_to_ndc(pose)
 
         self.car_textures[car].use(location=0)
         self.use_texture_loc.value = 1
 
         # Scale sprite based on the car's physical width in meters
-        # pixel_width = car.params.width * self.host.main.track.resolution
+        # car image is of size 616 * 442, with the actual car 586 * 242
+        # car physical size is 0.18 * 0.08 -> image physical size 0.19 * 0.146
+        car_quad = geometry.quad_2d(size=(0.19, 0.146))
         model = self.create_transform_matrix(
-            pos=ndc_coord,
-            rot=-pose[2],  # Y-axis is inverted in pixel coordinates vs math
-            scale=(0.1, 0.1)
+            pos=pose,
+            rot=pose[2],
         )
         self.model_matrix_loc.write(model.astype('f4'))
-        self.quad.render(self.prog)
+        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
+        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+        car_quad.render(self.prog)
 
     def draw_car(self, car):
         """Draws the car's sprite."""
@@ -401,22 +396,24 @@ class _WindowConfig(moderngl_window.WindowConfig):
         """Creates a 2D model matrix for position, rotation, and scale."""
         # input: (x,y,z, 1.0)
         cos_r, sin_r = cos(rot), sin(rot)
+        # Transpose because opengl expect column-major, but order='C'
         return np.array([
             [scale[0] * cos_r, -scale[1] * sin_r, 0, pos[0]],
             [scale[0] * sin_r,  scale[1] * cos_r, 0, pos[1]],
             [0, 0, 1, 0],
             [0, 0, 0, 1]
-        ], dtype='f4', order='C')
+        ], dtype='f4').T.copy(order='C')
 
     @staticmethod
     def ortho(left, right, bottom, top, near=-1, far=1):
         # Creates an orthographic projection matrix
+        # Transpose because opengl expect column-major, but order='C'
         return np.array((
-            (2 / (right - left), 0, 0, -1),
-            (0, 2 / (top - bottom), 0, -1),
-            (0, 0, 0, 0),
+            (2 / (right - left), 0, 0, -(right+left)/(right-left)),
+            (0, 2 / (top - bottom), 0, -(top+bottom)/(top-bottom)),
+            (0, 0, -2/(far-near), -(far+near)/(far-near)),
             (0, 0, 0, 1)
-        ))
+        ), dtype='f4').T.copy(order='C')
 
     def final(self):
         """Clean up GPU resources."""
