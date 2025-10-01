@@ -65,13 +65,13 @@ class Simulator(Extension, ABC):
         ''' Elapsed time in simulation'''
         self.cars: Car = []
 
-        if (self.main.experiment_type != ExperimentType.Simulation):
+        if self.main.experiment_type != ExperimentType.Simulation:
             self.print_error(
                 'Experiment type is not Simulation but a Simulator is loaded')
 
         if self.state_noise_enabled:
-            assert (self.state_noise_type is not None)
-            assert (self.state_noise_magnitude is not None)
+            assert self.state_noise_type is not None
+            assert self.state_noise_magnitude is not None
             self.state_noise_magnitude = np.array(self.state_noise_magnitude)
             noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform,
                                  NoiseType.NORMAL: self.add_state_noise_normal,

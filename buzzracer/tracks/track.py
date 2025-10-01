@@ -152,10 +152,11 @@ class Track(ConfigObject):
         else:
             return img
 
-    # draw a polynomial line defined in track space
-    # points: a list of coordinates in format (x,y)
     def draw_polyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
-
+        ''' Draw a polynomial line defined in track space
+            points: a list of coordinates in format (x,y)
+            # TODO add a deprecation warning
+        '''
         if img is None:
             img = np.zeros([int(self.resolution*self.x_limit),
                            int(self.resolution*self.y_limit), 3], dtype='uint8')

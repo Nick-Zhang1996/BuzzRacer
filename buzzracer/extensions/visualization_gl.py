@@ -4,7 +4,8 @@
 '''
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Iterable
 import os
 from math import degrees, sin, cos, radians
 import pickle
@@ -18,6 +19,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import cv2
 from matplotlib import font_manager
+from deprecated import deprecated
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
@@ -44,6 +46,11 @@ class VisualizationGL(Extension):
         ''' The current visualization image'''
         self.moderngl_thread = None
         self.car_images = {}
+        # Maintain two polylines so we always have full set of polylines to render
+        # Otherwise if renderer is called when polyline hasn't been re-created,
+        # then we the displayed polyline will flicker
+        self.polylines: list[Polyline] = []
+        self.new_polylines: list[Polyline] = []
 
     def init(self):
         for car in self.main.cars:
@@ -60,6 +67,10 @@ class VisualizationGL(Extension):
         # self.visualization_img = img
         self.moderngl_thread = Thread(target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
+
+    def post_update(self):
+        self.polylines = self.new_polylines
+        self.new_polylines = []
 
     def _moderngl_thread_function(self):
         _WindowConfig.host = self
@@ -90,18 +101,17 @@ class VisualizationGL(Extension):
             self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)
 
-    def pre_update(self,):
-        # img = self.img_track.copy()
-        # for car in self.main.cars:
-        #     img = self.draw_car(img, car)
-        # img = self.draw_control_for_all_cars(img)
-        # img = self.track.plot_obstacles(img)
-        # self.visualization_img = img
-        pass
-
     # --- opencg draw function for building background ---
-    # nit: move to opengl
 
+    def draw_polyline(self, points, color: tuple[float, ...] = (0, 0, 1, 0)):
+        ''' Draw a polyline from multiple points
+        Args:
+            points: Iterable of (x,y) in track space (unit: m)
+            lineColor: RGBA color, range (0,1)
+        '''
+        self.new_polylines.append(Polyline(points=points, color=color))
+
+    @deprecated
     def draw_control_static_for_all_cars(self, img):
         ''' Draw static visualization components '''
         offset = -10
@@ -111,6 +121,7 @@ class VisualizationGL(Extension):
         self.img_track = img
         return img
 
+    @deprecated
     def draw_control_static(self, img, car, coord):
         ''' Draw static visualization components '''
         # draw car illustration
@@ -119,6 +130,7 @@ class VisualizationGL(Extension):
         img = self.overlay_car_rendering_raw(img, car, (x2, y2))
         return img
 
+    @deprecated
     def overlay_car_rendering_raw(self, img, car, src, angle=np.pi/2):
         ''' Overlay Car rendering at specified location in pixel coord, for plotting controls '''
         height, width = self.car_images[car].shape[:2]
@@ -150,6 +162,13 @@ class VisualizationGL(Extension):
         return [car.image for car in self.main.cars]
 
 
+class Polyline(NamedTuple):
+    points: Iterable
+    ''' Vertices of the polyline of shape [N,2]'''
+    color: tuple[float, float, float, float]
+    ''' R,G,B,A (0-1) color of the line'''
+
+
 class _WindowConfig(moderngl_window.WindowConfig):
     """
     A high-performance visualization extension using ModernGL.
@@ -159,6 +178,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
     """
     title = "BuzzRacer"
     resizable = False
+    vsync = True
     host = None
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
@@ -276,6 +296,26 @@ class _WindowConfig(moderngl_window.WindowConfig):
         for i, car in enumerate(self.host.main.cars):
             self.draw_car(car)
             self.draw_car_ui(car, i)
+        for polyline in self.host.polylines:
+            self.draw_polyline(polyline)
+
+    def draw_polyline(self, polyline: Polyline):
+        ''' Render points as a 1px polyline'''
+        points = np.array(polyline.points, dtype='f4', order='C')
+
+        vbo = self.ctx.buffer(points.tobytes())
+        vao = self.ctx.vertex_array(self.prog, [(vbo, '2f', 'in_position')])
+        self.use_texture_loc.value = 0  # Switch to solid color mode
+        self.color_loc.value = polyline.color
+        model = self.create_transform_matrix(pos=(0, 0),
+                                             scale=(1, 1))
+        self.model_matrix_loc.write(model.astype('f4').tobytes())
+
+        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
+        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+        # In your render loop:
+        vao.render(mode=moderngl.Context.LINE_STRIP, vertices=points.shape[0])
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""
