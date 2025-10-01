@@ -58,8 +58,6 @@ class ExecutionTimer:
         self.g_count += 1
         return
 
-        return duration
-
     def track(self, name, var):
         if not self.enabled:
             return

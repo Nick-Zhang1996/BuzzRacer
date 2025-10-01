@@ -1,5 +1,6 @@
 ''' Base class for extensions'''
 from buzzracer.common import PrintObject, Config
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 
 class Extension(PrintObject):
@@ -88,19 +89,37 @@ class Extension(PrintObject):
             extension.post_init()
 
     @classmethod
-    def pre_update_all(cls):
-        for extension in Extension.extensions:
-            extension.pre_update()
+    def pre_update_all(cls, t: ExecutionTimer = None):
+        if isinstance(t, ExecutionTimer):
+            for extension in Extension.extensions:
+                t.s(extension.name)
+                extension.pre_update()
+                t.e(extension.name)
+        else:
+            for extension in Extension.extensions:
+                extension.pre_update()
 
     @classmethod
-    def update_all(cls):
-        for extension in Extension.extensions:
-            extension.update()
+    def update_all(cls, t: ExecutionTimer = None):
+        if isinstance(t, ExecutionTimer):
+            for extension in Extension.extensions:
+                t.s(extension.name)
+                extension.update()
+                t.e(extension.name)
+        else:
+            for extension in Extension.extensions:
+                extension.update()
 
     @classmethod
-    def post_update_all(cls):
-        for extension in Extension.extensions:
-            extension.post_update()
+    def post_update_all(cls, t: ExecutionTimer = None):
+        if isinstance(t, ExecutionTimer):
+            for extension in Extension.extensions:
+                t.s(extension.name)
+                extension.post_update()
+                t.e(extension.name)
+        else:
+            for extension in Extension.extensions:
+                extension.post_update()
 
     @classmethod
     def pre_final_all(cls):

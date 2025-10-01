@@ -6,16 +6,18 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import os
-from math import degrees, sin, cos
+from math import degrees, sin, cos, radians
 import pickle
 from threading import Event, Thread
 
 import moderngl
+from moderngl import Texture
 import moderngl_window
 from moderngl_window import geometry
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import cv2
+from matplotlib import font_manager
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
@@ -216,6 +218,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
         # --- Textures ---
         self.bg_texture = self.texture_from_image(self.host.get_background_img())
+        self.text_texture = {text: self.texture_from_text(text)
+                             for text in ['ST', 'TH']}
 
         self.car_textures = {}
         for car in self.host.main.cars:
@@ -228,6 +232,21 @@ class _WindowConfig(moderngl_window.WindowConfig):
         ''' Convert final image to an RGBA moderngl texture '''
         rgba = Image.fromarray(cv2.cvtColor(cv2.flip(img, 0), cv2.COLOR_BGR2RGB)).convert("RGBA")
         return self.ctx.texture(rgba.size, 4, rgba.tobytes())
+
+    def texture_from_text(self, text, size=12):
+        font_path = font_manager.findfont("DejaVu Sans")
+        font = ImageFont.truetype(font_path, size=size)
+        bbox = font.getbbox(text)
+        width, height = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        # render text to a Pillow image
+        img = Image.new("RGBA", (width, height*2), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.text((0, 0), text, font=font, fill=(0, 0, 0, 255))
+        img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        # convert to numpy bytes for OpenGL
+        tex = self.ctx.texture(img.size, 4, img.tobytes())
+        tex.build_mipmaps()
+        return tex
 
     def on_render(self, time: float, frame_time: float):
         """The main drawing method, called automatically every frame."""
@@ -254,9 +273,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # self.draw_obstacles()
 
         # 3. Draw each car and its dynamic UI
-        for car in self.host.main.cars:
+        for i, car in enumerate(self.host.main.cars):
             self.draw_car(car)
-            # self.draw_car_ui(car, i)
+            self.draw_car_ui(car, i)
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""
@@ -275,25 +294,31 @@ class _WindowConfig(moderngl_window.WindowConfig):
         except (AttributeError, IndexError):
             pass  # No obstacles to draw
 
-    def track_to_ndc(self, track_coord: tuple[float, float]):
-        ''' Convert coordinate in track frame to Normalized Device Coordinate (NDC)
+    def track_to_pixel(self, track_coord: tuple[float, float]) -> tuple[int, int]:
+        ''' Convert coordinate in track frame to pixel unit
         Args:
             track_coord: (x,y, ...) coordinate in track frame unit: meters
         Returns:
-            ndc_coord: (x,y) coordinate in NDC frame
+            pix_coord: (x,y) coordinate in pixel unit
         '''
         # track: (0,0), bottom left, (track.x_limit, track.y_limit)
-        # ndc: (-1,-1), (1,1)
         track = self.host.main.track
-        x_ndc = track_coord[0] / track.x_limit * 2.0 - 1.0
-        y_ndc = track_coord[1] / track.y_limit * 2.0 - 1.0
-        return (x_ndc, y_ndc)
+        x_pix = int(track_coord[0] / track.x_limit * self.window_size[0])
+        y_pix = int(track_coord[1] / track.y_limit * self.window_size[1])
+        return (x_pix, y_pix)
 
-    def size_to_ndc(self, size_m: tuple[float, float]) -> tuple[float, float]:
-        ''' Convert size in meters (width, height) to size in NDC, accounting for warp'''
-
-    def pixel_to_ndc(self, size_m: tuple[float, float]) -> tuple[float, float]:
-        ''' Convert size in pixels to NDC'''
+    def pixel_to_track(self, pix_coord: tuple[int, int]) -> tuple[float, float]:
+        ''' Convert coordinate in pixel unit to track frame (m)
+        Args:
+            pix_coord: (x,y) coordinate in pixel unit
+        Returns:
+            track_coord: (x,y, ...) coordinate in track frame unit: meters
+        '''
+        # track: (0,0), bottom left, (track.x_limit, track.y_limit)
+        track = self.host.main.track
+        x_track = pix_coord[0] / self.window_size[0] * track.x_limit
+        y_track = pix_coord[1] / self.window_size[1] * track.y_limit
+        return (x_track, y_track)
 
     def draw_car_pose(self, car: Car, pose: tuple[float, ...]):
         ''' Draw car at specified pose
@@ -325,10 +350,10 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
     def draw_car_ui(self, car, car_index):
         """Draws the dynamic steering and throttle bars for a car."""
-        self.use_texture_loc.value = 0  # Solid color mode
-        offset_y = -10 + car_index * 60
-        x1, y1 = (-10 + 30), offset_y
-        green, red = (0, 1, 0, 1), (1, 0, 0, 1)
+        x1 = 100
+        y1 = self.window_size[1] - car_index * 50
+        red = (1, 0, 0, 1)
+        green = (0, 1, 0, 1)
 
         # Helper to map a value from one range to another
         def fmap(val, in_l, in_h, out_low, out_high):
@@ -336,27 +361,70 @@ class _WindowConfig(moderngl_window.WindowConfig):
             val = max(in_l, min(in_h, val))
             return (val - in_l) / (in_h - in_l) * (out_high - out_low) + out_low, oob
 
+        # --- Car Static---
+        self.draw_car_pose(car, (*self.pixel_to_track((x1-80, y1 - 30)), radians(90)))
+        # --- Text ---
+        self.draw_text((x1-60, y1-20), self.text_texture['ST'])
+        self.draw_text((x1-60, y1-40), self.text_texture['TH'])
+
         # --- Steering Bar ---
-        s_val, s_oob = fmap(car.steering, -car.max_steering_left, car.max_steering_right, 100, 0)
-        self.draw_ui_bar((x1, y1 + 25), s_val, 50, red if s_oob else green)
+        s_val, s_oob = fmap(car.steering, -car.max_steering_left, car.max_steering_right, 1, 0)
+        self.draw_prog_bar((x1, y1 - 20), s_val, color=red if s_oob else green)
 
         # --- Throttle Bar ---
-        t_val, t_oob = fmap(car.throttle, car.min_throttle, car.max_throttle, 0, 100)
-        center = 0 if car.min_throttle < 0 else 0  # Center point for bi-directional throttle
-        self.draw_ui_bar((x1, y1 + 45), t_val, center, red if t_oob else green)
+        t_val, t_oob = fmap(car.throttle, car.min_throttle, car.max_throttle, 0, 1)
+        self.draw_prog_bar((x1, y1 - 40), t_val, color=red if t_oob else green)
 
-    def draw_ui_bar(self, pos, value, center, color, width=100, height=15):
-        """Helper to draw a single UI bar."""
+    def draw_text(self, pos: tuple[int, int], texture: Texture):
+
+        texture.use(location=0)
+        quad = geometry.quad_2d(size=texture.size, pos=pos)
+        model = self.create_transform_matrix()
+        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
+        self.ortho_matrix_loc.write(ortho_mtx)
+        self.model_matrix_loc.write(model)
+        self.use_texture_loc.value = 1
+        self.color_loc.value = (0, 0, 0, 1)
+        quad.render(self.prog)
+
+    def draw_prog_bar(self,
+                      pos: tuple[int, int],
+                      value: float,
+                      width=100,
+                      height=15,
+                      color=(0, 1, 0, 1)):
+        """Helper to draw a progress bar.
+        Args:
+            pos: (x,y) Progress bar center in pixel coord
+            value: 0-1, value of the progress bar
+            width: width of progress bar 
+            height: height of progress bar 
+            color: R,G,B,A, range 0-1
+        """
+
+        # Use pixel unit for non-physical objects
+
+        # Background
+        prog_bar_quad = geometry.quad_2d(size=(width, height), pos=pos)
+        model = self.create_transform_matrix()
+        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
+        self.ortho_matrix_loc.write(ortho_mtx)
+        self.model_matrix_loc.write(model)
+        self.use_texture_loc.value = 0
+        self.color_loc.value = (0, 0, 0, 1)
+        prog_bar_quad.render(self.prog)
+
+        # Bar
+        bar_width = int(width*value)
+        bar_pos = (pos[0] - width//2 + bar_width//2, pos[1])
+        prog_bar_quad = geometry.quad_2d(size=(bar_width, height-2), pos=bar_pos)
+        model = self.create_transform_matrix()
+        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
+        self.ortho_matrix_loc.write(ortho_mtx)
+        self.model_matrix_loc.write(model)
+        self.use_texture_loc.value = 0
         self.color_loc.value = color
-        fill_width = abs(value - center)
-        fill_start_x = pos[0] + min(center, value)
-
-        model = self.create_transform_matrix(
-            pos=(fill_start_x + fill_width / 2, pos[1] + height / 2),
-            scale=(fill_width, height)
-        )
-        self.model_matrix_loc.write(model.astype('f4'))
-        self.quad.render(self.prog)
+        prog_bar_quad.render(self.prog)
 
     def on_key_event(self, key, action, modifiers):
         """Handles keyboard inputs."""
