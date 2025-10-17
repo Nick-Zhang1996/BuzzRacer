@@ -48,7 +48,7 @@ class Main(PrintObject, LogObject):
             except KeyError as e:
                 raise NameError(
                     f'Unknown experiment type {config_experiment_text},'
-                    f'must be one of {type_map.keys}') from e
+                    f'must be one of {list(type_map.keys())}') from e
 
         self.experiment_type = get_experiment_type_from_config_settings(
             config_settings)
