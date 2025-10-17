@@ -1,7 +1,7 @@
 <config>
   <settings dt='0.01'>
       <!-- Not checked, determined by if simulator or optitrack is initiated -->
-      <experiment_type>Realworld</experiment_type>
+      <experiment_type>RealWorld</experiment_type>
   </settings>
 
   <track>saved</track>

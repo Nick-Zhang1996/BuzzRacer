@@ -21,7 +21,8 @@
 import socket
 import struct
 from threading import Thread, Event
-from common import *
+
+from buzzracer.common import *
 
 
 def trace(*args):
