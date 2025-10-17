@@ -1,4 +1,0 @@
-./configs/ilqgame_sine.xml,./configs/ilqgame_sine.xml,../log/./configs/ilqgame_sine.xml/full_state8.p,1,0,0,-0.25712348876940216,-0.2503574507551174,-1,-1,-1,-1,-1
-./configs/ilqgame_sine.xml,./configs/ilqgame_sine.xml,../log/./configs/ilqgame_sine.xml/full_state9.p,1,0,0,-0.34602135255139777,-0.3641474675132592,-1,-1,-1,-1,-1
-./configs/ilqgame_sine.xml,./configs/ilqgame_sine.xml,../log/./configs/ilqgame_sine.xml/full_state10.p,1,0,0,-0.34602135255139777,-0.3641474675132592,-1,-1,-1,-1,-1
-./configs/ilqgame_sine.xml,./configs/ilqgame_sine.xml,../log/./configs/ilqgame_sine.xml/full_state11.p,1,0,0,-0.3812452994388025,-0.16810512595357352,-1,0,-1,0,1

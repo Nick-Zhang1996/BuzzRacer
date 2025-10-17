@@ -1,1 +1,0 @@
-batch_ilqgame_col_res,./configs/batch_ilqgame_col_res/exp49.xml,../log/batch_ilqgame_col_res/full_state1.p,1,2,2,-0.10542857474591827,-0.30470195325905536,nan,0,4.249999999999909,0,3
