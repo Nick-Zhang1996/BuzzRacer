@@ -8,7 +8,7 @@
         <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
-        <extension handle='simulator' match_time='True'>DynamicSimulator</extension>
+        <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
         <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
   </extensions>
 

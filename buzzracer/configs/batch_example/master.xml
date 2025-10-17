@@ -1,10 +1,10 @@
 <config>
   <settings dt='0.01'>
-    <experiment_type>Realworld</experiment_type>
+    <experiment_type>Simulation</experiment_type>
   </settings>
 
   <track 
-    obstacle='False'
+    obstacle='True'
     obstacle_count='10'
     obstacle_filename='"obstacles.p"'
     obstacle_radius='0.1'
@@ -14,37 +14,35 @@
       <extension handle='laptimer'>Laptimer</extension>
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='False'>Visualization</extension>
-      <!-- <extension handle='simulator' 
+      <extension handle='simulator' 
+        obstacle_count = '10'
         match_time='False'
         state_noise_enabled='True'
-        state_noise_type='normal'
-        state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
-      >DynamicBicycleCartesianSimulator</extension> -->
-      <extension handle='vi'>Optitrack</extension>
+        state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
+        >DynamicBicycleCartesianSimulator</extension>
       <extension handle='boundary_checker'>BoundaryChecker</extension>
       <extension handle='collision_checker'>CollisionChecker</extension>
-        <!-- <extension handle='lap_counter' lap_count='10'>LapCounter</extension> -->
-          <!-- <extension handle='watchdog'>Watchdog</extension> -->
-        <!-- <extension handle='gifsaver'>Gifsaver</extension>-->
-        <!-- <extension handle='logger'>Logger</extension> -->
+      <extension handle='lap_counter' lap_count='10'>LapCounter</extension>
+      <extension handle='config_logger'>ConfigLogger</extension>
+        <!-- <extension handle='gifsaver'>Gifsaver</extension> -->
+       <extension handle='logger'>Logger</extension>
   </extensions>
 
   <cars>
     <car>
       <name>Red Porsche</name>
-      <hardware>OldOffboard</hardware>
-      <config_name>porsche</config_name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_12</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
       <controller 
-        enable_cvar='False'
-        state_noise_type='normal'
-        state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
+        state_noise_std='[0.2,0.2,0.2,0.2,0.2,0.2]'
+        enable_cvar='True'
         horizon='30' 
         samples_count='1024' 
         subsamples_count='100' 
         cvar_A='10.0'
         cvar_a='0.5'
-        cvar_Cu='0.5'
+        cvar_Cu='0.1'
         mppi_alpha='0.1'
         >
         <type>CvarCarController</type>

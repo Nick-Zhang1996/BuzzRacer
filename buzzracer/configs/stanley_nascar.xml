@@ -3,14 +3,14 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track>saved</track>
+  <track>nascar</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
       <!-- <extension handle='logger'>Logger</extension> -->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization' car_graphics='True'>Visualization</extension>
-      <extension handle='simulator' match_time='False'>DynamicSimulator</extension>
+      <extension handle='simulator' match_time='False'>DynamicBicycleCartesianSimulator</extension>
           <!--<extension handle='gifsaver'>Gifsaver</extension>-->
   </extensions>
 

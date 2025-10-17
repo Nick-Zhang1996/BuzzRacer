@@ -20,7 +20,7 @@
         state_noise_type='impulse'
         state_noise_magnitude='[0.2,0.2,0.2,0.2,0.2,0.2]'
         state_noise_probability='0.1'
-        >DynamicSimulator</extension>
+        >DynamicBicycleCartesianSimulator</extension>
         <!-- <extension handle='boundary_checker'>BoundaryChecker</extension> -->
         <!-- <extension handle='collision_checker'>CollisionChecker</extension> -->
         <!-- <extension handle='lap_counter' lap_count='10'>LapCounter</extension> -->
