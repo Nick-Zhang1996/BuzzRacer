@@ -1,29 +1,43 @@
+''' check collision with static obstacles '''
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
-from common import *
-from extension.Extension import Extension
+from buzzracer.extensions.extension import Extension
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
-# check collision with static obstacles
+
 class CollisionChecker(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
-        self.collision_count = [0] * len(self.main.cars)
-        # collision count by lap
-        self.collision_by_lap_vec = [[] * len(self.main.cars)]
+
+    def __init__(self):
+        Extension.__init__(self, 'collision_checker')
+
+        self.collision_count: dict[Car, int] = {
+            car: 0
+            for car in self.main.cars
+        }
+        ''' Running sum of collision count, resets every lap'''
+        self.collision_by_lap_vec = {car: 0 for car in self.main.cars}
+        ''' Collision count by lap'''
+        self.car_is_in_collision: dict[Car, bool] = {
+            car: False
+            for car in self.main.cars
+        }
+        ''' Is car in collision at this time step'''
 
     def update(self):
-        for i in range(len(self.main.cars)):
-            car = self.main.cars[i]
-            if (self.main.track.isInObstacle(car.states)[0]):
+        for car in self.main.cars:
+            if (self.main.track.is_in_obstacle(car.state)[0]):
                 self.print_info('collision with obstacle')
-                self.collision_count[i] += 1
-                car.in_collision = True
-                #print_ok(self.prefix(), "collision = %d"%(self.collision_count[i]))
+                self.collision_count[car] += 1
+                self.car_is_in_collision[car] = True
             else:
-                car.in_collision = False
+                self.car_is_in_collision[car] = False
             try:
                 if (car.laptimer.new_lap.is_set()):
-                    self.collision_by_lap_vec[i].append(self.collision_count[i])
-                    self.collision_count[i] = 0
+                    self.collision_by_lap_vec[car].append(
+                        self.collision_count[car])
+                    self.collision_count[car] = 0
             except AttributeError:
                 pass
 
@@ -35,6 +49,7 @@ class CollisionChecker(Extension):
             mean = np.mean(self.collision_by_lap_vec[i][1:])
             total_vec.append(total)
             mean_vec.append(mean)
-            self.print_info("car %d, total obstacle collision = %d, mean = %.2f"%(i,total, mean))
+            self.print_info(
+                'car %d, total obstacle collision = %d, mean = %.2f', i, total,
+                mean)
         self.main.car_total_collisions = total_vec
-

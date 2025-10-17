@@ -1,42 +1,56 @@
-from common import *
-from extension.Extension import Extension
+''' Extension to terminate experiment if stuck or something goes wrong'''
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from buzzracer.extensions.extension import Extension
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
+
 
 class Watchdog(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
-        self.track = main.track
+    ''' Extension to terminate experiment if stuck or something goes wrong'''
+
+    def __init__(self):
+        Extension.__init__(self, handle_name='watchdog')
         self.triggered = False
-        for car in self.main.cars:
-            car.in_track = True
+        ''' A halting condition has been detected by Watchdog'''
+        self.trigger_reason: str = ''
+        ''' Short description of why Watchdog was triggered'''
+        self.car_is_on_track: dict[Car, bool] = {car: True for car in self.main.cars}
 
-    def postUpdate(self):
+    def post_update(self):
+        msg = []
         for car in self.main.cars:
+            x = car.state[0]
+            y = car.state[1]
+            vf = car.state[3]
+
             # if car is outside track, halt
-            x = car.states[0]
-            y = car.states[1]
-            vf = car.states[3]
-            if (self.track.isOutside((x,y)) ):
-                car.in_track = False
+            if (self.main.track.is_outside((x, y))):
+                self.car_is_on_track[car] = False
                 self.triggered = True
-                self.main.exit_request.set()
-                print_warning(self.prefix()+"car outside track, terminating experiment")
+                msg.append('car outside track, terminating experiment')
 
+            # if car is too slow, halt
             if (vf < 0.05):
-                car.in_track = True
                 self.triggered = True
-                self.main.exit_request.set()
-                print_warning(self.prefix()+"car stopped, terminating experiment")
+                msg.append('car stopped, terminating experiment')
+
+            # if no new laps in a long time, halt
+            if (self.main.simulator.sim_t - car.laptimer.last_lap_ts > 20):
+                self.triggered = True
+                msg.append('No new laps detected for %.2f s, terminating experiment' %
+                           (car.laptimer.last_laptime))
 
             # if laptime is unreasonable, halt
-            if (self.main.sim_t - car.laptimer.last_lap_ts > 20):
+            if (car.laptimer.new_lap.is_set() and car.lap_count > 0):
+                if (car.laptimer.last_laptime < 2.0):
                     self.triggered = True
-                    self.main.exit_request.set()
-                    print_warning(self.prefix()+"No new laps detected for %.2f s, terminating experiment"%(car.laptimer.last_laptime))
-            if (car.laptimer.new_lap.is_set() and car.lap_count >0):
-                if(car.laptimer.last_laptime < 2.0 ):
-                    self.triggered = True
-                    self.main.exit_request.set()
-                    print_warning(self.prefix()+"unreasonable laptime: %.2f, terminating experiment"%(car.laptimer.last_laptime))
+                    msg.append('unreasonable laptime: %.2f, terminating experiment' %
+                               (car.laptimer.last_laptime))
 
-
-
+        combined_msg = ' , and '.join(msg)
+        self.print_warning(combined_msg)
+        self.trigger_reason = combined_msg
+        if (self.triggered):
+            self.main.exit_request.set()

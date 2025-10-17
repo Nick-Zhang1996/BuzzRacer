@@ -1,11 +1,15 @@
-import numpy as np
-from common import *
-from extension.Extension import Extension
+''' Check collision with opponents, for iLQGameCarController. '''
+from buzzracer.extensions.extension import Extension
 
-# check collision with opponents, for iLQGameCarController
+
 class OpponentCollisionChecker(Extension):
-    def __init__(self,main):
-        Extension.__init__(self,main)
+    ''' Check collision with opponents, for iLQGameCarController. 
+
+    NOTE this only checks car 0
+    '''
+
+    def __init__(self):
+        Extension.__init__(self, 'opponent_collision_checker')
         self.collision_count = 0
         self.last_collision_ts = -1e3
         self.lockout_timestep = 10
@@ -14,8 +18,9 @@ class OpponentCollisionChecker(Extension):
 
     def update(self):
         self.timestep += 1
-        if (self.main.cars[0].controller.isInCollision()):
-            if (not self.in_collision and self.timestep > self.lockout_timestep+self.last_collision_ts):
+        if (self.main.cars[0].controller.is_in_collision()):
+            if (not self.in_collision and self.timestep
+                    > self.lockout_timestep + self.last_collision_ts):
                 self.in_collision = True
                 self.collision_count += 1
         else:
@@ -24,6 +29,6 @@ class OpponentCollisionChecker(Extension):
                 self.last_collision_ts = self.timestep
 
     def final(self):
-        self.print_info("total car-car collision = %d"%(self.collision_count))
+        self.print_info('total car-car collision = %d' %
+                        (self.collision_count))
         self.main.opponent_collision_count = self.collision_count
-
