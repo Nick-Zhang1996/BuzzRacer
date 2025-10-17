@@ -1,1 +1,0 @@
-We understand that the log format may be changing. Please prepare sub folders here and make sure logs in each subfolder have consistant log format. Include in each subfolder the script that will work with the log format in the folder, thank you
