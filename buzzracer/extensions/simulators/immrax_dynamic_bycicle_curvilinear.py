@@ -1,10 +1,11 @@
 """Simulator for an Ackermann steering vehicle with dynamic bicycle model"""
 # page 30 of book Vehicle Dynamics and Control
 
-from buzzracer.cars.car import Car
 import jax
 import jax.numpy as jnp
 from immrax import System
+
+from buzzracer.cars.car import Car
 
 
 # NOTE: duplicated from `tire.py`, modified to use jax.numpy
@@ -15,6 +16,7 @@ def tire_curve(slip):
     # C: tail shape
     retval = D * jnp.sin(C * jnp.arctan(B * slip))
     return retval
+
 
 class DynamicBicycleCurvilinear(System):
     max_v: float = 3.0
@@ -33,6 +35,7 @@ class DynamicBicycleCurvilinear(System):
     def f(
         self, t, x: jax.Array, u: jax.Array, w: jax.Array, curvature: jax.Array
     ) -> jax.Array:
+        # print(f"{t.shape=}, {x.shape=}, {u.shape=}, {w.shape=}, {curvature.shape=}")
         progress, lateral_err, heading_err, v_forward, v_sideway, rel_omega = x
         steering, throttle = u
 
@@ -40,9 +43,14 @@ class DynamicBicycleCurvilinear(System):
             # Origin at CG, beta is the angle between CG velocity and car orientation
             beta = jnp.arctan(jnp.tan(steering) * self.lr / (self.lf + self.lr))
 
+            # jax.debug.print("curvature.shape={}", curvature.shape)
+
             dsdt = (
                 v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
-            ) / (1 - lateral_err * curvature)
+            ) / (1 - lateral_err * curvature.squeeze())
+            # print(
+            #     f"{curvature.shape=}\n{(1 - lateral_err * curvature).shape=}\n{dsdt.shape=}"
+            # )
             dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
             # acceleration at rear wheel
             acc_rw = 6.17 * (throttle - v_forward / 15.2 - 0.333)
@@ -52,7 +60,7 @@ class DynamicBicycleCurvilinear(System):
 
             total_v = jnp.sqrt(v_forward**2 + v_sideway**2)
             d_heading_dt = total_v / self.lr * jnp.sin(beta)
-            d_rel_heading_dt = d_heading_dt - curvature * dsdt
+            d_rel_heading_dt = d_heading_dt - curvature.squeeze() * dsdt
 
             return dsdt, dndt, d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0.0
 
@@ -96,7 +104,9 @@ class DynamicBicycleCurvilinear(System):
         # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
         #     v_forward < 0.1, kinematic_model, dynamic_model
         # )
-        dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = kinematic_model()
+        dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
+            kinematic_model()
+        )
 
         return jnp.array(
             [dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega]

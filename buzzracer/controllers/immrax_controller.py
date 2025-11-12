@@ -1,25 +1,28 @@
 from math import isnan, pi, degrees, radians
 from dataclasses import dataclass
 from functools import partial
-from turtle import st
 
 import jax
 import jax.numpy as jnp
-import immrax
 import numpy as np
-
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
-    DynamicBicycleCurvilinear,
+from immrax import AdjointEmbedding, Interval, Polytope, icentpert, interval, natif
+from immrax.inclusion.cubic_spline import (
+    create_cubic_spline_coeffs,
+    make_spline_eval_fn,
 )
-from buzzracer.types import CartesianState, CurvilinearState, Control
+from jax._src.random import t
+
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 from buzzracer.controllers.stanley_car_controller import StanleyCarController
-
-from buzzracer.sysid.kinematic_bicycle_model import (
-    KinematicBicycleModelFrenet,
-    KinematicBicycleModelCartesian,
+from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
+    DynamicBicycleCurvilinear,
 )
+from buzzracer.sysid.kinematic_bicycle_model import (
+    KinematicBicycleModelCartesian,
+    KinematicBicycleModelFrenet,
+)
+from buzzracer.types import CartesianState, Control, CurvilinearState
 
 # jax.config.update("jax_debug_nans", True)
 PRNG_SEED = 0
@@ -30,25 +33,6 @@ class SampleBounds:
     min: float
     std: float
     max: float
-
-
-# track class is not jittable, so we precompute curvature along raceline
-# store in buffer for jittability (pure function of s)
-class CurvatureLib:
-    def __init__(self, track):
-        self.ds = 0.01
-        self.len = track.raceline_len_m
-        self.buffer = jnp.zeros(int(self.len / self.ds) + 1)
-
-        for s in jnp.arange(0, self.len, self.ds):
-            self.buffer = self.buffer.at[int(s / self.ds)].set(track.curvature_s(s))
-            # print(f"Curvature at s={s:.2f}: {track.curvature_s(s)}")
-
-    def __call__(self, s):
-        s = s % self.len
-        idx = (s / self.ds).astype(int)
-        # jax.debug.print("curvature lookup s={:.2f}, idx={}", s, idx)
-        return self.buffer[(idx)]
 
 
 class TempCar:
@@ -74,7 +58,7 @@ class ImmraxController(CarController):
         self.Pfun = (
             lambda v: max(min((self.Pfun_slope * v + self.Pfun_offset), 4.0), 0.5)
             / 280
-            * pi
+            * jnp.pi
             / 0.01
         )
 
@@ -104,14 +88,55 @@ class ImmraxController(CarController):
         )  # (steering, throttle)
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
-        self.curvature_lib = CurvatureLib(car.main.track)
-        self.curvature = lambda t, x: self.curvature_lib(x[0])
         self.predictor = DynamicBicycleCurvilinear(car)
 
         self.progress_reward_weight = 0.1
         self.lateral_err_penalty_weight = 3.0
         self.discount_factor = 0.99
         self.track_width = 0.2  # FIXME: this should be read from track
+
+        # Construct curvature spline
+        ds = 0.1
+        track_len = car.main.track.raceline_len_m
+        x_knots = jnp.arange(0, track_len, ds)
+        y_knots = jnp.array([car.main.track.curvature_s(x) for x in x_knots])
+        knots = jnp.vstack((x_knots, y_knots)).T
+        curvature_spline = make_spline_eval_fn(*create_cubic_spline_coeffs(knots))
+        self.curvature = (
+            lambda t, x: jnp.atleast_1d(curvature_spline(x[0] % track_len))
+        )  # This needs to be 1d for compatibility with parametope embedding version of curvature
+
+        def curvature_int(s: Interval):
+            # print(s.shape)
+            start = s.lower % track_len
+            width = s.width
+            s1 = interval(start, jnp.minimum(track_len, start + width))
+            s2 = interval(
+                jnp.array(0.0),
+                jnp.minimum(
+                    jnp.maximum(jnp.array(0.0), start + width - track_len), start
+                ),
+            )
+
+            spline_int = natif(curvature_spline)
+            ret = (spline_int(s1) | spline_int(s2)).atleast_1d()
+            # print(
+            #     f"{s.shape=}, {s1.shape=}, {s2.shape=}, {spline_int(s1).shape=}, {ret.shape=}"
+            # )
+            return ret
+
+        def iover_s(x):
+            pt, aux = x
+            alpha, _ = aux
+            return (interval(alpha) @ interval(pt.y[:6], pt.y[:6]) + pt.ox[0])[
+                0
+            ]  # It needs to be an array of len 1, not just a scalar
+
+        self.reach_predictor = AdjointEmbedding(
+            self.predictor, jnp.eye(6), jnp.zeros((0, 6))
+        )
+        self.disturbance_int = lambda t, x: interval(jnp.array([0.0, 0.0]))
+        self.curvature_int = lambda t, x: curvature_int(iover_s(x))
 
         # TODO: I do not expect to need these long term, should remove eventually
         self.track = car.main.track
@@ -196,6 +221,35 @@ class ImmraxController(CarController):
                 self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
             ]
             self.plot_trajectory(traj_cart, color=(0, 0, 200))
+            # ============================================================
+
+            # DEBUG: compute + plot reachable set overapproximation of sample trajectory
+            # ============================================================
+            pt0 = Polytope.from_interval(
+                icentpert(sim_state, jnp.array([0.01, 0.01, 0.01, 0.1, 0.1, 0.1]))
+            )
+            ff_control = lambda t, x: interval(
+                self.planned_controls[
+                    jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
+                ]
+            )
+
+            # print(
+            #     "PRIMAL SHAPE: ",
+            #     self.curvature_int(0.0, (pt0, (jnp.eye(6), jnp.eye(6)))).shape,
+            # )
+            # jac = jax.jacfwd(self.curvature_int, 1)(
+            #     0.0, (pt0, (jnp.eye(6), jnp.eye(6)))
+            # )
+            # print(f"JACOBIAN: {len(jac)=}, {type(jac[0])=}, {type(jac[1])=}")
+
+            traj_reach = self.reach_predictor.compute_reachset(
+                0,
+                self.planning_horizon * self.planning_dt,
+                pt0,
+                (ff_control, self.disturbance_int, self.curvature_int),
+                dt=self.planning_dt,
+            )
             # ============================================================
 
             return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
@@ -342,12 +396,12 @@ class ImmraxController(CarController):
         # v_target = min(v_target*0.8, 2.2)
         v_target = min(v_target, self.max_speed)
 
-        if isnan(orientation):
+        if jnp.isnan(orientation):
             return (0, 0, False, {"offset": 0})
 
         if reverse:
             offset = -offset
-            orientation += pi
+            orientation += jnp.pi
 
         # if vehicle cross error exceeds maximum allowable error, stop the car
         if abs(offset) > self.max_offset:
@@ -360,7 +414,7 @@ class ImmraxController(CarController):
             steering = (orientation - heading) - (offset * self.Pfun(abs(vf)))
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
-            steering = (steering + pi) % (2 * pi) - pi
+            steering = (steering + jnp.pi) % (2 * jnp.pi) - jnp.pi
             if steering > self.car.max_steering_left:
                 steering = self.car.max_steering_left
             elif steering < -self.car.max_steering_right:
@@ -418,9 +472,8 @@ class ImmraxController(CarController):
         return traj
 
     def evaluate_trajectory_cost(self, state, traj):
-        # NOTE: can't use traj.ys here since we are inside jitted code - should consider rework
-        progress = traj._ys[self.planning_horizon - 1, 0] - state[0]
-        lateral_err = traj._ys[: self.planning_horizon, 1]
+        progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
+        lateral_err = traj.ys[: self.planning_horizon, 1]
         # jax.debug.print("Progress: {}, Lateral err: {}", progress, lateral_err)
 
         # conditional_log(
@@ -437,6 +490,8 @@ class ImmraxController(CarController):
         )
 
         collision = jnp.max(jnp.abs(lateral_err)) > self.track_width
+
+        # TODO: add cost term for heading error
 
         return jax.lax.cond(
             collision,
@@ -463,7 +518,7 @@ class ImmraxController(CarController):
 
         return (
             sampled_controls[best_idx],
-            trajs._ys[best_idx, : self.planning_horizon, :],
+            trajs.ys[best_idx, : self.planning_horizon, :],
             next_key,
         )
 
