@@ -5,12 +5,13 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
+import numpy as onp
 from immrax import AdjointEmbedding, Interval, Polytope, icentpert, interval, natif
 from immrax.inclusion.cubic_spline import (
     create_cubic_spline_coeffs,
     make_spline_eval_fn,
 )
-from jax._src.random import t
+from pypoman import plot_polygon, project_polytope
 
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
@@ -33,12 +34,6 @@ class SampleBounds:
     min: float
     std: float
     max: float
-
-
-class TempCar:
-    def __init__(self, lr, lf):
-        self.lr = lr
-        self.lf = lf
 
 
 class ImmraxController(CarController):
@@ -86,6 +81,11 @@ class ImmraxController(CarController):
         self.planned_controls: jnp.ndarray = jnp.zeros(
             (self.planning_horizon, 2)
         )  # (steering, throttle)
+        self.ff_control = lambda t, x: interval(
+            self.planned_controls[
+                jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
+            ]
+        )
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.predictor = DynamicBicycleCurvilinear(car)
@@ -119,18 +119,15 @@ class ImmraxController(CarController):
             )
 
             spline_int = natif(curvature_spline)
-            ret = (spline_int(s1) | spline_int(s2)).atleast_1d()
-            # print(
-            #     f"{s.shape=}, {s1.shape=}, {s2.shape=}, {spline_int(s1).shape=}, {ret.shape=}"
-            # )
+            ret = (
+                spline_int(s1) | spline_int(s2)
+            ).atleast_1d()  # Since ParametricEmbedding requires all *args to have a defined `len`, we need it to be a 1d array, not just a scalar
             return ret
 
         def iover_s(x):
             pt, aux = x
             alpha, _ = aux
-            return (interval(alpha) @ interval(pt.y[:6], pt.y[:6]) + pt.ox[0])[
-                0
-            ]  # It needs to be an array of len 1, not just a scalar
+            return (interval(alpha) @ interval(-pt.y[:6], pt.y[6:]) + pt.ox[0])[0]
 
         self.reach_predictor = AdjointEmbedding(
             self.predictor, jnp.eye(6), jnp.zeros((0, 6))
@@ -140,11 +137,10 @@ class ImmraxController(CarController):
 
         # TODO: I do not expect to need these long term, should remove eventually
         self.track = car.main.track
-        self.car_ref = TempCar(car.lr, car.lf)
         self.stanley_controller = StanleyCarController(car, config)
 
     def control(self):
-        curv_state = self.track.cart_to_curv(CartesianState(*self.car.state))
+        # curv_state = self.car.sim_state
         # print(f"progress: {curv_state[0]:.2f}, lateral err: {curv_state[1]:.2f}")
         throttle, steering, valid, debug_dict = self.ctrl_car(
             self.car.state, self.car.sim_state, self.track
@@ -165,43 +161,22 @@ class ImmraxController(CarController):
         # self.predict()
         return valid
 
-    def get_reference_control_from_stanley(self, state: CartesianState):
-        """Generate an initial guess for ref control from stanley controller"""
-        control_vec: list[Control] = []
-        state_vec = [state]
-        for _ in range(self.planning_horizon):
-            throttle, steering, _, _ = self.stanley_controller.ctrl_car(
-                state_vec[-1], self.track
-            )
-            control = Control(steering=steering, throttle=throttle)
-            next_state = KinematicBicycleModelCartesian.advance_dynamics(
-                state_vec[-1], control, self.car, self.planning_dt
-            )
-            control_vec.append(control)
-            state_vec.append(next_state)
-
-        ref_control_np = np.array([(u.steering, u.throttle) for u in control_vec])
-        ref_control: jnp.ndarray = jnp.array(ref_control_np)  # (steering, throttle)
-        return ref_control
-
-    # given state of the vehicle and an instance of track, provide throttle and steering output
-    # input:
-    #   state: (x,y,heading,v_forward,v_sideway,omega)
-    #   track: track object, can be RCPTrack or skidpad
-    #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
-    #   reverse: true if running in opposite direction of raceline init direction
-
-    # output:
-    #   (throttle,steering,valid,debug)
-    # ranges for output:
-    #   throttle -1.0,self.max_throttle
-    #   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
-    #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
-    #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
-    # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-    # NOTE this is the Stanley method, now that we have multiple control methods we may want to change its name later
-
     def ctrl_car(self, state, sim_state, track, v_override=None, reverse=False):
+        # given state of the vehicle and an instance of track, provide throttle and steering output
+        # input:
+        #   state: (x,y,heading,v_forward,v_sideway,omega)
+        #   track: track object, can be RCPTrack or skidpad
+        #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
+        #   reverse: true if running in opposite direction of raceline init direction
+
+        # output:
+        #   (throttle,steering,valid,debug)
+        # ranges for output:
+        #   throttle -1.0,self.max_throttle
+        #   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
+        #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
+        #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
+        # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
         heading = state[2]
         vf = state[3]
 
@@ -225,165 +200,43 @@ class ImmraxController(CarController):
 
             # DEBUG: compute + plot reachable set overapproximation of sample trajectory
             # ============================================================
-            pt0 = Polytope.from_interval(
-                icentpert(sim_state, jnp.array([0.01, 0.01, 0.01, 0.1, 0.1, 0.1]))
-            )
-            ff_control = lambda t, x: interval(
-                self.planned_controls[
-                    jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
-                ]
-            )
-
-            # print(
-            #     "PRIMAL SHAPE: ",
-            #     self.curvature_int(0.0, (pt0, (jnp.eye(6), jnp.eye(6)))).shape,
+            # pt0 = Polytope.from_interval(
+            #     icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
             # )
-            # jac = jax.jacfwd(self.curvature_int, 1)(
-            #     0.0, (pt0, (jnp.eye(6), jnp.eye(6)))
-            # )
-            # print(f"JACOBIAN: {len(jac)=}, {type(jac[0])=}, {type(jac[1])=}")
 
-            traj_reach = self.reach_predictor.compute_reachset(
-                0,
-                self.planning_horizon * self.planning_dt,
-                pt0,
-                (ff_control, self.disturbance_int, self.curvature_int),
-                dt=self.planning_dt,
-            )
+            # traj_reach = self.reach_predictor.compute_reachset(
+            #     0,
+            #     self.planning_horizon * self.planning_dt,
+            #     pt0,
+            #     (self.ff_control, self.disturbance_int, self.curvature_int),
+            #     dt=self.planning_dt,
+            # )
+            # pt, aux = traj_reach.ys
+            # alpha, _ = aux
+            # idx = 1
+            # final_state_iover = (
+            #     interval(alpha[idx])
+            #     @ interval(
+            #         -pt.y[idx, :6],
+            #         pt.y[idx, 6:],
+            #     )
+            #     + pt.ox[idx]
+            # )
+            # print(f"Bound size: {jnp.prod(final_state_iover.width):.4g}")
+
+            # pt = pt[idx]
+            # E = onp.hstack((onp.eye(2), onp.zeros((2, pt.H.shape[1] - 2))))
+            # Hi = onp.vstack((-pt.H, pt.H))
+            # bi = onp.hstack((-pt.ly, pt.uy))
+            # frenet_vertices = project_polytope((E, onp.zeros(2)), (Hi, bi))
+            # # TODO: I need the full state information to do this conversion, but can't project VREP down to 2D for plotting
+            # cartesian_vertices = [self.track.curv_to_cart(v) for v in frenet_vertices]
+            # plot_polygon(cartesian_vertices)
+
             # ============================================================
+            ### END PLOTTING ###
 
             return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
-
-            # DEBUG: plot sampled trajectory with offset forced to 0
-            # ============================================================
-            # normalized_traj = traj.at[:, 1].set(0)
-            # normalized_cart_traj = [
-            #     self.track.curv_to_cart(CurvilinearState(*state))
-            #     for state in normalized_traj
-            # ]
-            # self.plot_trajectory(normalized_cart_traj, color=(200, 0, 0))
-            # ============================================================
-
-            ### DEBUG: Rollout planned trajectory in buzzracer curvilinear dynamics
-            # ============================================================
-            curv_state = CurvilinearState(*sim_state)
-            curv_traj = [curv_state]
-
-            for i in range(self.planning_horizon):
-                curv_state = KinematicBicycleModelFrenet.advance_dynamics(
-                    curv_state,
-                    Control(
-                        steering=self.planned_controls[i, 0],
-                        throttle=self.planned_controls[i, 1],
-                    ),
-                    self.car_ref,
-                    dt=self.planning_dt,
-                    curvature=self.curvature(0, jnp.array([*curv_state])),
-                    # curvature=0,
-                )
-                curv_traj.append(curv_state)
-
-                jump_size = (
-                    curv_state.progress - curv_traj[-2].progress
-                ) / self.planning_dt
-                if abs(jump_size) > 10:
-                    print(f"ERROR: huge jump in buzzracer ({jump_size})")
-
-            cart_traj = [
-                self.track.curv_to_cart(curv_state) for curv_state in curv_traj
-            ]
-            self.plot_trajectory(cart_traj)
-            # ============================================================
-
-            # DEBUG: Rollout stanley planned reference trajectory in buzzracer curvilinear dynamics
-            # ============================================================
-            # stanley_curv_state = self.track.cart_to_curv(CartesianState(*state))
-            # stanley_curv_traj = [stanley_curv_state]
-            # for i in range(self.planning_horizon):
-            #     stanley_curv_state = KinematicBicycleModelFrenet.advance_dynamics(
-            #         stanley_curv_traj[-1],
-            #         Control(
-            #             steering=ref_control[i, 0],
-            #             throttle=ref_control[i, 1],
-            #         ),
-            #         self.car_ref,
-            #         dt=self.planning_dt,
-            #         curvature=self.curvature(0, jnp.array([*stanley_curv_traj[-1]])),
-            #         # curvature=0,
-            #     )
-            #     stanley_curv_traj.append(stanley_curv_state)
-            # stanley_cart_traj = [
-            #     self.track.curv_to_cart(curv_state) for curv_state in stanley_curv_traj
-            # ]
-            # self.plot_trajectory(stanley_cart_traj, color=(0, 200, 0))
-            # ============================================================
-
-            # DEBUG: compare cost of sampled trajectory vs stanley reference trajectory
-            # ============================================================
-            # stanley_curv_traj_irx = immrax.Trajectory(
-            #     ts=jnp.arange(
-            #         0, (self.planning_horizon + 1) * self.planning_dt, self.planning_dt
-            #     ),
-            #     ys=jnp.array([[*state] for state in stanley_curv_traj]),
-            #     tfinite=jnp.array([True] * (self.planning_horizon + 1)),
-            # )
-            # ref_cost = self.evaluate_trajectory_cost(sim_state, stanley_curv_traj_irx)
-
-            # traj_irx = immrax.Trajectory(
-            #     ts=jnp.arange(
-            #         0, (self.planning_horizon + 1) * self.planning_dt, self.planning_dt
-            #     ),
-            #     ys=traj,
-            #     tfinite=jnp.array([True] * (self.planning_horizon + 1)),
-            # )
-            # sampled_cost = self.evaluate_trajectory_cost(sim_state, traj_irx)
-
-            # print(f"Reference cost: {ref_cost:.2f}, Sampled cost: {sampled_cost:.2f}")
-            # ============================================================
-
-            # dsdts = jnp.diff(traj[:, 0])
-            # max_jump_idx = jnp.argmax(dsdts)
-            # max_jump = dsdts[max_jump_idx]
-            # if max_jump > 5:
-            #     print(f"ERROR: huge jump in immrax ({max_jump})")
-            #
-            #     x = traj[max_jump_idx]
-            #     u = self.planned_controls[max_jump_idx]
-            #     dx = self.predictor.f(0, x, u, jnp.array([0, 0]), self.curvature(0, x))
-            #
-            #     curv_state = CurvilinearState(*x)
-            #     curv_state = KinematicBicycleModelFrenet.advance_dynamics(
-            #         curv_state,
-            #         Control(u[1], u[0]),
-            #         self.car,
-            #         dt=self.planning_dt,
-            #         curvature=self.curvature(0, x),
-            #     )
-            #     xp1 = jnp.array([*curv_state])
-            #     buzz_dx = (xp1 - x) / self.planning_dt
-
-            # print(f"Computed dynamics:\nmy dx={dx},\nbuzz_dx={buzz_dx}")
-
-            # DEBUG: Simulate control sequence in cartesian-based dynamics
-            # ============================================================
-            # init_curv_state = CurvilinearState(*sim_state)
-            # init_cart_state = self.track.curv_to_cart(init_curv_state)
-            # alt_cart_traj = [init_cart_state]
-            # for i in range(self.planning_horizon):
-            #     cart_state = KinematicBicycleModelCartesian.advance_dynamics(
-            #         alt_cart_traj[-1],
-            #         Control(
-            #             steering=self.planned_controls[i, 0],
-            #             throttle=self.planned_controls[i, 1],
-            #         ),
-            #         self.car_ref,
-            #         dt=self.planning_dt,
-            #     )
-            #     alt_cart_traj.append(cart_state)
-            # self.plot_trajectory(alt_cart_traj, color=(50, 50, 50))
-            # ============================================================
-
-            ### END PLOTTING ###
 
         # inquire information about desired trajectory close to the vehicle
         retval = track.local_trajectory(state)
@@ -501,7 +354,7 @@ class ImmraxController(CarController):
 
     @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
-        # print("compiling plan_control_trajectory")
+        # print("compiling update_planned_controls")
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
         trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
             jnp.array(state[0:6]), sampled_controls

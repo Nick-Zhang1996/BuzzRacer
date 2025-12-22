@@ -46,8 +46,9 @@ class DynamicBicycleCurvilinear(System):
             # jax.debug.print("curvature.shape={}", curvature.shape)
 
             dsdt = (
-                v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
-            ) / (1 - lateral_err * curvature.squeeze())
+                (v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err))
+                / (1 - lateral_err * curvature.squeeze())
+            )  # FIXME: I have no idea why curvature picks up an extra dimension, but we need to remove it
             # print(
             #     f"{curvature.shape=}\n{(1 - lateral_err * curvature).shape=}\n{dsdt.shape=}"
             # )
@@ -67,11 +68,11 @@ class DynamicBicycleCurvilinear(System):
         def dynamic_model():
             dsdt = (
                 v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
-            ) / (1 - lateral_err * curvature)
+            ) / (1 - lateral_err * curvature.squeeze())
             dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
 
             # Reference angular velocity
-            omega_ref = dsdt * curvature
+            omega_ref = dsdt * curvature.squeeze()
             # Total angular velocity in inertial frame
             omega = omega_ref + rel_omega
 
@@ -104,6 +105,9 @@ class DynamicBicycleCurvilinear(System):
         # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
         #     v_forward < 0.1, kinematic_model, dynamic_model
         # )
+        # FIXME: cond is not in the inclusion registry
+        # However, we are already restricting the use of the sampling based controller to the case where v_forward > 1.0
+        # Therefore, should always use dynamic_model
         dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
             kinematic_model()
         )
