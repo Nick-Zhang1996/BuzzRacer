@@ -1,7 +1,12 @@
 """Simulator for an Ackermann steering vehicle with dynamic bicycle model"""
 # page 30 of book Vehicle Dynamics and Control
 
-from buzzracer.cars.car import Car
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
+
 import jax
 import jax.numpy as jnp
 from immrax import System

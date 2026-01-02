@@ -19,9 +19,8 @@ from buzzracer.controllers.stanley_car_controller import StanleyCarController
 from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
     DynamicBicycleCurvilinear,
 )
-from buzzracer.sysid.kinematic_bicycle_model import (
-    KinematicBicycleModelCartesian,
-    KinematicBicycleModelFrenet,
+from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import (
+    DynamicBicycleCartesian,
 )
 from buzzracer.types import CartesianState, Control, CurvilinearState
 

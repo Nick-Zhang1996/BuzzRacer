@@ -1,11 +1,15 @@
 """Simulator for an Ackermann steering vehicle with dynamic bicycle model"""
 # page 30 of book Vehicle Dynamics and Control
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 from immrax import System
 
-from buzzracer.cars.car import Car
+if TYPE_CHECKING:
+    from buzzracer.cars.car import Car
 
 
 # NOTE: duplicated from `tire.py`, modified to use jax.numpy
@@ -27,10 +31,10 @@ class DynamicBicycleCurvilinear(System):
         self.name = "Dynamic Bicycle Model"
 
         car.init_param()  # FIXME: This is a horrible hack
-        self.lf = car.lf
-        self.lr = car.lr
-        self.Iz = car.Iz
-        self.m = car.m
+        self.lf = car.params.lf
+        self.lr = car.params.lr
+        self.Iz = car.params.Iz
+        self.m = car.params.m
 
     def f(
         self, t, x: jax.Array, u: jax.Array, w: jax.Array, curvature: jax.Array
