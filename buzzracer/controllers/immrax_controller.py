@@ -283,6 +283,8 @@ class ImmraxController(CarController):
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
         steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
+        planned_controls = jnp.vstack([planned_controls[1:, :], jnp.zeros((1, planned_controls.shape[1]))])
+
         sampled_steering = jnp.clip(
             planned_controls[:, 0]
             + self.steering_bounds.std
