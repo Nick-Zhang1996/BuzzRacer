@@ -79,12 +79,7 @@ class ImmraxController(CarController):
 
         self.planned_controls: jnp.ndarray = jnp.zeros(
             (self.planning_horizon, 2)
-        )  # (steering, throttle)
-        self.ff_control = lambda t, x: interval(
-            self.planned_controls[
-                jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
-            ]
-        )
+        )  # (steering, throttle) for each timestep over planning horizon
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.predictor = DynamicBicycleCurvilinear(car)
@@ -304,25 +299,25 @@ class ImmraxController(CarController):
             ),
             self.throttle_bounds.min,
             self.throttle_bounds.max,
-        )  # TODO: may want to consider steady_state_throttle explicitly
+        )
 
         return jnp.stack([sampled_steering, sampled_throttle], axis=-1), next_key
 
     def rollout_sampled_trajectory(self, x0, control_traj):
         def control_action(t, x):
-            return control_traj[
-                jnp.floor(t / self.planning_dt).astype(int) % self.planning_horizon
-            ]
+            idx = jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int) % self.planning_horizon
+            # jax.debug.print("time: {:.4f} mapped to index {:d}", t, idx)
+            return control_traj[idx]
 
         traj = self.predictor.compute_trajectory(
-            0.0,
+            0.0,  # NOTE: this is assuming the system is time-invariant
             self.planning_horizon * self.planning_dt,
             x0,
             # (control_action, self.disturbance, lambda t, x: 0),
             (control_action, self.disturbance, self.curvature),
             dt=self.planning_dt,
             solver="euler",
-        )  # NOTE: this is assuming the system is time-invariant
+        )
         return traj
 
     def evaluate_trajectory_cost(self, state, traj):
