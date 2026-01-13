@@ -33,6 +33,11 @@ class SampleBounds:
     max: float
 
 
+def conditional_log(condition: bool, format_str: str, *args):
+    if condition:
+        print(format_str.format(*args))
+
+
 class ImmraxController(CarController):
     def __init__(self, car, config):
         # defaults for configurable parameters
@@ -78,6 +83,15 @@ class ImmraxController(CarController):
         self.planned_controls: jnp.ndarray = jnp.zeros(
             (self.planning_horizon, 2)
         )  # (steering, throttle) for each timestep over planning horizon
+
+        # # FIXME: combine this function with usage in rollout_sampled_trajectory
+        # # needs to not depend on self, not be lambda, not be static
+        # self.ff_control = lambda t, x: interval(
+        #     self.planned_controls[
+        #         jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
+        #         % self.planning_horizon
+        #     ]
+        # )
 
         self.disturbance = lambda t, x: jnp.array([0.0, 0.0])
         self.predictor = DynamicBicycleCurvilinear(car)
@@ -330,9 +344,11 @@ class ImmraxController(CarController):
         )
         return traj
 
-    def evaluate_trajectory_cost(self, state, traj):
-        progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
-        lateral_err = traj.ys[: self.planning_horizon, 1]
+    def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
+        # return self.__evaluate_trajectory_cost_custom(state, traj)
+        return self.__evaluate_trajectory_cost_buzzracer(state, traj)
+
+    def __evaluate_trajectory_cost_custom(self, state: jax.Array, traj: RawTrajectory):
         # jax.debug.print("Progress: {}, Lateral err: {}", progress, lateral_err)
 
         # conditional_log(
@@ -341,7 +357,10 @@ class ImmraxController(CarController):
         # )
         # jax.debug.print("{}", jnp.any(jnp.isnan(traj._ys[:self.planning_horizon])))
 
+        progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
         progress_reward = self.progress_reward_weight * progress**2
+
+        lateral_err = traj.ys[: self.planning_horizon, 1]
         lateral_err_penalty = jnp.sum(
             jax.vmap(lambda err: self.lateral_err_penalty_weight * (err**2))(
                 lateral_err
@@ -357,6 +376,59 @@ class ImmraxController(CarController):
             lambda: jnp.inf,
             lambda: lateral_err_penalty - progress_reward,
         )
+
+    def __evaluate_trajectory_cost_buzzracer(
+        self, state: jax.Array, traj: RawTrajectory
+    ):
+        # traj is an array of states over time
+        # index is an array discritizing the tracks progress parameter
+        # I want to map the progress component of state to an index so that I can compare to references directly
+        index = jnp.searchsorted(
+            self.track.ss, traj.ys[: self.planning_horizon, 0] % self.track.ss[-1]
+        )
+        ref_vel = jnp.take(jnp.array(self.track.raceline_velocity), index)
+        bounds_left = jnp.take(jnp.array(self.track.raceline_left_boundary), index)
+        bounds_right = jnp.take(jnp.array(self.track.raceline_right_boundary), index)
+
+        lateral_err = traj.ys[: self.planning_horizon, 1]
+        vel = traj.ys[: self.planning_horizon, 3]
+        step_cost = jnp.sum(
+            5.0 * (lateral_err + 0.05 * (vel - ref_vel) ** 2)
+            - 10.0 * jnp.minimum(vel, 0.0)
+        )
+
+        bound = jnp.where(lateral_err > 0, bounds_right, bounds_left)
+        boundary_cost = 5 * jnp.sum(
+            jnp.maximum(
+                0.0,
+                2.0
+                / jnp.pi
+                * jnp.atan(-100.0 * (bound - (jnp.abs(lateral_err) + 0.05)))
+                + 1.0,
+            )
+        )
+
+        # TODO: this is not very robust, might allow "sneaking" through corners of track
+        # difficult to tell if this is collision detection failure or min speed for sample controller failure
+        collision_cost = jnp.sum(
+            jnp.where(
+                jnp.logical_or(lateral_err > bounds_left, lateral_err < -bounds_right),
+                jnp.inf,
+                0.0,
+            )
+        )
+
+        progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
+        terminal_cost = 8.0 * self.planning_dt * self.planning_horizon - 2.0 * progress
+
+        # jax.debug.print(
+        #     "Step cost: {:.2f}, Boundary cost: {:.2f}, Collision cost: {:.2f}, Terminal cost: {:.2f}",
+        #     step_cost,
+        #     boundary_cost,
+        #     collision_cost,
+        #     terminal_cost,
+        # )
+        return step_cost + boundary_cost + collision_cost + terminal_cost
 
     @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
