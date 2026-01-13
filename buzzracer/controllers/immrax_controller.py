@@ -183,6 +183,8 @@ class ImmraxController(CarController):
             # self.__compare_to_buzzracer_traj(
             #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
             # )
+            # self.__plot_track_bounds(sim_state)
+
             ### PLOTTING ###
 
             # DEBUG: plot sampled trajectory
@@ -279,7 +281,9 @@ class ImmraxController(CarController):
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
         steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
-        planned_controls = jnp.vstack([planned_controls[1:, :], jnp.zeros((1, planned_controls.shape[1]))])
+        planned_controls = jnp.vstack(
+            [planned_controls[1:, :], jnp.zeros((1, planned_controls.shape[1]))]
+        )
 
         sampled_steering = jnp.clip(
             planned_controls[:, 0]
@@ -304,9 +308,14 @@ class ImmraxController(CarController):
 
         return jnp.stack([sampled_steering, sampled_throttle], axis=-1), next_key
 
-    def rollout_sampled_trajectory(self, x0, control_traj):
+    def rollout_sampled_trajectory(
+        self, x0: jax.Array, control_traj: jax.Array
+    ) -> RawTrajectory:
         def control_action(t, x):
-            idx = jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int) % self.planning_horizon
+            idx = (
+                jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
+                % self.planning_horizon
+            )
             # jax.debug.print("time: {:.4f} mapped to index {:d}", t, idx)
             return control_traj[idx]
 
@@ -359,7 +368,7 @@ class ImmraxController(CarController):
         costs = jax.vmap(lambda traj: self.evaluate_trajectory_cost(state, traj))(trajs)
 
         best_idx = jnp.argmin(costs)
-        # jax.debug.print("Best cost: {}", costs[best_idx])
+        # jax.debug.print("Best sampled cost: {:.4g}", costs[best_idx])
 
         # lateral_deviation = trajs._ys[best_idx, : self.planning_horizon, 1]
         # jax.debug.print(
@@ -434,6 +443,55 @@ class ImmraxController(CarController):
                 self.track.curv_to_cart(curv_state) for curv_state in curv_states
             ]
             self.plot_trajectory(cart_traj)
+
+    def __plot_track_bounds(self, sim_state: jax.Array):
+        # zeros = jnp.zeros((4, self.track.ss.shape[0]))
+        # bounds_left_ys = jnp.vstack(
+        #     (self.track.ss, jnp.array(self.track.raceline_left_boundary), zeros)
+        # )
+        # bounds_right_ys = jnp.vstack(
+        #     (self.track.ss, -jnp.array(self.track.raceline_right_boundary), zeros)
+        # )
+        # bounds_left_curve = [CurvilinearState(*state) for state in bounds_left_ys.T]
+        # bounds_right_curve = [CurvilinearState(*state) for state in bounds_right_ys.T]
+        # bounds_left_cart = [
+        #     self.track.curv_to_cart(state) for state in bounds_left_curve
+        # ]
+        # bounds_right_cart = [
+        #     self.track.curv_to_cart(state) for state in bounds_right_curve
+        # ]
+
+        # self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
+        # self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
+
+        # return
+
+        # Compute track bounds
+        planned_traj = self.rollout_sampled_trajectory(
+            jnp.array([*sim_state]), self.planned_controls
+        )
+        index = jnp.searchsorted(
+            self.track.ss,
+            planned_traj.ys[: self.planning_horizon, 0] % self.track.ss[-1],
+        )
+        bounds_left = jnp.take(jnp.array(self.track.raceline_left_boundary), index)
+        bounds_right = -jnp.take(jnp.array(self.track.raceline_right_boundary), index)
+
+        # Convert to plotting format
+        planned_ys = planned_traj.ys[: self.planning_horizon, :]
+        bounds_left_ys = planned_ys.at[:, 1].set(bounds_left)
+        bounds_right_ys = planned_ys.at[:, 1].set(bounds_right)
+        bounds_left_curv = [CurvilinearState(*state) for state in bounds_left_ys]
+        bounds_right_curv = [CurvilinearState(*state) for state in bounds_right_ys]
+        bounds_left_cart = [
+            self.track.curv_to_cart(curv_state) for curv_state in bounds_left_curv
+        ]
+        bounds_right_cart = [
+            self.track.curv_to_cart(curv_state) for curv_state in bounds_right_curv
+        ]
+
+        self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
+        self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
 
     # get ss throttle, given ss velocity, linearfit
     def steady_state_throttle(self, velocity_ss):
