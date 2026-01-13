@@ -2,6 +2,7 @@
 # page 30 of book Vehicle Dynamics and Control
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import jax
@@ -58,7 +59,11 @@ class DynamicBicycleCurvilinear(System):
             # )
             dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
             # acceleration at rear wheel
-            acc_rw = 6.17 * (throttle - v_forward / 15.2 - 0.333)
+            acc_rw = jnp.where(
+                0 < v_forward,
+                6.17 * (throttle - v_forward / 15.2 - 0.333),
+                0.0,
+            ) # FIXME: this branch prevents parametope reachset calculation, needs custom_if logic
             acc_cg = acc_rw / jnp.cos(beta)
             d_v_forward_dt = acc_cg * jnp.cos(beta)
             d_v_sideway_dt = acc_cg * jnp.sin(beta)

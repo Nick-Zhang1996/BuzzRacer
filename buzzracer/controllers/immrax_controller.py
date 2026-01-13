@@ -199,17 +199,17 @@ class ImmraxController(CarController):
 
             # DEBUG: compute + plot reachable set overapproximation of sample trajectory
             # ============================================================
-            pt0 = Polytope.from_interval(
-                icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
-            )
+            # pt0 = Polytope.from_interval(
+            #     icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
+            # )
 
-            traj_reach = self.reach_predictor.compute_reachset(
-                0,
-                self.planning_horizon * self.planning_dt,
-                pt0,
-                (self.ff_control, self.disturbance_int, self.curvature_int),
-                dt=self.planning_dt,
-            )
+            # traj_reach = self.reach_predictor.compute_reachset(
+            #     0,
+            #     self.planning_horizon * self.planning_dt,
+            #     pt0,
+            #     (self.ff_control, self.disturbance_int, self.curvature_int),
+            #     dt=self.planning_dt,
+            # )
             # pt, aux = traj_reach.ys
             # alpha, _ = aux
             # idx = 1
