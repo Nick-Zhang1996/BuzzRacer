@@ -1,17 +1,15 @@
-from math import isnan, pi, degrees, radians
 from dataclasses import dataclass
 from functools import partial
+from types import SimpleNamespace
 
 import jax
 import jax.numpy as jnp
-import numpy as np
-import numpy as onp
 from immrax import AdjointEmbedding, Interval, Polytope, icentpert, interval, natif
 from immrax.inclusion.cubic_spline import (
     create_cubic_spline_coeffs,
     make_spline_eval_fn,
 )
-from pypoman import plot_polygon, project_polytope
+from immrax.system.trajectory import RawDiscreteTrajectory, RawTrajectory
 
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
@@ -19,10 +17,10 @@ from buzzracer.controllers.stanley_car_controller import StanleyCarController
 from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
     DynamicBicycleCurvilinear,
 )
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle_cartesian import (
-    DynamicBicycleCartesian,
+from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import (
+    KinematicBicycleModelFrenet,
 )
-from buzzracer.types import CartesianState, Control, CurvilinearState
+from buzzracer.types import Control, CurvilinearState
 
 # jax.config.update("jax_debug_nans", True)
 PRNG_SEED = 0
@@ -91,7 +89,7 @@ class ImmraxController(CarController):
 
         # Construct curvature spline
         ds = 0.1
-        track_len = car.main.track.raceline_len_m
+        track_len = self.track.raceline_len_m
         x_knots = jnp.arange(0, track_len, ds)
         y_knots = jnp.array([car.main.track.curvature_s(x) for x in x_knots])
         knots = jnp.vstack((x_knots, y_knots)).T
@@ -182,6 +180,9 @@ class ImmraxController(CarController):
                 sim_state, self.planned_controls, self.prng_key
             )
 
+            # self.__compare_to_buzzracer_traj(
+            #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
+            # )
             ### PLOTTING ###
 
             # DEBUG: plot sampled trajectory
@@ -370,6 +371,69 @@ class ImmraxController(CarController):
             trajs.ys[best_idx, : self.planning_horizon, :],
             next_key,
         )
+
+    def __compare_to_buzzracer_traj(
+        self,
+        sim_state,
+        cost_compare: bool = False,
+        plot: bool = False,
+        use_stanley_control=False,
+    ):
+        """"""
+        curv_state = CurvilinearState(*sim_state)
+        curv_states = [curv_state]
+
+        for i in range(self.planning_horizon):
+            singularity_proximity = (
+                1
+                - curv_state.lateral_err
+                * self.curvature(0, jnp.array([*curv_state])).item()
+            )
+
+            steering = (self.planned_controls[i, 0],)
+            throttle = (self.planned_controls[i, 1],)
+            if use_stanley_control:
+                throttle, steering, _, _ = self.stanley_controller.ctrl_car(
+                    self.track.curv_to_cart(curv_state), self.track
+                )
+
+            curv_state = KinematicBicycleModelFrenet.advance_dynamics(
+                curv_state,
+                Control(
+                    steering=steering,
+                    throttle=throttle,
+                ),
+                SimpleNamespace(params=self.car.params),
+                dt=self.planning_dt,
+                curvature=self.curvature(0, jnp.array([*curv_state])).item(),
+                # curvature=0,
+            )
+            curv_states.append(curv_state)
+
+            jump_size = (
+                curv_state.progress - curv_states[-2].progress
+            ) / self.planning_dt
+            if jnp.abs(jump_size) > 10:
+                print(
+                    f"!!!!!: huge jump in buzzracer ({jump_size:.2f}) -- {singularity_proximity=:.4g}"
+                )
+
+        if cost_compare:
+            state = jnp.array(curv_states[0])
+            curv_traj = RawDiscreteTrajectory(
+                jnp.arange(
+                    0, self.planning_horizon * self.planning_dt, self.planning_dt
+                ),
+                jnp.array(curv_states),
+            )
+            cost = self.evaluate_trajectory_cost(state, curv_traj)
+            print(f"Buzzracer dynamics cost: {cost:.4g}")
+
+        if plot:
+            cart_traj = [
+                self.track.curv_to_cart(curv_state) for curv_state in curv_states
+            ]
+            self.plot_trajectory(cart_traj)
 
     # get ss throttle, given ss velocity, linearfit
     def steady_state_throttle(self, velocity_ss):
