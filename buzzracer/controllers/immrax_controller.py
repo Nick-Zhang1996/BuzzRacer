@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
+from typing import List, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -20,7 +21,7 @@ from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
 from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import (
     KinematicBicycleModelFrenet,
 )
-from buzzracer.types import Control, CurvilinearState
+from buzzracer.types import CartesianState, Control, CurvilinearState
 
 # jax.config.update("jax_debug_nans", True)
 PRNG_SEED = 0
@@ -79,10 +80,6 @@ class ImmraxController(CarController):
         self.steering_bounds = SampleBounds(
             -car.max_steering_left, car.max_steering_right / 1, car.max_steering_right
         )
-
-        self.planned_controls: jnp.ndarray = jnp.zeros(
-            (self.planning_horizon, 2)
-        )  # (steering, throttle) for each timestep over planning horizon
 
         # # FIXME: combine this function with usage in rollout_sampled_trajectory
         # # needs to not depend on self, not be lambda, not be static
@@ -143,7 +140,12 @@ class ImmraxController(CarController):
 
         # TODO: I do not expect to need these long term, should remove eventually
         self.track = car.main.track
+
+        # (steering, throttle) for each timestep over planning horizon
         self.stanley_controller = StanleyCarController(car, config)
+        initial = jnp.array([*self.track.cart_to_curv(CartesianState(*self.car.state))])
+        _, self.planned_controls = self.__plan_stanley_traj(initial)
+        # self.planned_controls = jnp.zeros((self.planning_horizon, 2))
 
     def control(self):
         # curv_state = self.car.sim_state
@@ -167,7 +169,9 @@ class ImmraxController(CarController):
         # self.predict()
         return valid
 
-    def ctrl_car(self, state, sim_state, track, v_override=None, reverse=False):
+    def ctrl_car(
+        self, state, sim_state: CurvilinearState, track, v_override=None, reverse=False
+    ):
         # given state of the vehicle and an instance of track, provide throttle and steering output
         # input:
         #   state: (x,y,heading,v_forward,v_sideway,omega)
@@ -186,7 +190,8 @@ class ImmraxController(CarController):
         heading = state[2]
         vf = state[3]
 
-        if sim_state[3] > 1:
+        # if sim_state.v_forward > 1:
+        if sim_state.v_forward > -10:
             # ref_control = self.get_reference_control_from_stanley(
             #     CartesianState(*state)
             # )
@@ -407,9 +412,8 @@ class ImmraxController(CarController):
                 + 1.0,
             )
         )
+        # boundary_cost = 0
 
-        # TODO: this is not very robust, might allow "sneaking" through corners of track
-        # difficult to tell if this is collision detection failure or min speed for sample controller failure
         collision_cost = jnp.sum(
             jnp.where(
                 jnp.logical_or(lateral_err > bounds_left, lateral_err < -bounds_right),
@@ -417,6 +421,7 @@ class ImmraxController(CarController):
                 0.0,
             )
         )
+        # collision_cost = 0
 
         progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
         terminal_cost = 8.0 * self.planning_dt * self.planning_horizon - 2.0 * progress
@@ -432,6 +437,7 @@ class ImmraxController(CarController):
 
     @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
+        # jax.debug.print("{0}", planned_controls)
         # print("compiling update_planned_controls")
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
         trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
@@ -564,6 +570,35 @@ class ImmraxController(CarController):
 
         self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
         self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
+
+    def __plan_stanley_traj(
+        self, sim_state: jax.Array
+    ) -> Tuple[List[CurvilinearState], jax.Array]:
+        curv_state = CurvilinearState(*sim_state)
+        curv_states = [curv_state]
+        control_traj = jnp.zeros((self.planning_horizon, 2))
+
+        for i in range(self.planning_horizon):
+            throttle, steering, _, _ = self.stanley_controller.ctrl_car(
+                self.track.curv_to_cart(curv_state), self.track
+            )
+            control_traj = control_traj.at[i, :].set(jnp.array([steering, throttle]))
+
+            curv_state = KinematicBicycleModelFrenet.advance_dynamics(
+                curv_state,
+                Control(
+                    steering=steering,
+                    throttle=throttle,
+                ),
+                SimpleNamespace(params=self.car.params),
+                dt=self.planning_dt,
+                curvature=self.curvature(0, jnp.array([*curv_state])).item(),
+                # curvature=0,
+            )
+            curv_states.append(curv_state)
+
+        # TODO: return control trajectory also, warm start sampler w/ it
+        return curv_states, control_traj
 
     # get ss throttle, given ss velocity, linearfit
     def steady_state_throttle(self, velocity_ss):

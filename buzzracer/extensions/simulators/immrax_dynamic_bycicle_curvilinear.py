@@ -111,15 +111,15 @@ class DynamicBicycleCurvilinear(System):
 
             return dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega
 
-        # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
-        #     v_forward < 0.1, kinematic_model, dynamic_model
-        # )
         # FIXME: cond is not in the inclusion registry
         # However, we are already restricting the use of the sampling based controller to the case where v_forward > 1.0
         # Therefore, should always use dynamic_model
         dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
             kinematic_model()
         )
+        # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
+        #     v_forward < 0.1, kinematic_model, dynamic_model
+        # )
 
         return jnp.array(
             [dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega]
