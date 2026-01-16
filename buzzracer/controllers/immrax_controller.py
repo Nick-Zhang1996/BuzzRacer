@@ -23,7 +23,6 @@ from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator imp
 )
 from buzzracer.types import CartesianState, Control, CurvilinearState
 
-# jax.config.update("jax_debug_nans", True)
 PRNG_SEED = 0
 
 
@@ -379,6 +378,7 @@ class ImmraxController(CarController):
         return jax.lax.cond(
             collision,
             lambda: jnp.inf,
+            # lambda: 10e10,
             lambda: lateral_err_penalty - progress_reward,
         )
 
