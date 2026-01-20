@@ -23,6 +23,8 @@ from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator imp
 )
 from buzzracer.types import CartesianState, Control, CurvilinearState
 
+# jax.config.update("jax_debug_nans", True)
+
 PRNG_SEED = 0
 
 
@@ -77,7 +79,9 @@ class ImmraxController(CarController):
             min=car.min_throttle, std=car.max_throttle / 2, max=car.max_throttle
         )
         self.steering_bounds = SampleBounds(
-            -car.max_steering_left, car.max_steering_right / 1, car.max_steering_right
+            -car.max_steering_left,
+            car.max_steering_right / 1,
+            car.max_steering_right,
         )
 
         # # FIXME: combine this function with usage in rollout_sampled_trajectory
@@ -186,116 +190,65 @@ class ImmraxController(CarController):
         #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
         #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
         # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
-        heading = state[2]
-        vf = state[3]
 
-        # if sim_state.v_forward > 1:
-        if sim_state.v_forward > -10:
-            # ref_control = self.get_reference_control_from_stanley(
-            #     CartesianState(*state)
-            # )
-            self.planned_controls, traj, self.prng_key = self.update_planned_controls(
-                sim_state, self.planned_controls, self.prng_key
-            )
+        self.planned_controls, traj, self.prng_key = self.update_planned_controls(
+            sim_state, self.planned_controls, self.prng_key
+        )
 
-            # self.__compare_to_buzzracer_traj(
-            #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
-            # )
-            # self.__plot_track_bounds(sim_state)
+        # self.__compare_to_buzzracer_traj(
+        #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
+        # )
+        # self.__plot_track_bounds(sim_state)
 
-            ### PLOTTING ###
+        ### PLOTTING ###
 
-            # DEBUG: plot sampled trajectory
-            # ============================================================
-            traj_cart = [
-                self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
-            ]
-            self.plot_trajectory(traj_cart, color=(0, 0, 200))
-            # ============================================================
+        # DEBUG: plot sampled trajectory
+        # ============================================================
+        traj_cart = [
+            self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
+        ]
+        self.plot_trajectory(traj_cart, color=(0, 0, 200))
+        # ============================================================
 
-            # DEBUG: compute + plot reachable set overapproximation of sample trajectory
-            # ============================================================
-            # pt0 = Polytope.from_interval(
-            #     icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
-            # )
+        # DEBUG: compute + plot reachable set overapproximation of sample trajectory
+        # ============================================================
+        # pt0 = Polytope.from_interval(
+        #     icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
+        # )
 
-            # traj_reach = self.reach_predictor.compute_reachset(
-            #     0,
-            #     self.planning_horizon * self.planning_dt,
-            #     pt0,
-            #     (self.ff_control, self.disturbance_int, self.curvature_int),
-            #     dt=self.planning_dt,
-            # )
-            # pt, aux = traj_reach.ys
-            # alpha, _ = aux
-            # idx = 1
-            # final_state_iover = (
-            #     interval(alpha[idx])
-            #     @ interval(
-            #         -pt.y[idx, :6],
-            #         pt.y[idx, 6:],
-            #     )
-            #     + pt.ox[idx]
-            # )
-            # print(f"Bound size: {jnp.prod(final_state_iover.width):.4g}")
+        # traj_reach = self.reach_predictor.compute_reachset(
+        #     0,
+        #     self.planning_horizon * self.planning_dt,
+        #     pt0,
+        #     (self.ff_control, self.disturbance_int, self.curvature_int),
+        #     dt=self.planning_dt,
+        # )
+        # pt, aux = traj_reach.ys
+        # alpha, _ = aux
+        # idx = 1
+        # final_state_iover = (
+        #     interval(alpha[idx])
+        #     @ interval(
+        #         -pt.y[idx, :6],
+        #         pt.y[idx, 6:],
+        #     )
+        #     + pt.ox[idx]
+        # )
+        # print(f"Bound size: {jnp.prod(final_state_iover.width):.4g}")
 
-            # pt = pt[idx]
-            # E = onp.hstack((onp.eye(2), onp.zeros((2, pt.H.shape[1] - 2))))
-            # Hi = onp.vstack((-pt.H, pt.H))
-            # bi = onp.hstack((-pt.ly, pt.uy))
-            # frenet_vertices = project_polytope((E, onp.zeros(2)), (Hi, bi))
-            # # TODO: I need the full state information to do this conversion, but can't project VREP down to 2D for plotting
-            # cartesian_vertices = [self.track.curv_to_cart(v) for v in frenet_vertices]
-            # plot_polygon(cartesian_vertices)
+        # pt = pt[idx]
+        # E = onp.hstack((onp.eye(2), onp.zeros((2, pt.H.shape[1] - 2))))
+        # Hi = onp.vstack((-pt.H, pt.H))
+        # bi = onp.hstack((-pt.ly, pt.uy))
+        # frenet_vertices = project_polytope((E, onp.zeros(2)), (Hi, bi))
+        # # TODO: I need the full state information to do this conversion, but can't project VREP down to 2D for plotting
+        # cartesian_vertices = [self.track.curv_to_cart(v) for v in frenet_vertices]
+        # plot_polygon(cartesian_vertices)
 
-            # ============================================================
-            ### END PLOTTING ###
+        # ============================================================
+        ### END PLOTTING ###
 
-            return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
-
-        # inquire information about desired trajectory close to the vehicle
-        retval = track.local_trajectory(state)
-        if retval is None:
-            return (0, 0, False, {"offset": 0})
-
-        # parse return value from local_trajectory
-        (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
-        # for experiments
-        # v_target = min(v_target*0.8, 2.2)
-        v_target = min(v_target, self.max_speed)
-
-        if jnp.isnan(orientation):
-            return (0, 0, False, {"offset": 0})
-
-        if reverse:
-            offset = -offset
-            orientation += jnp.pi
-
-        # if vehicle cross error exceeds maximum allowable error, stop the car
-        if abs(offset) > self.max_offset:
-            return (0, 0, False, {"offset": offset})
-        else:
-            # sign convention for offset: negative offset(-) requires left steering(+)
-            # this is the convention used in track class, determined arbituarily
-            # control logic
-            # steering = (orientation-heading) - (offset * self.car.P) - (omega-curvature*vf)*self.car.D
-            steering = (orientation - heading) - (offset * self.Pfun(abs(vf)))
-            # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
-            # handle edge case, unwrap ( -355 deg turn -> +5 turn)
-            steering = (steering + jnp.pi) % (2 * jnp.pi) - jnp.pi
-            if steering > self.car.max_steering_left:
-                steering = self.car.max_steering_left
-            elif steering < -self.car.max_steering_right:
-                steering = -self.car.max_steering_right
-            if v_override is None:
-                throttle = self.calc_throttle(state, v_target)
-            else:
-                throttle = self.calc_throttle(state, v_override)
-
-            # ret =  (throttle,steering,True,{'offset':offset,'dw':omega-curvature*vf,'vf':vf,'v_target':v_target,'local_ctrl_point':local_ctrl_pnt})
-            ret = (throttle, steering, True, {})
-
-        return ret
+        return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
         steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
@@ -394,16 +347,19 @@ class ImmraxController(CarController):
         ref_vel = jnp.take(jnp.array(self.track.raceline_velocity), index)
         bounds_left = jnp.take(jnp.array(self.track.raceline_left_boundary), index)
         bounds_right = jnp.take(jnp.array(self.track.raceline_right_boundary), index)
+        # ref_headings = jnp.take(jnp.array(self.track.raceline_headings), index)
 
         lateral_err = traj.ys[: self.planning_horizon, 1]
         vel = traj.ys[: self.planning_horizon, 3]
         step_cost = jnp.sum(
-            5.0 * (lateral_err + 0.05 * (vel - ref_vel) ** 2)
+            5.0 * (lateral_err + 0.5 * (vel - ref_vel) ** 2)
             - 10.0 * jnp.minimum(vel, 0.0)
         )
 
+        speed_cost = 10 * jnp.sum(jnp.where(vel > 1.5, 0.0, 1.0))
+
         bound = jnp.where(lateral_err > 0, bounds_right, bounds_left)
-        boundary_cost = 5 * jnp.sum(
+        boundary_cost = 10 * jnp.sum(
             jnp.maximum(
                 0.0,
                 2.0
@@ -433,11 +389,10 @@ class ImmraxController(CarController):
         #     collision_cost,
         #     terminal_cost,
         # )
-        return step_cost + boundary_cost + collision_cost + terminal_cost
+        return step_cost + speed_cost + boundary_cost + collision_cost + terminal_cost
 
     @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
-        # jax.debug.print("{0}", planned_controls)
         # print("compiling update_planned_controls")
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
         trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
@@ -446,12 +401,6 @@ class ImmraxController(CarController):
         costs = jax.vmap(lambda traj: self.evaluate_trajectory_cost(state, traj))(trajs)
 
         best_idx = jnp.argmin(costs)
-        # jax.debug.print("Best sampled cost: {:.4g}", costs[best_idx])
-
-        # lateral_deviation = trajs._ys[best_idx, : self.planning_horizon, 1]
-        # jax.debug.print(
-        #     "Lateral deviation: {:.2f}", jnp.max(jnp.abs(lateral_deviation))
-        # )
 
         return (
             sampled_controls[best_idx],

@@ -12,10 +12,17 @@ from immrax import System
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
+MAX_CLIP_FLOAT = 1e3
+FLOAT_EPS = 1.0 / MAX_CLIP_FLOAT
+
 
 def conditional_log(condition: bool, format_str: str, *args):
     if condition:
         print(format_str.format(*args))
+
+
+def my_sign(input):
+    return jnp.where(input > 0, 1, -1)
 
 
 # NOTE: duplicated from `tire.py`, modified to use jax.numpy
@@ -45,7 +52,6 @@ class DynamicBicycleCurvilinear(System):
     def f(
         self, t, x: jax.Array, u: jax.Array, w: jax.Array, curvature: jax.Array
     ) -> jax.Array:
-        # print(f"{t.shape=}, {x.shape=}, {u.shape=}, {w.shape=}, {curvature.shape=}")
         progress, lateral_err, heading_err, v_forward, v_sideway, rel_omega = x
         steering, throttle = u
 
@@ -53,25 +59,27 @@ class DynamicBicycleCurvilinear(System):
             # Origin at CG, beta is the angle between CG velocity and car orientation
             beta = jnp.arctan(jnp.tan(steering) * self.lr / (self.lf + self.lr))
 
-            # jax.debug.print("curvature.shape={}", curvature.shape)
-
+            denom = 1 - lateral_err * curvature.squeeze()
             dsdt = (
                 (v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err))
-                / (1 - lateral_err * curvature.squeeze())
+                / (denom + my_sign(denom) * FLOAT_EPS)
             )  # FIXME: I have no idea why curvature picks up an extra dimension, but we need to remove it
-            # print(
-            #     f"{curvature.shape=}\n{(1 - lateral_err * curvature).shape=}\n{dsdt.shape=}"
-            # )
             dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
+
             # acceleration at rear wheel
             acc_rw = jax.lax.select(
                 0 < v_forward,
                 6.17 * (throttle - v_forward / 15.2 - 0.333),
                 0.0,
             )  # FIXME: this branch prevents parametope reachset calculation, needs custom_if logic
-            acc_cg = acc_rw / jnp.cos(beta)
-            d_v_forward_dt = acc_cg * jnp.cos(beta)
-            d_v_sideway_dt = acc_cg * jnp.sin(beta)
+            cb = jnp.cos(beta)
+            acc_cg = acc_rw / (cb + my_sign(cb) * FLOAT_EPS)
+            d_v_forward_dt = jnp.clip(
+                acc_cg * jnp.cos(beta), -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
+            )
+            d_v_sideway_dt = jnp.clip(
+                acc_cg * jnp.sin(beta), -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
+            )
 
             total_v = jnp.sqrt(v_forward**2 + v_sideway**2)
             d_heading_dt = total_v / self.lr * jnp.sin(beta)
@@ -80,17 +88,17 @@ class DynamicBicycleCurvilinear(System):
             return dsdt, dndt, d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0.0
 
         def dynamic_model():
+            denom = 1 - lateral_err * curvature.squeeze()
             dsdt = (
                 v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
-            ) / (1 - lateral_err * curvature.squeeze())
+            ) / (denom + my_sign(denom) * FLOAT_EPS)
             dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
 
             # Reference angular velocity
             omega_ref = dsdt * curvature.squeeze()
-            omega_ref = jnp.clip(omega_ref, -1e3, 1e3)
+            omega_ref = jnp.clip(omega_ref, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT)
             # Total angular velocity in inertial frame
             omega = omega_ref + rel_omega
-            # jax.debug.print("omega isinf? {0}", jnp.isinf(omega))
 
             # Slip angle of front/rear tires
             slip_f = (
@@ -110,45 +118,26 @@ class DynamicBicycleCurvilinear(System):
             )
 
             # in body frame
-            d_vy_body = 1.0 / self.m * (Fry + Ffy - self.m * v_forward * omega)
-            d_vx_body = (
-                jax.lax.select(
-                    v_forward > 0, 6.17 * (throttle - v_forward / 15.2 - 0.333), 0.0
-                )
-                + omega * v_sideway
+            d_vy_body = jnp.clip(
+                1.0 / self.m * (Fry + Ffy - self.m * v_forward * omega), -1e2, 1e2
+            )
+            d_vx_body = jnp.clip(
+                (
+                    jax.lax.select(
+                        v_forward > 0, 6.17 * (throttle - v_forward / 15.2 - 0.333), 0.0
+                    )
+                    + omega * v_sideway
+                ),
+                -1e2,
+                1e2,
             )
             d_rel_heading_dt = rel_omega
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
             d_rel_omega = 1.0 / self.Iz * (Ffy * self.lf - Fry * self.lr)
 
-            # jax.debug.callback(
-            #     conditional_log,
-            #     jnp.isinf(
-            #         jnp.array(
-            #             [
-            #                 dsdt,
-            #                 dndt,
-            #                 d_rel_heading_dt,
-            #                 d_vx_body,
-            #                 d_vy_body,
-            #                 d_rel_omega,
-            #             ]
-            #         )
-            #     ).any(),
-            #     "inf in dynamic_bycicle: {0}, {1}, {2}, {3}, {4}, {5}",
-            #     jnp.isinf(dsdt),
-            #     jnp.isinf(dndt),
-            #     jnp.isinf(d_rel_heading_dt),
-            #     jnp.isinf(d_vx_body),
-            #     jnp.isinf(d_vy_body),
-            #     jnp.isinf(d_rel_omega),
-            # )
-
             return dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega
 
         # FIXME: cond is not in the inclusion registry
-        # However, we are already restricting the use of the sampling based controller to the case where v_forward > 1.0
-        # Therefore, should always use dynamic_model
         # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
         #     kinematic_model()
         #     # dynamic_model()
