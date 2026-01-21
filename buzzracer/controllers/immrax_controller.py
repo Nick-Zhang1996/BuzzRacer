@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
@@ -5,6 +6,7 @@ from typing import List, Tuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from immrax import AdjointEmbedding, Interval, Polytope, icentpert, interval, natif
 from immrax.inclusion.cubic_spline import (
     create_cubic_spline_coeffs,
@@ -150,12 +152,43 @@ class ImmraxController(CarController):
         _, self.planned_controls = self.__plan_stanley_traj(initial)
         # self.planned_controls = jnp.zeros((self.planning_horizon, 2))
 
+        # Pre-compute track arrays as JAX arrays to avoid repeated conversions in JIT
+        self._jax_ss = jnp.array(self.track.ss)
+        self._jax_raceline_velocity = jnp.array(self.track.raceline_velocity)
+        self._jax_raceline_left_boundary = jnp.array(self.track.raceline_left_boundary)
+        self._jax_raceline_right_boundary = jnp.array(
+            self.track.raceline_right_boundary
+        )
+
+        # Visualization settings
+        self.enable_trajectory_visualization = False  # Set True only for debugging
+        self._viz_skip_count = 10  # Only visualize every N updates
+        self._viz_counter = 0
+
+        # Timing instrumentation
+        self._timing_log = []
+        self._last_update_time_ms = 0.0
+
+        # JIT warmup
+        self.print_info("Warming up JIT compilation...")
+        _t0 = time.perf_counter()
+        _ = self.update_planned_controls(initial, self.planned_controls, self.prng_key)
+        jax.block_until_ready(_[0])
+        _t1 = time.perf_counter()
+        self.print_info(f"JIT compilation time: {_t1 - _t0 * 1000:.1f}ms")
+
     def control(self):
         # curv_state = self.car.sim_state
         # print(f"progress: {curv_state[0]:.2f}, lateral err: {curv_state[1]:.2f}")
         throttle, steering, valid, debug_dict = self.ctrl_car(
             self.car.state, self.car.sim_state, self.track
         )
+        # Timing log
+        self._timing_log.append(self._last_update_time_ms)
+        if len(self._timing_log) % 100 == 0:
+            self.print_info(
+                f"Control loop: mean={np.mean(self._timing_log[-100:]):.2f}ms, std={np.std(self._timing_log[-100:]):.2f}ms"
+            )
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
         # self.print_info(
@@ -191,9 +224,13 @@ class ImmraxController(CarController):
         #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
         # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
 
+        _t0 = time.perf_counter()
         self.planned_controls, traj, self.prng_key = self.update_planned_controls(
             sim_state, self.planned_controls, self.prng_key
         )
+        jax.block_until_ready(self.planned_controls)  # Force sync for accurate timing
+        _t1 = time.perf_counter()
+        self._last_update_time_ms = (_t1 - _t0) * 1000
 
         # self.__compare_to_buzzracer_traj(
         #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
@@ -204,10 +241,14 @@ class ImmraxController(CarController):
 
         # DEBUG: plot sampled trajectory
         # ============================================================
-        traj_cart = [
-            self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
-        ]
-        self.plot_trajectory(traj_cart, color=(0, 0, 200))
+        if self.enable_trajectory_visualization:
+            self._viz_counter += 1
+            if self._viz_counter >= self._viz_skip_count:
+                self._viz_counter = 0
+                traj_cart = [
+                    self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
+                ]
+                self.plot_trajectory(traj_cart, color=(0, 0, 200))
         # ============================================================
 
         # DEBUG: compute + plot reachable set overapproximation of sample trajectory
@@ -342,11 +383,11 @@ class ImmraxController(CarController):
         # index is an array discritizing the tracks progress parameter
         # I want to map the progress component of state to an index so that I can compare to references directly
         index = jnp.searchsorted(
-            self.track.ss, traj.ys[: self.planning_horizon, 0] % self.track.ss[-1]
+            self._jax_ss, traj.ys[: self.planning_horizon, 0] % self._jax_ss[-1]
         )
-        ref_vel = jnp.take(jnp.array(self.track.raceline_velocity), index)
-        bounds_left = jnp.take(jnp.array(self.track.raceline_left_boundary), index)
-        bounds_right = jnp.take(jnp.array(self.track.raceline_right_boundary), index)
+        ref_vel = jnp.take(self._jax_raceline_velocity, index)
+        bounds_left = jnp.take(self._jax_raceline_left_boundary, index)
+        bounds_right = jnp.take(self._jax_raceline_right_boundary, index)
         # ref_headings = jnp.take(jnp.array(self.track.raceline_headings), index)
 
         lateral_err = traj.ys[: self.planning_horizon, 1]
@@ -498,11 +539,11 @@ class ImmraxController(CarController):
             jnp.array([*sim_state]), self.planned_controls
         )
         index = jnp.searchsorted(
-            self.track.ss,
-            planned_traj.ys[: self.planning_horizon, 0] % self.track.ss[-1],
+            self._jax_ss,
+            planned_traj.ys[: self.planning_horizon, 0] % self._jax_ss[-1],
         )
-        bounds_left = jnp.take(jnp.array(self.track.raceline_left_boundary), index)
-        bounds_right = -jnp.take(jnp.array(self.track.raceline_right_boundary), index)
+        bounds_left = jnp.take(self._jax_raceline_left_boundary, index)
+        bounds_right = -jnp.take(self._jax_raceline_right_boundary, index)
 
         # Convert to plotting format
         planned_ys = planned_traj.ys[: self.planning_horizon, :]
