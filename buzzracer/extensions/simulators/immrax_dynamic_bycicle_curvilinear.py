@@ -16,11 +16,6 @@ MAX_CLIP_FLOAT = 1e3
 FLOAT_EPS = 1.0 / MAX_CLIP_FLOAT
 
 
-def conditional_log(condition: bool, format_str: str, *args):
-    if condition:
-        print(format_str.format(*args))
-
-
 def my_sign(input):
     return jnp.where(input > 0, 1, -1)
 
@@ -55,94 +50,84 @@ class DynamicBicycleCurvilinear(System):
         progress, lateral_err, heading_err, v_forward, v_sideway, rel_omega = x
         steering, throttle = u
 
+        # Pre-compute values shared between kinematic and dynamic models
+        # FIXME: I have no idea why curvature picks up an extra dimension, but we need to remove it
+        kappa = curvature.squeeze()
+        cos_psi = jnp.cos(heading_err)
+        sin_psi = jnp.sin(heading_err)
+        denom = 1 - lateral_err * kappa
+        safe_denom = denom + my_sign(denom) * FLOAT_EPS
+        dsdt = (v_forward * cos_psi - v_sideway * sin_psi) / safe_denom
+        dndt = v_forward * sin_psi + v_sideway * cos_psi
+
+        # Pre-compute acceleration term (used in both models)
+        # FIXME: this branch prevents parametope reachset calculation, needs custom_if logic
+        acc_rw = jax.lax.select(
+            v_forward > 0,
+            6.17 * (throttle - v_forward / 15.2 - 0.333),
+            0.0,
+        )
+
         def kinematic_model():
             # Origin at CG, beta is the angle between CG velocity and car orientation
             beta = jnp.arctan(jnp.tan(steering) * self.lr / (self.lf + self.lr))
+            cos_beta = jnp.cos(beta)
+            sin_beta = jnp.sin(beta)
 
-            denom = 1 - lateral_err * curvature.squeeze()
-            dsdt = (
-                (v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err))
-                / (denom + my_sign(denom) * FLOAT_EPS)
-            )  # FIXME: I have no idea why curvature picks up an extra dimension, but we need to remove it
-            dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
-
-            # acceleration at rear wheel
-            acc_rw = jax.lax.select(
-                0 < v_forward,
-                6.17 * (throttle - v_forward / 15.2 - 0.333),
-                0.0,
-            )  # FIXME: this branch prevents parametope reachset calculation, needs custom_if logic
-            cb = jnp.cos(beta)
-            acc_cg = acc_rw / (cb + my_sign(cb) * FLOAT_EPS)
+            acc_cg = acc_rw / (cos_beta + my_sign(cos_beta) * FLOAT_EPS)
             d_v_forward_dt = jnp.clip(
-                acc_cg * jnp.cos(beta), -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
+                acc_cg * cos_beta, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
             )
             d_v_sideway_dt = jnp.clip(
-                acc_cg * jnp.sin(beta), -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
+                acc_cg * sin_beta, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
             )
 
             total_v = jnp.sqrt(v_forward**2 + v_sideway**2)
-            d_heading_dt = total_v / self.lr * jnp.sin(beta)
-            d_rel_heading_dt = d_heading_dt - curvature.squeeze() * dsdt
+            d_heading_dt = total_v / self.lr * sin_beta
+            d_rel_heading_dt = d_heading_dt - kappa * dsdt
 
-            return dsdt, dndt, d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0.0
+            return d_rel_heading_dt, d_v_forward_dt, d_v_sideway_dt, 0.0
 
         def dynamic_model():
-            denom = 1 - lateral_err * curvature.squeeze()
-            dsdt = (
-                v_forward * jnp.cos(heading_err) - v_sideway * jnp.sin(heading_err)
-            ) / (denom + my_sign(denom) * FLOAT_EPS)
-            dndt = v_forward * jnp.sin(heading_err) + v_sideway * jnp.cos(heading_err)
-
             # Reference angular velocity
-            omega_ref = dsdt * curvature.squeeze()
-            omega_ref = jnp.clip(omega_ref, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT)
+            omega_ref = jnp.clip(dsdt * kappa, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT)
             # Total angular velocity in inertial frame
             omega = omega_ref + rel_omega
 
             # Slip angle of front/rear tires
-            slip_f = (
-                -jnp.arctan(
-                    (omega * self.lf + v_sideway) / jnp.maximum(v_forward, 1e-3)
-                )
-                + steering
+            v_forward_safe = jnp.maximum(v_forward, FLOAT_EPS)
+            slip_f = steering - jnp.arctan(
+                (omega * self.lf + v_sideway) / v_forward_safe
             )
-            slip_r = jnp.arctan(
-                (omega * self.lr - v_sideway) / jnp.maximum(v_forward, 1e-3)
-            )
+            slip_r = jnp.arctan((omega * self.lr - v_sideway) / v_forward_safe)
 
-            # Lateral forces from front and rear tires
-            Ffy = tire_curve(slip_f) * self.m * 9.8 * self.lr / (self.lr + self.lf)
-            Fry = (
-                1.15 * tire_curve(slip_r) * self.m * 9.8 * self.lf / (self.lr + self.lf)
-            )
+            # Lateral forces from front and rear tires (pre-compute shared factor)
+            weight_factor = self.m * 9.8 / (self.lr + self.lf)
+            Ffy = tire_curve(slip_f) * weight_factor * self.lr
+            Fry = 1.15 * tire_curve(slip_r) * weight_factor * self.lf
 
             # in body frame
             d_vy_body = jnp.clip(
-                1.0 / self.m * (Fry + Ffy - self.m * v_forward * omega), -1e2, 1e2
+                (Fry + Ffy) / self.m - v_forward * omega,
+                -MAX_CLIP_FLOAT,
+                MAX_CLIP_FLOAT,
             )
             d_vx_body = jnp.clip(
-                (
-                    jax.lax.select(
-                        v_forward > 0, 6.17 * (throttle - v_forward / 15.2 - 0.333), 0.0
-                    )
-                    + omega * v_sideway
-                ),
-                -1e2,
-                1e2,
+                acc_rw + omega * v_sideway, -MAX_CLIP_FLOAT, MAX_CLIP_FLOAT
             )
             d_rel_heading_dt = rel_omega
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
-            d_rel_omega = 1.0 / self.Iz * (Ffy * self.lf - Fry * self.lr)
+            d_rel_omega = (Ffy * self.lf - Fry * self.lr) / self.Iz
 
-            return dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega
+            return d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega
 
         # FIXME: cond is not in the inclusion registry
-        # dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
+
+        # d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = (
         #     kinematic_model()
         #     # dynamic_model()
         # )
-        dsdt, dndt, d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
+        d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
             v_forward < 0.1, kinematic_model, dynamic_model
         )
 
