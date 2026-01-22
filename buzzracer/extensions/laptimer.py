@@ -22,7 +22,7 @@ class Laptimer(Extension):
 
     def __init__(self):
         Extension.__init__(self, 'laptimer')
-        self.text_logger.setLevel(logging.WARNING)
+        # self.text_logger.setLevel(logging.WARNING)
 
         cars = self.main.cars
         self.laptime_mean_by_car: dict[Car, float] = {car: 0 for car in cars}
@@ -100,7 +100,7 @@ class _Laptimer:
         ''' Internal Laptimer
         Args:
             finish: np.array dim (2,)
-            orientation: float Orientation in rad for track orientation at finish 
+            orientation: float Orientation in rad for track orientation at finish
         '''
         self.finish = np.array(finish)
         ''' Coordinate dim(2,) for finishing line '''

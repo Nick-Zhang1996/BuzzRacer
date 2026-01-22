@@ -70,8 +70,8 @@ class ImmraxController(CarController):
         self.prng_key = jax.random.key(PRNG_SEED)
 
         self.planning_dt = 0.02
-        self.planning_horizon = 50  # time steps
-        self.num_samples = 1000
+        self.planning_horizon = 30  # time steps
+        self.num_samples = 1024
         self.throttle_bounds = SampleBounds(
             min=car.min_throttle, std=car.max_throttle / 2, max=car.max_throttle
         )
