@@ -102,11 +102,6 @@ class ImmraxController(CarController):
         self.disturbance = lambda t, x: self._zero_disturbance
         self.predictor = DynamicBicycleCurvilinear(car)
 
-        self.progress_reward_weight = 0.1
-        self.lateral_err_penalty_weight = 3.0
-        self.discount_factor = 0.99
-        self.track_width = 0.2  # FIXME: this should be read from track
-
         # Pre-compute constant for terminal cost
         self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
 
@@ -345,26 +340,7 @@ class ImmraxController(CarController):
         return traj
 
     def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
-        # return self.__evaluate_trajectory_cost_custom(state, traj)
         return self.__evaluate_trajectory_cost_buzzracer(state, traj)
-
-    def __evaluate_trajectory_cost_custom(self, state: jax.Array, traj: RawTrajectory):
-        progress = traj.ys[self.planning_horizon - 1, 0] - state[0]
-        progress_reward = self.progress_reward_weight * progress**2
-
-        lateral_err = traj.ys[: self.planning_horizon, 1]
-        # Vectorized computation instead of vmap
-        lateral_err_penalty = self.lateral_err_penalty_weight * jnp.sum(lateral_err**2)
-
-        collision = jnp.max(jnp.abs(lateral_err)) > self.track_width
-
-        # TODO: add cost term for heading error
-
-        return jax.lax.cond(
-            collision,
-            lambda: jnp.inf,
-            lambda: lateral_err_penalty - progress_reward,
-        )
 
     def __evaluate_trajectory_cost_buzzracer(
         self, state: jax.Array, traj: RawTrajectory
@@ -488,27 +464,6 @@ class ImmraxController(CarController):
             self.plot_trajectory(cart_traj)
 
     def __plot_track_bounds(self, sim_state: jax.Array):
-        # zeros = jnp.zeros((4, self.track.ss.shape[0]))
-        # bounds_left_ys = jnp.vstack(
-        #     (self.track.ss, jnp.array(self.track.raceline_left_boundary), zeros)
-        # )
-        # bounds_right_ys = jnp.vstack(
-        #     (self.track.ss, -jnp.array(self.track.raceline_right_boundary), zeros)
-        # )
-        # bounds_left_curve = [CurvilinearState(*state) for state in bounds_left_ys.T]
-        # bounds_right_curve = [CurvilinearState(*state) for state in bounds_right_ys.T]
-        # bounds_left_cart = [
-        #     self.track.curv_to_cart(state) for state in bounds_left_curve
-        # ]
-        # bounds_right_cart = [
-        #     self.track.curv_to_cart(state) for state in bounds_right_curve
-        # ]
-
-        # self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
-        # self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
-
-        # return
-
         # Compute track bounds
         planned_traj = self.rollout_sampled_trajectory(
             jnp.array([*sim_state]), self.planned_controls
@@ -564,27 +519,3 @@ class ImmraxController(CarController):
 
         # TODO: return control trajectory also, warm start sampler w/ it
         return curv_states, control_traj
-
-    # get ss throttle, given ss velocity, linearfit
-    def steady_state_throttle(self, velocity_ss):
-        # 0.25 -> 0.94
-        # 0.28 -> 1.4
-        # 0.31 -> 1.9
-        p = jnp.array([0.06246385, 0.19171776])
-        if velocity_ss > 0:
-            return velocity_ss * p[0] + p[1]
-        else:
-            return 0
-
-    # PID controller for forward velocity
-    def calc_throttle(self, state, v_target):
-        vf = state[3]
-        # forgot how we got this
-        # throttle = (acc_target + 1.01294228)/4.95445214
-
-        # PID control for throttle
-        throttle = self.throttle_pid.control(v_target, vf) + self.steady_state_throttle(
-            v_target
-        )
-
-        return max(min(throttle, self.car.max_throttle), -1)
