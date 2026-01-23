@@ -83,12 +83,12 @@ class ImmraxController(CarController):
 
         # # FIXME: combine this function with usage in rollout_sampled_trajectory
         # # needs to not depend on self, not be lambda, not be static
-        # self.ff_control = lambda t, x: interval(
-        #     self.planned_controls[
-        #         jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
-        #         % self.planning_horizon
-        #     ]
-        # )
+        self.ff_control = lambda t, x: interval(
+            self.planned_controls[
+                jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
+                % self.planning_horizon
+            ]
+        )
 
         # Pre-allocate constant disturbance array to avoid repeated allocation
         self._zero_disturbance = jnp.array([0.0, 0.0])
@@ -176,6 +176,7 @@ class ImmraxController(CarController):
         _t0 = time.perf_counter()
         _ = self.update_planned_controls(initial, self.planned_controls, self.prng_key)
         jax.block_until_ready(_[0])
+        _ = self.reach_predictor
         _t1 = time.perf_counter()
         self.print_info(f"JIT compilation time: {(_t1 - _t0) * 1000:.1f}ms")
 
@@ -255,17 +256,17 @@ class ImmraxController(CarController):
 
         # DEBUG: compute + plot reachable set overapproximation of sample trajectory
         # ============================================================
-        # pt0 = Polytope.from_interval(
-        #     icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
-        # )
+        pt0 = Polytope.from_interval(
+            icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
+        )
 
-        # traj_reach = self.reach_predictor.compute_reachset(
-        #     0,
-        #     self.planning_horizon * self.planning_dt,
-        #     pt0,
-        #     (self.ff_control, self.disturbance_int, self.curvature_int),
-        #     dt=self.planning_dt,
-        # )
+        traj_reach = self.reach_predictor.compute_reachset(
+            0,
+            self.planning_horizon * self.planning_dt,
+            pt0,
+            (self.ff_control, self.disturbance_int, self.curvature_int),
+            dt=self.planning_dt,
+        )
         # pt, aux = traj_reach.ys
         # alpha, _ = aux
         # idx = 1
