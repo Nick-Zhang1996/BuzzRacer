@@ -30,6 +30,13 @@ from buzzracer.types import CartesianState, Control, CurvilinearState
 PRNG_SEED = 0
 
 
+def _get_control_index(t, planning_dt, planning_horizon):
+    """Compute the control index for time t."""
+    return (
+        jnp.floor((t + 0.5 * planning_dt) / planning_dt).astype(int) % planning_horizon
+    )
+
+
 @dataclass
 class SampleBounds:
     min: float
@@ -81,14 +88,14 @@ class ImmraxController(CarController):
             car.max_steering_right,
         )
 
-        # # FIXME: combine this function with usage in rollout_sampled_trajectory
-        # # needs to not depend on self, not be lambda, not be static
-        self.ff_control = lambda t, x: interval(
-            self.planned_controls[
-                jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
-                % self.planning_horizon
-            ]
-        )
+        # Control lookup function for reachability computation.
+        # Defined once here to maintain stable object identity (avoids JIT recompilation).
+        # Uses late binding to access self.planned_controls dynamically.
+        def ff_control_fn(t, x):
+            idx = _get_control_index(t, self.planning_dt, self.planning_horizon)
+            return interval(self.planned_controls[idx])
+
+        self.ff_control = ff_control_fn
 
         # Pre-allocate constant disturbance array to avoid repeated allocation
         self._zero_disturbance = jnp.array([0.0, 0.0])
@@ -176,7 +183,6 @@ class ImmraxController(CarController):
         _t0 = time.perf_counter()
         _ = self.update_planned_controls(initial, self.planned_controls, self.prng_key)
         jax.block_until_ready(_[0])
-        _ = self.reach_predictor
         _t1 = time.perf_counter()
         self.print_info(f"JIT compilation time: {(_t1 - _t0) * 1000:.1f}ms")
 
@@ -321,12 +327,10 @@ class ImmraxController(CarController):
     def rollout_sampled_trajectory(
         self, x0: jax.Array, control_traj: jax.Array
     ) -> RawTrajectory:
+        # Local closure capturing control_traj. This works inside JIT because
+        # control_traj is a traced array and the closure structure is stable.
         def control_action(t, x):
-            idx = (
-                jnp.floor((t + 0.5 * self.planning_dt) / self.planning_dt).astype(int)
-                % self.planning_horizon
-            )
-            # jax.debug.print("time: {:.4f} mapped to index {:d}", t, idx)
+            idx = _get_control_index(t, self.planning_dt, self.planning_horizon)
             return control_traj[idx]
 
         traj = self.predictor.compute_trajectory(
