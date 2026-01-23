@@ -261,6 +261,8 @@ class ImmraxController(CarController):
             icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
         )
 
+        # Time the reachability computation
+        _reach_t0 = time.perf_counter()
         traj_reach = self.reach_predictor.compute_reachset(
             0,
             self.planning_horizon * self.planning_dt,
@@ -268,27 +270,47 @@ class ImmraxController(CarController):
             (self.ff_control, self.disturbance_int, self.curvature_int),
             dt=self.planning_dt,
         )
-        # pt, aux = traj_reach.ys
-        # alpha, _ = aux
-        # idx = 1
-        # final_state_iover = (
-        #     interval(alpha[idx])
-        #     @ interval(
-        #         -pt.y[idx, :6],
-        #         pt.y[idx, 6:],
-        #     )
-        #     + pt.ox[idx]
-        # )
-        # print(f"Bound size: {jnp.prod(final_state_iover.width):.4g}")
+        jax.block_until_ready(traj_reach)
+        _reach_t1 = time.perf_counter()
+        reach_time_ms = (_reach_t1 - _reach_t0) * 1000
 
-        # pt = pt[idx]
-        # E = onp.hstack((onp.eye(2), onp.zeros((2, pt.H.shape[1] - 2))))
-        # Hi = onp.vstack((-pt.H, pt.H))
-        # bi = onp.hstack((-pt.ly, pt.uy))
-        # frenet_vertices = project_polytope((E, onp.zeros(2)), (Hi, bi))
-        # # TODO: I need the full state information to do this conversion, but can't project VREP down to 2D for plotting
-        # cartesian_vertices = [self.track.curv_to_cart(v) for v in frenet_vertices]
-        # plot_polygon(cartesian_vertices)
+        # Extract bounds and analyze overflow
+        pt, aux = traj_reach.ys
+        alpha, _ = aux
+        num_timesteps = pt.y.shape[0]
+
+        # State component names for logging
+        state_names = ["progress", "lateral_err", "heading_err", "v_forward", "v_sideway", "omega"]
+
+        # Find first overflow timestep and compute bound widths
+        overflow_timestep = num_timesteps
+        final_widths = None
+        for idx in range(num_timesteps):
+            state_iover = (
+                interval(alpha[idx])
+                @ interval(-pt.y[idx, :6], pt.y[idx, 6:])
+                + pt.ox[idx]
+            )
+            widths = state_iover.width
+
+            # Check for overflow (NaN or Inf in widths, or width > 1e6)
+            if jnp.any(jnp.isnan(widths)) or jnp.any(jnp.isinf(widths)) or jnp.any(widths > 1e6):
+                overflow_timestep = idx
+                break
+            final_widths = widths
+
+        # Log reachability analysis results
+        self.print_info(f"Reachability: {overflow_timestep}/{num_timesteps} steps valid, compute time: {reach_time_ms:.2f}ms")
+
+        if final_widths is not None:
+            # Compute relative widths (normalized by smallest non-zero width)
+            min_width = jnp.min(final_widths[final_widths > 1e-10])
+            relative_widths = final_widths / min_width
+            width_strs = [f"{state_names[i]}={final_widths[i]:.4g} ({relative_widths[i]:.1f}x)"
+                          for i in range(6)]
+            self.print_info(f"Final valid bound widths: {', '.join(width_strs)}")
+        elif overflow_timestep == 0:
+            self.print_warning("Reachable set overflowed at first timestep!")
 
         # ============================================================
         ### END PLOTTING ###
