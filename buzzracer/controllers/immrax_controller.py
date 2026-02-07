@@ -1,29 +1,22 @@
 import time
 from dataclasses import dataclass
 from functools import partial
-from types import SimpleNamespace
 from typing import List, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from immrax import AdjointEmbedding, Interval, Polytope, icentpert, interval, natif
-from immrax.inclusion.cubic_spline import (
-    create_cubic_spline_coeffs,
-    make_spline_eval_fn,
-)
-from immrax.system.trajectory import RawDiscreteTrajectory, RawTrajectory
+from immrax import AdjointEmbedding, Polytope, icentpert, interval
+from immrax.system.trajectory import RawTrajectory
+from immrax.utils import timed
 
 from buzzracer.controllers.car_controller import CarController
-from buzzracer.controllers.pid_controller import PidController
 from buzzracer.controllers.stanley_car_controller import StanleyCarController
-from buzzracer.extensions.simulators.immrax_dynamic_bicycle_curvilinear import (
-    DynamicBicycleCurvilinear,
+from buzzracer.extensions.simulators.immrax_dynamic_bicycle_cartesian import (
+    DynamicBicycleCartesian,
 )
-from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import (
-    KinematicBicycleModelFrenet,
-)
-from buzzracer.types import CartesianState, Control, CurvilinearState
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+from buzzracer.types import CartesianState, Control
 
 # jax.config.update("jax_debug_nans", True)
 
@@ -46,33 +39,10 @@ class SampleBounds:
 
 class ImmraxController(CarController):
     def __init__(self, car, config):
-        # defaults for configurable parameters
-        # NOTE these will be overridden
-        self.max_offset = 0.4
-        self.max_speed = 4.0
         # load config etc
         super().__init__(car, config)
 
         self.debug_dict = {}
-        p1 = (1.0, 2.0)
-        p2 = (4.0, 0.5)
-        self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
-        self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
-        self.Pfun = (
-            lambda v: max(min((self.Pfun_slope * v + self.Pfun_offset), 4.0), 0.5)
-            / 280
-            * jnp.pi
-            / 0.01
-        )
-
-        # speed controller
-        P = 1.5  # to be more aggressive use 15
-        I = 0.0  # 0.1
-        D = 0.005
-        dt = car.main.dt
-        # integral limit, lpf curoff freq
-        # self.throttle_pid = PidController(P,I,D,dt,1,2)
-        self.throttle_pid = PidController(P, I, D, dt, 1, 1000)
 
         self.prng_key = jax.random.key(PRNG_SEED)
 
@@ -88,73 +58,31 @@ class ImmraxController(CarController):
             car.max_steering_right,
         )
 
-        # Control lookup function for reachability computation.
-        # Defined once here to maintain stable object identity (avoids JIT recompilation).
-        # Uses late binding to access self.planned_controls dynamically.
-        def ff_control_fn(t, x):
-            idx = _get_control_index(t, self.planning_dt, self.planning_horizon)
-            return interval(self.planned_controls[idx])
-
-        self.ff_control = ff_control_fn
+        self.predictor = DynamicBicycleCartesian(car)
 
         # Pre-allocate constant disturbance array to avoid repeated allocation
         self._zero_disturbance = jnp.array([0.0, 0.0])
         self.disturbance = lambda t, x: self._zero_disturbance
-        self.predictor = DynamicBicycleCurvilinear(car)
 
-        # Pre-compute constant for terminal cost
-        self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
-
-        # Construct curvature spline
-        ds = 0.1
-        track_len = self.track.raceline_len_m
-        x_knots = jnp.arange(0, track_len, ds)
-        y_knots = jnp.array([car.main.track.curvature_s(x) for x in x_knots])
-        knots = jnp.vstack((x_knots, y_knots)).T
-        curvature_spline = make_spline_eval_fn(*create_cubic_spline_coeffs(knots))
-        self.curvature = (
-            lambda t, x: jnp.atleast_1d(curvature_spline(x[0] % track_len))
-        )  # This needs to be 1d for compatibility with parametope embedding version of curvature
-
-        def curvature_int(s: Interval):
-            # print(s.shape)
-            start = s.lower % track_len
-            width = s.width
-            s1 = interval(start, jnp.minimum(track_len, start + width))
-            s2 = interval(
-                jnp.array(0.0),
-                jnp.minimum(
-                    jnp.maximum(jnp.array(0.0), start + width - track_len), start
-                ),
-            )
-
-            spline_int = natif(curvature_spline)
-            ret = (
-                spline_int(s1) | spline_int(s2)
-            ).atleast_1d()  # Since ParametricEmbedding requires all *args to have a defined `len`, we need it to be a 1d array, not just a scalar
-            return ret
-
-        def iover_s(x):
-            pt, aux = x
-            alpha, _ = aux
-            return (interval(alpha) @ interval(-pt.y[:6], pt.y[6:]) + pt.ox[0])[0]
-
+        # args: sys, alpha_p0, N0
+        # N0 is null vectors
         self.reach_predictor = AdjointEmbedding(
             self.predictor, jnp.eye(6), jnp.zeros((0, 6))
         )
         # Pre-compute interval disturbance to avoid repeated allocation
         self._zero_disturbance_interval = interval(self._zero_disturbance)
         self.disturbance_int = lambda t, x: self._zero_disturbance_interval
-        self.curvature_int = lambda t, x: curvature_int(iover_s(x))
 
-        # TODO: I do not expect to need these long term, should remove eventually
+        self.stanley_controller = StanleyCarController(car, config)
+        initial = jnp.array(self.car.state[:6])  # [x, y, heading, vf, vs, omega]
+        _, self.planned_controls = self.__plan_stanley_traj(
+            initial
+        )  # (steering, throttle) for each timestep over planning horizon
+
         self.track = car.main.track
 
-        # (steering, throttle) for each timestep over planning horizon
-        self.stanley_controller = StanleyCarController(car, config)
-        initial = jnp.array([*self.track.cart_to_curv(CartesianState(*self.car.state))])
-        _, self.planned_controls = self.__plan_stanley_traj(initial)
-        # self.planned_controls = jnp.zeros((self.planning_horizon, 2))
+        # Pre-compute constant for terminal cost
+        self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
 
         # Pre-compute track arrays as JAX arrays to avoid repeated conversions in JIT
         self._jax_ss = jnp.array(self.track.ss)
@@ -163,6 +91,10 @@ class ImmraxController(CarController):
         self._jax_raceline_right_boundary = jnp.array(
             self.track.raceline_right_boundary
         )
+        # Raceline arrays for Cartesian-to-Frenet projection
+        self._jax_raceline_x = jnp.array(self.track.raceline_points[0])  # (N,)
+        self._jax_raceline_y = jnp.array(self.track.raceline_points[1])  # (N,)
+        self._jax_raceline_headings = jnp.array(self.track.raceline_headings)  # (N,)
 
         # Visualization settings
         self.enable_trajectory_visualization = False  # Set True only for debugging
@@ -176,14 +108,15 @@ class ImmraxController(CarController):
         # JIT warmup
         self.print_info("Warming up JIT compilation...")
         _t0 = time.perf_counter()
+        pt0 = Polytope.from_interval(interval(initial))
         _ = self.update_planned_controls(initial, self.planned_controls, self.prng_key)
+        __ = self.rollout_reachset(pt0, self.planned_controls)
         jax.block_until_ready(_[0])
+        jax.block_until_ready(__)
         _t1 = time.perf_counter()
         self.print_info(f"JIT compilation time: {(_t1 - _t0) * 1000:.1f}ms")
 
     def control(self):
-        # curv_state = self.car.sim_state
-        # print(f"progress: {curv_state[0]:.2f}, lateral err: {curv_state[1]:.2f}")
         throttle, steering, valid, debug_dict = self.ctrl_car(
             self.car.state, self.car.sim_state, self.track
         )
@@ -195,10 +128,6 @@ class ImmraxController(CarController):
             )
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
-        # self.print_info(
-        #     "car %d, T= %4.1f, S= %4.1f (deg)"
-        #     % (self.car.id, throttle, degrees(steering))
-        # )
         if valid:
             self.car.throttle = throttle
             self.car.steering = steering
@@ -206,114 +135,44 @@ class ImmraxController(CarController):
             self.print_warning(" car %d invalid results from ctrl_car", self.car.id)
             self.car.throttle = 0.0
             self.car.steering = 0.0
-        # self.predict()
         return valid
 
     def ctrl_car(
-        self, state, sim_state: CurvilinearState, track, v_override=None, reverse=False
+        self, state, sim_state: CartesianState, track, v_override=None, reverse=False
     ):
-        # given state of the vehicle and an instance of track, provide throttle and steering output
-        # input:
-        #   state: (x,y,heading,v_forward,v_sideway,omega)
-        #   track: track object, can be RCPTrack or skidpad
-        #   v_override: If specified, use this as target velocity instead of the optimal value provided by track object
-        #   reverse: true if running in opposite direction of raceline init direction
+        """
+        given state of the vehicle and an instance of track, provide throttle and steering output
+        input:
+          state: (x,y,heading,v_forward,v_sideway,omega)
+          track: track object, can be RCPTrack or skidpad
+          v_override: If specified, use this as target velocity instead of the optimal value provided by track object
+          reverse: true if running in opposite direction of raceline init direction
 
-        # output:
-        #   (throttle,steering,valid,debug)
-        # ranges for output:
-        #   throttle -1.0,self.max_throttle
-        #   steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
-        #   valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
-        #           This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
-        # debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
+        output:
+          (throttle,steering,valid,debug)
+        ranges for output:
+          throttle -1.0,self.max_throttle
+          steering as an angle in radians, TRIMMED to self.max_steering, left(+), right(-)
+          valid: bool, if the car can be controlled here, if this is false, then throttle will also be set to 0
+                  This typically happens when vehicle is off track, and track object cannot find a reasonable local raceline
+        debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
+        """
 
-        _t0 = time.perf_counter()
-        self.planned_controls, traj, self.prng_key = self.update_planned_controls(
-            sim_state, self.planned_controls, self.prng_key
+        res, controller_compute_time = self.update_planned_controls(
+            jnp.asarray(state), self.planned_controls, self.prng_key
         )
-        jax.block_until_ready(self.planned_controls)  # Force sync for accurate timing
-        _t1 = time.perf_counter()
-        self._last_update_time_ms = (_t1 - _t0) * 1000
+        self.planned_controls, traj, self.prng_key = res
+        self._last_update_time_ms = controller_compute_time * 1000
 
-        # self.__compare_to_buzzracer_traj(
-        #     sim_state, plot=True, cost_compare=True, use_stanley_control=True
-        # )
-        # self.__plot_track_bounds(sim_state)
-
-        ### PLOTTING ###
-
-        # DEBUG: plot sampled trajectory
-        # ============================================================
-        if self.enable_trajectory_visualization:
-            self._viz_counter += 1
-            if self._viz_counter >= self._viz_skip_count:
-                self._viz_counter = 0
-                traj_cart = [
-                    self.track.curv_to_cart(CurvilinearState(*state)) for state in traj
-                ]
-                self.plot_trajectory(traj_cart, color=(0, 0, 200))
-        # ============================================================
-
-        # DEBUG: compute + plot reachable set overapproximation of sample trajectory
-        # ============================================================
+        # Reachability computation
         pt0 = Polytope.from_interval(
-            icentpert(sim_state, jnp.array([0.1, 0.1, 0.1, 0.01, 0.01, 0.01]))
-        )
-
-        # Time the reachability computation
-        _reach_t0 = time.perf_counter()
-        traj_reach = self.reach_predictor.compute_reachset(
-            0,
-            self.planning_horizon * self.planning_dt,
-            pt0,
-            (self.ff_control, self.disturbance_int, self.curvature_int),
-            dt=self.planning_dt,
-        )
-        jax.block_until_ready(traj_reach)
-        _reach_t1 = time.perf_counter()
-        reach_time_ms = (_reach_t1 - _reach_t0) * 1000
-
-        # Extract bounds and analyze overflow
-        pt, aux = traj_reach.ys
-        alpha, _ = aux
-        num_timesteps = pt.y.shape[0]
-
-        # State component names for logging
-        state_names = ["progress", "lateral_err", "heading_err", "v_forward", "v_sideway", "omega"]
-
-        # Find first overflow timestep and compute bound widths
-        overflow_timestep = num_timesteps
-        final_widths = None
-        for idx in range(num_timesteps):
-            state_iover = (
-                interval(alpha[idx])
-                @ interval(-pt.y[idx, :6], pt.y[idx, 6:])
-                + pt.ox[idx]
+            icentpert(
+                jnp.array(state[:6]), jnp.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
             )
-            widths = state_iover.width
-
-            # Check for overflow (NaN or Inf in widths, or width > 1e6)
-            if jnp.any(jnp.isnan(widths)) or jnp.any(jnp.isinf(widths)) or jnp.any(widths > 1e6):
-                overflow_timestep = idx
-                break
-            final_widths = widths
-
-        # Log reachability analysis results
-        self.print_info(f"Reachability: {overflow_timestep}/{num_timesteps} steps valid, compute time: {reach_time_ms:.2f}ms")
-
-        if final_widths is not None:
-            # Compute relative widths (normalized by smallest non-zero width)
-            min_width = jnp.min(final_widths[final_widths > 1e-10])
-            relative_widths = final_widths / min_width
-            width_strs = [f"{state_names[i]}={final_widths[i]:.4g} ({relative_widths[i]:.1f}x)"
-                          for i in range(6)]
-            self.print_info(f"Final valid bound widths: {', '.join(width_strs)}")
-        elif overflow_timestep == 0:
-            self.print_warning("Reachable set overflowed at first timestep!")
-
-        # ============================================================
-        ### END PLOTTING ###
+        )
+        traj_reach, reachset_compute_time = self.rollout_reachset(
+            pt0, self.planned_controls
+        )
 
         return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
 
@@ -324,8 +183,12 @@ class ImmraxController(CarController):
 
         # Generate noise for all samples at once
         noise_shape = (self.num_samples, self.planning_horizon)
-        steering_noise = self.steering_bounds.std * jax.random.normal(steering_key, shape=noise_shape)
-        throttle_noise = self.throttle_bounds.std * jax.random.normal(throttle_key, shape=noise_shape)
+        steering_noise = self.steering_bounds.std * jax.random.normal(
+            steering_key, shape=noise_shape
+        )
+        throttle_noise = self.throttle_bounds.std * jax.random.normal(
+            throttle_key, shape=noise_shape
+        )
 
         # Add noise to shifted controls and clip
         sampled_steering = jnp.clip(
@@ -354,27 +217,51 @@ class ImmraxController(CarController):
             0.0,  # NOTE: this is assuming the system is time-invariant
             self.planning_horizon * self.planning_dt,
             x0,
-            # (control_action, self.disturbance, lambda t, x: 0),
-            (control_action, self.disturbance, self.curvature),
+            (control_action, self.disturbance),  # Cartesian model: no curvature
             dt=self.planning_dt,
             solver="euler",
         )
         return traj
 
-    def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
-        return self.__evaluate_trajectory_cost_buzzracer(state, traj)
+    @partial(jax.jit, static_argnums=0)
+    @timed
+    def rollout_reachset(self, pt0, planned_controls):
+        """Compute reachable set with planned_controls as a traced argument.
 
-    def __evaluate_trajectory_cost_buzzracer(
+        Mirrors rollout_sampled_trajectory: the closure captures planned_controls
+        as a traced JAX array so it stays dynamic under JIT, rather than being
+        baked in as a compile-time constant. The outer JIT here makes the inner
+        compute_reachset JIT a no-op, so the static_argnums on inputs is
+        irrelevant and the closure correctly captures a tracer.
+        """
+
+        def ff_control(t, x):
+            idx = _get_control_index(t, self.planning_dt, self.planning_horizon)
+            return interval(planned_controls[idx])
+
+        return self.reach_predictor.compute_reachset(
+            0,
+            self.planning_horizon * self.planning_dt,
+            pt0,
+            (ff_control, self.disturbance_int),
+            dt=self.planning_dt,
+        )
+
+    def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
+        return self.__evaluate_trajectory_cost_cartesian(state, traj)
+
+    def __evaluate_trajectory_cost_cartesian(
         self, state: jax.Array, traj: RawTrajectory
     ):
-        # traj is an array of states over time
-        # index is an array discritizing the tracks progress parameter
-        # I want to map the progress component of state to an index so that I can compare to references directly
-        # Extract trajectory slice once
+        """Evaluate trajectory cost in Cartesian frame."""
         traj_slice = traj.ys[: self.planning_horizon]
-        progress_vals = traj_slice[:, 0]
-        lateral_err = traj_slice[:, 1]
-        vel = traj_slice[:, 3]
+
+        # Extract Cartesian state components
+        xy_vals = traj_slice[:, :2]  # (x, y) positions
+        vel = traj_slice[:, 3]  # forward velocity
+
+        # Project to Frenet for cost computation
+        progress_vals, lateral_err = self._project_to_frenet_batch(xy_vals)
 
         # Map progress to track indices
         index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
@@ -384,30 +271,51 @@ class ImmraxController(CarController):
 
         # Step cost: penalize lateral error and velocity deviation
         vel_diff_sq = (vel - ref_vel) ** 2
-        step_cost = jnp.sum(5.0 * lateral_err + 2.5 * vel_diff_sq - 10.0 * jnp.minimum(vel, 0.0))
+        step_cost = jnp.sum(
+            5.0 * jnp.abs(lateral_err)
+            + 2.5 * vel_diff_sq
+            - 10.0 * jnp.minimum(vel, 0.0)
+        )
 
         # Speed cost: penalize low speeds
         speed_cost = 10.0 * jnp.sum(vel <= 1.5)
 
         # Boundary cost: soft penalty near boundaries
         abs_lateral_err = jnp.abs(lateral_err)
-        bound = jnp.where(lateral_err > 0, bounds_right, bounds_left)
+        bound = jnp.where(lateral_err > 0, bounds_left, bounds_right)
         boundary_arg = -100.0 * (bound - (abs_lateral_err + 0.05))
-        boundary_cost = 10.0 * jnp.sum(jnp.maximum(0.0, (2.0 / jnp.pi) * jnp.arctan(boundary_arg) + 1.0))
+        boundary_cost = 10.0 * jnp.sum(
+            jnp.maximum(0.0, (2.0 / jnp.pi) * jnp.arctan(boundary_arg) + 1.0)
+        )
 
         # Collision cost: hard penalty for boundary violation
-        collision = jnp.logical_or(lateral_err > bounds_left, lateral_err < -bounds_right)
+        collision = jnp.logical_or(
+            lateral_err > bounds_left, lateral_err < -bounds_right
+        )
         collision_cost = jnp.where(jnp.any(collision), jnp.inf, 0.0)
 
-        # Terminal cost: reward progress
-        progress = progress_vals[-1] - state[0]
-        terminal_cost = self._terminal_cost_offset - 2.0 * progress
+        # Terminal cost: compute progress made
+        initial_xy = jnp.array(state[:2])
+        initial_progress, _ = self._project_to_frenet_batch(initial_xy[None, :])
+        progress_made = progress_vals[-1] - initial_progress[0]
+        # Handle wrap-around in both directions
+        track_len = self.track.raceline_len_m
+        progress_made = jnp.where(
+            progress_made < -track_len / 2,
+            progress_made + track_len,  # Forward lap crossing
+            jnp.where(
+                progress_made > track_len / 2,
+                progress_made - track_len,  # Backward lap crossing
+                progress_made,
+            ),
+        )
+        terminal_cost = self._terminal_cost_offset - 2.0 * progress_made
 
         return step_cost + speed_cost + boundary_cost + collision_cost + terminal_cost
 
     @partial(jax.jit, static_argnums=0)
+    @timed
     def update_planned_controls(self, state, planned_controls, prng_key):
-        # print("compiling update_planned_controls")
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
         trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
             jnp.array(state[0:6]), sampled_controls
@@ -422,122 +330,72 @@ class ImmraxController(CarController):
             next_key,
         )
 
-    def __compare_to_buzzracer_traj(
-        self,
-        sim_state,
-        cost_compare: bool = False,
-        plot: bool = False,
-        use_stanley_control=False,
-    ):
-        """"""
-        curv_state = CurvilinearState(*sim_state)
-        curv_states = [curv_state]
+    def _project_to_frenet_batch(
+        self, xy_vals: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
+        """
+        Project Cartesian (x, y) points onto raceline.
 
-        for i in range(self.planning_horizon):
-            singularity_proximity = (
-                1
-                - curv_state.lateral_err
-                * self.curvature(0, jnp.array([*curv_state])).item()
-            )
+        Args:
+            xy_vals: (N, 2) array of [x, y] positions
 
-            steering = (self.planned_controls[i, 0],)
-            throttle = (self.planned_controls[i, 1],)
-            if use_stanley_control:
-                throttle, steering, _, _ = self.stanley_controller.ctrl_car(
-                    self.track.curv_to_cart(curv_state), self.track
-                )
+        Returns:
+            progress: (N,) progress values along raceline
+            lateral_err: (N,) signed lateral errors (positive = left of raceline)
+        """
+        # Compute squared distances to all raceline points
+        # xy_vals: (N, 2), raceline: (M, 2) -> distances: (N, M)
+        dx = xy_vals[:, 0:1] - self._jax_raceline_x[None, :]  # (N, M)
+        dy = xy_vals[:, 1:2] - self._jax_raceline_y[None, :]  # (N, M)
+        dists_sq = dx**2 + dy**2
 
-            curv_state = KinematicBicycleModelFrenet.advance_dynamics(
-                curv_state,
-                Control(
-                    steering=steering,
-                    throttle=throttle,
-                ),
-                SimpleNamespace(params=self.car.params),
-                dt=self.planning_dt,
-                curvature=self.curvature(0, jnp.array([*curv_state])).item(),
-                # curvature=0,
-            )
-            curv_states.append(curv_state)
+        # Find closest raceline point index for each trajectory point
+        closest_idx = jnp.argmin(dists_sq, axis=1)  # (N,)
 
-            jump_size = (
-                curv_state.progress - curv_states[-2].progress
-            ) / self.planning_dt
-            if jnp.abs(jump_size) > 10:
-                print(
-                    f"!!!!!: huge jump in buzzracer ({jump_size:.2f}) -- {singularity_proximity=:.4g}"
-                )
+        # Get progress at closest points
+        progress = self._jax_ss[closest_idx]  # (N,)
 
-        if cost_compare:
-            state = jnp.array(curv_states[0])
-            curv_traj = RawDiscreteTrajectory(
-                jnp.arange(
-                    0, self.planning_horizon * self.planning_dt, self.planning_dt
-                ),
-                jnp.array(curv_states),
-            )
-            cost = self.evaluate_trajectory_cost(state, curv_traj)
-            print(f"Buzzracer dynamics cost: {cost:.4g}")
+        # Compute signed lateral error using cross product with tangent
+        raceline_heading = self._jax_raceline_headings[closest_idx]  # (N,)
+        dx_closest = xy_vals[:, 0] - self._jax_raceline_x[closest_idx]
+        dy_closest = xy_vals[:, 1] - self._jax_raceline_y[closest_idx]
 
-        if plot:
-            cart_traj = [
-                self.track.curv_to_cart(curv_state) for curv_state in curv_states
-            ]
-            self.plot_trajectory(cart_traj)
-
-    def __plot_track_bounds(self, sim_state: jax.Array):
-        # Compute track bounds
-        planned_traj = self.rollout_sampled_trajectory(
-            jnp.array([*sim_state]), self.planned_controls
+        # Dot product with left-pointing normal: D · N where N = (-sin(h), cos(h))
+        # Positive when point is to the LEFT of raceline direction
+        lateral_err = -dx_closest * jnp.sin(raceline_heading) + dy_closest * jnp.cos(
+            raceline_heading
         )
-        index = jnp.searchsorted(
-            self._jax_ss,
-            planned_traj.ys[: self.planning_horizon, 0] % self._jax_ss[-1],
-        )
-        bounds_left = jnp.take(self._jax_raceline_left_boundary, index)
-        bounds_right = -jnp.take(self._jax_raceline_right_boundary, index)
 
-        # Convert to plotting format
-        planned_ys = planned_traj.ys[: self.planning_horizon, :]
-        bounds_left_ys = planned_ys.at[:, 1].set(bounds_left)
-        bounds_right_ys = planned_ys.at[:, 1].set(bounds_right)
-        bounds_left_curv = [CurvilinearState(*state) for state in bounds_left_ys]
-        bounds_right_curv = [CurvilinearState(*state) for state in bounds_right_ys]
-        bounds_left_cart = [
-            self.track.curv_to_cart(curv_state) for curv_state in bounds_left_curv
-        ]
-        bounds_right_cart = [
-            self.track.curv_to_cart(curv_state) for curv_state in bounds_right_curv
-        ]
-
-        self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
-        self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
+        return progress, lateral_err
 
     def __plan_stanley_traj(
         self, sim_state: jax.Array
-    ) -> Tuple[List[CurvilinearState], jax.Array]:
-        curv_state = CurvilinearState(*sim_state)
-        curv_states = [curv_state]
+    ) -> Tuple[List[CartesianState], jax.Array]:
+        """Plan a trajectory using the Stanley controller for warm-starting the sampler.
+
+        Args:
+            sim_state: Initial Cartesian state [x, y, heading, vf, vs, omega]
+
+        Returns:
+            cart_states: List of CartesianState along the trajectory
+            control_traj: Array of shape (planning_horizon, 2) with [steering, throttle]
+        """
+        cart_state = CartesianState(*sim_state)
+        cart_states = [cart_state]
         control_traj = jnp.zeros((self.planning_horizon, 2))
 
         for i in range(self.planning_horizon):
             throttle, steering, _, _ = self.stanley_controller.ctrl_car(
-                self.track.curv_to_cart(curv_state), self.track
+                cart_state, self.track
             )
             control_traj = control_traj.at[i, :].set(jnp.array([steering, throttle]))
 
-            curv_state = KinematicBicycleModelFrenet.advance_dynamics(
-                curv_state,
-                Control(
-                    steering=steering,
-                    throttle=throttle,
-                ),
-                SimpleNamespace(params=self.car.params),
+            cart_state = KinematicBicycleModelCartesian.advance_dynamics(
+                cart_state,
+                Control(steering=steering, throttle=throttle),
+                self.car,
                 dt=self.planning_dt,
-                curvature=self.curvature(0, jnp.array([*curv_state])).item(),
-                # curvature=0,
             )
-            curv_states.append(curv_state)
+            cart_states.append(cart_state)
 
-        # TODO: return control trajectory also, warm start sampler w/ it
-        return curv_states, control_traj
+        return cart_states, control_traj
