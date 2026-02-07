@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-from immrax import System
+from immrax import System, lt
+from immrax.comparison import IntervalRelation
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
@@ -17,7 +18,7 @@ FLOAT_EPS = 1.0 / MAX_CLIP_FLOAT
 
 
 def my_sign(input):
-    return jnp.where(input > 0, 1, -1)
+    return jnp.where(lt(jnp.zeros_like(input), input), 1, -1)
 
 
 # NOTE: duplicated from `tire.py`, modified to use jax.numpy
@@ -63,7 +64,7 @@ class DynamicBicycleCurvilinear(System):
         # Pre-compute acceleration term (used in both models)
         # FIXME: this branch prevents parametope reachset calculation, needs custom_if logic
         acc_rw = jax.lax.select(
-            v_forward > 0,
+            lt(jnp.zeros_like(v_forward), v_forward),
             6.17 * (throttle - v_forward / 15.2 - 0.333),
             0.0,
         )
@@ -128,7 +129,15 @@ class DynamicBicycleCurvilinear(System):
         #     # dynamic_model()
         # )
         d_rel_heading_dt, d_vx_body, d_vy_body, d_rel_omega = jax.lax.cond(
-            v_forward < 0.1, kinematic_model, dynamic_model
+            lt(
+                v_forward,
+                0.1 * jnp.ones_like(v_forward),
+                IntervalRelation.PRECEDES
+                | IntervalRelation.MEETS
+                | IntervalRelation.OVERLAPS,
+            ), # bias towards using kinematic model, mostly accurate at all speeds
+            kinematic_model,
+            dynamic_model,
         )
 
         return jnp.array(

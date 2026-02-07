@@ -17,7 +17,7 @@ from immrax.system.trajectory import RawDiscreteTrajectory, RawTrajectory
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 from buzzracer.controllers.stanley_car_controller import StanleyCarController
-from buzzracer.extensions.simulators.immrax_dynamic_bycicle_curvilinear import (
+from buzzracer.extensions.simulators.immrax_dynamic_bicycle_curvilinear import (
     DynamicBicycleCurvilinear,
 )
 from buzzracer.extensions.simulators.kinematic_bicycle_curvilinear_simulator import (
