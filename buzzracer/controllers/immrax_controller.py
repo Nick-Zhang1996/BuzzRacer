@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import List, Tuple
 
+import cv2
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -41,6 +42,7 @@ class ImmraxController(CarController):
     def __init__(self, car, config):
         # load config etc
         super().__init__(car, config)
+        self.print_debug_enable()
 
         self.debug_dict = {}
 
@@ -78,6 +80,10 @@ class ImmraxController(CarController):
         _, self.planned_controls = self.__plan_stanley_traj(
             initial
         )  # (steering, throttle) for each timestep over planning horizon
+
+        # Reachable set data (populated each control step)
+        self.reach_intervals = []
+        self.reach_center_trajectory = jnp.empty((0, 2))
 
         self.track = car.main.track
 
@@ -164,17 +170,29 @@ class ImmraxController(CarController):
         self.planned_controls, traj, self.prng_key = res
         self._last_update_time_ms = controller_compute_time * 1000
 
-        # Reachability computation
-        pt0 = Polytope.from_interval(
-            icentpert(
-                jnp.array(state[:6]), jnp.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
-            )
-        )
-        traj_reach, reachset_compute_time = self.rollout_reachset(
-            pt0, self.planned_controls
-        )
+        self.__plot_planned_trajectory(traj)
+        # self.__debug_compare_costs(state, traj)
+        # self.__plot_track_bounds(sim_state)
 
-        return (self.planned_controls[0, 1], self.planned_controls[0, 0], True, {})
+        traj_reach, reach_time_ms = self.__compute_reachset_overapproximation(state)
+        # (
+        #     overflow_timestep,
+        #     num_timesteps,
+        #     valid_intervals,
+        #     center_points,
+        #     final_widths,
+        # ) = self.__analyze_reachset_validity(traj_reach)
+        # self.__update_reachset_visualization(valid_intervals, center_points)
+        # self.__log_reachability_results(
+        #     overflow_timestep, num_timesteps, reach_time_ms, final_widths
+        # )
+
+        return (
+            float(self.planned_controls[0, 1]),
+            float(self.planned_controls[0, 0]),
+            True,
+            {},
+        )
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
         steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
@@ -223,8 +241,8 @@ class ImmraxController(CarController):
         )
         return traj
 
-    @partial(jax.jit, static_argnums=0)
     @timed
+    @partial(jax.jit, static_argnums=0)
     def rollout_reachset(self, pt0, planned_controls):
         """Compute reachable set with planned_controls as a traced argument.
 
@@ -313,8 +331,8 @@ class ImmraxController(CarController):
 
         return step_cost + speed_cost + boundary_cost + collision_cost + terminal_cost
 
-    @partial(jax.jit, static_argnums=0)
     @timed
+    @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
         trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
@@ -329,6 +347,379 @@ class ImmraxController(CarController):
             trajs.ys[best_idx, : self.planning_horizon, :],
             next_key,
         )
+
+    # ============================================================
+    # Debug functions
+    # ============================================================
+
+    def __compute_reachset_overapproximation(self, state):
+        """Compute reachable set overapproximation from current state.
+
+        Returns:
+            traj_reach: Reachable set trajectory result.
+            reach_time_ms: Computation time in milliseconds.
+        """
+        pt0 = Polytope.from_interval(
+            icentpert(
+                jnp.array(state[:6]), jnp.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
+            )
+        )
+        traj_reach, reachset_compute_time = self.rollout_reachset(
+            pt0, self.planned_controls
+        )
+        return traj_reach, reachset_compute_time * 1000
+
+    def __analyze_reachset_validity(self, traj_reach):
+        """Analyze reachable set for overflow and track boundary violations.
+
+        Returns:
+            overflow_timestep: Index of the first overflowed timestep (or num_timesteps if none).
+            num_timesteps: Total number of timesteps in the reachable set.
+            valid_intervals: List of valid state intervals for visualization.
+            center_points: List of (x, y) center points for valid timesteps.
+            final_widths: State widths at last valid timestep, or None if none valid.
+        """
+        pt, aux = traj_reach.ys
+        alpha, _ = aux
+        num_timesteps = pt.y.shape[0]
+
+        overflow_timestep = num_timesteps
+        final_widths = None
+        valid_intervals = []
+        center_points = []
+        for idx in range(num_timesteps):
+            state_iover = (
+                interval(alpha[idx]) @ interval(-pt.y[idx, :6], pt.y[idx, 6:])
+                + pt.ox[idx]
+            )
+            widths = state_iover.width
+
+            # Check for overflow (NaN or Inf in widths, or width > 1e6)
+            if (
+                jnp.any(jnp.isnan(widths))
+                or jnp.any(jnp.isinf(widths))
+                or jnp.any(widths > 1e6)
+            ):
+                overflow_timestep = idx
+                break
+
+            self.__check_reachset_track_collision(idx, pt.ox[idx, :2])
+
+            valid_intervals.append(state_iover)
+            center_points.append(pt.ox[idx, :2])
+            final_widths = widths
+
+        return (
+            overflow_timestep,
+            num_timesteps,
+            valid_intervals,
+            center_points,
+            final_widths,
+        )
+
+    def __check_reachset_track_collision(self, timestep_idx, center_xy_1d):
+        """Check if a reachable set center point is inside track boundaries and warn if not."""
+        center_xy = center_xy_1d[None, :]  # (1, 2)
+        center_progress, center_lateral_err = self._project_to_frenet_batch(center_xy)
+        bound_idx = jnp.searchsorted(self._jax_ss, center_progress % self._jax_ss[-1])
+        left_bound = self._jax_raceline_left_boundary[bound_idx[0]]
+        right_bound = self._jax_raceline_right_boundary[bound_idx[0]]
+
+        center_collision = (center_lateral_err[0] > left_bound) | (
+            center_lateral_err[0] < -right_bound
+        )
+        if center_collision:
+            self.print_warning(
+                f"Reachable set center exits track at timestep {timestep_idx}! "
+                f"lateral_err={float(center_lateral_err[0]):.4f}, "
+                f"bounds=[-{float(right_bound):.4f}, +{float(left_bound):.4f}]"
+            )
+
+    def __update_reachset_visualization(self, valid_intervals, center_points):
+        """Store reachable set data and draw to current visualization context."""
+        self.reach_intervals = valid_intervals
+        self.reach_center_trajectory = (
+            jnp.stack(center_points) if center_points else jnp.empty((0, 2))
+        )
+        self.draw_reachset()
+
+    def draw_reachset(self):
+        """Draw the most recent reachable set projection onto (x, y) on visualization image."""
+        if not self.car.main.visualization.update_visualization.is_set():
+            return
+        img = self.car.main.visualization.visualization_img
+        track = self.car.main.track
+
+        # Draw interval boxes as rectangles
+        for iover in self.reach_intervals:
+            # Extract x, y bounds from the interval
+            x_lo = float(iover[0].lower)
+            x_hi = float(iover[0].upper)
+            y_lo = float(iover[1].lower)
+            y_hi = float(iover[1].upper)
+
+            # Convert world coordinates to canvas coordinates
+            pt1 = track.m2canvas((x_lo, y_hi))  # top-left in world = top-left on canvas
+            pt2 = track.m2canvas(
+                (x_hi, y_lo)
+            )  # bottom-right in world = bottom-right on canvas
+
+            # Draw filled rectangle with transparency (blue)
+            overlay = img.copy()
+            cv2.rectangle(overlay, pt1, pt2, (255, 100, 100), -1)  # BGR blue
+            cv2.addWeighted(overlay, 0.3, img, 0.7, 0, img)
+
+            # Draw rectangle outline
+            cv2.rectangle(img, pt1, pt2, (255, 100, 100), 1)
+
+        # Draw center trajectory as small circles
+        if self.reach_center_trajectory.shape[0] > 0:
+            for i in range(self.reach_center_trajectory.shape[0]):
+                coord = (
+                    float(self.reach_center_trajectory[i, 0]),
+                    float(self.reach_center_trajectory[i, 1]),
+                )
+                img = track.draw_circle(img, coord, 0.015, color=(0, 0, 200))  # BGR red
+
+        self.car.main.visualization.visualization_img = img
+
+    def __log_reachability_results(
+        self, overflow_timestep, num_timesteps, reach_time_ms, final_widths
+    ):
+        """Log reachability analysis results including valid steps and bound widths."""
+        state_names = ["x", "y", "heading", "v_forward", "v_sideway", "omega"]
+        self.print_info(
+            f"Reachability: {overflow_timestep}/{num_timesteps} steps valid, "
+            f"compute time: {reach_time_ms:.2f}ms"
+        )
+
+        if final_widths is not None:
+            # Compute relative widths (normalized by smallest non-zero width)
+            min_width = jnp.min(final_widths[final_widths > 1e-10])
+            relative_widths = final_widths / min_width
+            width_strs = [
+                f"{state_names[i]}={final_widths[i]:.4g} ({relative_widths[i]:.1f}x)"
+                for i in range(6)
+            ]
+            self.print_info(f"Final valid bound widths: {', '.join(width_strs)}")
+        elif overflow_timestep == 0:
+            self.print_warning("Reachable set overflowed at first timestep!")
+
+    def __evaluate_trajectory_cost_breakdown(
+        self, state: jax.Array, traj: RawTrajectory
+    ):
+        """Evaluate trajectory cost with component breakdown for debugging."""
+        traj_slice = traj.ys[: self.planning_horizon]
+
+        # Extract Cartesian state components
+        xy_vals = traj_slice[:, :2]  # (x, y) positions
+        vel = traj_slice[:, 3]  # forward velocity
+
+        # Project to Frenet for cost computation
+        progress_vals, lateral_err = self._project_to_frenet_batch(xy_vals)
+
+        # Map progress to track indices
+        index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
+        ref_vel = self._jax_raceline_velocity[index]
+        bounds_left = self._jax_raceline_left_boundary[index]
+        bounds_right = self._jax_raceline_right_boundary[index]
+
+        # Step cost: penalize lateral error and velocity deviation
+        vel_diff_sq = (vel - ref_vel) ** 2
+        step_cost = jnp.sum(
+            5.0 * jnp.abs(lateral_err)
+            + 2.5 * vel_diff_sq
+            - 10.0 * jnp.minimum(vel, 0.0)
+        )
+
+        # Speed cost: penalize low speeds
+        speed_cost = 10.0 * jnp.sum(vel <= 1.5)
+
+        # Boundary cost: soft penalty near boundaries
+        abs_lateral_err = jnp.abs(lateral_err)
+        bound = jnp.where(lateral_err > 0, bounds_left, bounds_right)
+        boundary_arg = -100.0 * (bound - (abs_lateral_err + 0.05))
+        boundary_cost = 10.0 * jnp.sum(
+            jnp.maximum(0.0, (2.0 / jnp.pi) * jnp.arctan(boundary_arg) + 1.0)
+        )
+
+        # Collision cost: hard penalty for boundary violation
+        collision = jnp.logical_or(
+            lateral_err > bounds_left, lateral_err < -bounds_right
+        )
+        collision_cost = jnp.where(jnp.any(collision), jnp.inf, 0.0)
+
+        # Terminal cost: compute progress made
+        initial_xy = jnp.array(state[:2])
+        initial_progress, _ = self._project_to_frenet_batch(initial_xy[None, :])
+        progress_made = progress_vals[-1] - initial_progress[0]
+        # Handle wrap-around in both directions
+        track_len = self.track.raceline_len_m
+        progress_made = jnp.where(
+            progress_made < -track_len / 2,
+            progress_made + track_len,  # Forward lap crossing
+            jnp.where(
+                progress_made > track_len / 2,
+                progress_made - track_len,  # Backward lap crossing
+                progress_made,
+            ),
+        )
+        terminal_cost = self._terminal_cost_offset - 2.0 * progress_made
+
+        return {
+            "step_cost": step_cost,
+            "speed_cost": speed_cost,
+            "boundary_cost": boundary_cost,
+            "collision_cost": collision_cost,
+            "terminal_cost": terminal_cost,
+            "total": step_cost
+            + speed_cost
+            + boundary_cost
+            + collision_cost
+            + terminal_cost,
+            # Debug info
+            "initial_progress": initial_progress[0],
+            "final_progress": progress_vals[-1],
+            "progress_made": progress_made,
+            "track_len": track_len,
+        }
+
+    def __debug_compare_costs(self, sim_state: jax.Array, best_sampled_traj: jax.Array):
+        """Compare cost breakdowns between Stanley reference and best sampled trajectory."""
+        state_arr = jnp.array(sim_state[:6])
+
+        # Get Stanley trajectory
+        _, stanley_controls = self.__plan_stanley_traj(state_arr)
+        stanley_traj = self.rollout_sampled_trajectory(state_arr, stanley_controls)
+
+        # Create RawTrajectory from best sampled traj for cost evaluation
+        class FakeTraj:
+            def __init__(self, ys):
+                self.ys = ys
+
+        best_traj_obj = FakeTraj(best_sampled_traj)
+
+        # Get cost breakdowns
+        stanley_costs = self.__evaluate_trajectory_cost_breakdown(
+            state_arr, stanley_traj
+        )
+        sampled_costs = self.__evaluate_trajectory_cost_breakdown(
+            state_arr, best_traj_obj
+        )
+
+        # Print comparison
+        self.print_info("=" * 60)
+        self.print_info("COST COMPARISON: Stanley vs Best Sampled")
+        self.print_info("-" * 60)
+        self.print_info(
+            f"{'Component':<20} {'Stanley':>15} {'Sampled':>15} {'Diff':>15}"
+        )
+        self.print_info("-" * 60)
+        for key in [
+            "step_cost",
+            "speed_cost",
+            "boundary_cost",
+            "collision_cost",
+            "terminal_cost",
+            "total",
+        ]:
+            s_val = float(stanley_costs[key])
+            b_val = float(sampled_costs[key])
+            diff = b_val - s_val
+            self.print_info(f"{key:<20} {s_val:>15.2f} {b_val:>15.2f} {diff:>+15.2f}")
+        self.print_info("-" * 60)
+        self.print_info("Progress debug info:")
+        self.print_info(f"  Track length: {float(stanley_costs['track_len']):.2f}m")
+        self.print_info(
+            f"  Stanley: init_prog={float(stanley_costs['initial_progress']):.3f}, "
+            f"final_prog={float(stanley_costs['final_progress']):.3f}, "
+            f"progress_made={float(stanley_costs['progress_made']):.3f}"
+        )
+        self.print_info(
+            f"  Sampled: init_prog={float(sampled_costs['initial_progress']):.3f}, "
+            f"final_prog={float(sampled_costs['final_progress']):.3f}, "
+            f"progress_made={float(sampled_costs['progress_made']):.3f}"
+        )
+
+        # Additional debug: show lateral error and boundary values
+        self.print_info("Lateral error debug (sampled trajectory):")
+        traj_slice = best_sampled_traj[: self.planning_horizon]
+        xy_vals = traj_slice[:, :2]
+        progress_vals, lateral_err = self._project_to_frenet_batch(xy_vals)
+        index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
+        bounds_left = self._jax_raceline_left_boundary[index]
+        bounds_right = self._jax_raceline_right_boundary[index]
+
+        # Show first 5 and last 5 timesteps
+        for i in [0, 1, 2, self.planning_horizon - 2, self.planning_horizon - 1]:
+            collision_left = lateral_err[i] > bounds_left[i]
+            collision_right = lateral_err[i] < -bounds_right[i]
+            self.print_info(
+                f"  t={i}: lat_err={float(lateral_err[i]):.4f}, "
+                f"bounds=[-{float(bounds_right[i]):.4f}, +{float(bounds_left[i]):.4f}], "
+                f"collision={'LEFT' if collision_left else ('RIGHT' if collision_right else 'OK')}"
+            )
+        self.print_info("=" * 60)
+
+    def __plot_planned_trajectory(self, traj):
+        if self.enable_trajectory_visualization:
+            self._viz_counter += 1
+            if self._viz_counter >= self._viz_skip_count:
+                self._viz_counter = 0
+                traj_cart = [CartesianState(*state) for state in traj]
+                self.plot_trajectory(traj_cart, color=(0, 0, 200))
+
+    def __plot_track_bounds(self, sim_state: CartesianState):
+        # Compute track bounds using Cartesian trajectory
+        planned_traj = self.rollout_sampled_trajectory(
+            jnp.array([*sim_state]), self.planned_controls
+        )
+        planned_ys = planned_traj.ys[: self.planning_horizon, :]
+        xy_vals = planned_ys[:, :2]  # (x, y) positions
+
+        # Project to get progress values and find boundary widths
+        progress_vals, _ = self._project_to_frenet_batch(xy_vals)
+        index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
+        bounds_left = jnp.take(self._jax_raceline_left_boundary, index)
+        bounds_right = jnp.take(self._jax_raceline_right_boundary, index)
+
+        # Get raceline headings at these progress values
+        headings = self._jax_raceline_headings[index]
+
+        # Compute boundary points in Cartesian coordinates
+        # Left boundary: offset perpendicular (90 degrees left of heading)
+        left_x = xy_vals[:, 0] + bounds_left * jnp.cos(headings + jnp.pi / 2)
+        left_y = xy_vals[:, 1] + bounds_left * jnp.sin(headings + jnp.pi / 2)
+        # Right boundary: offset perpendicular (90 degrees right of heading)
+        right_x = xy_vals[:, 0] - bounds_right * jnp.cos(headings + jnp.pi / 2)
+        right_y = xy_vals[:, 1] - bounds_right * jnp.sin(headings + jnp.pi / 2)
+
+        # Convert to CartesianState for plotting (use trajectory velocities)
+        bounds_left_cart = [
+            CartesianState(
+                left_x[i],
+                left_y[i],
+                headings[i],
+                planned_ys[i, 3],
+                planned_ys[i, 4],
+                planned_ys[i, 5],
+            )
+            for i in range(self.planning_horizon)
+        ]
+        bounds_right_cart = [
+            CartesianState(
+                right_x[i],
+                right_y[i],
+                headings[i],
+                planned_ys[i, 3],
+                planned_ys[i, 4],
+                planned_ys[i, 5],
+            )
+            for i in range(self.planning_horizon)
+        ]
+
+        self.plot_trajectory(bounds_left_cart, color=(0, 255, 0))
+        self.plot_trajectory(bounds_right_cart, color=(0, 255, 0))
 
     def _project_to_frenet_batch(
         self, xy_vals: jax.Array
