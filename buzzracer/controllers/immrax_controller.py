@@ -40,13 +40,16 @@ class SampleBounds:
 
 class ImmraxController(CarController):
     def __init__(self, car, config):
+        # Allow transfers during initialization (reset any previous guard state)
+        jax.config.update("jax_transfer_guard", "allow")
+
         # load config etc
         super().__init__(car, config)
         self.print_debug_enable()
 
         self.debug_dict = {}
 
-        self.prng_key = jax.random.key(PRNG_SEED)
+        self.prng_key = jax.random.key(jax.device_put(PRNG_SEED))
 
         self.planning_dt = 0.02
         self.planning_horizon = 30  # time steps
@@ -63,44 +66,67 @@ class ImmraxController(CarController):
         self.predictor = DynamicBicycleCartesian(car)
 
         # Pre-allocate constant disturbance array to avoid repeated allocation
-        self._zero_disturbance = jnp.array([0.0, 0.0])
+        self._zero_disturbance = jax.device_put(np.array([0.0, 0.0]))
         self.disturbance = lambda t, x: self._zero_disturbance
 
         # args: sys, alpha_p0, N0
         # N0 is null vectors
         self.reach_predictor = AdjointEmbedding(
-            self.predictor, jnp.eye(6), jnp.zeros((0, 6))
+            self.predictor, jax.device_put(np.eye(6)), jax.device_put(np.zeros((0, 6)))
         )
         # Pre-compute interval disturbance to avoid repeated allocation
         self._zero_disturbance_interval = interval(self._zero_disturbance)
         self.disturbance_int = lambda t, x: self._zero_disturbance_interval
 
         self.stanley_controller = StanleyCarController(car, config)
-        initial = jnp.array(self.car.state[:6])  # [x, y, heading, vf, vs, omega]
+        initial = jax.device_put(
+            np.array(self.car.state[:6])
+        )  # [x, y, heading, vf, vs, omega]
         _, self.planned_controls = self.__plan_stanley_traj(
             initial
         )  # (steering, throttle) for each timestep over planning horizon
 
         # Reachable set data (populated each control step)
         self.reach_intervals = []
-        self.reach_center_trajectory = jnp.empty((0, 2))
+        self.reach_center_trajectory = jax.device_put(np.empty((0, 2)))
 
         self.track = car.main.track
 
         # Pre-compute constant for terminal cost
         self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
 
-        # Pre-compute track arrays as JAX arrays to avoid repeated conversions in JIT
-        self._jax_ss = jnp.array(self.track.ss)
-        self._jax_raceline_velocity = jnp.array(self.track.raceline_velocity)
-        self._jax_raceline_left_boundary = jnp.array(self.track.raceline_left_boundary)
-        self._jax_raceline_right_boundary = jnp.array(
-            self.track.raceline_right_boundary
+        # Pre-compute track arrays with explicit device transfer
+        self._jax_ss = jax.device_put(np.asarray(self.track.ss))
+        self._jax_raceline_velocity = jax.device_put(
+            np.asarray(self.track.raceline_velocity)
+        )
+        self._jax_raceline_left_boundary = jax.device_put(
+            np.asarray(self.track.raceline_left_boundary)
+        )
+        self._jax_raceline_right_boundary = jax.device_put(
+            np.asarray(self.track.raceline_right_boundary)
         )
         # Raceline arrays for Cartesian-to-Frenet projection
-        self._jax_raceline_x = jnp.array(self.track.raceline_points[0])  # (N,)
-        self._jax_raceline_y = jnp.array(self.track.raceline_points[1])  # (N,)
-        self._jax_raceline_headings = jnp.array(self.track.raceline_headings)  # (N,)
+        self._jax_raceline_x = jax.device_put(
+            np.asarray(self.track.raceline_points[0])
+        )  # (N,)
+        self._jax_raceline_y = jax.device_put(
+            np.asarray(self.track.raceline_points[1])
+        )  # (N,)
+        self._jax_raceline_headings = jax.device_put(
+            np.asarray(self.track.raceline_headings)
+        )  # (N,)
+
+        # Pre-compute constants for compute_trajectory/compute_reachset to avoid runtime transfers
+        self._t_start = jax.device_put(np.array(0.0))
+        self._t_end = jax.device_put(np.array(self.planning_horizon * self.planning_dt))
+        self._planning_dt_jax = jax.device_put(np.array(self.planning_dt))
+
+        self._state_eye = jax.device_put(np.eye(6))
+        self._state_pert = jax.device_put(
+            np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
+        )
+        self._state_pert = jnp.concatenate((self._state_pert, self._state_pert))
 
         # Visualization settings
         self.enable_trajectory_visualization = False  # Set True only for debugging
@@ -121,6 +147,9 @@ class ImmraxController(CarController):
         jax.block_until_ready(__)
         _t1 = time.perf_counter()
         self.print_info(f"JIT compilation time: {(_t1 - _t0) * 1000:.1f}ms")
+
+        # Disallow implicit host-to-device transfers after initialization
+        jax.config.update("jax_transfer_guard", "disallow")
 
     def control(self):
         throttle, steering, valid, debug_dict = self.ctrl_car(
@@ -164,8 +193,9 @@ class ImmraxController(CarController):
         debug: a dictionary of objects to be debugged, e.g. {offset, error in v}
         """
 
+        sim_state_jax = jax.device_put(np.asarray(state))
         res, controller_compute_time = self.update_planned_controls(
-            jnp.asarray(state), self.planned_controls, self.prng_key
+            sim_state_jax, self.planned_controls, self.prng_key
         )
         self.planned_controls, traj, self.prng_key = res
         self._last_update_time_ms = controller_compute_time * 1000
@@ -174,7 +204,8 @@ class ImmraxController(CarController):
         # self.__debug_compare_costs(state, traj)
         # self.__plot_track_bounds(sim_state)
 
-        traj_reach, reach_time_ms = self.__compute_reachset_overapproximation(state)
+        pt0 = Polytope(sim_state_jax, self._state_eye, self._state_pert)
+        traj_reach, reach_time = self.rollout_reachset(pt0, self.planned_controls)
         # (
         #     overflow_timestep,
         #     num_timesteps,
@@ -187,12 +218,16 @@ class ImmraxController(CarController):
         #     overflow_timestep, num_timesteps, reach_time_ms, final_widths
         # )
 
-        return (
-            float(self.planned_controls[0, 1]),
-            float(self.planned_controls[0, 0]),
+        # Necessary transfer to interface w/ Buzzracer sim
+        controls = jax.device_get(self.planned_controls)
+        result = (
+            float(controls[0, 1]),
+            float(controls[0, 0]),
             True,
             {},
         )
+
+        return result
 
     def sample_controls(self, planned_controls: jax.Array, prng_key):
         steering_key, throttle_key, next_key = jax.random.split(prng_key, 3)
@@ -232,11 +267,11 @@ class ImmraxController(CarController):
             return control_traj[idx]
 
         traj = self.predictor.compute_trajectory(
-            0.0,  # NOTE: this is assuming the system is time-invariant
-            self.planning_horizon * self.planning_dt,
+            self._t_start,  # NOTE: this is assuming the system is time-invariant
+            self._t_end,
             x0,
             (control_action, self.disturbance),  # Cartesian model: no curvature
-            dt=self.planning_dt,
+            dt=self._planning_dt_jax,
             solver="euler",
         )
         return traj
@@ -258,11 +293,11 @@ class ImmraxController(CarController):
             return interval(planned_controls[idx])
 
         return self.reach_predictor.compute_reachset(
-            0,
-            self.planning_horizon * self.planning_dt,
+            self._t_start,
+            self._t_end,
             pt0,
             (ff_control, self.disturbance_int),
-            dt=self.planning_dt,
+            dt=self._planning_dt_jax,
         )
 
     def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
@@ -351,23 +386,6 @@ class ImmraxController(CarController):
     # ============================================================
     # Debug functions
     # ============================================================
-
-    def __compute_reachset_overapproximation(self, state):
-        """Compute reachable set overapproximation from current state.
-
-        Returns:
-            traj_reach: Reachable set trajectory result.
-            reach_time_ms: Computation time in milliseconds.
-        """
-        pt0 = Polytope.from_interval(
-            icentpert(
-                jnp.array(state[:6]), jnp.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
-            )
-        )
-        traj_reach, reachset_compute_time = self.rollout_reachset(
-            pt0, self.planned_controls
-        )
-        return traj_reach, reachset_compute_time * 1000
 
     def __analyze_reachset_validity(self, traj_reach):
         """Analyze reachable set for overflow and track boundary violations.
@@ -484,10 +502,11 @@ class ImmraxController(CarController):
         self.car.main.visualization.visualization_img = img
 
     def __log_reachability_results(
-        self, overflow_timestep, num_timesteps, reach_time_ms, final_widths
+        self, overflow_timestep, num_timesteps, reach_time, final_widths
     ):
         """Log reachability analysis results including valid steps and bound widths."""
         state_names = ["x", "y", "heading", "v_forward", "v_sideway", "omega"]
+        reach_time_ms = reach_time * 1000
         self.print_info(
             f"Reachability: {overflow_timestep}/{num_timesteps} steps valid, "
             f"compute time: {reach_time_ms:.2f}ms"
