@@ -49,6 +49,8 @@ class ImmraxController(CarController):
 
         self.debug_dict = {}
 
+        # Sampler settings
+        # ============================================================
         self.prng_key = jax.random.key(jax.device_put(PRNG_SEED))
 
         self.planning_dt = 0.02
@@ -63,6 +65,8 @@ class ImmraxController(CarController):
             car.max_steering_right,
         )
 
+        # Trajectory rollout settings
+        # ============================================================
         self.predictor = DynamicBicycleCartesian(car)
 
         # Pre-allocate constant disturbance array to avoid repeated allocation
@@ -92,6 +96,8 @@ class ImmraxController(CarController):
 
         self.track = car.main.track
 
+        # Cost computation settings
+        # ============================================================
         # Pre-compute constant for terminal cost
         self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
 
@@ -129,6 +135,7 @@ class ImmraxController(CarController):
         self._state_pert = jnp.concatenate((self._state_pert, self._state_pert))
 
         # Visualization settings
+        # ============================================================
         self.enable_trajectory_visualization = False  # Set True only for debugging
         self._viz_skip_count = 10  # Only visualize every N updates
         self._viz_counter = 0
