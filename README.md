@@ -1,9 +1,11 @@
 # Buzzracer
+
 This repository contains various resources for the Buzzracer platform developed by DCSL at Georgia Tech. Buzzracer is a 1/24 scale autonomous vehicle platform for education and research. It allows easy portation between simulation and hardware, and supports multiple vehicles to run simultaneously
 
 ![Buzzracer](docs/topology.png)
 
 ## File Structure
+
 The file structure is organized as follows
 
 ```
@@ -38,22 +40,22 @@ or
 git clone git@github.gatech.edu:zzhang615/RC-VIP.git'
 ```
 
-depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your URL will be different. 
+depending on which type of authentication you plan to use. If you're accessing through `github.com` instead of `github.gatech.edu`, your URL will be different.
 
 Note that ssh does not work with `github.gatech.edu` unless you are using campus network or connected to the GT VPN.
 
 ### Install Dependencies
 
-Next thing to do is installing necessary dependencies. The codebase is developed and intended for Linux. However, it can work on Mac and Windows but may need additional steps. 
+Next thing to do is installing necessary dependencies. The codebase is developed and intended for Linux. However, it can work on Mac and Windows but may need additional steps.
 
 The code is written for python 3.8+ and requires the following packages:
 `scipy, numpy, opencv-python, xml-python, cvxopt, Pillow, matplotlib, torch, pyserial, pickle5, gymnasium, pygame, json`
 
-If you wish to work on GPU-accelerated algorithms like MPPI, please also install `pycuda`. 
+If you wish to work on GPU-accelerated algorithms like MPPI, please also install `pycuda`.
 
 ### Generate Raceline
 
-Once you have installed all required packages, you need to run `python qpSmooth.py` to generate a raceline profile. You should see some colorful text bring printed and several visualizations of our racetrack with a raceline. Click the 'x' on the upper corners for each visualization to continue the program. When the program finishes, the last two lines should be:
+Once you have installed all required packages, you need to run `python -m buzzracer.scripts.qp_smooth full` to generate a raceline profile. You should see some colorful text bring printed and several visualizations of our racetrack with a raceline. Click the 'x' on the upper corners for each visualization to continue the program. When the program finishes, the last two lines should be:
 
 ```
 testing loading
@@ -73,9 +75,7 @@ python run.py stanley
 You should see a simulation of a car running around on screen
 ![Buzzracer](docs/sample_sim.gif)
 
-
-`run.py` is the primary entry point for all simulation and experiments, and `stanley` refers to config file`configs/stanley.xml`. The config file contains details of an experiment, for example,  whether to run the experiment in simulation or in real world, which race track to load, how many cars to generate, which controller each car uses, which extension to load etc. `run.py` loads this config file and prepares everything accordingly. 
-
+`run.py` is the primary entry point for all simulation and experiments, and `stanley` refers to config file`configs/stanley.xml`. The config file contains details of an experiment, for example, whether to run the experiment in simulation or in real world, which race track to load, how many cars to generate, which controller each car uses, which extension to load etc. `run.py` loads this config file and prepares everything accordingly.
 
 You can run a different config file, for example, one with multiple vehicles
 
@@ -107,4 +107,3 @@ extension/simulator/DynamicSimulator.py
 controller/CarController.py
 controller/StanleyCarController.py
 ```
-
