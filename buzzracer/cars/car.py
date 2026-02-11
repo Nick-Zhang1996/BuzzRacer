@@ -59,23 +59,7 @@ class CarParams(NamedTuple):
 
 
 class CarConfig(Enum):
-    porsche = CarParams(L=90e-3,
-                        max_steering_left=radians(27.1),
-                        max_steer_pwm_left=1150,
-                        max_steering_right=radians(27.1),
-                        max_steer_pwm_right=1850,
-                        serial_port='/dev/ttyUSB0',
-                        optitrack_id=2,
-                        rendering='data/porsche_orange.png')
 
-    lambo = CarParams(L=98e-3,
-                      max_steering_left=asin(2*98e-3/0.52),
-                      max_steer_pwm_left=1100,
-                      max_steering_right=asin(2*98e-3/0.47),
-                      max_steer_pwm_right=1850,
-                      serial_port='/dev/ttyUSB1',
-                      optitrack_id=15,
-                      rendering='data/porsche_green.png')
 
     orca = CarParams(L=0.029+0.033,
                      width=0.03,
@@ -96,28 +80,17 @@ class CarConfig(Enum):
                         min_throttle=-1.0,
                         rendering='data/porsche_orange.png')
 
-    # sim_green = CarParams(optitrack_id=1005,
-    #                       car_ip='192.168.10.12',
-    #                       max_steering_left=13.0,
-    #                       max_steering_right=13.0,
-    #                       max_throttle=10.0,
-    #                       min_throttle=-10.0,
-    #                       max_v=4.0,
-    #                       max_ax=10.0,
-    #                       max_ay=13.0,
-    #                       rendering='data/porsche_green.png')
+    porsche_16 = CarParams(L=90e-3,
+                        max_steering_left=radians(27.1),
+                        max_steering_right=radians(27.1),
+                        optitrack_id=1006,
+                        rendering='data/porsche_orange.png')
 
-    # sim_red = CarParams(optitrack_id=1005,
-    #                     car_ip='192.168.10.12',
-    #                     max_steering_left=9.0,
-    #                     max_steering_right=9.0,
-    #                     max_throttle=13.0,
-    #                     min_throttle=-13.0,
-    #                     max_v=4.0,
-    #                     max_ax=13.0,
-    #                     max_ay=9.0,
-    #                     rendering='data/porsche_orange.png')
-
+    lambo_13 = CarParams(L=98e-3,
+                      max_steering_left=asin(2*98e-3/0.52),
+                      max_steering_right=asin(2*98e-3/0.47),
+                      optitrack_id=15,
+                      rendering='data/porsche_green.png')
 
 class Car(PrintObject, LogObject):
     ''' Base class for various types of cars,

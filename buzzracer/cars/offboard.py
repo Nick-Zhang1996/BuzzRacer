@@ -201,8 +201,10 @@ class Offboard(Car):
                 while True:
                     data, addr = self.sock.recvfrom(
                         OffboardPacket.packet_size)  # read 1 packet
-                    if self.car_ip != addr:
-                        self.print_warning('Packet source ip != expected car ip')
+                    if self.car_ip != addr[0]:
+                        self.print_warning('Packet source ip != expected car ip'
+                                           f'expected car_ip {self.car_ip}'
+                                           f'actual {addr}')
                     if len(data) > 0:
                         assert len(data) == OffboardPacket.packet_size
                         self.parse_response(data)
