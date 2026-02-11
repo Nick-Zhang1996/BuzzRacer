@@ -35,7 +35,7 @@ class Simulator(Extension, ABC):
 
     def __init__(self):
         super().__init__(handle_name='simulator')
-        self.print_debug_disable()
+        self.print_debug_enable()
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
         self.print_info('match_time: ' + str(self.match_time))
