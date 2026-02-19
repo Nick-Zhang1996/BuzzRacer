@@ -213,18 +213,14 @@ class ImmraxController(CarController):
         # self.__plot_track_bounds(sim_state)
 
         # pt0 = Polytope(sim_state_jax, self._state_eye, self._state_pert)
-        # traj_reach, reach_time = self.rollout_reachset(pt0, self.planned_controls)
+        # traj_reach = self.rollout_reachset(pt0, self.planned_controls)
         # (
         #     overflow_timestep,
-        #     num_timesteps,
-        #     valid_intervals,
-        #     center_points,
+        #     valid_polytopes,
         #     final_widths,
         # ) = self.__analyze_reachset_validity(traj_reach)
-        # self.__update_reachset_visualization(valid_intervals, center_points)
-        # self.__log_reachability_results(
-        #     overflow_timestep, num_timesteps, reach_time_ms, final_widths
-        # )
+        # self.__plot_reachset(traj_reach)
+        # self.__log_reachability_results(overflow_timestep, 0, final_widths)
 
         # Necessary transfer to interface w/ Buzzracer sim
         controls = jax.device_get(self.planned_controls)
@@ -429,29 +425,30 @@ class ImmraxController(CarController):
     # Debug functions
     # ============================================================
 
-    def __analyze_reachset_validity(self, traj_reach):
+    def __analyze_reachset_validity(self, planned_reachset):
         """Analyze reachable set for overflow and track boundary violations.
+
+        Args:
+            planned_reachset: Polytope with batched arrays over the planning horizon.
 
         Returns:
             overflow_timestep: Index of the first overflowed timestep (or num_timesteps if none).
             num_timesteps: Total number of timesteps in the reachable set.
-            valid_intervals: List of valid state intervals for visualization.
-            center_points: List of (x, y) center points for valid timesteps.
+            valid_polytopes: Polytope array of valid timesteps (sliced from planned_reachset).
             final_widths: State widths at last valid timestep, or None if none valid.
         """
-        pt, aux = traj_reach.ys
-        alpha, _ = aux
-        num_timesteps = pt.y.shape[0]
+        pt, aux = planned_reachset.ys
+        Hp, N = aux
 
-        overflow_timestep = num_timesteps
         final_widths = None
-        valid_intervals = []
-        center_points = []
-        for idx in range(num_timesteps):
-            state_iover = (
-                interval(alpha[idx]) @ interval(-pt.y[idx, :6], pt.y[idx, 6:])
-                + pt.ox[idx]
+        overflow_timestep = 0
+        for idx in range(self.planning_horizon + 1):
+            pt_i = Polytope(
+                pt.ox[idx],
+                pt.alpha[idx],
+                pt.y[idx],
             )
+            state_iover = interval(Hp[idx]) @ pt_i.iy + pt_i.ox
             widths = state_iover.width
 
             # Check for overflow (NaN or Inf in widths, or width > 1e6)
@@ -460,20 +457,22 @@ class ImmraxController(CarController):
                 or jnp.any(jnp.isinf(widths))
                 or jnp.any(widths > 1e6)
             ):
-                overflow_timestep = idx
                 break
 
-            self.__check_reachset_track_collision(idx, pt.ox[idx, :2])
+            overflow_timestep = idx + 1
 
-            valid_intervals.append(state_iover)
-            center_points.append(pt.ox[idx, :2])
+            self.__check_reachset_track_collision(idx, pt.ox[idx, :2])
             final_widths = widths
+
+        valid_polytopes = Polytope(
+            pt.ox[:overflow_timestep],
+            pt.alpha[:overflow_timestep],
+            pt.y[:overflow_timestep],
+        )
 
         return (
             overflow_timestep,
-            num_timesteps,
-            valid_intervals,
-            center_points,
+            valid_polytopes,
             final_widths,
         )
 
@@ -495,23 +494,39 @@ class ImmraxController(CarController):
                 f"bounds=[-{float(right_bound):.4f}, +{float(left_bound):.4f}]"
             )
 
-    def __update_reachset_visualization(self, valid_intervals, center_points):
-        """Store reachable set data and draw to current visualization context."""
-        self.reach_intervals = valid_intervals
-        self.reach_center_trajectory = (
-            jnp.stack(center_points) if center_points else jnp.empty((0, 2))
-        )
-        self.draw_reachset()
-
-    def draw_reachset(self):
-        """Draw the most recent reachable set projection onto (x, y) on visualization image."""
+    def __plot_reachset(self, reach_traj):
+        """Draw the interval overapproximation of the reachable set trajectory"""
         if not self.car.main.visualization.update_visualization.is_set():
             return
         img = self.car.main.visualization.visualization_img
         track = self.car.main.track
 
-        # Draw interval boxes as rectangles
-        for iover in self.reach_intervals:
+        pt, aux = reach_traj.ys
+        Hp, N = aux
+
+        overflow_timestep = 0
+
+        # Draw interval boxes from Polytope overapproximations
+        for i in range(self.planning_horizon + 1):
+            pt_i = Polytope(
+                pt.ox[i],
+                pt.alpha[i],
+                pt.y[i],
+            )
+            iover = interval(Hp[i]) @ pt_i.iy + pt_i.ox
+
+            widths = iover.width
+
+            # Check for overflow (NaN or Inf in widths, or width > 1e6)
+            if (
+                jnp.any(jnp.isnan(widths))
+                or jnp.any(jnp.isinf(widths))
+                or jnp.any(widths > 1e6)
+            ):
+                break
+
+            overflow_timestep = i + 1
+
             # Extract x, y bounds from the interval
             x_lo = float(iover[0].lower)
             x_hi = float(iover[0].upper)
@@ -533,24 +548,17 @@ class ImmraxController(CarController):
             cv2.rectangle(img, pt1, pt2, (255, 100, 100), 1)
 
         # Draw center trajectory as small circles
-        if self.reach_center_trajectory.shape[0] > 0:
-            for i in range(self.reach_center_trajectory.shape[0]):
-                coord = (
-                    float(self.reach_center_trajectory[i, 0]),
-                    float(self.reach_center_trajectory[i, 1]),
-                )
-                img = track.draw_circle(img, coord, 0.015, color=(0, 0, 200))  # BGR red
+        center_traj = list(pt.ox[:overflow_timestep, :])
+        self.plot_trajectory(center_traj, color=(0, 0, 200))
 
         self.car.main.visualization.visualization_img = img
 
-    def __log_reachability_results(
-        self, overflow_timestep, num_timesteps, reach_time, final_widths
-    ):
+    def __log_reachability_results(self, overflow_timestep, reach_time, final_widths):
         """Log reachability analysis results including valid steps and bound widths."""
         state_names = ["x", "y", "heading", "v_forward", "v_sideway", "omega"]
         reach_time_ms = reach_time * 1000
         self.print_info(
-            f"Reachability: {overflow_timestep}/{num_timesteps} steps valid, "
+            f"Reachability: {overflow_timestep}/{self.planning_horizon + 1} steps valid, "
             f"compute time: {reach_time_ms:.2f}ms"
         )
 
