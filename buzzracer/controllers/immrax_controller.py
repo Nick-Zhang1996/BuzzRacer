@@ -7,7 +7,12 @@ import cv2
 import jax
 import jax.numpy as jnp
 import numpy as np
-from immrax import AdjointEmbedding, Polytope, icentpert, interval
+from immrax import (
+    AdjointEmbedding,
+    Polytope,
+    RawDiscreteTrajectory,
+    interval,
+)
 from immrax.system.trajectory import RawTrajectory
 from immrax.utils import timed
 
@@ -136,8 +141,7 @@ class ImmraxController(CarController):
 
         # Visualization settings
         # ============================================================
-        self.enable_trajectory_visualization = False  # Set True only for debugging
-        self._viz_skip_count = 10  # Only visualize every N updates
+        self._viz_skip_count = 1  # Only visualize every N updates
         self._viz_counter = 0
 
         # Timing instrumentation
@@ -310,10 +314,12 @@ class ImmraxController(CarController):
     def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
         return self.__evaluate_trajectory_cost_cartesian(state, traj)
 
-    def __evaluate_trajectory_cost_cartesian(
-        self, state: jax.Array, traj: RawTrajectory
-    ):
-        """Evaluate trajectory cost in Cartesian frame."""
+    def __compute_cost_components(self, state: jax.Array, traj: RawTrajectory):
+        """Compute individual cost components as a dict of scalars.
+
+        Returns a dict with keys: step_cost, boundary_cost,
+        collision_cost, terminal_cost.
+        """
         traj_slice = traj.ys[: self.planning_horizon]
 
         # Extract Cartesian state components
@@ -322,6 +328,7 @@ class ImmraxController(CarController):
 
         # Project to Frenet for cost computation
         progress_vals, lateral_err = self._project_to_frenet_batch(xy_vals)
+        abs_lateral_err = jnp.abs(lateral_err)
 
         # Map progress to track indices
         index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
@@ -332,16 +339,13 @@ class ImmraxController(CarController):
         # Step cost: penalize lateral error and velocity deviation
         vel_diff_sq = (vel - ref_vel) ** 2
         step_cost = jnp.sum(
-            5.0 * jnp.abs(lateral_err)
-            + 2.5 * vel_diff_sq
-            - 10.0 * jnp.minimum(vel, 0.0)
+            5.0 * abs_lateral_err + 2.5 * vel_diff_sq - 10.0 * jnp.minimum(vel, 0.0)
         )
 
         # Speed cost: penalize low speeds
         speed_cost = 10.0 * jnp.sum(vel <= 1.5)
 
         # Boundary cost: soft penalty near boundaries
-        abs_lateral_err = jnp.abs(lateral_err)
         bound = jnp.where(lateral_err > 0, bounds_left, bounds_right)
         boundary_arg = -100.0 * (bound - (abs_lateral_err + 0.05))
         boundary_cost = 10.0 * jnp.sum(
@@ -371,7 +375,19 @@ class ImmraxController(CarController):
         )
         terminal_cost = self._terminal_cost_offset - 2.0 * progress_made
 
-        return step_cost + speed_cost + boundary_cost + collision_cost + terminal_cost
+        return {
+            "step_cost": step_cost,
+            "speed_cost": speed_cost,
+            "boundary_cost": boundary_cost,
+            "collision_cost": collision_cost,
+            "terminal_cost": terminal_cost,
+        }
+
+    def __evaluate_trajectory_cost_cartesian(
+        self, state: jax.Array, traj: RawTrajectory
+    ):
+        components = self.__compute_cost_components(state, traj)
+        return sum(components.values())
 
     @timed
     @partial(jax.jit, static_argnums=0)
@@ -535,80 +551,9 @@ class ImmraxController(CarController):
         self, state: jax.Array, traj: RawTrajectory
     ):
         """Evaluate trajectory cost with component breakdown for debugging."""
-        traj_slice = traj.ys[: self.planning_horizon]
-
-        # Extract Cartesian state components
-        xy_vals = traj_slice[:, :2]  # (x, y) positions
-        vel = traj_slice[:, 3]  # forward velocity
-
-        # Project to Frenet for cost computation
-        progress_vals, lateral_err = self._project_to_frenet_batch(xy_vals)
-
-        # Map progress to track indices
-        index = jnp.searchsorted(self._jax_ss, progress_vals % self._jax_ss[-1])
-        ref_vel = self._jax_raceline_velocity[index]
-        bounds_left = self._jax_raceline_left_boundary[index]
-        bounds_right = self._jax_raceline_right_boundary[index]
-
-        # Step cost: penalize lateral error and velocity deviation
-        vel_diff_sq = (vel - ref_vel) ** 2
-        step_cost = jnp.sum(
-            5.0 * jnp.abs(lateral_err)
-            + 2.5 * vel_diff_sq
-            - 10.0 * jnp.minimum(vel, 0.0)
-        )
-
-        # Speed cost: penalize low speeds
-        speed_cost = 10.0 * jnp.sum(vel <= 1.5)
-
-        # Boundary cost: soft penalty near boundaries
-        abs_lateral_err = jnp.abs(lateral_err)
-        bound = jnp.where(lateral_err > 0, bounds_left, bounds_right)
-        boundary_arg = -100.0 * (bound - (abs_lateral_err + 0.05))
-        boundary_cost = 10.0 * jnp.sum(
-            jnp.maximum(0.0, (2.0 / jnp.pi) * jnp.arctan(boundary_arg) + 1.0)
-        )
-
-        # Collision cost: hard penalty for boundary violation
-        collision = jnp.logical_or(
-            lateral_err > bounds_left, lateral_err < -bounds_right
-        )
-        collision_cost = jnp.where(jnp.any(collision), jnp.inf, 0.0)
-
-        # Terminal cost: compute progress made
-        initial_xy = jnp.array(state[:2])
-        initial_progress, _ = self._project_to_frenet_batch(initial_xy[None, :])
-        progress_made = progress_vals[-1] - initial_progress[0]
-        # Handle wrap-around in both directions
-        track_len = self.track.raceline_len_m
-        progress_made = jnp.where(
-            progress_made < -track_len / 2,
-            progress_made + track_len,  # Forward lap crossing
-            jnp.where(
-                progress_made > track_len / 2,
-                progress_made - track_len,  # Backward lap crossing
-                progress_made,
-            ),
-        )
-        terminal_cost = self._terminal_cost_offset - 2.0 * progress_made
-
-        return {
-            "step_cost": step_cost,
-            "speed_cost": speed_cost,
-            "boundary_cost": boundary_cost,
-            "collision_cost": collision_cost,
-            "terminal_cost": terminal_cost,
-            "total": step_cost
-            + speed_cost
-            + boundary_cost
-            + collision_cost
-            + terminal_cost,
-            # Debug info
-            "initial_progress": initial_progress[0],
-            "final_progress": progress_vals[-1],
-            "progress_made": progress_made,
-            "track_len": track_len,
-        }
+        components = self.__compute_cost_components(state, traj)
+        components["total"] = sum(components.values())
+        return components
 
     def __debug_compare_costs(self, sim_state: jax.Array, best_sampled_traj: jax.Array):
         """Compare cost breakdowns between Stanley reference and best sampled trajectory."""
@@ -626,12 +571,11 @@ class ImmraxController(CarController):
         best_traj_obj = FakeTraj(best_sampled_traj)
 
         # Get cost breakdowns
-        stanley_costs = self.__evaluate_trajectory_cost_breakdown(
-            state_arr, stanley_traj
-        )
-        sampled_costs = self.__evaluate_trajectory_cost_breakdown(
-            state_arr, best_traj_obj
-        )
+        stanley_costs = self.__compute_cost_components(state_arr, stanley_traj)
+        sampled_costs = self.__compute_cost_components(state_arr, best_traj_obj)
+
+        stanley_total = sum(stanley_costs.values())
+        sampled_total = sum(sampled_costs.values())
 
         # Print comparison
         self.print_info("=" * 60)
@@ -641,30 +585,15 @@ class ImmraxController(CarController):
             f"{'Component':<20} {'Stanley':>15} {'Sampled':>15} {'Diff':>15}"
         )
         self.print_info("-" * 60)
-        for key in [
-            "step_cost",
-            "speed_cost",
-            "boundary_cost",
-            "collision_cost",
-            "terminal_cost",
-            "total",
-        ]:
+        for key in stanley_costs:
             s_val = float(stanley_costs[key])
             b_val = float(sampled_costs[key])
             diff = b_val - s_val
             self.print_info(f"{key:<20} {s_val:>15.2f} {b_val:>15.2f} {diff:>+15.2f}")
         self.print_info("-" * 60)
-        self.print_info("Progress debug info:")
-        self.print_info(f"  Track length: {float(stanley_costs['track_len']):.2f}m")
         self.print_info(
-            f"  Stanley: init_prog={float(stanley_costs['initial_progress']):.3f}, "
-            f"final_prog={float(stanley_costs['final_progress']):.3f}, "
-            f"progress_made={float(stanley_costs['progress_made']):.3f}"
-        )
-        self.print_info(
-            f"  Sampled: init_prog={float(sampled_costs['initial_progress']):.3f}, "
-            f"final_prog={float(sampled_costs['final_progress']):.3f}, "
-            f"progress_made={float(sampled_costs['progress_made']):.3f}"
+            f"{'total':<20} {float(stanley_total):>15.2f} {float(sampled_total):>15.2f} "
+            f"{float(sampled_total - stanley_total):>+15.2f}"
         )
 
         # Additional debug: show lateral error and boundary values
@@ -676,7 +605,7 @@ class ImmraxController(CarController):
         bounds_left = self._jax_raceline_left_boundary[index]
         bounds_right = self._jax_raceline_right_boundary[index]
 
-        # Show first 5 and last 5 timesteps
+        # Show first 3 and last 2 timesteps
         for i in [0, 1, 2, self.planning_horizon - 2, self.planning_horizon - 1]:
             collision_left = lateral_err[i] > bounds_left[i]
             collision_right = lateral_err[i] < -bounds_right[i]
@@ -688,12 +617,11 @@ class ImmraxController(CarController):
         self.print_info("=" * 60)
 
     def __plot_planned_trajectory(self, traj):
-        if self.enable_trajectory_visualization:
-            self._viz_counter += 1
-            if self._viz_counter >= self._viz_skip_count:
-                self._viz_counter = 0
-                traj_cart = [CartesianState(*state) for state in traj]
-                self.plot_trajectory(traj_cart, color=(0, 0, 200))
+        self._viz_counter += 1
+        if self._viz_counter >= self._viz_skip_count:
+            self._viz_counter = 0
+            traj_cart = [CartesianState(*state) for state in traj]
+            self.plot_trajectory(traj_cart, color=(0, 0, 200))
 
     def __plot_track_bounds(self, sim_state: CartesianState):
         # Compute track bounds using Cartesian trajectory
@@ -816,3 +744,19 @@ class ImmraxController(CarController):
             cart_states.append(cart_state)
 
         return cart_states, control_traj
+
+    def _debug_log_best_cost_components(
+        self, state: jax.Array, best_traj_ys: jax.Array
+    ):
+        """Re-evaluate cost on the best sampled trajectory and log individual components.
+
+        Args:
+            state: Current vehicle state (Cartesian) as a JAX array.
+            best_traj_ys: State array of the best trajectory, shape (planning_horizon, state_dim).
+        """
+        ts = jnp.arange(0, self.planning_horizon * self.planning_dt, self.planning_dt)
+        traj = RawDiscreteTrajectory(ts, best_traj_ys)
+        components = self.__compute_cost_components(state, traj)
+        total = sum(components.values())
+        parts = " | ".join(f"{k}={float(v):.4g}" for k, v in components.items())
+        self.print_info(f"Best cost: {float(total):.4g} ({parts})")
