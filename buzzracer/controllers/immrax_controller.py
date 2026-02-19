@@ -95,11 +95,18 @@ class ImmraxController(CarController):
             initial
         )  # (steering, throttle) for each timestep over planning horizon
 
-        # Reachable set data (populated each control step)
-        self.reach_intervals = []
-        self.reach_center_trajectory = jax.device_put(np.empty((0, 2)))
-
         self.track = car.main.track
+
+        # Pre-compute constants for compute_trajectory/compute_reachset to avoid runtime transfers
+        self._t_start = jax.device_put(np.array(0.0))
+        self._t_end = jax.device_put(np.array(self.planning_horizon * self.planning_dt))
+        self._planning_dt_jax = jax.device_put(np.array(self.planning_dt))
+
+        self._state_eye = jax.device_put(np.eye(6))
+        self._state_pert = jax.device_put(
+            np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
+        )
+        self._state_pert = jnp.concatenate((self._state_pert, self._state_pert))
 
         # Cost computation settings
         # ============================================================
@@ -128,17 +135,6 @@ class ImmraxController(CarController):
             np.asarray(self.track.raceline_headings)
         )  # (N,)
 
-        # Pre-compute constants for compute_trajectory/compute_reachset to avoid runtime transfers
-        self._t_start = jax.device_put(np.array(0.0))
-        self._t_end = jax.device_put(np.array(self.planning_horizon * self.planning_dt))
-        self._planning_dt_jax = jax.device_put(np.array(self.planning_dt))
-
-        self._state_eye = jax.device_put(np.eye(6))
-        self._state_pert = jax.device_put(
-            np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
-        )
-        self._state_pert = jnp.concatenate((self._state_pert, self._state_pert))
-
         # Visualization settings
         # ============================================================
         self._viz_skip_count = 1  # Only visualize every N updates
@@ -151,11 +147,8 @@ class ImmraxController(CarController):
         # JIT warmup
         self.print_info("Warming up JIT compilation...")
         _t0 = time.perf_counter()
-        pt0 = Polytope.from_interval(interval(initial))
         _ = self.update_planned_controls(initial, self.planned_controls, self.prng_key)
-        __ = self.rollout_reachset(pt0, self.planned_controls)
         jax.block_until_ready(_[0])
-        jax.block_until_ready(__)
         _t1 = time.perf_counter()
         self.print_info(f"JIT compilation time: {(_t1 - _t0) * 1000:.1f}ms")
 
@@ -208,15 +201,15 @@ class ImmraxController(CarController):
         res, controller_compute_time = self.update_planned_controls(
             sim_state_jax, self.planned_controls, self.prng_key
         )
-        self.planned_controls, traj, self.prng_key = res
+        self.planned_controls, self.prng_key = res
         self._last_update_time_ms = controller_compute_time * 1000
 
-        self.__plot_planned_trajectory(traj)
-        # self.__debug_compare_costs(state, traj)
+        # self.__plot_planned_trajectory(self.planned_reachset.ox)
+        # self.__debug_compare_costs(state, self.planned_reachset.ox)
         # self.__plot_track_bounds(sim_state)
 
-        pt0 = Polytope(sim_state_jax, self._state_eye, self._state_pert)
-        traj_reach, reach_time = self.rollout_reachset(pt0, self.planned_controls)
+        # pt0 = Polytope(sim_state_jax, self._state_eye, self._state_pert)
+        # traj_reach, reach_time = self.rollout_reachset(pt0, self.planned_controls)
         # (
         #     overflow_timestep,
         #     num_timesteps,
@@ -389,20 +382,41 @@ class ImmraxController(CarController):
         components = self.__compute_cost_components(state, traj)
         return sum(components.values())
 
+    def evaluate_reachset_cost(self, state: Polytope, traj: RawTrajectory):
+        # Compute the cost of a reachset
+        # FIXME: for now, just use trajectory cost on center
+        pt, aux = traj.ys
+        center_traj = RawDiscreteTrajectory(traj.ts, pt.ox)
+        center_cost = self.evaluate_trajectory_cost(state.ox, center_traj)
+
+        return center_cost
+
+        # size_cost = lambda offsets: jnp.where(
+        #     jnp.isfinite(offsets).all(), jnp.abs(jnp.prod(offsets)), 1e4
+        # )
+        # size_costs = 0 * jnp.sum(jax.vmap(size_cost)(pt.y[: self.planning_horizon, :6]))
+
+        # return center_cost + size_costs
+
     @timed
     @partial(jax.jit, static_argnums=0)
     def update_planned_controls(self, state, planned_controls, prng_key):
+        state_jax = jnp.array(state[0:6])
         sampled_controls, next_key = self.sample_controls(planned_controls, prng_key)
-        trajs = jax.vmap(self.rollout_sampled_trajectory, in_axes=(None, 0))(
-            jnp.array(state[0:6]), sampled_controls
-        )
-        costs = jax.vmap(lambda traj: self.evaluate_trajectory_cost(state, traj))(trajs)
+
+        # Reachset sampling
+        pt_state = Polytope(state_jax, self._state_eye, self._state_pert)
+        reachsets = jax.vmap(self.rollout_reachset, in_axes=(None, 0))(
+            pt_state, sampled_controls
+        )  # (num_samples, integration_timesteps, num_states)
+        costs = jax.vmap(
+            lambda reachset: self.evaluate_reachset_cost(pt_state, reachset)
+        )(reachsets)
 
         best_idx = jnp.argmin(costs)
 
         return (
             sampled_controls[best_idx],
-            trajs.ys[best_idx, : self.planning_horizon, :],
             next_key,
         )
 
