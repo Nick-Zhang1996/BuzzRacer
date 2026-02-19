@@ -15,6 +15,7 @@ from immrax import (
 )
 from immrax.system.trajectory import RawTrajectory
 from immrax.utils import timed
+from immutabledict import immutabledict
 
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.stanley_car_controller import StanleyCarController
@@ -81,7 +82,10 @@ class ImmraxController(CarController):
         # args: sys, alpha_p0, N0
         # N0 is null vectors
         self.reach_predictor = AdjointEmbedding(
-            self.predictor, jax.device_put(np.eye(6)), jax.device_put(np.zeros((0, 6)))
+            self.predictor,
+            jax.device_put(np.eye(6)),
+            jax.device_put(np.zeros((0, 6))),
+            kap=5e2,
         )
         # Pre-compute interval disturbance to avoid repeated allocation
         self._zero_disturbance_interval = interval(self._zero_disturbance)
@@ -280,7 +284,7 @@ class ImmraxController(CarController):
         )
         return traj
 
-    @timed
+    # @timed
     @partial(jax.jit, static_argnums=0)
     def rollout_reachset(self, pt0, planned_controls):
         """Compute reachable set with planned_controls as a traced argument.
@@ -302,6 +306,7 @@ class ImmraxController(CarController):
             pt0,
             (ff_control, self.disturbance_int),
             dt=self._planning_dt_jax,
+            f_kwargs=immutabledict({"enable_cbf": False}),
         )
 
     def evaluate_trajectory_cost(self, state: jax.Array, traj: RawTrajectory):
