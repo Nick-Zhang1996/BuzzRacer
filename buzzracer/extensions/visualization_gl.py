@@ -10,6 +10,7 @@ import os
 from math import degrees, sin, cos, radians
 import pickle
 from threading import Event, Thread
+from functools import lru_cache
 
 import moderngl
 from moderngl import Texture
@@ -23,6 +24,7 @@ from deprecated import deprecated
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
+from buzzracer.utilities.execution_timer import ExecutionTimer
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
 class VisualizationGL(Extension):
     def __init__(self):
         super().__init__(handle_name='visualization')
+        self.t = ExecutionTimer(True)
         self.update_visualization = Event()
         self.car_graphics = False
         ''' Use realistic cartoon image for car sprite'''
@@ -74,6 +77,7 @@ class VisualizationGL(Extension):
 
     def _moderngl_thread_function(self):
         _WindowConfig.host = self
+        _WindowConfig.t = self.t
         # Don't really need args, but must provide a non-empty one so it doesn't
         # try to parse the actual sys.argv
         rows, cols = self.img_track.shape[:2]
@@ -83,6 +87,8 @@ class VisualizationGL(Extension):
     def post_init(self,):
         # self.save_blank_img()
         pass
+    def final(self):
+        self.t.summary()
 
     def save_blank_img(self):
         ''' Save the blank background as pickle dump'''
@@ -180,6 +186,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
     resizable = False
     vsync = True
     host = None
+    t = None # ExecutionTimer instance
+
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
     def __init__(self, **kwargs):
@@ -235,6 +243,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # --- Geometry ---
         # Full window quad, track coordinate frame
         self.quad = geometry.quad_2d(size=track_dim_m, pos=(track_dim_m[0]/2, track_dim_m[1]/2))
+        self.unit_quad = geometry.quad_2d(size=(1.0, 1.0), pos=(0.0,0.0))
 
         # --- Textures ---
         self.bg_texture = self.texture_from_image(self.host.get_background_img())
@@ -247,6 +256,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
             car_img = Image.open(filename).convert("RGBA")
             texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
             self.car_textures[car] = texture
+        _WindowConfig.transform_matrix = _WindowConfig.create_transform_matrix()
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
@@ -270,34 +280,46 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
     def on_render(self, time: float, frame_time: float):
         """The main drawing method, called automatically every frame."""
+        self.t.s()
+        self.t.s('setup')
         self.ctx.clear(0.1, 0.1, 0.1)
         # pylint: disable-next=no-member
         self.ctx.enable(moderngl.BLEND)
         self.ctx.viewport = (0, 0, self.window_size[0], self.window_size[1])
+        self.t.e('setup')
 
+        self.t.s('background')
         # 1. Draw the background
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
         # width, height
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
-        model = self.create_transform_matrix(pos=(0, 0),
+        model = self.update_transform_matrix(pos=(0, 0),
                                              scale=(1, 1))
-        self.model_matrix_loc.write(model.astype('f4').tobytes())
+        self.model_matrix_loc.write(model)
 
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
-        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+        self.ortho_matrix_loc.write(ortho_mtx)
 
         self.quad.render(self.prog)
+        self.t.e('background')
 
         # 2. Draw obstacles (if any)
         # self.draw_obstacles()
 
         # 3. Draw each car and its dynamic UI
         for i, car in enumerate(self.host.main.cars):
+            self.t.s('car')
             self.draw_car(car)
+            self.t.e('car')
+            self.t.s('car_ui')
             self.draw_car_ui(car, i)
+            self.t.e('car_ui')
+        self.t.s('polyline')
         for polyline in self.host.polylines:
             self.draw_polyline(polyline)
+        self.t.e('polyline')
+        self.t.e()
 
     def draw_polyline(self, polyline: Polyline):
         ''' Render points as a 1px polyline'''
@@ -307,13 +329,13 @@ class _WindowConfig(moderngl_window.WindowConfig):
         vao = self.ctx.vertex_array(self.prog, [(vbo, '2f', 'in_position')])
         self.use_texture_loc.value = 0  # Switch to solid color mode
         self.color_loc.value = polyline.color
-        model = self.create_transform_matrix(pos=(0, 0),
+        model = self.update_transform_matrix(pos=(0, 0),
                                              scale=(1, 1))
-        self.model_matrix_loc.write(model.astype('f4').tobytes())
+        self.model_matrix_loc.write(model)
 
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
-        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+        self.ortho_matrix_loc.write(ortho_mtx)
         # In your render loop:
         vao.render(mode=moderngl.Context.LINE_STRIP, vertices=points.shape[0])
 
@@ -327,9 +349,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
             for obs in obstacles:
                 pixel_pos = self.main.track.m2canvas(obs)
                 pixel_radius = 0.1 * self.main.track.resolution
-                model = self.create_transform_matrix(
+                model = self.update_transform_matrix(
                     pos=pixel_pos, scale=(pixel_radius * 2, pixel_radius * 2))
-                self.model_matrix_loc.write(model.astype('f4'))
+                self.model_matrix_loc.write(model)
                 self.quad.render(self.prog)
         except (AttributeError, IndexError):
             pass  # No obstacles to draw
@@ -374,14 +396,14 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # car image is of size 616 * 442, with the actual car 586 * 242
         # car physical size is 0.18 * 0.08 -> image physical size 0.19 * 0.146
         car_quad = geometry.quad_2d(size=(0.19, 0.146))
-        model = self.create_transform_matrix(
+        model = self.update_transform_matrix(
             pos=pose,
             rot=pose[2],
         )
-        self.model_matrix_loc.write(model.astype('f4'))
+        self.model_matrix_loc.write(model)
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
-        self.ortho_matrix_loc.write(ortho_mtx.astype('f4').tobytes())
+        self.ortho_matrix_loc.write(ortho_mtx)
         car_quad.render(self.prog)
 
     def draw_car(self, car):
@@ -390,6 +412,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
     def draw_car_ui(self, car, car_index):
         """Draws the dynamic steering and throttle bars for a car."""
+        self.t.s('setup')
         x1 = 100
         y1 = self.window_size[1] - car_index * 50
         red = (1, 0, 0, 1)
@@ -401,31 +424,39 @@ class _WindowConfig(moderngl_window.WindowConfig):
             val = max(in_l, min(in_h, val))
             return (val - in_l) / (in_h - in_l) * (out_high - out_low) + out_low, oob
 
+        self.t.e('setup')
         # --- Car Static---
+        self.t.s('draw_car_pose')
         self.draw_car_pose(car, (*self.pixel_to_track((x1-80, y1 - 30)), radians(90)))
+        self.t.e('draw_car_pose')
         # --- Text ---
+        self.t.s('draw_text')
         self.draw_text((x1-60, y1-20), self.text_texture['ST'])
         self.draw_text((x1-60, y1-40), self.text_texture['TH'])
+        self.t.e('draw_text')
 
         # --- Steering Bar ---
+        self.t.s('draw_prog_bar')
         s_val, s_oob = fmap(car.steering, -car.max_steering_left, car.max_steering_right, 1, 0)
         self.draw_prog_bar((x1, y1 - 20), s_val, color=red if s_oob else green)
 
         # --- Throttle Bar ---
         t_val, t_oob = fmap(car.throttle, car.min_throttle, car.max_throttle, 0, 1)
         self.draw_prog_bar((x1, y1 - 40), t_val, color=red if t_oob else green)
+        self.t.e('draw_prog_bar')
 
     def draw_text(self, pos: tuple[int, int], texture: Texture):
 
         texture.use(location=0)
-        quad = geometry.quad_2d(size=texture.size, pos=pos)
-        model = self.create_transform_matrix()
+        # quad = geometry.quad_2d(size=texture.size, pos=pos)
+        model = self.update_transform_matrix()
         ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
         self.ortho_matrix_loc.write(ortho_mtx)
         self.model_matrix_loc.write(model)
         self.use_texture_loc.value = 1
         self.color_loc.value = (0, 0, 0, 1)
-        quad.render(self.prog)
+        # quad.render(self.prog)
+        self.unit_quad.render(self.prog)
 
     def draw_prog_bar(self,
                       pos: tuple[int, int],
@@ -445,26 +476,42 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # Use pixel unit for non-physical objects
 
         # Background
-        prog_bar_quad = geometry.quad_2d(size=(width, height), pos=pos)
-        model = self.create_transform_matrix()
-        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
-        self.ortho_matrix_loc.write(ortho_mtx)
+        # prog_bar_quad = geometry.quad_2d(size=(width, height), pos=pos)
+        self.t.s('update_transform_mtx')
+        model = self.update_transform_matrix(pos=pos, scale=(width, height))
+        self.t.e('update_transform_mtx')
+        self.t.s('write')
         self.model_matrix_loc.write(model)
+        self.t.e('write')
+
+        self.t.s('ortho')
+        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
+        self.t.e('ortho')
+        self.t.s('ortho write')
+        self.ortho_matrix_loc.write(ortho_mtx)
+        self.t.e('ortho write')
         self.use_texture_loc.value = 0
         self.color_loc.value = (0, 0, 0, 1)
-        prog_bar_quad.render(self.prog)
+        self.t.s('render')
+        self.unit_quad.render(self.prog)
+        self.t.e('render')
 
         # Bar
+        self.t.s('trans mtx 2')
         bar_width = int(width*value)
         bar_pos = (pos[0] - width//2 + bar_width//2, pos[1])
-        prog_bar_quad = geometry.quad_2d(size=(bar_width, height-2), pos=bar_pos)
-        model = self.create_transform_matrix()
-        ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
-        self.ortho_matrix_loc.write(ortho_mtx)
+        # prog_bar_quad = geometry.quad_2d(size=(bar_width, height-2), pos=bar_pos)
+        model = self.update_transform_matrix(pos=bar_pos, scale=(bar_width, height-2))
+        # ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
+        # self.ortho_matrix_loc.write(ortho_mtx)
         self.model_matrix_loc.write(model)
         self.use_texture_loc.value = 0
         self.color_loc.value = color
-        prog_bar_quad.render(self.prog)
+        self.t.e('trans mtx 2')
+        # prog_bar_quad.render(self.prog)
+        self.t.s('final render')
+        self.unit_quad.render(self.prog)
+        self.t.e('final render')
 
     def on_key_event(self, key, action, modifiers):
         """Handles keyboard inputs."""
@@ -487,7 +534,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
                 else:
                     self.host.main.exit_request.set()
                     self.wnd.close()
-                    # self.final()
+                    self.final()
             elif command == 'pause':
                 print('Paused. Check console to continue.')
                 input('Press Enter in the console to continue...')
@@ -513,6 +560,20 @@ class _WindowConfig(moderngl_window.WindowConfig):
         ], dtype='f4').T.copy(order='C')
 
     @staticmethod
+    def update_transform_matrix(pos=(0, 0), rot=0, scale=(1, 1)):
+        """Creates a 2D model matrix for position, rotation, and scale."""
+        # input: (x,y,z, 1.0)
+        cos_r, sin_r = cos(rot), sin(rot)
+        _WindowConfig.transform_matrix[0,0] = scale[0] * cos_r
+        _WindowConfig.transform_matrix[0,1] = scale[0] * sin_r
+        _WindowConfig.transform_matrix[1,0] = -scale[1] * sin_r
+        _WindowConfig.transform_matrix[1,1] = scale[1] * cos_r
+        _WindowConfig.transform_matrix[3,0] = pos[0]
+        _WindowConfig.transform_matrix[3,1] = pos[1]
+        return _WindowConfig.transform_matrix
+
+    @staticmethod
+    @lru_cache(maxsize=8)
     def ortho(left, right, bottom, top, near=-1, far=1):
         # Creates an orthographic projection matrix
         # Transpose because opengl expect column-major, but order='C'
@@ -521,7 +582,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
             (0, 2 / (top - bottom), 0, -(top+bottom)/(top-bottom)),
             (0, 0, -2/(far-near), -(far+near)/(far-near)),
             (0, 0, 0, 1)
-        ), dtype='f4').T.copy(order='C')
+        ), dtype='f4').T.copy(order='C').tobytes()
 
     def final(self):
         """Clean up GPU resources."""
