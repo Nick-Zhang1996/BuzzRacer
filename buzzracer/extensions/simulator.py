@@ -35,7 +35,7 @@ class Simulator(Extension, ABC):
 
     def __init__(self):
         super().__init__(handle_name='simulator')
-        self.print_debug_enable()
+        # self.print_debug_enable()
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
         self.print_info('match_time: ' + str(self.match_time))
@@ -132,7 +132,7 @@ class Simulator(Extension, ABC):
         if self.t0 is None:
             self.t0 = time()
         time_to_reach = self.sim_t * self.real_sim_time_ratio + self.t0
-        self.print_debug('sim_t = %.3f, time = %.3f, expected= %.3f, delta = %.3f' % (
+        self.print_debug('sim_t = %.3f, world time = %.3f, target world time= %.3f, margin = %.3f' % (
             self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
         if time_to_reach-time() < 0:
             lag_time = time()-time_to_reach
