@@ -2,6 +2,7 @@
 import sys
 import os.path
 import os
+import logging
 from threading import Event
 from time import time
 from xml.dom import minidom
@@ -14,6 +15,7 @@ from buzzracer.extensions.extension import Extension
 
 
 logger = get_logger('Run')
+logging.basicConfig(level=logging.INFO)
 
 os.environ['PATH'] = (
     os.environ['PATH'] + ':/usr/local/cuda/bin/')  # enables cuda

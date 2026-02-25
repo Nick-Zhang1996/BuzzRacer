@@ -132,11 +132,11 @@ class Simulator(Extension, ABC):
         if self.t0 is None:
             self.t0 = time()
         time_to_reach = self.sim_t * self.real_sim_time_ratio + self.t0
+        margin = time_to_reach - time()
         self.print_debug('sim_t = %.3f, world time = %.3f, target world time= %.3f, margin = %.3f' % (
-            self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, time_to_reach-time()))
-        if time_to_reach-time() < 0:
-            lag_time = time()-time_to_reach
-            self.print_debug("Simulation loop can't keep up ..... lagging %.3f s" % lag_time)
+            self.sim_t, time()-self.t0, self.sim_t*self.real_sim_time_ratio, margin))
+        if margin < -1e-1:
+            self.print_warning("Simulation loop can't keep up ..... lagging %.3f s" % (-margin))
 
         sleep(max(0, time_to_reach - time()))
 

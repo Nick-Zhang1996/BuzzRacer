@@ -61,7 +61,7 @@ class CarController(ConfigObject, LogObject):
         return self.predicted_traj
 
     def plot_trajectory(self, trajectory):
-        if (not self.car.main.visualization.update_visualization.is_set()):
+        if not self.car.main.visualization.update_visualization.is_set():
             return
         img = self.car.main.visualization.visualization_img
         for coord in trajectory:
