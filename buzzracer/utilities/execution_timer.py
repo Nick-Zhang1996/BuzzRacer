@@ -1,74 +1,37 @@
 # for quick and dirty code profiling
+import logging
+
 from time import time
+from collections import defaultdict
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class ExecutionTimer:
+    """ Wall-clock runtime profiler"""
 
-    def __init__(self, enable=False):
+    def __init__(self, enable=True):
         self.enabled = enable
-        # sectional time start time
-        self.s_start = {}
-        # average runtime, this is updated when a global section ends
-        self.s_avg = {}
-        # cumulative time consumption in one global section
-        self.cul = {}
 
-        # global section count, this will be used as exe count for all sections
-        self.g_count = 0
+        self.start_ts = None
+        self.end_ts = None
+        self.total_runtime = 0.0
+        self.total_count = 0
+        self.total_duration = 0.0
+        self.child_sections: dict[str, ExecutionTimer] = {}
 
-        # repetition in one global scope
-        self.s_rep_count = {}
-
-        # global time counting
-        self.g_start = None
-        self.g_end = None
-        self.g_duration_avg = None
-        self.g_sample_count = 0
-        # tracked variables
-        self.tracked = {}
-        self.tracked_count = {}
+        """ dict: Tracked variable name -> mean value """
+        self.tracked: dict[str, float] = defaultdict(float)
+        """ Tracked variable count """
+        self.tracked_count: dict[str, int] = defaultdict(int)
+        """ Currently active subsession name """
+        self.current_subsession = None
 
     def global_start(self):
         if not self.enabled:
             return
-        self.g_start = time()
-        return
-
-    def global_end(self):
-        if not self.enabled:
-            return
-        self.g_end = time()
-        duration = self.g_end-self.g_start
-
-        if (self.g_duration_avg is None):
-            self.g_duration_avg = duration
-            self.g_sample_count = 1
-        else:
-            self.g_duration_avg = self.g_duration_avg*self.g_sample_count+duration
-            self.g_sample_count = self.g_sample_count + 1
-            self.g_duration_avg = self.g_duration_avg/self.g_sample_count
-
-        for key, value in self.cul.items():
-            if key in self.s_avg:
-                self.s_avg[key] = self.s_avg[key]*self.g_count+value
-                self.s_avg[key] = self.s_avg[key] / (self.g_count+1)
-            else:
-                self.s_avg[key] = value
-        self.cul = {}
-        self.g_count += 1
-        return
-
-    def track(self, name, var):
-        if not self.enabled:
-            return
-        if name in self.tracked:
-            self.tracked[name] = self.tracked[name] * \
-                self.tracked_count[name]+var
-            self.tracked_count[name] = self.tracked_count[name] + 1
-            self.tracked[name] = self.tracked[name] / self.tracked_count[name]
-        else:
-            self.tracked[name] = var
-            self.tracked_count[name] = 1
+        self.start_ts = time()
         return
 
     def start(self, name=None):
@@ -76,26 +39,53 @@ class ExecutionTimer:
             return
         if name is None:
             return self.global_start()
+        if self.current_subsession is None:
+            self.current_subsession = name
+            if not name in self.child_sections:
+                self.child_sections[name] = ExecutionTimer(enable=True)
+            self.child_sections[name].s()
 
-        self.s_start[name] = time()
-        return
+        else:
+            return self.child_sections[self.current_subsession].s(name)
 
     def end(self, name=None):
         if not self.enabled:
             return
         if name is None:
+            if self.current_subsession is not None:
+                logger.error(f' end() is called before end({self.current_subsession}),'
+                             'missed call? check all logic paths')
+                self.end(self.current_subsession)
+
             return self.global_end()
 
-        duration = time()-self.s_start[name]
+        if self.current_subsession is None:
+            logger.error('e() or end() called before s(), timing is corrupt')
 
-        if name in self.cul:
-            self.cul[name] += duration
-            self.s_rep_count[name] += 1
+        if self.current_subsession == name:
+            self.child_sections[name].e()
+            self.current_subsession = None
         else:
-            self.cul[name] = duration
-            self.s_rep_count[name] = 1
+            try:
+                self.child_sections[self.current_subsession].e(name)
+            except KeyError:
+                logger.error(f'end({name}) is called but no matching start({name}) is called')
 
-        return duration
+    def global_end(self):
+        if not self.enabled:
+            return
+
+        self.total_duration += time() - self.start_ts
+        self.total_count += 1
+        self.start_ts = None
+
+    def track(self, name, var):
+        if not self.enabled:
+            return
+
+        self.tracked[name] = self.tracked[name]*self.tracked_count[name]+var
+        self.tracked_count[name] += 1
+        self.tracked[name] = self.tracked[name] / self.tracked_count[name]
 
     def s(self, n=None):
         return self.start(n)
@@ -103,35 +93,49 @@ class ExecutionTimer:
     def e(self, n=None):
         return self.end(n)
 
-    def summary(self):
+    def summary(self, prefix='', multiplier=1.0):
+        """ Print a formatted summary of execution time, with prefix leading
+        Args:
+            prefix: text-prefix for controlling subsection indentation
+            multiplier: multiplier for percentage spent in subsections
+        """
         if not self.enabled:
             return
-        # tracked variables
-        print('-----Variables--------')
-        for key, value in self.tracked.items():
-            print(key+'\t\t'+str(value))
-        print('-------Time-----------')
-        # tracked times
-        # note: sum_time is sum of all fractions not global time
-        sum_time = sum(self.s_avg.values())
-        # g_duration_avg is time between start() and end() averaged
-        total_time = self.g_duration_avg
-        # make sure we don't mess with the original copy
-        fraction = dict(self.s_avg)
-        fraction.update((x, y/total_time) for x, y in fraction.items())
-        for key, value in fraction.items():
-            print(key+'\t\t' + '{0:.1f}'.format(value*100)+' %')
+        if len(self.child_sections) == 0 and prefix == '':
+            logger.info('No timed block defined')
+            return
 
-        unaccounted_time = 1-sum_time/total_time
-        print('avg frequency = '+'{0:.3f}'.format(1/self.g_duration_avg)+'Hz')
-        print('unaccounted time = ' +
-              '{0:.1f}'.format(unaccounted_time*100)+' %')
+        # A long enough field width
+        fw = 30
+
+        if len(self.tracked) > 0:
+            text = 'Variables'
+            logger.info(f'{text:-^{fw}}')
+            for key, value in self.tracked.items():
+                logger.info(f'{key:<{fw}}{value:>5.2f}')
+
+        if prefix == '':
+            text = 'Time'
+            logger.info(f'{text:-^{fw}}')
+        total_accounted_time = 0.0
+        for key, value in self.child_sections.items():
+            total_accounted_time += value.total_duration
+            frac = value.total_duration / self.total_duration
+            logger.info(f'{prefix+key:<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
+            value.summary(prefix=prefix+'| ', multiplier=multiplier*frac)
+        if len(self.child_sections) > 0:
+            frac = 1-total_accounted_time/self.total_duration
+            logger.info(f'{prefix+"Unaccounted":<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
+
+        if prefix == '':
+            logger.info(f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
         return
 
 
 # sample usage
 if __name__ == '__main__':
     from time import sleep
+    logging.basicConfig(level=logging.INFO)
     # Create an instance of exe_timer for all procedures you want to monitor
     # Initialize with True to enable all functions
     # When you're done analyzing, simply change the argument to False or
@@ -141,7 +145,7 @@ if __name__ == '__main__':
     # A typical scenario is to find average execution
     # time during several iterations, average exe time will be
     # updated during each iteration
-    for i in range(1, 3):
+    for i in range(3):
         # Start global timer in the very beginning of the procedure
         t.s()
 
@@ -149,21 +153,36 @@ if __name__ == '__main__':
         # and INSTANCE.e('identifier')
         # s and e are shorthand for start and end
         # each start() must be matched with an end() with identical identifier
-        t.s('sleep2')
+        t.s('sleep 2')
         sleep(0.2)
-        t.e('sleep2')
+        t.e('sleep 2')
 
-        for j in range(1, 3):
-            t.s('sleep1')
+        # We can use the same identifier multiple time to accumulate time under that tag
+        for j in range(3):
+            t.s('sleep 1*3')
             sleep(0.1)
-            t.e('sleep1')
+            t.e('sleep 1*3')
+
+        t.s('sleep with child')
+        t.s('child 1')
+        sleep(0.01)
+        t.e('child 1')
+
+        t.s('child 2')
+        sleep(0.02)
+        t.s('grandchild')
+        sleep(0.01)
+        t.e('grandchild')
+        t.e('child 2')
+        sleep(0.06)
+        t.e('sleep with child')
 
         # not all operations in your procedure will be timed, those not timed are called
         # unaccounted time
-        sleep(0.1)
+        sleep(0.4)
 
         # it is also possible to track average value of a variable, this is how you do it.
-        t.track('var', 5)
+        t.track('var', 5+i/10)
 
         # at the end of the operation, end the global timer with a matching e()
         t.e()
