@@ -81,12 +81,14 @@ class CarConfig(Enum):
                         rendering='data/porsche_orange.png')
 
     porsche_16 = CarParams(L=90e-3,
+                        car_ip='192.168.10.16',
                         max_steering_left=radians(27.1),
                         max_steering_right=radians(27.1),
                         optitrack_id=1006,
                         rendering='data/porsche_orange.png')
 
     lambo_13 = CarParams(L=98e-3,
+                      car_ip='192.168.10.13',
                       max_steering_left=asin(2*98e-3/0.52),
                       max_steering_right=asin(2*98e-3/0.47),
                       optitrack_id=15,
