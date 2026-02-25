@@ -35,6 +35,7 @@ class VisualizationGL(Extension):
         self.t = ExecutionTimer(True)
         self.update_visualization = Event()
         self.car_graphics = False
+        self.show_car_info = True
         ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.main.breakpoint = Event()
@@ -312,9 +313,10 @@ class _WindowConfig(moderngl_window.WindowConfig):
             self.t.s('car')
             self.draw_car(car)
             self.t.e('car')
-            self.t.s('car_ui')
-            self.draw_car_ui(car, i)
-            self.t.e('car_ui')
+            if self.host.show_car_info:
+                self.t.s('car_ui')
+                self.draw_car_ui(car, i)
+                self.t.e('car_ui')
         self.t.s('polyline')
         for polyline in self.host.polylines:
             self.draw_polyline(polyline)
@@ -395,16 +397,16 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # Scale sprite based on the car's physical width in meters
         # car image is of size 616 * 442, with the actual car 586 * 242
         # car physical size is 0.18 * 0.08 -> image physical size 0.19 * 0.146
-        car_quad = geometry.quad_2d(size=(0.19, 0.146))
         model = self.update_transform_matrix(
             pos=pose,
             rot=pose[2],
+            scale=(0.19, 0.146)
         )
         self.model_matrix_loc.write(model)
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
-        car_quad.render(self.prog)
+        self.unit_quad.render(self.prog)
 
     def draw_car(self, car):
         """Draws the car's sprite."""
@@ -448,14 +450,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
     def draw_text(self, pos: tuple[int, int], texture: Texture):
 
         texture.use(location=0)
-        # quad = geometry.quad_2d(size=texture.size, pos=pos)
-        model = self.update_transform_matrix()
+        model = self.update_transform_matrix(pos=pos, scale=texture.size)
         ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
         self.ortho_matrix_loc.write(ortho_mtx)
         self.model_matrix_loc.write(model)
         self.use_texture_loc.value = 1
         self.color_loc.value = (0, 0, 0, 1)
-        # quad.render(self.prog)
         self.unit_quad.render(self.prog)
 
     def draw_prog_bar(self,
@@ -476,42 +476,25 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # Use pixel unit for non-physical objects
 
         # Background
-        # prog_bar_quad = geometry.quad_2d(size=(width, height), pos=pos)
-        self.t.s('update_transform_mtx')
         model = self.update_transform_matrix(pos=pos, scale=(width, height))
-        self.t.e('update_transform_mtx')
-        self.t.s('write')
         self.model_matrix_loc.write(model)
-        self.t.e('write')
 
-        self.t.s('ortho')
         ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
-        self.t.e('ortho')
-        self.t.s('ortho write')
         self.ortho_matrix_loc.write(ortho_mtx)
-        self.t.e('ortho write')
         self.use_texture_loc.value = 0
         self.color_loc.value = (0, 0, 0, 1)
-        self.t.s('render')
         self.unit_quad.render(self.prog)
-        self.t.e('render')
 
         # Bar
-        self.t.s('trans mtx 2')
         bar_width = int(width*value)
         bar_pos = (pos[0] - width//2 + bar_width//2, pos[1])
-        # prog_bar_quad = geometry.quad_2d(size=(bar_width, height-2), pos=bar_pos)
         model = self.update_transform_matrix(pos=bar_pos, scale=(bar_width, height-2))
         # ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
         # self.ortho_matrix_loc.write(ortho_mtx)
         self.model_matrix_loc.write(model)
-        self.use_texture_loc.value = 0
+        # self.use_texture_loc.value = 0 # unchanged
         self.color_loc.value = color
-        self.t.e('trans mtx 2')
-        # prog_bar_quad.render(self.prog)
-        self.t.s('final render')
         self.unit_quad.render(self.prog)
-        self.t.e('final render')
 
     def on_key_event(self, key, action, modifiers):
         """Handles keyboard inputs."""
