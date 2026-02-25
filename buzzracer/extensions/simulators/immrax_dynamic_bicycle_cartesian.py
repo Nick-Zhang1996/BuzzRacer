@@ -2,6 +2,7 @@
 # page 30 of book Vehicle Dynamics and Control
 
 from __future__ import annotations
+from jaxtyping import Int
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -11,14 +12,6 @@ import jax
 import jax.numpy as jnp
 from immrax import System, lt
 from immrax.comparison import IntervalRelation
-
-
-MAX_CLIP_FLOAT = 1e3
-FLOAT_EPS = 1.0 / MAX_CLIP_FLOAT
-
-
-def my_sign(input):
-    return jnp.where(lt(jnp.zeros_like(input), input), 1, -1)
 
 
 # NOTE: duplicated from `tire.py`, modified to use jax.numpy
@@ -45,7 +38,7 @@ class DynamicBicycleCartesian(System):
         self.m = car.params.m
 
     def f(self, t, x: jnp.ndarray, u: jnp.ndarray, w: jnp.ndarray) -> jnp.ndarray:
-        x, y, heading, x_vel, y_vel, heading_vel = x
+        x, y, heading, v_forward, v_sideway, heading_vel = x
         x_acc, y_acc, heading_acc = 0.0, 0.0, 0.0
         steering, throttle = u
 
@@ -53,16 +46,21 @@ class DynamicBicycleCartesian(System):
             beta = jnp.atan(self.lr / self.L * jnp.tan(steering))
 
             # motor model
-            x_acc = 6.17 * (throttle - x_vel / 15.2 - 0.333)
-            y_velocity = jnp.sqrt(x_vel**2 + y_vel**2) * jnp.sin(beta)
-            heading_vel = x_vel / self.L * jnp.tan(steering)
+            x_acc = 6.17 * (throttle - v_forward / 15.2 - 0.333)
+            y_velocity = jnp.sqrt(v_forward**2 + v_sideway**2) * jnp.sin(beta)
+            heading_vel = v_forward / self.L * jnp.tan(steering)
 
-            return x_vel, y_velocity, heading_vel, x_acc, y_acc, heading_acc
+            return v_forward, y_velocity, heading_vel, x_acc, y_acc, heading_acc
 
         def dynamic_model():
-            x_vel_safe = x_vel + my_sign(x_vel) * FLOAT_EPS
-            slip_f = -jnp.atan2((heading_vel * self.lf + y_vel), x_vel_safe) + steering
-            slip_r = jnp.atan2((heading_vel * self.lr - y_vel), x_vel_safe)
+            # v_forward_safe = v_forward + my_sign(v_forward) * FLOAT_EPS
+
+            # v_forward_safe = jnp.max(jnp.array([v_forward, 0.05]))
+
+            slip_f = (
+                -jnp.atan((heading_vel * self.lf + v_sideway) / v_forward) + steering
+            )
+            slip_r = jnp.atan((heading_vel * self.lr - v_sideway) / v_forward)
 
             Ffy = tire_curve(slip_f) * self.m * 9.8 * self.lr / (self.lr + self.lf)
             Fry = (
@@ -70,37 +68,40 @@ class DynamicBicycleCartesian(System):
             )
 
             # Dynamics
-            x_acc = 6.17 * (throttle - x_vel / 15.2 - 0.333)
+            x_acc = 6.17 * (throttle - v_forward / 15.2 - 0.333)
             y_acc = (
                 1.0
                 / self.m
-                * (Fry + Ffy * jnp.cos(steering) - self.m * x_vel * heading_vel)
+                * (Fry + Ffy * jnp.cos(steering) - self.m * v_forward * heading_vel)
             )
             heading_acc = (
                 1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
             )
-            return x_vel, y_vel, heading_vel, x_acc, y_acc, heading_acc
+            return v_forward, v_sideway, heading_vel, x_acc, y_acc, heading_acc
 
         # for small longitudinal velocity use kinematic model
         # for tire slip, ratio between lateral and longitudinal speed matters, avoid singularities
-        x_vel, y_vel, heading_vel, x_acc, y_acc, heading_acc = jax.lax.cond(
+        v_forward, v_sideway, heading_vel, x_acc, y_acc, heading_acc = jax.lax.cond(
             lt(
-                x_vel,
-                0.05 * jnp.ones_like(x_vel),
-                # IntervalRelation.NONE
+                v_forward,
+                jnp.ones_like(
+                    v_forward
+                ),  # Adjoint reachability very sensitive to small v_forward
+                # IntervalRelation.NONE,
                 IntervalRelation.PRECEDES
-                | IntervalRelation.MEETS
-                | IntervalRelation.OVERLAPS,
+                | IntervalRelation.FINISHED_BY
+                | IntervalRelation.CONTAINS
+                | IntervalRelation.STARTED_BY,
             ),
-            kinematic_model, # TODO: figure out why reachability does badly on kinematic model
+            kinematic_model,
             dynamic_model,
         )
 
         return jnp.array(
             [
-                x_vel * jnp.cos(heading)
-                - y_vel * jnp.sin(heading),  # conversion from body to global frame
-                x_vel * jnp.sin(heading) + y_vel * jnp.cos(heading),
+                v_forward * jnp.cos(heading)
+                - v_sideway * jnp.sin(heading),  # conversion from body to global frame
+                v_forward * jnp.sin(heading) + v_sideway * jnp.cos(heading),
                 heading_vel,
                 x_acc,
                 y_acc,
