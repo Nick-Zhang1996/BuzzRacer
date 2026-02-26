@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
 from buzzracer.controllers.car_controller import CarController
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, Control
 
 
 _logger = get_logger('Car')
@@ -15,8 +15,8 @@ _logger = get_logger('Car')
 class CarParams(NamedTuple):
     # Physical properties
     # default values are for the MR03 chassis with Porsche 911 GT3 RS body
-    L: float = 0.09
-    ''' L '''
+    wheelbase: float = 0.09
+    ''' Wheelbase, front to rear axle'''
     lf: float = 0.04824
     ''' CG to front axle'''
     lr: float = 0.09 - 0.04824
@@ -61,7 +61,7 @@ class CarParams(NamedTuple):
 class CarConfig(Enum):
 
 
-    orca = CarParams(L=0.029+0.033,
+    orca = CarParams(wheelbase=0.029+0.033,
                      width=0.03,
                      rendering='data/porsche_green.png')
 
@@ -80,14 +80,14 @@ class CarConfig(Enum):
                         min_throttle=-1.0,
                         rendering='data/porsche_orange.png')
 
-    porsche_16 = CarParams(L=90e-3,
+    porsche_16 = CarParams(wheelbase=90e-3,
                         car_ip='192.168.10.16',
                         max_steering_left=radians(27.1),
                         max_steering_right=radians(27.1),
                         optitrack_id=1006,
                         rendering='data/porsche_orange.png')
 
-    lambo_13 = CarParams(L=98e-3,
+    lambo_13 = CarParams(wheelbase=98e-3,
                       car_ip='192.168.10.13',
                       max_steering_left=asin(2*98e-3/0.52),
                       max_steering_right=asin(2*98e-3/0.47),
@@ -206,7 +206,7 @@ class Car(PrintObject, LogObject):
 
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
-        car.state = (x, y, heading, v_forward, 0, 0)
+        car.state = CartesianState(x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
 
         car.params = eval(f'CarConfig.{config_name}.value')
 

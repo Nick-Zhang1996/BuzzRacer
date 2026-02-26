@@ -10,6 +10,7 @@ from threading import Thread, Event
 
 from buzzracer.common import PrintObject
 from buzzracer.cars.car import Car, CarParams
+from buzzracer.types import CartesianState
 
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages

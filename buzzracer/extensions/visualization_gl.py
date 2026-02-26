@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 class VisualizationGL(Extension):
     def __init__(self):
         super().__init__(handle_name='visualization')
-        self.t = ExecutionTimer(True)
+        self.t = ExecutionTimer(False)
         self.update_visualization = Event()
         self.car_graphics = False
         self.show_car_info = True
@@ -515,9 +515,9 @@ class _WindowConfig(moderngl_window.WindowConfig):
                     print('Slowing down, press Q again to shutdown')
                     self.host.main.slowdown.set()
                 else:
-                    self.host.main.exit_request.set()
-                    self.wnd.close()
                     self.final()
+                    self.wnd.close()
+                    self.host.main.exit_request.set()
             elif command == 'pause':
                 print('Paused. Check console to continue.')
                 input('Press Enter in the console to continue...')
@@ -570,7 +570,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
     def final(self):
         """Clean up GPU resources."""
         self.bg_texture.release()
-        for tex in self.car_textures:
+        for tex in self.car_textures.values():
             if tex:
                 tex.release()
         self.prog.release()
