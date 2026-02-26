@@ -1,19 +1,19 @@
 <config>
   <settings dt='0.01'>
       <!-- Not checked, determined by if simulator or optitrack is initiated -->
-      <experiment_type>Simulation</experiment_type>
+      <experiment_type>RealWorld</experiment_type>
   </settings>
 
   <track>saved</track>
 
   <extensions>
-      <!--<extension handle='laptimer'>Laptimer</extension>-->
+      <extension handle='laptimer'>Laptimer</extension>
       <!--<extension handle='logger'>Logger</extension>-->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-       <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
-      <!--<extension handle='vi'>Optitrack</extension>-->
-       <extension handle='step_counter' total_count='1000'>StepCounter</extension>
-       <extension handle='simulator' match_time='False'>DynamicBicycleCartesianSimulator</extension> 
+      <extension handle='vi'>Optitrack</extension>
+      <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
+       <!--<extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
+       <!--<extension handle='simulator' match_time='False'>DynamicBicycleCartesianSimulator</extension> -->
   </extensions>
 
   <cars>

@@ -64,4 +64,4 @@ class KinematicBicycleCartesianSimulator(Simulator):
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
         next_car_state = KinematicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
-        return np.array(next_car_state)
+        return next_car_state

@@ -12,6 +12,7 @@ from buzzracer.common import ExperimentType, PrintObject
 from buzzracer.extensions.extension import Extension
 from buzzracer.utilities.kalman_filter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
+from buzzracer.types import CartesianState, Control
 
 
 class Optitrack(Extension):
@@ -39,7 +40,7 @@ class Optitrack(Extension):
             (x, y, v, theta, omega) = self.vi.get_k_fstate(car.internal_id)
             # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
-            car.state = (x, y, theta, v, 0, omega)
+            car.state = CartesianState(x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
         self.main.new_state_update.set()
 
     def final(self):

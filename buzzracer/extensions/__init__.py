@@ -25,3 +25,4 @@ from .optitrack import Optitrack
 from .snapshot_saver import SnapshotSaver
 from .visualization import Visualization
 from .visualization_gl import VisualizationGL
+from .sysid import SysId

@@ -1,20 +1,26 @@
-from common import *
-from math import isnan, pi, degrees, radians, sin, cos
+import numpy as np
+from math import sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 from planner import Planner
-import matplotlib.pyplot as plt
 
 
 class PurePursuitCarController(CarController):
     def __init__(self, car, config):
         super().__init__(car, config)
+        self.v_override = None
+        self.max_speed = 5
+        self.max_offset = 0.4
 
-        '''
-        for key,value_text in config.attributes.items():
-            setattr(self,key,eval(value_text))
-            self.print_info(" controller.",key,'=',value_text)
-        '''
+        P = 1.5  # to be more aggressive use 15
+        I = 0.1  
+        D = 0.005
+        dt = car.main.dt
+        # integral limit, lpf curoff freq
+        # self.throttle_pid = PidController(P,I,D,dt,1,2)
+        self.throttle_pid = PidController(P, I, D, dt, 1, 1000)
+
+        self.debug_dict = {}
 
         # if there's planner set it up
         # TODO put this in a parent class constructor
@@ -24,29 +30,13 @@ class PurePursuitCarController(CarController):
             self.planner = planner_class(config_planner)
             self.planner.main = self.main
             self.planner.car = self.car
-            '''
-            self.print_ok("setting planner attributes")
-            for key,value_text in config_planner.attributes.items():
-                setattr(self.planner,key,eval(value_text))
-                self.print_info(" main.",key,'=',value_text)
-            '''
             self.planner.init()
-        except IndexError as e:
+        except IndexError:
             self.print_info('planner not available')
             self.planner = None
 
     def init(self):
         CarController.init(self)
-        self.debug_dict = {}
-        self.max_offset = 0.4
-
-        # speed controller
-        P = 5  # to be more aggressive use 15
-        I = 0.0  # 0.1
-        D = 0.4
-        dt = self.car.main.dt
-        self.throttle_pid = PidController(P, I, D, dt, 1, 2)
-
         self.track.prepare_discretized_raceline()
         self.track.create_boundary()
         self.discretized_raceline = self.track.discretized_raceline
@@ -82,48 +72,24 @@ class PurePursuitCarController(CarController):
         # pure pursuit
         theta = np.arctan2(dx_body, dy_body)
         R = dist[idx_lookahead] / 2 / cos(theta)
-        steering = np.arctan2(self.car.wheelbase, R)
+        steering = np.arctan2(self.car.params.wheelbase, R)
         steering = np.copysign(steering, dy_body)
-
-        '''
-        # plot for sanity
-        fig,ax = plt.subplots()
-        plt.plot(x,y,'o')
-        plt.plot(raceline_pnts[idx_car:idx_lookahead,0],raceline_pnts[idx_car:idx_lookahead,1])
-        #plt.plot(raceline_pnts[:,0],raceline_pnts[:,1])
-        plt.plot(raceline_pnts[idx_car,0],raceline_pnts[idx_car,1],'*')
-        plt.plot(raceline_pnts[idx_lookahead,0],raceline_pnts[idx_lookahead,1],'o')
-
-        # car centered
-        center = (x,y)
-        circle = plt.Circle(center,lookahead,fill=False)
-        ax.add_patch(circle)
-        ax.set_xlim((x-0.5,x+0.5))
-        ax.set_ylim((y-0.5,y+0.5))
-        center = (x + R*cos(heading - np.pi/2), y + R*sin(heading - np.pi/2))
-        circle = plt.Circle(center,R,fill=False)
-        ax.add_patch(circle)
-        plt.show()
-        '''
 
         # calculate steering
         # find reference speed
         # calculate throttle
-        v_target = raceline_speed[idx_car]
-
-        '''
-        if retval is None:
-            return (0,0,False,{'offset':0})
-        '''
-
-        v_target = min(v_target, self.max_speed)
+        if self.v_override is None:
+            v_target = raceline_speed[idx_car]
+            v_target = min(v_target, self.max_speed)
+        else:
+            v_target = self.v_override
 
         # TODO more error handling
 
-        if (steering > self.car.max_steering_left):
-            steering = self.car.max_steering_left
-        elif (steering < -self.car.max_steering_right):
-            steering = -self.car.max_steering_right
+        if (steering > self.car.params.max_steering_left):
+            steering = self.car.params.max_steering_left
+        elif (steering < -self.car.params.max_steering_right):
+            steering = -self.car.params.max_steering_right
 
         throttle = self.calc_throttle(self.car.state, v_target)
         self.car.throttle = throttle
@@ -131,11 +97,26 @@ class PurePursuitCarController(CarController):
 
         return None
 
+    # get ss throttle, given ss velocity, linearfit
+    def steady_state_throttle(self, velocity_ss):
+        # 0.25 -> 0.94
+        # 0.28 -> 1.4
+        # 0.31 -> 1.9
+        p = (0.06246385, 0.19171776)
+        if velocity_ss > 0:
+            return velocity_ss * p[0] + p[1]
+        else:
+            return 0
+
     # PID controller for forward velocity
     def calc_throttle(self, state, v_target):
         vf = state[3]
-        # PI control for throttle
-        acc_target = self.throttle_pid.control(v_target, vf)
-        throttle = (acc_target + 1.01294228)/4.95445214
+        # forgot how we got this
+        # throttle = (acc_target + 1.01294228)/4.95445214
+
+        # PID control for throttle
+        throttle = self.throttle_pid.control(
+            v_target, vf) + self.steady_state_throttle(v_target)
 
         return max(min(throttle, self.car.max_throttle), -1)
+

@@ -26,7 +26,7 @@ class Simulator(Extension, ABC):
     '''
     Base class for simulators
 
-    car.state = x,y,heading,v_forward,v_sideway,omega
+    car.state = CartesianState(x,y,heading,v_forward,v_sideway,omega)
     however simulator can establish a property car.sim_state
     that use different state representation for simulation
     '''
