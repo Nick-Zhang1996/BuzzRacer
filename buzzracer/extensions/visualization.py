@@ -179,8 +179,8 @@ class Visualization(Extension):
         y1 = coord[1]
         # x, y, heading, vf_lf, vs_lf, omega_lf = car.state
         # Add steering bar
-        steering, oob = fmap(car.steering, -car.max_steering_left,
-                             car.max_steering_right, 100, 0)
+        steering, oob = fmap(car.steering, -car.params.max_steer_left,
+                             car.params.max_steer_right, 100, 0)
         img = cv2.rectangle(img, (x1, y1 + 25),
                             (x1 + 100, y1 + 40), (0, 0, 255), 1)
         if oob:

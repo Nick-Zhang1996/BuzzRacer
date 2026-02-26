@@ -69,7 +69,8 @@ class VisualizationGL(Extension):
         # draw static components onto background
         # self.img_track = self.draw_control_static_for_all_cars(img_track)
         # self.visualization_img = img
-        self.moderngl_thread = Thread(target=self._moderngl_thread_function, daemon=True)
+        self.moderngl_thread = Thread(
+            target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
 
     def post_update(self):
@@ -83,11 +84,13 @@ class VisualizationGL(Extension):
         # try to parse the actual sys.argv
         rows, cols = self.img_track.shape[:2]
         _WindowConfig.window_size = (cols, rows)
-        moderngl_window.run_window_config(_WindowConfig, args=['-wnd', 'pyglet'])
+        moderngl_window.run_window_config(
+            _WindowConfig, args=['-wnd', 'pyglet'])
 
     def post_init(self,):
         # self.save_blank_img()
         pass
+
     def final(self):
         self.t.summary()
 
@@ -187,7 +190,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
     resizable = False
     vsync = True
     host = None
-    t = None # ExecutionTimer instance
+    t = None  # ExecutionTimer instance
 
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
@@ -243,11 +246,13 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
         # --- Geometry ---
         # Full window quad, track coordinate frame
-        self.quad = geometry.quad_2d(size=track_dim_m, pos=(track_dim_m[0]/2, track_dim_m[1]/2))
-        self.unit_quad = geometry.quad_2d(size=(1.0, 1.0), pos=(0.0,0.0))
+        self.quad = geometry.quad_2d(size=track_dim_m, pos=(
+            track_dim_m[0]/2, track_dim_m[1]/2))
+        self.unit_quad = geometry.quad_2d(size=(1.0, 1.0), pos=(0.0, 0.0))
 
         # --- Textures ---
-        self.bg_texture = self.texture_from_image(self.host.get_background_img())
+        self.bg_texture = self.texture_from_image(
+            self.host.get_background_img())
         self.text_texture = {text: self.texture_from_text(text)
                              for text in ['ST', 'TH']}
 
@@ -261,7 +266,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
-        rgba = Image.fromarray(cv2.cvtColor(cv2.flip(img, 0), cv2.COLOR_BGR2RGB)).convert("RGBA")
+        rgba = Image.fromarray(cv2.cvtColor(
+            cv2.flip(img, 0), cv2.COLOR_BGR2RGB)).convert("RGBA")
         return self.ctx.texture(rgba.size, 4, rgba.tobytes())
 
     def texture_from_text(self, text, size=12):
@@ -429,7 +435,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.t.e('setup')
         # --- Car Static---
         self.t.s('draw_car_pose')
-        self.draw_car_pose(car, (*self.pixel_to_track((x1-80, y1 - 30)), radians(90)))
+        self.draw_car_pose(
+            car, (*self.pixel_to_track((x1-80, y1 - 30)), radians(90)))
         self.t.e('draw_car_pose')
         # --- Text ---
         self.t.s('draw_text')
@@ -439,11 +446,13 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
         # --- Steering Bar ---
         self.t.s('draw_prog_bar')
-        s_val, s_oob = fmap(car.steering, -car.max_steering_left, car.max_steering_right, 1, 0)
+        s_val, s_oob = fmap(
+            car.steering, -car.params.max_steer_left, car.params.max_steer_right, 1, 0)
         self.draw_prog_bar((x1, y1 - 20), s_val, color=red if s_oob else green)
 
         # --- Throttle Bar ---
-        t_val, t_oob = fmap(car.throttle, car.min_throttle, car.max_throttle, 0, 1)
+        t_val, t_oob = fmap(
+            car.throttle, car.params.min_throttle, car.params.max_throttle, 0, 1)
         self.draw_prog_bar((x1, y1 - 40), t_val, color=red if t_oob else green)
         self.t.e('draw_prog_bar')
 
@@ -488,7 +497,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # Bar
         bar_width = int(width*value)
         bar_pos = (pos[0] - width//2 + bar_width//2, pos[1])
-        model = self.update_transform_matrix(pos=bar_pos, scale=(bar_width, height-2))
+        model = self.update_transform_matrix(
+            pos=bar_pos, scale=(bar_width, height-2))
         # ortho_mtx = self.ortho(0, self.window_size[0], 0, self.window_size[1])
         # self.ortho_matrix_loc.write(ortho_mtx)
         self.model_matrix_loc.write(model)
@@ -547,12 +557,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
         """Creates a 2D model matrix for position, rotation, and scale."""
         # input: (x,y,z, 1.0)
         cos_r, sin_r = cos(rot), sin(rot)
-        _WindowConfig.transform_matrix[0,0] = scale[0] * cos_r
-        _WindowConfig.transform_matrix[0,1] = scale[0] * sin_r
-        _WindowConfig.transform_matrix[1,0] = -scale[1] * sin_r
-        _WindowConfig.transform_matrix[1,1] = scale[1] * cos_r
-        _WindowConfig.transform_matrix[3,0] = pos[0]
-        _WindowConfig.transform_matrix[3,1] = pos[1]
+        _WindowConfig.transform_matrix[0, 0] = scale[0] * cos_r
+        _WindowConfig.transform_matrix[0, 1] = scale[0] * sin_r
+        _WindowConfig.transform_matrix[1, 0] = -scale[1] * sin_r
+        _WindowConfig.transform_matrix[1, 1] = scale[1] * cos_r
+        _WindowConfig.transform_matrix[3, 0] = pos[0]
+        _WindowConfig.transform_matrix[3, 1] = pos[1]
         return _WindowConfig.transform_matrix
 
     @staticmethod
