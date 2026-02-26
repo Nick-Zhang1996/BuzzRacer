@@ -176,7 +176,8 @@ class Offboard(Car):
         self.print_debug('comm trhead started')
         while not self.flag_quit.is_set():
             # send control command
-            packet = self.prepare_command_packet(self.throttle, self.steering)
+            steering_cmd = self.steering * self.params.steer_ratio + self.params.steer_offset
+            packet = self.prepare_command_packet(self.throttle, steering_cmd)
             packet.make_packet()
             try:
                 select.select([], [self.sock], [])

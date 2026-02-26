@@ -46,10 +46,19 @@ class CarParams(NamedTuple):
     max_throttle: float = 1.0
     min_throttle: float = -1.0
 
-    max_steering_left: float = radians(30.0)
-    max_steer_pwm_left: int = 1000
-    max_steering_right: float = radians(30.0)
+    # For A7105 transmitter controlled cars
+    max_steer_pwm_left: int = 1100
     max_steer_pwm_right: int = 2000
+    max_steer_left: float = 0.0
+    """ Max steering angle in radians, left, positive"""
+    max_steer_right: float = 0.0
+    """ Max steering angle in radians, right, positive"""
+
+    # For Arduino 33 IoT Controlled Cars
+    steer_ratio: float = 1.0
+    ''' command = desired_angle * ratio + offset (unit:rad)'''
+    steer_offset: float = 0.0
+    ''' command = desired_angle * ratio + offset (unit:rad)'''
 
     serial_port: str = '/dev/ttyUSB0'
     car_ip: str = '0.0.0.0'
@@ -60,39 +69,89 @@ class CarParams(NamedTuple):
 
 class CarConfig(Enum):
 
-
-    orca = CarParams(wheelbase=0.029+0.033,
-                     width=0.03,
-                     rendering='data/porsche_green.png')
+    # orca = CarParams(wheelbase=0.029+0.033,
+    #                  width=0.03,
+    #                  rendering='data/porsche_green.png')
 
     # TODO render audi
-    audi_11 = CarParams(optitrack_id=998,
-                        car_ip='192.168.10.11',
-                        max_steering_left=radians(26.1),
-                        max_steering_right=radians(26.1),
-                        rendering='data/porsche_green.png')
+    audi_11 = CarParams(
+        m=172e-3,
+        wheelbase=97e-3,
+        lr=50e-3,
+        lf=97e-3-50e-3,
+        steer_ratio=1.1363636363636365,
+        steer_offset=0.03014659617081118,
+        optitrack_id=998,
+        car_ip='192.168.10.11',
+        rendering='data/porsche_green.png')
 
-    audi_12 = CarParams(optitrack_id=1005,
-                        car_ip='192.168.10.12',
-                        max_steering_left=radians(26.1),
-                        max_steering_right=radians(26.1),
-                        max_throttle=1.0,
-                        min_throttle=-1.0,
-                        rendering='data/porsche_orange.png')
+    # NOTE no calibration, using audi_11 value
+    audi_12 = CarParams(
+        m=172e-3,
+        wheelbase=97e-3,
+        lr=50e-3,
+        lf=97e-3-50e-3,
+        max_steering_left=radians(27),
+        max_steering_right=radians(27),
+        steer_ratio=1.1363636363636365,
+        steer_offset=0.03014659617081118,
+        optitrack_id=1005,
+        car_ip='192.168.10.12',
+        max_throttle=1.0,
+        min_throttle=-1.0,
+        rendering='data/porsche_orange.png')
 
-    porsche_16 = CarParams(wheelbase=90e-3,
-                        car_ip='192.168.10.16',
-                        max_steering_left=radians(27.1),
-                        max_steering_right=radians(27.1),
-                        optitrack_id=1006,
-                        rendering='data/porsche_orange.png')
+    porsche_16 = CarParams(
+        m=172e-3,
+        wheelbase=90e-3,
+        lr=41e-3,
+        lf=90e-3-41e-3,
+        steer_ratio=1.4673913043478262,
+        steer_offset=0.016903134386162477,
+        wheelbase=90e-3,
+        car_ip='192.168.10.16',
+        optitrack_id=16,
+        rendering='data/porsche_orange.png')
 
-    lambo_13 = CarParams(wheelbase=98e-3,
-                      car_ip='192.168.10.13',
-                      max_steering_left=asin(2*98e-3/0.52),
-                      max_steering_right=asin(2*98e-3/0.47),
-                      optitrack_id=15,
-                      rendering='data/porsche_green.png')
+    lambo_13 = CarParams(
+        m=192e-3,
+        wheelbase=98e-3,
+        lr=48e-3,
+        lf=98e-3-48e-3,
+        steer_ratio=1.4244262727512529,
+        steer_offset=0.10702629681116377,
+        car_ip='192.168.10.13',
+        optitrack_id=15,
+        rendering='data/porsche_green.png')
+
+    corvette_17 = CarParams(
+        m=174e-3,
+        whellbase=98e-3,
+        lr=47e-3,
+        lf=98e-3-47e-3,
+        max_steer_right=radians(29.77),
+        max_steer_left=radians(23.21),
+        optitrack_id=17,
+    )
+    porsche_18 = CarParams(
+        m=165e-3,
+        wheelbase=90e-3,
+        lr=40e-3,
+        lf=90e-3-40e-3,
+        max_steer_right=radians(28.13),
+        max_steer_left=radians(23.17),
+        optitrack_id=18,
+    )
+    porsche_19 = CarParams(
+        m=165e-3,
+        wheelbase=90e-3,
+        lr=40e-3,
+        lf=90e-3-40e-3,
+        max_steer_right=radians(30.24),
+        max_steer_left=radians(22.33),
+        optitrack_id=19,
+    )
+
 
 class Car(PrintObject, LogObject):
     ''' Base class for various types of cars,
@@ -114,8 +173,6 @@ class Car(PrintObject, LogObject):
         # default values, will be overridden in config
         self.max_throttle = 1.0
         self.min_throttle = -1.0
-        self.max_steering_left = radians(26.1)
-        self.max_steering_right = radians(26.1)
         self.debug_dict = {}
 
     @property
@@ -164,7 +221,8 @@ class Car(PrintObject, LogObject):
             self.steering = 0.0
         else:
             self.controller.control()
-            _logger.debug('T=%4.1f, S=%4.1f deg' % (self.throttle, degrees(self.steering)))
+            _logger.debug('T=%4.1f, S=%4.1f deg' %
+                          (self.throttle, degrees(self.steering)))
 
         if self.main.slowdown.is_set():
             self.throttle = 0.0
@@ -191,13 +249,16 @@ class Car(PrintObject, LogObject):
             0].firstChild.nodeValue
 
         try:
-            init_states_text = config.getElementsByTagName('init_states')[0].firstChild.nodeValue
+            init_states_text = config.getElementsByTagName(
+                'init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
-            _logger.warning('Car: no initial state specified, using track default')
+            _logger.warning(
+                'Car: no initial state specified, using track default')
             init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
 
-        config_name = config.getElementsByTagName('config_name')[0].firstChild.nodeValue
+        config_name = config.getElementsByTagName(
+            'config_name')[0].firstChild.nodeValue
         # pylint: disable-next=exec-used
         exec(f'from buzzracer.controllers import {controller_class_text}')
         controller = eval(controller_class_text)
@@ -206,7 +267,8 @@ class Car(PrintObject, LogObject):
 
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
-        car.state = CartesianState(x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
+        car.state = CartesianState(
+            x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
 
         car.params = eval(f'CarConfig.{config_name}.value')
 
