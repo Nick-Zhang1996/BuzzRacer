@@ -1,6 +1,6 @@
 ''' Defines the interface for working with physical and simulated cars'''
 from __future__ import annotations
-from math import radians, degrees, asin
+from math import radians, degrees
 from enum import Enum
 from typing import NamedTuple
 
@@ -45,14 +45,14 @@ class CarParams(NamedTuple):
     Cd: float = 0.00000
     max_throttle: float = 1.0
     min_throttle: float = -1.0
+    max_steer_left: float = radians(27)
+    """ Max steering angle in radians, left, positive"""
+    max_steer_right: float = radians(27)
+    """ Max steering angle in radians, right, positive"""
 
     # For A7105 transmitter controlled cars
     max_steer_pwm_left: int = 1100
     max_steer_pwm_right: int = 2000
-    max_steer_left: float = 0.0
-    """ Max steering angle in radians, left, positive"""
-    max_steer_right: float = 0.0
-    """ Max steering angle in radians, right, positive"""
 
     # For Arduino 33 IoT Controlled Cars
     steer_ratio: float = 1.0
@@ -81,7 +81,7 @@ class CarConfig(Enum):
         lf=97e-3-50e-3,
         steer_ratio=1.1363636363636365,
         steer_offset=0.03014659617081118,
-        optitrack_id=998,
+        optitrack_id=11,
         car_ip='192.168.10.11',
         rendering='data/porsche_green.png')
 
@@ -91,11 +91,11 @@ class CarConfig(Enum):
         wheelbase=97e-3,
         lr=50e-3,
         lf=97e-3-50e-3,
-        max_steering_left=radians(27),
-        max_steering_right=radians(27),
+        max_steer_left=radians(27),
+        max_steer_right=radians(27),
         steer_ratio=1.1363636363636365,
         steer_offset=0.03014659617081118,
-        optitrack_id=1005,
+        optitrack_id=12,
         car_ip='192.168.10.12',
         max_throttle=1.0,
         min_throttle=-1.0,
@@ -106,9 +106,10 @@ class CarConfig(Enum):
         wheelbase=90e-3,
         lr=41e-3,
         lf=90e-3-41e-3,
-        steer_ratio=1.4673913043478262,
-        steer_offset=0.016903134386162477,
-        wheelbase=90e-3,
+        steer_ratio=1.2113055181695829,
+        steer_offset=-0.006130968166494196,
+        max_steer_left=radians(16),
+        max_steer_right=radians(16),
         car_ip='192.168.10.16',
         optitrack_id=16,
         rendering='data/porsche_orange.png')
@@ -118,15 +119,17 @@ class CarConfig(Enum):
         wheelbase=98e-3,
         lr=48e-3,
         lf=98e-3-48e-3,
-        steer_ratio=1.4244262727512529,
-        steer_offset=0.10702629681116377,
+        steer_ratio=1.0638297872340425,
+        steer_offset=0.028408018676077906,
+        max_steer_left=radians(23.85),
+        max_steer_right=radians(26.91),
         car_ip='192.168.10.13',
-        optitrack_id=15,
+        optitrack_id=13,
         rendering='data/porsche_green.png')
 
     corvette_17 = CarParams(
         m=174e-3,
-        whellbase=98e-3,
+        wheelbase=98e-3,
         lr=47e-3,
         lf=98e-3-47e-3,
         max_steer_right=radians(29.77),
@@ -169,6 +172,7 @@ class Car(PrintObject, LogObject):
         self._throttle = 0.0
         self._steering = 0.0
         self.state = CartesianState(0, 0, 0, 0, 0, 0)
+        self.params: CarParams
 
         # default values, will be overridden in config
         self.max_throttle = 1.0
@@ -191,8 +195,8 @@ class Car(PrintObject, LogObject):
 
     @steering.setter
     def steering(self, val):
-        val = val if val < self.max_steering_left else self.max_steering_left
-        val = val if val > -self.max_steering_right else -self.max_steering_right
+        val = val if val < self.params.max_steer_left else self.params.max_steer_left
+        val = val if val > -self.params.max_steer_right else -self.params.max_steer_right
         self._steering = val
 
     def pre_init(self):
