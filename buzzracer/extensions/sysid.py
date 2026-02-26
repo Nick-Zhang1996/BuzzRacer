@@ -39,7 +39,7 @@ class StateMachine():
         """ Act based on current state, update state if needed"""
         if self.state == self.LOG_SLOW_DRIVING:
             if self.substate == self.RAMPUP:
-                target_v = 0.3
+                target_v = 0.5
                 self.car.controller.v_override = target_v
                 if abs(self.car.state.v_forward - target_v) < 0.05:
                     self.substate = self.IN_PROGRESS
@@ -47,7 +47,7 @@ class StateMachine():
             elif self.substate == self.IN_PROGRESS:
                 self.slow_driving_state_log.append(self.car.state)
                 self.slow_driving_control_log.append((self.car.steering, self.car.throttle))
-                if len(self.slow_driving_control_log) > 10*100:
+                if len(self.slow_driving_control_log) > 40*100:
                     # log 10 seconds
                     self.substate = self.RAMPDOWN
                     logger.info('End logging')
@@ -60,6 +60,7 @@ class StateMachine():
                     with open(os.path.join(BASEDIR,'log','sysid_slow.p'),'wb') as f:
                         pickle.dump(data, f)
                     logger.info('Saved')
+                    self.host.main.exit_request.set()
 
 
 
