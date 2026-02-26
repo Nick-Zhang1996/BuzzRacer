@@ -158,10 +158,6 @@ class StanleyCarController(CarController):
             # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
             # handle edge case, unwrap ( -355 deg turn -> +5 turn)
             steering = (steering+pi) % (2*pi) - pi
-            if steering > self.car.max_steering_left:
-                steering = self.car.max_steering_left
-            elif steering < -self.car.max_steering_right:
-                steering = -self.car.max_steering_right
             if v_override is None:
                 throttle = self.calc_throttle(state, v_target)
             else:

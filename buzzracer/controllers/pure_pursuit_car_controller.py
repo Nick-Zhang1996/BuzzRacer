@@ -13,7 +13,7 @@ class PurePursuitCarController(CarController):
         self.max_offset = 0.4
 
         P = 1.5  # to be more aggressive use 15
-        I = 0.1  
+        I = 0.1
         D = 0.005
         dt = car.main.dt
         # integral limit, lpf curoff freq
@@ -84,13 +84,6 @@ class PurePursuitCarController(CarController):
         else:
             v_target = self.v_override
 
-        # TODO more error handling
-
-        if (steering > self.car.params.max_steering_left):
-            steering = self.car.params.max_steering_left
-        elif (steering < -self.car.params.max_steering_right):
-            steering = -self.car.params.max_steering_right
-
         throttle = self.calc_throttle(self.car.state, v_target)
         self.car.throttle = throttle
         self.car.steering = steering
@@ -119,4 +112,3 @@ class PurePursuitCarController(CarController):
             v_target, vf) + self.steady_state_throttle(v_target)
 
         return max(min(throttle, self.car.max_throttle), -1)
-
