@@ -12,6 +12,7 @@ class StanleyCarController(CarController):
         # NOTE these will be overridden
         self.max_offset = 0.4
         self.max_speed = 4.0
+        self.v_override = None
         # load config etc
         super().__init__(car, config)
 
@@ -73,7 +74,7 @@ class StanleyCarController(CarController):
                 self.print_info('planner failed, override')
 
         throttle, steering, valid, debug_dict = self.ctrl_car(
-            self.car.state, self.track)
+            self.car.state, self.track, v_override=self.v_override)
         self.debug_dict = debug_dict
         self.car.debug_dict.update(debug_dict)
         # self.print_info("car %d, T= %4.1f, S= %4.1f (deg)"
