@@ -29,6 +29,7 @@ class Main(PrintObject, LogObject):
         self.config_filename = config
         self.experiment_name = os.path.basename(config).split('.')[0]
         self.simulator = None
+        self.multiprocess = False
 
         # Load config
         # TODO: make this configurable Object
@@ -66,8 +67,8 @@ class Main(PrintObject, LogObject):
         # Prepare cars
         Car.reset()
         config_cars: Config = config.getElementsByTagName('cars')[0]
-        self.cars = [Car.Factory(self, config_car)
-                     for config_car in config_cars.getElementsByTagName('car')]
+        self.cars: list[Car] = [Car.Factory(self, config_car)
+                                for config_car in config_cars.getElementsByTagName('car')]
         self.print_info(f' total cars: {len(self.cars)}')
 
         self.timer = ExecutionTimer(True)
@@ -146,7 +147,9 @@ class Main(PrintObject, LogObject):
         t.s('control')
         for car in self.cars:
             # call controller, send command to car in real experiment
+            t.s(car.params.name)
             car.control()
+            t.e(car.params.name)
         t.e('control')
 
         # -- Extension update --
@@ -159,7 +162,8 @@ if __name__ == '__main__':
 
     # Run default.xml config if none is provided
     name = sys.argv[1] if len(sys.argv) == 2 else 'default'
-    config_filename = os.path.join(BASEDIR, 'buzzracer', 'configs', f'{name}.xml')
+    config_filename = os.path.join(
+        BASEDIR, 'buzzracer', 'configs', f'{name}.xml')
 
     if os.path.exists(config_filename):
         logger.info('using config %s', config_filename)

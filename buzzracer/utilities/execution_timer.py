@@ -1,7 +1,7 @@
 # for quick and dirty code profiling
 import logging
 
-from time import time
+from time import time, thread_time
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,14 @@ class ExecutionTimer:
         """ Currently active subsession name """
         self.current_subsession = None
 
+    def time(self):
+        return time()
+        # return thread_time()
+
     def global_start(self):
         if not self.enabled:
             return
-        self.start_ts = time()
+        self.start_ts = self.time()
         return
 
     def start(self, name=None):
@@ -69,13 +73,14 @@ class ExecutionTimer:
             try:
                 self.child_sections[self.current_subsession].e(name)
             except KeyError:
-                logger.error(f'end({name}) is called but no matching start({name}) is called')
+                logger.error(
+                    f'end({name}) is called but no matching start({name}) is called')
 
     def global_end(self):
         if not self.enabled:
             return
 
-        self.total_duration += time() - self.start_ts
+        self.total_duration += self.time() - self.start_ts
         self.total_count += 1
         self.start_ts = None
 
@@ -121,14 +126,17 @@ class ExecutionTimer:
         for key, value in self.child_sections.items():
             total_accounted_time += value.total_duration
             frac = value.total_duration / self.total_duration
-            logger.info(f'{prefix+key:<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
+            logger.info(
+                f'{prefix+key:<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
             value.summary(prefix=prefix+'| ', multiplier=multiplier*frac)
         if len(self.child_sections) > 0:
             frac = 1-total_accounted_time/self.total_duration
-            logger.info(f'{prefix+"Unaccounted":<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
+            logger.info(
+                f'{prefix+"Unaccounted":<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
 
         if prefix == '':
-            logger.info(f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
+            logger.info(
+                f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
         return
 
 

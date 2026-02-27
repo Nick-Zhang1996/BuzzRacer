@@ -109,7 +109,7 @@ class Main():
 
     # in simulation, this is called with evenly spaced time
     # in real experiment, this is called after a new vicon update is pulled
-    # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
+    # when a new vicon/optitrack state is available, self.new_state_update.set() will be true
     # client (this function) need to unset that event
 
     def update(self,):

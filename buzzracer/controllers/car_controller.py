@@ -1,5 +1,6 @@
 ''' Base class for all car controllers '''
 from __future__ import annotations
+from multiprocessing import Process
 import numpy as np
 
 from buzzracer.common import ConfigObject, LogObject
@@ -37,7 +38,15 @@ class CarController(ConfigObject, LogObject):
         """called at end of program, override to show statistics."""
         return
 
+    def start_control_process(self):
+        """ Start another process for the controller """
+        self.p = Process(target=self.control_process_fun)
+
+    def control_process_fun(self):
+        pass
+
     # TODO refactor to use Control
+
     def control(self) -> tuple[float, float]:
         ''' Main control logic, set output throttle and steering
         Returns:
