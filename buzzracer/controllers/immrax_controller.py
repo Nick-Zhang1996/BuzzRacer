@@ -12,6 +12,7 @@ from immrax import (
     Polytope,
     RawDiscreteTrajectory,
     interval,
+    icentpert,
 )
 from immrax.system.trajectory import RawTrajectory
 from immrax.utils import timed
@@ -88,7 +89,9 @@ class ImmraxController(CarController):
             kap=5e2,
         )
         # Pre-compute interval disturbance to avoid repeated allocation
-        self._zero_disturbance_interval = interval(self._zero_disturbance)
+        self._zero_disturbance_interval = icentpert(
+            self._zero_disturbance, jax.device_put(1e-2 * np.ones(2))
+        )
         self.disturbance_int = lambda t, x: self._zero_disturbance_interval
 
         self.stanley_controller = StanleyCarController(car, config)
@@ -107,9 +110,7 @@ class ImmraxController(CarController):
         self._planning_dt_jax = jax.device_put(np.array(self.planning_dt))
 
         self._state_eye = jax.device_put(np.eye(6))
-        self._state_pert = jax.device_put(
-            np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01])
-        )
+        self._state_pert = jax.device_put(0 * np.ones(6))
         self._state_pert = jnp.concatenate((self._state_pert, self._state_pert))
 
         # Cost computation settings
@@ -221,6 +222,12 @@ class ImmraxController(CarController):
         # ) = self.__analyze_reachset_validity(traj_reach)
         # self.__plot_reachset(traj_reach)
         # self.__log_reachability_results(overflow_timestep, 0, final_widths)
+
+        # reference_traj = traj_reach.ys[0].ox
+        # self.print_info(
+        #     f"Reference traj validity: {jnp.sum(jnp.logical_not(jnp.any(jnp.isinf(reference_traj), axis=1)))}, "
+        #     f"Full polytope validity: {overflow_timestep}"
+        # )
 
         # Necessary transfer to interface w/ Buzzracer sim
         controls = jax.device_get(self.planned_controls)
@@ -564,7 +571,7 @@ class ImmraxController(CarController):
 
         if final_widths is not None:
             # Compute relative widths (normalized by smallest non-zero width)
-            min_width = jnp.min(final_widths[final_widths > 1e-10])
+            min_width = jnp.maximum(jnp.min(final_widths), 1e-10)
             relative_widths = final_widths / min_width
             width_strs = [
                 f"{state_names[i]}={final_widths[i]:.4g} ({relative_widths[i]:.1f}x)"

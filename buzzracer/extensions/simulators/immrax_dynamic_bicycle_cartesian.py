@@ -1,8 +1,8 @@
 """Simulator for an Ackermann steering vehicle with dynamic bicycle model"""
 # page 30 of book Vehicle Dynamics and Control
+# "forward" states are longitudinal, "sideway" states are lateral
 
 from __future__ import annotations
-from jaxtyping import Int
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,29 +38,31 @@ class DynamicBicycleCartesian(System):
         self.m = car.params.m
 
     def f(self, t, x: jnp.ndarray, u: jnp.ndarray, w: jnp.ndarray) -> jnp.ndarray:
-        x, y, heading, v_forward, v_sideway, heading_vel = x
-        x_acc, y_acc, heading_acc = 0.0, 0.0, 0.0
+        x, y, heading, v_forward, v_sideway, omega = x
+        a_forward, a_sideway, a_heading = 0.0, 0.0, 0.0
         steering, throttle = u
+        w_v_sideway, w_v_heading = w
 
         def kinematic_model():
             beta = jnp.atan(self.lr / self.L * jnp.tan(steering))
 
             # motor model
-            x_acc = 6.17 * (throttle - v_forward / 15.2 - 0.333)
-            y_velocity = jnp.sqrt(v_forward**2 + v_sideway**2) * jnp.sin(beta)
+            a_forward = 6.17 * (throttle - v_forward / 15.2 - 0.333)
+            v_sideway_out = jnp.sqrt(v_forward**2 + v_sideway**2) * jnp.sin(beta)
             heading_vel = v_forward / self.L * jnp.tan(steering)
 
-            return v_forward, y_velocity, heading_vel, x_acc, y_acc, heading_acc
+            return (
+                v_forward,
+                v_sideway_out,
+                heading_vel,
+                a_forward,
+                a_sideway,
+                a_heading,
+            )
 
         def dynamic_model():
-            # v_forward_safe = v_forward + my_sign(v_forward) * FLOAT_EPS
-
-            # v_forward_safe = jnp.max(jnp.array([v_forward, 0.05]))
-
-            slip_f = (
-                -jnp.atan((heading_vel * self.lf + v_sideway) / v_forward) + steering
-            )
-            slip_r = jnp.atan((heading_vel * self.lr - v_sideway) / v_forward)
+            slip_f = -jnp.atan((omega * self.lf + v_sideway) / v_forward) + steering
+            slip_r = jnp.atan((omega * self.lr - v_sideway) / v_forward)
 
             Ffy = tire_curve(slip_f) * self.m * 9.8 * self.lr / (self.lr + self.lf)
             Fry = (
@@ -68,26 +70,27 @@ class DynamicBicycleCartesian(System):
             )
 
             # Dynamics
-            x_acc = 6.17 * (throttle - v_forward / 15.2 - 0.333)
-            y_acc = (
+            a_forward = 6.17 * (throttle - v_forward / 15.2 - 0.333)
+            a_sideway = (
                 1.0
                 / self.m
-                * (Fry + Ffy * jnp.cos(steering) - self.m * v_forward * heading_vel)
+                * (Fry + Ffy * jnp.cos(steering) - self.m * v_forward * omega)
             )
-            heading_acc = (
+            a_heading = (
                 1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
             )
-            return v_forward, v_sideway, heading_vel, x_acc, y_acc, heading_acc
+            return v_forward, v_sideway, omega, a_forward, a_sideway, a_heading
 
         # for small longitudinal velocity use kinematic model
         # for tire slip, ratio between lateral and longitudinal speed matters, avoid singularities
-        v_forward, v_sideway, heading_vel, x_acc, y_acc, heading_acc = jax.lax.cond(
+        # v_forward, v_sideway, omega, a_forward, a_sideway, a_heading = kinematic_model()
+        v_forward, v_sideway, omega, a_forward, a_sideway, a_heading = jax.lax.cond(
             lt(
                 v_forward,
                 jnp.ones_like(
                     v_forward
                 ),  # Adjoint reachability very sensitive to small v_forward
-                # IntervalRelation.NONE,
+                # IntervalRelation.ALL,
                 IntervalRelation.PRECEDES
                 | IntervalRelation.FINISHED_BY
                 | IntervalRelation.CONTAINS
@@ -100,11 +103,14 @@ class DynamicBicycleCartesian(System):
         return jnp.array(
             [
                 v_forward * jnp.cos(heading)
-                - v_sideway * jnp.sin(heading),  # conversion from body to global frame
-                v_forward * jnp.sin(heading) + v_sideway * jnp.cos(heading),
-                heading_vel,
-                x_acc,
-                y_acc,
-                heading_acc,
+                - (v_sideway + w_v_sideway)
+                * jnp.sin(heading),  # conversion from body to global frame
+                v_forward * jnp.sin(heading)
+                + v_sideway * jnp.cos(heading)
+                + w_v_heading,
+                omega,
+                a_forward,
+                a_sideway,
+                a_heading,
             ]
         )
