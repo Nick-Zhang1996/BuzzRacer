@@ -13,6 +13,7 @@ from immrax import (
     RawDiscreteTrajectory,
     interval,
     icentpert,
+    natif,
 )
 from immrax.system.trajectory import RawTrajectory
 from immrax.utils import timed
@@ -115,6 +116,8 @@ class ImmraxController(CarController):
 
         # Cost computation settings
         # ============================================================
+        self.reachset_cost_mode = "regularized"  # "center", "vertices", "natif_upper", "natif_lower", "regularized"
+
         # Pre-compute constant for terminal cost
         self._terminal_cost_offset = 8.0 * self.planning_dt * self.planning_horizon
 
@@ -390,21 +393,133 @@ class ImmraxController(CarController):
         components = self.__compute_cost_components(state, traj)
         return sum(components.values())
 
+    def _compute_traj_int(self, pt, Hp):
+        """Compute interval overapproximation of reachset trajectory.
+
+        Returns the vmapped `interval(Hp) @ pt.iy + pt.ox` computation.
+        """
+
+        # PERF: is it faster to extract Hp and pt outside or inside vmap?
+        def overapproximate_pt(pt, Hp):
+            return interval(Hp) @ pt.iy + pt.ox
+
+        return jax.vmap(overapproximate_pt, in_axes=(0, 0))(pt, Hp)
+
     def evaluate_reachset_cost(self, state: Polytope, traj: RawTrajectory):
-        # Compute the cost of a reachset
-        # FIXME: for now, just use trajectory cost on center
+        if self.reachset_cost_mode == "center":
+            return self.__evaluate_reachset_cost_center(state, traj)
+        elif self.reachset_cost_mode == "vertices":
+            return self.__evaluate_reachset_cost_vertices(state, traj)
+        elif self.reachset_cost_mode == "natif_upper":
+            return self.__evaluate_reachset_cost_natif_upper(state, traj)
+        elif self.reachset_cost_mode == "natif_lower":
+            return self.__evaluate_reachset_cost_natif_lower(state, traj)
+        elif self.reachset_cost_mode == "regularized":
+            return self.__evaluate_reachset_cost_regularized(state, traj)
+        else:
+            raise ValueError(f"Unknown reachset_cost_mode: {self.reachset_cost_mode}")
+
+    def __evaluate_reachset_cost_center(self, state: Polytope, traj: RawTrajectory):
+        """Evaluate cost on center trajectory only (ignores reachset width)."""
         pt, aux = traj.ys
-        center_traj = RawDiscreteTrajectory(traj.ts, pt.ox)
+        Hp = aux[0]
+        ts = traj.ts
+
+        center_traj = RawDiscreteTrajectory(ts, pt.ox)
+        return self.evaluate_trajectory_cost(state.ox, center_traj)
+
+    def __evaluate_reachset_cost_vertices(self, state: Polytope, traj: RawTrajectory):
+        """Evaluate cost on 4 corner trajectories in x-y, sum the costs."""
+        pt, aux = traj.ys
+        Hp = aux[0]
+        ts = traj.ts
+
+        traj_int = self._compute_traj_int(pt, Hp)
+        center = traj_int.center  # (T, 6)
+
+        # Build 4 trajectories: each corner of x-y interval, other states use center
+        # FIXME: using midpoints for non-x-y states is dangerous and may misrepresent costs
+        x_lo = traj_int[:, 0].lower
+        x_hi = traj_int[:, 0].upper
+        y_lo = traj_int[:, 1].lower
+        y_hi = traj_int[:, 1].upper
+
+        def make_corner_traj(x_vals, y_vals):
+            return center.at[:, 0].set(x_vals).at[:, 1].set(y_vals)
+
+        corners = jnp.stack(
+            [
+                make_corner_traj(x_lo, y_lo),
+                make_corner_traj(x_lo, y_hi),
+                make_corner_traj(x_hi, y_lo),
+                make_corner_traj(x_hi, y_hi),
+            ],
+            axis=0,
+        )  # (4, T, 6)
+
+        def eval_corner(corner_ys):
+            corner_traj = RawDiscreteTrajectory(ts, corner_ys)
+            return self.evaluate_trajectory_cost(state.ox, corner_traj)
+
+        costs = jax.vmap(eval_corner)(corners)
+        return jnp.sum(costs)
+
+    def __evaluate_reachset_cost_natif_upper(
+        self, state: Polytope, traj: RawTrajectory
+    ):
+        """Evaluate cost upper bound via interval arithmetic (natif)."""
+        pt, aux = traj.ys
+        Hp = aux[0]
+        ts = traj.ts
+
+        traj_int = self._compute_traj_int(pt, Hp)
+        state_ox = state.ox
+
+        def cost_fn(traj_ys):
+            traj_obj = RawDiscreteTrajectory(ts, traj_ys)
+            return self.__evaluate_trajectory_cost_cartesian(state_ox, traj_obj)
+
+        return natif(cost_fn)(traj_int).upper
+
+    def __evaluate_reachset_cost_natif_lower(
+        self, state: Polytope, traj: RawTrajectory
+    ):
+        """Evaluate cost lower bound via interval arithmetic (natif)."""
+        pt, aux = traj.ys
+        Hp = aux[0]
+        ts = traj.ts
+
+        traj_int = self._compute_traj_int(pt, Hp)
+        state_ox = state.ox
+
+        def cost_fn(traj_ys):
+            traj_obj = RawDiscreteTrajectory(ts, traj_ys)
+            return self.__evaluate_trajectory_cost_cartesian(state_ox, traj_obj)
+
+        return natif(cost_fn)(traj_int).lower
+
+    def __evaluate_reachset_cost_regularized(
+        self, state: Polytope, traj: RawTrajectory
+    ):
+        """Center cost plus penalty on interval width (reachset size)."""
+        pt, aux = traj.ys
+        Hp = aux[0]
+        ts = traj.ts
+
+        # Center cost
+        center_traj = RawDiscreteTrajectory(ts, pt.ox)
         center_cost = self.evaluate_trajectory_cost(state.ox, center_traj)
 
-        return center_cost
+        # Interval size penalty
+        traj_int = self._compute_traj_int(pt, Hp)
+        widths = traj_int.width  # (T, 6)
+        size_costs = jnp.sum(
+            jax.vmap(
+                lambda w: jnp.where(jnp.isfinite(w).all(), jnp.abs(jnp.prod(w)), 1e4)
+            )(widths[: self.planning_horizon, :6])
+        )
 
-        # size_cost = lambda offsets: jnp.where(
-        #     jnp.isfinite(offsets).all(), jnp.abs(jnp.prod(offsets)), 1e4
-        # )
-        # size_costs = 0 * jnp.sum(jax.vmap(size_cost)(pt.y[: self.planning_horizon, :6]))
-
-        # return center_cost + size_costs
+        return center_cost + size_costs
 
     @timed
     @partial(jax.jit, static_argnums=0)
@@ -447,16 +562,12 @@ class ImmraxController(CarController):
         pt, aux = planned_reachset.ys
         Hp, N = aux
 
+        traj_int = self._compute_traj_int(pt, Hp)
+
         final_widths = None
         overflow_timestep = 0
         for idx in range(self.planning_horizon + 1):
-            pt_i = Polytope(
-                pt.ox[idx],
-                pt.alpha[idx],
-                pt.y[idx],
-            )
-            state_iover = interval(Hp[idx]) @ pt_i.iy + pt_i.ox
-            widths = state_iover.width
+            widths = traj_int[idx].width
 
             # Check for overflow (NaN or Inf in widths, or width > 1e6)
             if (
@@ -511,16 +622,13 @@ class ImmraxController(CarController):
         pt, aux = reach_traj.ys
         Hp, N = aux
 
+        traj_int = self._compute_traj_int(pt, Hp)
+
         overflow_timestep = 0
 
         # Draw interval boxes from Polytope overapproximations
         for i in range(self.planning_horizon + 1):
-            pt_i = Polytope(
-                pt.ox[i],
-                pt.alpha[i],
-                pt.y[i],
-            )
-            iover = interval(Hp[i]) @ pt_i.iy + pt_i.ox
+            iover = traj_int[i]
 
             widths = iover.width
 
