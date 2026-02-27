@@ -3,7 +3,7 @@
 # pylint: disable=redefined-outer-name
 from math import pi, degrees, atan2
 from threading import Event, Lock
-from time import sleep
+from time import sleep, time
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -40,7 +40,8 @@ class Optitrack(Extension):
             (x, y, v, theta, omega) = self.vi.get_k_fstate(car.internal_id)
             # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
-            car.state = CartesianState(x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
+            car.state = CartesianState(
+                x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
         self.main.new_state_update.set()
 
     def final(self):
@@ -51,7 +52,6 @@ class _Optitrack(PrintObject):
 
     def __init__(self, base, enableKF=True):
         self.base = base
-        self.newState = Event()
         self.enableKF = Event()
         self.callback = self.empty_callback
         if enableKF:
@@ -211,9 +211,9 @@ class _Optitrack(PrintObject):
             # kf.get_state() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].get_state()
         self.state_lock.release()
-        if not self.base is None:
+        # Update when all objects' states are received, synced at the last obj
+        if internal_id == self.obj_count - 1 and not self.base is None:
             self.base.update_car_states()
-        self.newState.set()
         # print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         # print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
         # print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))

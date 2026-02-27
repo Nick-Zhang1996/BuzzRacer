@@ -13,6 +13,7 @@ _logger = get_logger('Car')
 
 
 class CarParams(NamedTuple):
+    name: str = ''
     # Physical properties
     # default values are for the MR03 chassis with Porsche 911 GT3 RS body
     wheelbase: float = 0.09
@@ -75,6 +76,7 @@ class CarConfig(Enum):
 
     # TODO render audi
     audi_11 = CarParams(
+        name='audi_11',
         m=172e-3,
         wheelbase=97e-3,
         lr=50e-3,
@@ -87,6 +89,7 @@ class CarConfig(Enum):
 
     # NOTE no calibration, using audi_11 value
     audi_12 = CarParams(
+        name='audi_12',
         m=172e-3,
         wheelbase=97e-3,
         lr=50e-3,
@@ -102,6 +105,7 @@ class CarConfig(Enum):
         rendering='data/porsche_orange.png')
 
     porsche_16 = CarParams(
+        name='porsche_16',
         m=172e-3,
         wheelbase=90e-3,
         lr=41e-3,
@@ -115,6 +119,7 @@ class CarConfig(Enum):
         rendering='data/porsche_orange.png')
 
     lambo_13 = CarParams(
+        name='lambo_13',
         m=192e-3,
         wheelbase=98e-3,
         lr=48e-3,
@@ -128,6 +133,7 @@ class CarConfig(Enum):
         rendering='data/porsche_green.png')
 
     corvette_17 = CarParams(
+        name='corvette_17',
         m=174e-3,
         wheelbase=98e-3,
         lr=47e-3,
@@ -137,6 +143,7 @@ class CarConfig(Enum):
         optitrack_id=17,
     )
     porsche_18 = CarParams(
+        name='porsche_18',
         m=165e-3,
         wheelbase=90e-3,
         lr=40e-3,
@@ -146,6 +153,7 @@ class CarConfig(Enum):
         optitrack_id=18,
     )
     porsche_19 = CarParams(
+        name='porsche_19',
         m=165e-3,
         wheelbase=90e-3,
         lr=40e-3,
