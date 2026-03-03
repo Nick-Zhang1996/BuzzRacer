@@ -40,11 +40,11 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
         Return:
             states at next timestep
         '''
-        lf = car.params.lf
-        lr = car.params.lr
+        lf = car.param.lf
+        lr = car.param.lr
 
-        Iz = car.params.Iz
-        m = car.params.m
+        Iz = car.param.Iz
+        m = car.param.m
 
         # for small longitudinal velocity use kinematic model
         # to avoid numerical instability caused by 1/vx
@@ -113,11 +113,11 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         if state.v_forward < 0.1:
             return KinematicBicycleModelFrenet.advance_dynamics(state, control, car, dt, curvature)
 
-        lf = car.params.lf
-        lr = car.params.lr
+        lf = car.param.lf
+        lr = car.param.lr
 
-        Iz = car.params.Iz
-        m = car.params.m
+        Iz = car.param.Iz
+        m = car.param.m
 
         dsdt = (state.v_forward * np.cos(state.heading_err)
                 - state.v_sideway * np.sin(state.heading_err)

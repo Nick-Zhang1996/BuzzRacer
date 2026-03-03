@@ -22,11 +22,11 @@ def get_dummy_main():
 
 
 def get_reactions(slip_f, slip_r, car):
-    Ffy = tire_curve(slip_f) * car.params.m * 9.8 * car.params.lr / (car.params.lr + car.params.lf)
-    Fry = 1.15 * tire_curve(slip_r) * car.params.m * 9.8 * \
-        car.params.lf / (car.params.lr + car.params.lf)
-    angular_acc = 1.0 / car.params.Iz * (Ffy * car.params.lf - Fry * car.params.lr)
-    lateral_acc = (Ffy + Fry) / car.params.m
+    Ffy = tire_curve(slip_f) * car.param.m * 9.8 * car.param.lr / (car.param.lr + car.param.lf)
+    Fry = 1.15 * tire_curve(slip_r) * car.param.m * 9.8 * \
+        car.param.lf / (car.param.lr + car.param.lf)
+    angular_acc = 1.0 / car.param.Iz * (Ffy * car.param.lf - Fry * car.param.lr)
+    lateral_acc = (Ffy + Fry) / car.param.m
     return lateral_acc, angular_acc
 
 

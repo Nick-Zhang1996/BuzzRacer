@@ -33,7 +33,7 @@ class Main():
         self.timer = ExecutionTimer(True)
         # state update rate
         self.dt = 0.03
-        self.params = params
+        self.param = params
 
         self.track = TrackFactory(name='full')
 

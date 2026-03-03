@@ -12,14 +12,14 @@ class OldOffboard(Car):
     def __init__(self, main):
         self.car_interface = None
         Car.__init__(self, main)
-        self.params: CarParam | None = None
+        self.param: CarParam | None = None
 
     def init_hardware(self):
         try:
             self.car_interface = serial.Serial(
-                self.params.serial_port, 115200, timeout=0.001, writeTimeout=0)
+                self.param.serial_port, 115200, timeout=0.001, writeTimeout=0)
         except (FileNotFoundError, serial.serialutil.SerialException):
-            self.print_error('interface %s not found' % self.params.serial_port)
+            self.print_error('interface %s not found' % self.param.serial_port)
             exit(1)
 
     def actuate(self):
@@ -27,8 +27,8 @@ class OldOffboard(Car):
         steering_pwm = int(self.mapdata(self.steering,
                                         self.max_steering_left,
                                         -self.max_steering_right,
-                                        self.params.min_pwm_left,
-                                        self.params.max_pwm_right))
+                                        self.param.min_pwm_left,
+                                        self.param.max_pwm_right))
         throttle_pwm = self.mapdata(self.throttle, -1.0, 1.0, 1900, 1100)
         if not self.car_interface is None:
             self.car_interface.write(f'{steering_pwm},{throttle_pwm}\n'.encode('ascii'))
@@ -45,7 +45,7 @@ class OldOffboard(Car):
             return False
 
     def __del__(self):
-        if ((not self.params.serial_port is None)
+        if ((not self.param.serial_port is None)
             and (not self.car_interface is None)
                 and self.car_interface.is_open):
             self.car_interface.close()

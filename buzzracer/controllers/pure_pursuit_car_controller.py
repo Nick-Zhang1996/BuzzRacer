@@ -72,7 +72,7 @@ class PurePursuitCarController(CarController):
         # pure pursuit
         theta = np.arctan2(dx_body, dy_body)
         R = dist[idx_lookahead] / 2 / cos(theta)
-        steering = np.arctan2(self.car.params.wheelbase, R)
+        steering = np.arctan2(self.car.param.wheelbase, R)
         steering = np.copysign(steering, dy_body)
 
         # calculate steering

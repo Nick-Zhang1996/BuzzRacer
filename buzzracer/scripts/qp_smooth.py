@@ -880,7 +880,7 @@ class QpSmooth(RCPTrack):
         self.convert_to_spline()
         # retval = self.generate_speed_profile()
         retval = self.generate_speed_profile(
-            mu=1.2, acc_max_fun=lambda x: 8.0, dec_max_fun=lambda x: 3.3)
+            mu=0.8, acc_max_fun=lambda x: 5.0, dec_max_fun=lambda x: 3.3)
         self.targetVfromU = speed_profile_fun = retval.speed_profile_fun
         self.max_v = retval.max_v
         self.min_v = retval.min_v
