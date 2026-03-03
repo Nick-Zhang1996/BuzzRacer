@@ -8,6 +8,8 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 if TYPE_CHECKING:
     from buzzracer.cars.car import CarParam
+    from buzzracer.scripts.run import MainState
+    from buzzracer.tracks.track import Track
 
 
 class StanleyCarControllerState:
@@ -29,10 +31,12 @@ class StanleyCarControllerState:
 
 class StanleyCarControllerConfig:
     """ Config class, read-only"""
-    max_offset = 0.4
-    max_speed = 4.0
 
     def __init__(self, main_config):
+        self.max_offset = 0.4
+        self.max_speed = 4.0
+        self.rear_end_gap = 0.2
+
         p1 = (1.0, 2.0)
         p2 = (4.0, 0.5)
         self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
@@ -64,10 +68,11 @@ class StanleyCarController(CarController):
 
     @staticmethod
     def control(car_state: CartesianState,
-                car_params,
-                track,
-                config: StanleyCarControllerConfig,
-                state: StanleyCarControllerState,
+                car_params: CarParam,
+                track: Track,
+                controller_config: StanleyCarControllerConfig,
+                controller_state: StanleyCarControllerState,
+                main_state: MainState,
                 reverse=False):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
@@ -95,7 +100,7 @@ class StanleyCarController(CarController):
         coord = (x_lookahead, y_lookahead)
 
         ctrl = Control(steering=0, throttle=0)
-        fail_retval = (ctrl, False, state)
+        fail_retval = (ctrl, False, controller_state)
 
         # inquire information about desired trajectory close to the vehicle
         retval = track.local_trajectory(car_state)
@@ -103,12 +108,10 @@ class StanleyCarController(CarController):
             return fail_retval
             # return ret
 
-        # parse return value from local_trajectory
-        # (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
-        (_, offset, orientation, _, v_target) = retval
-        # for experiments
-        # v_target = min(v_target*0.8, 2.2)
-        v_target = min(v_target, config.max_speed)
+        v_target = min(retval.v_target, controller_config.max_speed)
+
+        offset = retval.lateral_err
+        orientation = retval.heading_err
 
         if isnan(orientation):
             return fail_retval
@@ -118,7 +121,7 @@ class StanleyCarController(CarController):
             orientation += pi
 
         # if vehicle cross error exceeds maximum allowable error, stop the car
-        if abs(offset) > config.max_offset:
+        if abs(offset) > controller_config.max_offset:
             return fail_retval
 
         # sign convention for offset: negative offset(-) requires left steering(+)
@@ -126,16 +129,16 @@ class StanleyCarController(CarController):
         # control logic
         # steering = (orientation-heading) - (offset * self.car.P)
         # - (omega-curvature*vf)*self.car.D
-        steering = (orientation-heading) - (offset * config.Pfun(abs(vf)))
+        steering = (orientation-heading) - (offset * controller_config.Pfun(abs(vf)))
         # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
         # handle edge case, unwrap ( -355 deg turn -> +5 turn)
         steering = (steering+pi) % (2*pi) - pi
-        v_target = v_target if state.v_override is None else state.v_override
+        v_target = v_target if controller_state.v_override is None else controller_state.v_override
         throttle = StanleyCarController.calc_throttle(
-            car_state, v_target, car_params, state.throttle_pid)
+            car_state, v_target, car_params, controller_state.throttle_pid)
 
         ctrl = Control(steering=steering, throttle=throttle)
-        return (ctrl, True, state)
+        return (ctrl, True, controller_state)
 
     # PID controller for forward velocity
     @staticmethod
