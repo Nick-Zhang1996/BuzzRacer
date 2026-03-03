@@ -5,8 +5,6 @@ import logging
 
 from buzzracer.common import LogObject
 from buzzracer.types import CartesianState, Control
-from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
-from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 if TYPE_CHECKING:
     from buzzracer.scripts.run import MainState
     from buzzracer.cars.car import CarParam
@@ -77,8 +75,9 @@ class CarController(LogObject):
     def control(car_state: CartesianState,
                 car_params,
                 track,
-                config,
-                state,
+                controller_config,
+                controller_state,
+                main_state,
                 reverse=False):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
@@ -94,10 +93,10 @@ class CarController(LogObject):
                     If this is false, then throttle will also be set to 0
           state: updated controller state
         '''
-        del car_state, car_params, track, config, reverse
+        del car_state, car_params, track, controller_config, reverse, main_state
         ctrl = Control(steering=0, throttle=0)
         valid = False
-        return (ctrl, valid, state)
+        return (ctrl, valid, controller_state)
 
     @staticmethod
     def process_fun(main_state: MainState,
@@ -117,7 +116,8 @@ class CarController(LogObject):
                                                            car_params,
                                                            track,
                                                            controller_config,
-                                                           controller_state)
+                                                           controller_state,
+                                                           main_state)
             if not valid:
                 logger.warning('Invalid control for %s' % {car_params.name})
             controller_state = state

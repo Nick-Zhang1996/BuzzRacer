@@ -44,7 +44,7 @@ class CarParam(NamedTuple):
     Cm2: float = 0.96769
     Cr: float = -0.20375
     Cd: float = 0.00000
-    max_throttle: float = 1.0
+    max_throttle: float = 0.8
     min_throttle: float = -1.0
     max_steer_left: float = radians(27)
     """ Max steering angle in radians, left, positive"""

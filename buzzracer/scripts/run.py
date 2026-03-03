@@ -209,14 +209,15 @@ class Main(PrintObject, LogObject):
                 self.state.car_control_event[i].wait(0.1)
                 self.state.car_control_event[i].clear()
                 car.steering = self.state.car_control[i].steering
-                car.throttle = self.state.car_control[i].throttle
+                car.throttle = 0.0 if self.state.slowdown.is_set() else self.state.car_control[i].throttle
             else:
                 # Call controller one by one
                 control, _, controller_state = car.controller.control(
-                    car.state, car.params, self.track, car.controller.config, car.controller.state)
+                    car.state, car.params, self.track, car.controller.config, car.controller.state, self.state)
                 car.controller.state = controller_state
                 car.steering = control.steering
-                car.throttle = control.throttle
+                
+                car.throttle = 0.0 if self.state.slowdown.is_set() else control.throttle
             t.e(car.params.name)
         t.e('control')
 
