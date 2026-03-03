@@ -43,6 +43,7 @@ class MainState:
         self.car_control = mp.Array(Control, car_count, lock=False)
         self.car_control_event = [mp.Event() for _ in range(car_count)]
         """ Car specific event for new control available, set by controller"""
+        self.car_target_v = mp.Array('d', car_count, lock=False)
 
 
 class MainConfig:
@@ -99,9 +100,8 @@ class Main(PrintObject, LogObject):
         self.track = get_track_from_dom(self.config.dom_track)
 
         # Prepare cars
-        Car.reset()
-        self.cars: list[Car] = [Car.Factory(
-            self, cfg) for cfg in self.config.car_configs]
+        Car.reset(self)
+        self.cars: list[Car] = [Car.Factory(cfg) for cfg in self.config.car_configs]
         self.print_info(f' total cars: {len(self.cars)}')
         self.state = MainState(len(self.cars))
 
@@ -138,7 +138,7 @@ class Main(PrintObject, LogObject):
             self.child_processes = []
             for car in self.cars:
                 p = mp.Process(target=CarController.process_fun,
-                               args=(self.state, car.id, car.params, self.track,
+                               args=(self.state, car.id, car.param, self.track,
                                      car.controller.__class__, car.controller.config, car.controller.state))
                 p.start()
                 self.child_processes.append(p)
@@ -203,7 +203,7 @@ class Main(PrintObject, LogObject):
         # Call controllers
         for i, car in enumerate(self.cars):
             car = self.cars[i]
-            t.s(car.params.name)
+            t.s(car.param.name)
             if self.config.multiprocess:
                 # Wait for controller process to complete
                 self.state.car_control_event[i].wait(0.1)
@@ -213,12 +213,12 @@ class Main(PrintObject, LogObject):
             else:
                 # Call controller one by one
                 control, _, controller_state = car.controller.control(
-                    car.state, car.params, self.track, car.controller.config, car.controller.state, self.state)
+                    car.state, car.param, self.track, car.controller.config, car.controller.state, self.state)
                 car.controller.state = controller_state
                 car.steering = control.steering
                 
                 car.throttle = 0.0 if self.state.slowdown.is_set() else control.throttle
-            t.e(car.params.name)
+            t.e(car.param.name)
         t.e('control')
 
         # -- Extension update --

@@ -49,7 +49,7 @@ class Visualization(Extension):
 
         img = img_track.copy()
         for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
+            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
             car.image = cv2.imread(filename, -1)
             if car.image is None:
                 self.print_error(f'Failed to load car image from {filename}')
@@ -178,8 +178,8 @@ class Visualization(Extension):
         y1 = coord[1]
         # x, y, heading, vf_lf, vs_lf, omega_lf = car.state
         # Add steering bar
-        steering, oob = fmap(car.steering, -car.params.max_steer_left,
-                             car.params.max_steer_right, 100, 0)
+        steering, oob = fmap(car.steering, -car.param.max_steer_left,
+                             car.param.max_steer_right, 100, 0)
         img = cv2.rectangle(img, (x1, y1 + 25),
                             (x1 + 100, y1 + 40), (0, 0, 255), 1)
         if oob:
@@ -247,7 +247,7 @@ class Visualization(Extension):
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
         # dynamic scale
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.params.width
+        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.param.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(

@@ -198,6 +198,7 @@ class RCPTrackDebug(RCPTrack):
             t_total += ds/(vv[i % n_steps]+vv[(i+1) % n_steps])*2
 
         print_info('Theoretical value:')
+        print_info('\t min speed = %.2fm/s' % min(vv))
         print_info('\t top speed = %.2fm/s' % max(vv))
         print_info('\t total time = %.2fs' % t_total)
         print_info('\t path len = %.2fm' % path_len)

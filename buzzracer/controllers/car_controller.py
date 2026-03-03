@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from time import time
 
 from buzzracer.common import LogObject
 from buzzracer.types import CartesianState, Control
@@ -78,6 +79,7 @@ class CarController(LogObject):
                 controller_config,
                 controller_state,
                 main_state,
+                car_index,
                 reverse=False):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
@@ -117,7 +119,8 @@ class CarController(LogObject):
                                                            track,
                                                            controller_config,
                                                            controller_state,
-                                                           main_state)
+                                                           main_state,
+                                                           car_index)
             if not valid:
                 logger.warning('Invalid control for %s' % {car_params.name})
             controller_state = state

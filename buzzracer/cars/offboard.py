@@ -139,7 +139,7 @@ class Offboard(Car):
         self.steering_measured_vec = []
 
         # Car parameters
-        self.params: CarParam | None = None
+        self.param: CarParam | None = None
 
     def init_hardware(self):
         self.init_socket()
@@ -181,7 +181,7 @@ class Offboard(Car):
         self.print_debug('comm trhead started')
         while not self.flag_quit.is_set():
             # send control command
-            steering_cmd = self.steering * self.params.steer_ratio + self.params.steer_offset
+            steering_cmd = self.steering * self.param.steer_ratio + self.param.steer_offset
             packet = self.prepare_command_packet(self.throttle, steering_cmd)
             packet.make_packet()
             try:
@@ -208,9 +208,9 @@ class Offboard(Car):
                 while True:
                     data, addr = self.sock.recvfrom(
                         OffboardPacket.packet_size)  # read 1 packet
-                    if self.params.car_ip != addr[0]:
+                    if self.param.car_ip != addr[0]:
                         self.print_warning('Packet source ip != expected car ip'
-                                           f'expected car_ip {self.params.car_ip}'
+                                           f'expected car_ip {self.param.car_ip}'
                                            f'actual {addr}')
                     if len(data) > 0:
                         assert len(data) == OffboardPacket.packet_size
@@ -249,7 +249,7 @@ class Offboard(Car):
 
     def send_packet(self, packet):
         sent_size = self.sock.sendto(
-            packet.packet, (self.params.car_ip, self.car_port))
+            packet.packet, (self.param.car_ip, self.car_port))
         self.print_debug('Sent packet of size %d', sent_size)
         self.last_sent_ts = packet.ts
 

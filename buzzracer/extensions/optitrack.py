@@ -29,15 +29,16 @@ class Optitrack(Extension):
     def init(self):
         self.vi = _Optitrack(self)
         for car in self.main.cars:
-            car.internal_id = self.vi.get_internal_id(car.optitrack_id)
+            car.internal_id = self.vi.get_internal_id(car.param.optitrack_id)
             self.print_ok(' Optitrack ID: %d, Internal ID: %d' %
-                          (car.optitrack_id, car.internal_id))
+                          (car.param.optitrack_id, car.internal_id))
 
     def update_car_states(self):
         for car in self.main.cars:
             # update for eachj car
             # not using kf state for now
-            (x, y, v, theta, omega) = self.vi.get_k_fstate(car.internal_id)
+            internal_id = self.vi.get_internal_id(car.param.optitrack_id)
+            (x, y, v, theta, omega) = self.vi.get_k_fstate(internal_id)
             # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
             car.state = CartesianState(

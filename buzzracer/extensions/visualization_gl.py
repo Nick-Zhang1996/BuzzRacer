@@ -58,7 +58,7 @@ class VisualizationGL(Extension):
 
     def init(self):
         for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
+            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
             self.car_images[car] = cv2.imread(filename, -1)
         img_track = self.main.track.draw_track()
         self.img_blank_track = img_track.copy()
@@ -146,7 +146,7 @@ class VisualizationGL(Extension):
         height, width = self.car_images[car].shape[:2]
         center = (width/2, height/2)
         # dynamic scale
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.params.width
+        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.param.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(
@@ -258,7 +258,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
         self.car_textures = {}
         for car in self.host.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.params.rendering)
+            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
             car_img = Image.open(filename).convert("RGBA")
             texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
             self.car_textures[car] = texture
@@ -447,12 +447,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
         # --- Steering Bar ---
         self.t.s('draw_prog_bar')
         s_val, s_oob = fmap(
-            car.steering, -car.params.max_steer_left, car.params.max_steer_right, 1, 0)
+            car.steering, -car.param.max_steer_left, car.param.max_steer_right, 1, 0)
         self.draw_prog_bar((x1, y1 - 20), s_val, color=red if s_oob else green)
 
         # --- Throttle Bar ---
         t_val, t_oob = fmap(
-            car.throttle, car.params.min_throttle, car.params.max_throttle, 0, 1)
+            car.throttle, car.param.min_throttle, car.param.max_throttle, 0, 1)
         self.draw_prog_bar((x1, y1 - 40), t_val, color=red if t_oob else green)
         self.t.e('draw_prog_bar')
 
