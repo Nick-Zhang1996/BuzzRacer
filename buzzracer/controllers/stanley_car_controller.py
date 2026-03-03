@@ -146,17 +146,9 @@ class StanleyCarController(CarController):
         # forgot how we got this
         # throttle = (acc_target + 1.01294228)/4.95445214
 
-        # get ss throttle, given ss velocity, linearfit
-        # TODO this should depend on car params
-        def steady_state_throttle(velocity_ss):
-            p = (0.06246385, 0.19171776)
-            if velocity_ss > 0:
-                return velocity_ss * p[0] + p[1]
-            else:
-                return 0
-
+        ss_throttle = car_params.ss_throttle_p0 * v_target + car_params.ss_throttle_p1
+        ss_throttle = ss_throttle if v_target > 0 else 0
         # PID control for throttle
-        throttle = throttle_pid.control(
-            v_target, state.v_forward) + steady_state_throttle(v_target)
+        throttle = throttle_pid.control( v_target, state.v_forward) + ss_throttle
 
         return max(min(throttle, car_params.max_throttle), -1)
