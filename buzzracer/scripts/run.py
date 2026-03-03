@@ -137,6 +137,7 @@ class Main(PrintObject, LogObject):
                 p = mp.Process(target=CarController.process_fun,
                                args=(self.state, car.id, car.params, self.track,
                                      car.controller.__class__, car.controller.config, car.controller.state))
+                p.start()
                 self.child_processes.append(p)
 
     def run(self):
@@ -187,7 +188,8 @@ class Main(PrintObject, LogObject):
         self.new_state_update.wait()
         self.new_state_update.clear()
         if self.config.multiprocess:
-            for i in range(len(self.cars)):
+            for i, car in enumerate(self.cars):
+                self.state.car_states[i] = car.state
                 self.state.car_states_event[i].set()
 
         t.s('control')
@@ -200,7 +202,7 @@ class Main(PrintObject, LogObject):
                 self.state.car_control_event[i].wait(0.1)
                 self.state.car_control_event[i].clear()
                 car.steering = self.state.car_control[i].steering
-                car.throttle = self.state.car_control[i].control
+                car.throttle = self.state.car_control[i].throttle
             else:
                 # Call controller one by one
                 control, _, controller_state = car.controller.control(
