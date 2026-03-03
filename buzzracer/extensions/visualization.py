@@ -95,10 +95,9 @@ class Visualization(Extension):
             # q for quit
             if k == ord('q'):
                 # first time q is presed, slow down
-                if not self.main.slowdown.isSet():
+                if not self.main.slowdown.is_set():
                     self.print_ok('slowing down, press q again to shutdown')
                     self.main.slowdown.set()
-                    self.main.slowdown_ts = time()
                 else:
                     # second time, shut down
                     self.main.exit_request.set()

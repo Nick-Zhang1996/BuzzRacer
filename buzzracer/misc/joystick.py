@@ -14,7 +14,7 @@ class Joystick:
 
         self.used_channels = ['ABS_X', 'ABS_Z', 'ABS_RZ']
         print_info('please move all joystick to initialize')
-        while not (all([x in self.gamepad for x in self.used_channels])) and not self.exit_signal.isSet():
+        while not (all([x in self.gamepad for x in self.used_channels])) and not self.exit_signal.is_set():
             self.update()
         print_ok('Success')
 
@@ -36,7 +36,7 @@ class Joystick:
                 self.gamepad[e.code] = e.state
 
     def update_daemon(self,):
-        while not self.exit_signal.isSet():
+        while not self.exit_signal.is_set():
             self.update()
             # lef:1, right:-1
             self.steering = - \

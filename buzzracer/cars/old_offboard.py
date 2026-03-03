@@ -1,7 +1,7 @@
 ''' Subclass of Car for radio-controlled Mini-z'''
 import serial
 
-from buzzracer.cars.car import Car, CarParams
+from buzzracer.cars.car import Car, CarParam
 
 
 class OldOffboard(Car):
@@ -12,7 +12,7 @@ class OldOffboard(Car):
     def __init__(self, main):
         self.car_interface = None
         Car.__init__(self, main)
-        self.params: CarParams | None = None
+        self.params: CarParam | None = None
 
     def init_param(self):
         # max steering is in radians,

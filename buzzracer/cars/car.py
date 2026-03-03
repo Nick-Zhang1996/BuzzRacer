@@ -12,7 +12,7 @@ from buzzracer.types import CartesianState, Control
 _logger = get_logger('Car')
 
 
-class CarParams(NamedTuple):
+class CarParam(NamedTuple):
     name: str = ''
     # Physical properties
     # default values are for the MR03 chassis with Porsche 911 GT3 RS body
@@ -75,7 +75,7 @@ class CarConfig(Enum):
     #                  rendering='data/porsche_green.png')
 
     # TODO render audi
-    audi_11 = CarParams(
+    audi_11 = CarParam(
         name='audi_11',
         m=172e-3,
         wheelbase=97e-3,
@@ -88,7 +88,7 @@ class CarConfig(Enum):
         rendering='data/porsche_green.png')
 
     # NOTE no calibration, using audi_11 value
-    audi_12 = CarParams(
+    audi_12 = CarParam(
         name='audi_12',
         m=172e-3,
         wheelbase=97e-3,
@@ -104,7 +104,7 @@ class CarConfig(Enum):
         min_throttle=-1.0,
         rendering='data/porsche_orange.png')
 
-    porsche_16 = CarParams(
+    porsche_16 = CarParam(
         name='porsche_16',
         m=172e-3,
         wheelbase=90e-3,
@@ -112,13 +112,13 @@ class CarConfig(Enum):
         lf=90e-3-41e-3,
         steer_ratio=1.2113055181695829,
         steer_offset=-0.006130968166494196,
-        max_steer_left=radians(16),
-        max_steer_right=radians(16),
+        max_steer_left=radians(25),  # FIXME forgot to calibrate this
+        max_steer_right=radians(25),
         car_ip='192.168.10.16',
         optitrack_id=16,
         rendering='data/porsche_orange.png')
 
-    lambo_13 = CarParams(
+    lambo_13 = CarParam(
         name='lambo_13',
         m=192e-3,
         wheelbase=98e-3,
@@ -132,7 +132,7 @@ class CarConfig(Enum):
         optitrack_id=13,
         rendering='data/porsche_green.png')
 
-    corvette_17 = CarParams(
+    corvette_17 = CarParam(
         name='corvette_17',
         m=174e-3,
         wheelbase=98e-3,
@@ -142,7 +142,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.21),
         optitrack_id=17,
     )
-    porsche_18 = CarParams(
+    porsche_18 = CarParam(
         name='porsche_18',
         m=165e-3,
         wheelbase=90e-3,
@@ -152,7 +152,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.17),
         optitrack_id=18,
     )
-    porsche_19 = CarParams(
+    porsche_19 = CarParam(
         name='porsche_19',
         m=165e-3,
         wheelbase=90e-3,
@@ -180,7 +180,7 @@ class Car(PrintObject, LogObject):
         self._throttle = 0.0
         self._steering = 0.0
         self.state = CartesianState(0, 0, 0, 0, 0, 0)
-        self.params: CarParams
+        self.params: CarParam
 
         # default values, will be overridden in config
         self.max_throttle = 1.0
@@ -217,7 +217,7 @@ class Car(PrintObject, LogObject):
         ''' Initialization for cars.
         This will be run after initialization for all other extensions have concluded
         '''
-        if self.main.experiment_type is ExperimentType.Realworld:
+        if self.main.config.experiment_type is ExperimentType.Realworld:
             self.init_hardware()
         self.controller.init()
 
@@ -238,7 +238,7 @@ class Car(PrintObject, LogObject):
 
         if self.main.slowdown.is_set():
             self.throttle = 0.0
-        if self.main.experiment_type == ExperimentType.Realworld:
+        if self.main.config.experiment_type == ExperimentType.Realworld:
             self.actuate()
 
     @classmethod
@@ -247,21 +247,21 @@ class Car(PrintObject, LogObject):
         cls.car_count = 0
 
     @classmethod
-    def Factory(cls, main, config):
+    def Factory(cls, main, config_minidom):
         try:
-            hardware_class_text = config.getElementsByTagName(
+            hardware_class_text = config_minidom.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
             # pylint: disable-next=exec-used
             exec('from buzzracer.cars import '+hardware_class_text)
         except IndexError:
             _logger.warning('no hardware specified')
 
-        config_controller = config.getElementsByTagName('controller')[0]
+        config_controller = config_minidom.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[
             0].firstChild.nodeValue
 
         try:
-            init_states_text = config.getElementsByTagName(
+            init_states_text = config_minidom.getElementsByTagName(
                 'init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
@@ -269,11 +269,14 @@ class Car(PrintObject, LogObject):
                 'Car: no initial state specified, using track default')
             init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
 
-        config_name = config.getElementsByTagName(
+        config_name = config_minidom.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue
         # pylint: disable-next=exec-used
-        exec(f'from buzzracer.controllers import {controller_class_text}')
-        controller = eval(controller_class_text)
+        # exec(f'from buzzracer.controllers import {controller_class_text}')
+        # controller = eval(controller_class_text)
+
+        controller, controller_config, controller_state = CarController.factory(
+            controller_class_text, main.config, config_controller)
 
         car = eval(hardware_class_text)(main)
 
@@ -285,7 +288,7 @@ class Car(PrintObject, LogObject):
         car.params = eval(f'CarConfig.{config_name}.value')
 
         if not controller is None:
-            car.controller = controller(car, config_controller)
+            car.controller = controller
 
         car.init_param()
 

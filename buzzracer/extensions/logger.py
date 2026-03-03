@@ -35,7 +35,7 @@ class Logger(Extension):
 
         try:
             log_folder = os.path.join(BASEDIR, 'log',
-                                      self.main.experiment_name)
+                                      self.main.config.experiment_name)
         except AttributeError:
             log_folder = os.path.join(
                 BASEDIR, 'log',

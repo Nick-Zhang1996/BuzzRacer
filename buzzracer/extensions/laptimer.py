@@ -43,7 +43,7 @@ class Laptimer(Extension):
     def update(self):
         for car in self.main.cars:
             is_new_lap = self.laptimer_by_car[car].update(
-                (car.state[0], car.state[1]), current_time=self.main.time)
+                (car.state.x, car.state.y), current_time=self.main.time)
             if is_new_lap:
                 # Audio announcement with text-to-voice
                 # car.laptimer.announce()

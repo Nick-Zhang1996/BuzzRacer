@@ -350,7 +350,7 @@ class iLQGameCarController(CarController):
 
             Q1s, q1s, Q2s, q2s, Rs, rs = self.get_cost_matrices(
                 xx_i, uu_i, xx_j, uu_j)
-            if (self.main.breakpoint.isSet()):
+            if (self.main.breakpoint.is_set()):
                 breakpoint()
                 self.main.breakpoint.clear()
 

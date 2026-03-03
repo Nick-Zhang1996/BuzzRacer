@@ -27,6 +27,6 @@ if __name__ == '__main__':
             count += 1
             continue
         experiment = Main(config_filename)
-        experiment.experiment_name = name
+        experiment.config.experiment_name = name
         experiment.init()
         experiment.run()

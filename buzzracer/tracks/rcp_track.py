@@ -856,12 +856,11 @@ class RCPTrack(Track):
         of the old axle
         '''
         # figure out which grid the coord is in
-        coord = np.array([state[0], state[1]])
-        heading = state[2]
+        coord = np.array([state.x, state.y])
+        heading = state.heading
         # find the coordinate of center of front axle
         coord[0] += wheelbase*cos(heading)
         coord[1] += wheelbase*sin(heading)
-        heading = state[2]
         # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
         # coord should be given in meters
         nondim = np.array((coord/self.scale)//1, dtype=int)

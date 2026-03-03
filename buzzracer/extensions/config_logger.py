@@ -42,18 +42,18 @@ class ConfigLogger(Extension):
         #           'start_lead_i_j, end_lead_i_j,'
         #           'laptime_mean , laptime_stddev ,'
         #           'boundary violation , obstacle violation')
-        entry.append(self.main.experiment_name)
+        entry.append(self.main.config.experiment_name)
         entry.append(self.main.config_filename)
         entry.append(self.main.logger.logFilename)
         entry.append(self.main.lap_counter.total_laps)
 
         # retrieve config params
-        #config_filename = self.main.config_filename
-        #config = minidom.parse(config_filename)
-        #config_cars = config.getElementsByTagName('cars')[0]
-        #config_car = config_cars.getElementsByTagName('car')[0]
-        #config_controller = config_car.getElementsByTagName('controller')[0]
-        #attrs = config_controller.attributes.items()
+        # config_filename = self.main.config_filename
+        # config = minidom.parse(config_filename)
+        # config_cars = config.getElementsByTagName('cars')[0]
+        # config_car = config_cars.getElementsByTagName('car')[0]
+        # config_controller = config_car.getElementsByTagName('controller')[0]
+        # attrs = config_controller.attributes.items()
 
         # start position (delta s)
         # aggressiveness
