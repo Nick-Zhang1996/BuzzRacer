@@ -1,26 +1,64 @@
 ''' Base class for all car controllers '''
 from __future__ import annotations
-from multiprocessing import Process
-import numpy as np
+from typing import TYPE_CHECKING
+import logging
 
-from buzzracer.common import ConfigObject, LogObject
+from buzzracer.common import LogObject
 from buzzracer.types import CartesianState, Control
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
+if TYPE_CHECKING:
+    from buzzracer.scripts.run import MainState
+    from buzzracer.cars.car import CarParam
+    from buzzracer.tracks.track import Track
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
-class CarController(ConfigObject, LogObject):
-    def __init__(self, car, config):
+class CarController(LogObject):
+    registry = {}
+    config_registry = {}
+    state_registry = {}
+
+    @staticmethod
+    def register(config_cls, state_cls):
+        """Decorator to add a controller class to the registry."""
+        def wrapper(cls):
+            name = cls.__name__
+            CarController.registry[name] = cls
+            CarController.config_registry[name] = config_cls
+            CarController.state_registry[name] = state_cls
+            print(f'registered {name}')
+            return cls
+        return wrapper
+
+    @staticmethod
+    def factory(name, main_config, config_minidom):
+        controller_cls = CarController.registry[name]
+        config_cls = CarController.config_registry[name]
+        state_cls = CarController.state_registry[name]
+        config = config_cls(main_config)
+        for key, value_text in config_minidom.attributes.items():
+            if not hasattr(config, key):
+                raise AttributeError(
+                    f'Config xml specified {key}={value_text},'
+                    f'but {key} does not exist in {state_cls.__name__}')
+            try:
+                value = eval(value_text)
+            except NameError:
+                value = value_text
+            setattr(config, key, value)
+        state = state_cls(config)
+        controller = controller_cls()
+        controller.config = config
+        controller.state = state
+        return (controller, config, state)
+
+    def __init__(self):
+        self.config = None
+        self.state = None
         LogObject.__init__(self)
-        self.config = config
-        self.car = car
-        self.main = car.main
-        self.track = car.main.track
-        # default value
-        self.horizon = 30
-
-        self.predicted_traj = []
-        super().__init__(config)
 
     def pre_init(self):
         return
@@ -29,71 +67,59 @@ class CarController(ConfigObject, LogObject):
         return
 
     def init(self):
-        # self-reported prediction of future trajectory
-        # to be used by opponents for collision avoidance
-        self.predict()
         return
 
     def final(self):
         """called at end of program, override to show statistics."""
         return
 
-    def start_control_process(self):
-        """ Start another process for the controller """
-        self.p = Process(target=self.control_process_fun)
+    @staticmethod
+    def control(car_state: CartesianState,
+                car_params,
+                track,
+                config,
+                state,
+                reverse=False):
+        ''' Given state of the vehicle and an instance of track,
+        provide throttle and steering output
+        Args:
+          state: CartesianState (x,y,heading,v_forward,v_sideway,omega)
+          car_params: CarParams, parameters of the car
+          track: track object, can be RCPTrack or skidpad
+          reverse: true if running in opposite direction of raceline init direction
 
-    def control_process_fun(self):
-        pass
-
-    # TODO refactor to use Control
-
-    def control(self) -> tuple[float, float]:
-        ''' Main control logic, set output throttle and steering
-        Returns:
-            control: tuple(throttle, steering)'''
-        throttle = 0.0
-        steering = 0.0
-        return (throttle, steering)
-
-    def predict(self):
-        ''' predict car's future trajectory over a short horizon
-        simple baseline method use current control and a kinematic model
-        update predicted_traj vector
+        Outputs:
+          control: Control(steering, throttle)
+          valid:    If the car can be controlled here, false if too far off reference.
+                    If this is false, then throttle will also be set to 0
+          state: updated controller state
         '''
-        control = np.array((self.car.steering, self.car.throttle))
-        control_vec = np.repeat(np.reshape(control, (1, -1)), self.horizon, 0)
-        # kinematic
-        expected_trajectory = self.get_kinematic_trajectory(
-            self.car.state, control_vec)
-        # self.plot_trajectory(expected_trajectory)
-        self.predicted_traj = expected_trajectory
-        return self.predicted_traj
+        del car_state, car_params, track, config, reverse
+        ctrl = Control(steering=0, throttle=0)
+        valid = False
+        return (ctrl, valid, state)
 
-    def plot_trajectory(self, trajectory):
-        if not self.car.main.visualization.update_visualization.is_set():
-            return
-        img = self.car.main.visualization.visualization_img
-        for coord in trajectory:
-            img = self.car.main.track.draw_circle(
-                img, coord, 0.02, color=(0, 0, 0))
-        self.car.main.visualization.visualization_img = img
-        return
+    @staticmethod
+    def process_fun(main_state: MainState,
+                    car_index: int,
+                    car_params: CarParam,
+                    track: Track,
+                    controller_cls, controller_config, controller_state):
+        while not main_state.exit_request.is_set():
+            v_override = 0.0 if main_state.slowdown.is_set() else None
+            controller_state.v_override = v_override
+            new_state = main_state.car_states_event[car_index].wait(0.1)
+            if not new_state:
+                continue
+            main_state.car_states_event[car_index].clear()
 
-    # debugging functions
-    def get_kinematic_trajectory(self, x0, control_vec):
-        trajectory = []
-        state = CartesianState(*x0)
-        for control in control_vec:
-            state = KinematicBicycleModelCartesian.advance_dynamics(
-                state, Control(*control), self.car, self.main.dt)
-            trajectory.append(state)
-        return np.array(trajectory)
-
-    def get_dynamic_trajectory(self, x0, control):
-        trajectory = []
-        state = CartesianState(*x0)
-        for i in range(control.shape[0]):
-            state = DynamicBicycleModelCartesian.advance_dynamics(
-                state, control[i], self.car, self.main.dt)
-            trajectory.append(state)
-        return np.array(trajectory)
+            control, valid, state = controller_cls.control(main_state.car_states[car_index],
+                                                           car_params,
+                                                           track,
+                                                           controller_config,
+                                                           controller_state)
+            if not valid:
+                logger.warning('Invalid control for %s' % {car_params.name})
+            controller_state = state
+            main_state.car_control[car_index] = control
+            main_state.car_control_event[car_index].set()
