@@ -73,10 +73,12 @@ class MainConfig:
                     f'must be one of {list(type_map.keys())}') from e
 
         dom_cars: Config = dom.getElementsByTagName('cars')[0]
-        self.car_configs = [val for val in dom_cars.getElementsByTagName('car')]
+        self.car_configs = [
+            val for val in dom_cars.getElementsByTagName('car')]
 
         self.dom_track = dom.getElementsByTagName('track')[0]
-        self.experiment_type = get_experiment_type_from_config_settings(dom_settings)
+        self.experiment_type = get_experiment_type_from_config_settings(
+            dom_settings)
         self.experiment_name = os.path.basename(config_filename).split('.')[0]
 
 
@@ -98,7 +100,8 @@ class Main(PrintObject, LogObject):
 
         # Prepare cars
         Car.reset()
-        self.cars: list[Car] = [Car.Factory(self, cfg) for cfg in self.config.car_configs]
+        self.cars: list[Car] = [Car.Factory(
+            self, cfg) for cfg in self.config.car_configs]
         self.print_info(f' total cars: {len(self.cars)}')
         self.state = MainState(len(self.cars))
 
@@ -183,14 +186,18 @@ class Main(PrintObject, LogObject):
         t = self.timer
         # -- Extension update --
         t.s()
+        t.s('pre update')
         Extension.pre_update_all(t)
+        t.e('pre update')
 
+        t.s('wait new state update')  # 60% Time
         self.new_state_update.wait()
         self.new_state_update.clear()
         if self.config.multiprocess:
             for i, car in enumerate(self.cars):
                 self.state.car_states[i] = car.state
                 self.state.car_states_event[i].set()
+        t.e('wait new state update')
 
         t.s('control')
         # Call controllers
