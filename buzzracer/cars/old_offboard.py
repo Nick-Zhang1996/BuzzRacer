@@ -14,14 +14,6 @@ class OldOffboard(Car):
         Car.__init__(self, main)
         self.params: CarParam | None = None
 
-    def init_param(self):
-        # max steering is in radians,
-        # for vehicle with ackerman steering (inner wheel steer more than outer)
-        # steering angle shoud be calculated by arcsin(wheelbase/turning radius),
-        # easily derived from non-slipping bicycle model
-        # default values are for the MR03 chassis with Porsche 911 GT3 RS body
-        pass
-
     def init_hardware(self):
         try:
             self.car_interface = serial.Serial(

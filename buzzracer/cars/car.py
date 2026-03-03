@@ -1,15 +1,17 @@
 ''' Defines the interface for working with physical and simulated cars'''
 from __future__ import annotations
+import logging
 from math import radians, degrees
 from enum import Enum
 from typing import NamedTuple
 
-from buzzracer.common import PrintObject, LogObject, ExperimentType, get_logger
+from buzzracer.common import PrintObject, LogObject, ExperimentType
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.types import CartesianState, Control
 
 
-_logger = get_logger('Car')
+_logger = logging.getLogger(__name__)
+_logger.setLevel(logging.INFO)
 
 
 class CarParam(NamedTuple):
@@ -44,6 +46,14 @@ class CarParam(NamedTuple):
     Cm2: float = 0.96769
     Cr: float = -0.20375
     Cd: float = 0.00000
+
+    ss_throttle_p0: float = 0.06246385
+    """ steady state throttle = v * p0 + p1 default for MR03 Offboard"""
+    ss_throttle_p1: float = 0.19171776
+    """ steady state throttle = v * p0 + p1 """
+
+
+
     max_throttle: float = 0.8
     min_throttle: float = -1.0
     max_steer_left: float = radians(27)
@@ -69,11 +79,6 @@ class CarParam(NamedTuple):
 
 
 class CarConfig(Enum):
-
-    # orca = CarParams(wheelbase=0.029+0.033,
-    #                  width=0.03,
-    #                  rendering='data/porsche_green.png')
-
     # TODO render audi
     audi_11 = CarParam(
         name='audi_11',
@@ -141,6 +146,7 @@ class CarConfig(Enum):
         max_steer_right=radians(29.77),
         max_steer_left=radians(23.21),
         optitrack_id=17,
+        rendering='data/porsche_orange.png'
     )
     porsche_18 = CarParam(
         name='porsche_18',
@@ -151,6 +157,7 @@ class CarConfig(Enum):
         max_steer_right=radians(28.13),
         max_steer_left=radians(23.17),
         optitrack_id=18,
+        rendering='data/porsche_orange.png'
     )
     porsche_19 = CarParam(
         name='porsche_19',
@@ -161,6 +168,7 @@ class CarConfig(Enum):
         max_steer_right=radians(30.24),
         max_steer_left=radians(22.33),
         optitrack_id=19,
+        rendering='data/porsche_orange.png'
     )
 
 
@@ -171,11 +179,15 @@ class Car(PrintObject, LogObject):
     car_count = 0
     ''' Total number of cars'''
     cars = []
-    ''' List of cars '''
+    """ All cars, this include cars of different subclass.
+    If a subclass needs a list of cars of that specific subclass, it must overwrite this attribute"""
+    main = None
+    """ Access to main"""
+    registry = {}
+    """ Registry of all Car subclasses"""
 
-    def __init__(self, main):
+    def __init__(self):
         LogObject.__init__(self)
-        self.main = main
         self.controller: CarController = None
         self._throttle = 0.0
         self._steering = 0.0
@@ -186,6 +198,14 @@ class Car(PrintObject, LogObject):
         self.max_throttle = 1.0
         self.min_throttle = -1.0
         self.debug_dict = {}
+
+    @staticmethod
+    def register(cls):
+        """Decorator to add a car class to the registry."""
+        name = cls.__name__
+        Car.registry[name] = cls
+        _logger.debug('Registered %s'%{name})
+        return cls
 
     @property
     def throttle(self):
@@ -217,7 +237,7 @@ class Car(PrintObject, LogObject):
         ''' Initialization for cars.
         This will be run after initialization for all other extensions have concluded
         '''
-        if self.main.config.experiment_type is ExperimentType.Realworld:
+        if Car.main.config.experiment_type is ExperimentType.Realworld:
             self.init_hardware()
         self.controller.init()
 
@@ -236,25 +256,26 @@ class Car(PrintObject, LogObject):
             _logger.debug('T=%4.1f, S=%4.1f deg' %
                           (self.throttle, degrees(self.steering)))
 
-        if self.main.slowdown.is_set():
+        if Car.main.state.slowdown.is_set():
             self.throttle = 0.0
-        if self.main.config.experiment_type == ExperimentType.Realworld:
+        if Car.main.config.experiment_type == ExperimentType.Realworld:
             self.actuate()
 
     @classmethod
-    def reset(cls):
-        cls.cars = []
-        cls.car_count = 0
+    def reset(cls, main):
+        Car.main = main
+        Car.cars = []
+        Car.car_count = 0
+
 
     @classmethod
-    def Factory(cls, main, config_minidom):
+    def Factory(cls, config_minidom):
         try:
-            hardware_class_text = config_minidom.getElementsByTagName(
+            car_cls_text = config_minidom.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
-            # pylint: disable-next=exec-used
-            exec('from buzzracer.cars import '+hardware_class_text)
+            car_cls = Car.registry[car_cls_text]
         except IndexError:
-            _logger.warning('no hardware specified')
+            _logger.warning('No hardware specified')
 
         config_controller = config_minidom.getElementsByTagName('controller')[0]
         controller_class_text = config_controller.getElementsByTagName('type')[
@@ -267,19 +288,15 @@ class Car(PrintObject, LogObject):
         except IndexError:
             _logger.warning(
                 'Car: no initial state specified, using track default')
-            init_states = (*main.track.start_pos, main.track.start_dir, 0.1)
+            init_states = (*Car.main.track.start_pos, Car.main.track.start_dir, 0.1)
 
         config_name = config_minidom.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue
-        # pylint: disable-next=exec-used
-        # exec(f'from buzzracer.controllers import {controller_class_text}')
-        # controller = eval(controller_class_text)
 
         controller, controller_config, controller_state = CarController.factory(
-            controller_class_text, main.config, config_controller)
+            controller_class_text, Car.main.config, config_controller)
 
-        car = eval(hardware_class_text)(main)
-
+        car = car_cls()
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
         car.state = CartesianState(
@@ -289,8 +306,6 @@ class Car(PrintObject, LogObject):
 
         if not controller is None:
             car.controller = controller
-
-        car.init_param()
 
         car.id = Car.car_count
         Car.cars.append(car)
