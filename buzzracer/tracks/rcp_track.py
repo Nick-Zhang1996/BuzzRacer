@@ -4,7 +4,7 @@ Desperately need cleanup and refactoring '''
 from __future__ import annotations
 import os
 import pickle
-from math import atan2, degrees, sin, cos, pi, copysign, isnan
+from math import atan2, sin, cos, pi, copysign, isnan
 from bisect import bisect
 from typing import NamedTuple
 from enum import Enum
@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 
 from scipy.interpolate import splprep, splev, interp1d
 from scipy.optimize import minimize
-from scipy.integrate import solve_ivp
 
 
 from buzzracer.common import BASEDIR, get_logger
@@ -33,7 +32,8 @@ class Dir(Enum):
 
     @staticmethod
     def from_char(char: str) -> Dir:
-        _char_to_dir = {'u': Dir.UP, 'd': Dir.DOWN, 'l': Dir.LEFT, 'r': Dir.RIGHT}
+        _char_to_dir = {'u': Dir.UP, 'd': Dir.DOWN,
+                        'l': Dir.LEFT, 'r': Dir.RIGHT}
         try:
             return _char_to_dir[char]
         except KeyError:
@@ -42,7 +42,8 @@ class Dir(Enum):
 
     @staticmethod
     def move(initial: tuple[int, int], direction: Dir) -> tuple[int, int]:
-        _dir_to_tuple = {Dir.UP: (0, 1), Dir.DOWN: (0, -1), Dir.RIGHT: (1, 0), Dir.LEFT: (-1, 0)}
+        _dir_to_tuple = {Dir.UP: (0, 1), Dir.DOWN: (
+            0, -1), Dir.RIGHT: (1, 0), Dir.LEFT: (-1, 0)}
         move = _dir_to_tuple[direction]
         return (initial[0]+move[0], initial[1]+move[1])
 
@@ -55,8 +56,10 @@ class GridSize(NamedTuple):
 class Node:
     ''' One tile in RCPTrack '''
     _lut = {'WE': [(Dir.RIGHT, Dir.RIGHT), (Dir.LEFT, Dir.LEFT)],  # Left/Right straight tile
-            'NS': [(Dir.UP, Dir.UP), (Dir.DOWN, Dir.DOWN)],  # Up/Down straight tile
-            'SE': [(Dir.UP, Dir.RIGHT), (Dir.LEFT, Dir.DOWN)],  # Apex at south east
+            # Up/Down straight tile
+            'NS': [(Dir.UP, Dir.UP), (Dir.DOWN, Dir.DOWN)],
+            # Apex at south east
+            'SE': [(Dir.UP, Dir.RIGHT), (Dir.LEFT, Dir.DOWN)],
             'SW': [(Dir.UP, Dir.LEFT), (Dir.RIGHT, Dir.DOWN)],
             'NE': [(Dir.DOWN, Dir.RIGHT), (Dir.LEFT, Dir.UP)],
             'NW': [(Dir.RIGHT, Dir.UP), (Dir.DOWN, Dir.LEFT)]
@@ -99,6 +102,15 @@ class SpeedProfileOutput(NamedTuple):
     max_v: float
 
 
+class LocalTrajOutput(NamedTuple):
+    ref_point: np.ndarray
+    lateral_err: float
+    heading_err: float
+    curvature: float
+    v_target: float
+    progress: float
+
+
 logger = get_logger('RCPTrack')
 
 
@@ -127,7 +139,11 @@ class RCPTrack(Track):
         self.y_limit: float = 0
         ''' Y-direction bound in meters, i.e. height of track'''
 
-    def init_track(self, description: str, gridsize: GridSize, start_grid: tuple[int, int] = (0, 0), scale: float = 0.6):
+    def init_track(self,
+                   description: str,
+                   gridsize: GridSize,
+                   start_grid: tuple[int, int] = (0, 0),
+                   scale: float = 0.6):
         ''' Build an RCP style track.
         Args:
             description: directions to go to reach next grid.
@@ -151,7 +167,8 @@ class RCPTrack(Track):
         self.x_limit = self.gridsize.cols*self.scale
         self.y_limit = self.gridsize.rows*self.scale
 
-        grid = [[None for _ in range(gridsize.rows)] for _ in range(gridsize.cols)]
+        grid = [[None for _ in range(gridsize.rows)]
+                for _ in range(gridsize.cols)]
 
         current_index = start_grid
         self.grid_sequence.append(current_index)
@@ -170,8 +187,8 @@ class RCPTrack(Track):
                 break
 
             # assert description does not go beyond defined grid size
-            assert (current_index[0] < gridsize.cols)
-            assert (current_index[1] < gridsize.rows)
+            assert current_index[0] < gridsize.cols
+            assert current_index[1] < gridsize.rows
 
             next_node = Node(previous=current_node, entrydir=move_dir)
             grid[next_index[0]][next_index[1]] = next_node
@@ -332,7 +349,7 @@ class RCPTrack(Track):
 
         # for referencing offset
         index = 0
-        while (1):
+        while True:
             signature = self.grid[current_coord[0]][current_coord[1]]
 
             # lookup exit direction
@@ -360,7 +377,7 @@ class RCPTrack(Track):
 
             last_signature = signature
 
-            if (all(start == current_coord)):
+            if all(start == current_coord):
                 break
 
         # add end point to the beginning,
@@ -425,7 +442,8 @@ class RCPTrack(Track):
 
         # Radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         # curvature = 1/R, always positive
-        curvature = (_norm(dr)**2*_norm(ddr) ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5 / _norm(dr)**3
+        curvature = (_norm(dr)**2*_norm(ddr) ** 2 -
+                     np.sum(dr*ddr, axis=0)**2)**0.5 / _norm(dr)**3
 
         # First pass, based on lateral acceleration
         v1 = (mu*g/curvature)**0.5
@@ -650,7 +668,8 @@ class RCPTrack(Track):
             val: min distance to left/right boundary
         '''
         # figure out which grid the coord is in
-        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        # grid coordinate, (col, row), col starts from left and row starts from bottom,
+        # both indexed from 0
         nondim = np.array(np.array(coord)/self.scale//1, dtype=int)
         nondim[0] = np.clip(nondim[0], 0, len(self.grid)-1).astype(int)
         nondim[1] = np.clip(nondim[1], 0, len(self.grid[0])-1).astype(int)
@@ -825,7 +844,8 @@ class RCPTrack(Track):
         for i in range(len(u_new)-1):
             s = self.uToS(u_new[i] % self.track_length_grid)
             color = get_color(s)
-            img = cv2.line(img, tuple(pts[i]), tuple(pts[i+1]), color=color, thickness=3)
+            img = cv2.line(img, tuple(pts[i]), tuple(
+                pts[i+1]), color=color, thickness=3)
 
         # plot reference points
         # img = cv2.polylines(img, [pts], isClosed=True, color=lineColor, thickness=3)
@@ -861,7 +881,8 @@ class RCPTrack(Track):
         # find the coordinate of center of front axle
         coord[0] += wheelbase*cos(heading)
         coord[1] += wheelbase*sin(heading)
-        # grid coordinate, (col, row), col starts from left and row starts from bottom, both indexed from 0
+        # grid coordinate, (col, row), col starts from left and row starts from bottom,
+        # both indexed from 0
         # coord should be given in meters
         nondim = np.array((coord/self.scale)//1, dtype=int)
 
@@ -869,7 +890,7 @@ class RCPTrack(Track):
         def dist_2(a, b):
             return (a[0]-b[0])**2+(a[1]-b[1])**2
 
-        def fun(u):
+        def dist(u):
             return dist_2(splev(u % self.track_length_grid, self.raceline), coord)
         # last_u is the seq found last time, which should be a good estimate of where to start
         # disable this functionality since it doesn't handle multiple cars
@@ -907,67 +928,46 @@ class RCPTrack(Track):
             # determine which end is the coord closer to,
             # since seq points to the previous control point,
             # not necessarily the closest one
-            if fun(seq+1) < fun(seq):
+            if dist(seq+1) < dist(seq):
                 seq += 1
-            if fun(seq-1) < fun(seq):
+            if dist(seq-1) < dist(seq):
                 seq -= 1
         else:
             seq = self.last_u
 
         # Goal: find the point on raceline closest to coord
-        # i.e. find x that minimizes fun(x)
+        # i.e. find x that minimizes dist(x)
         # we know x will be close to seq
 
         # easy method
         # brute force, This takes 77% of runtime.
         # lt.s('minimize_scalar')
-        # res = minimize_scalar(fun,bounds=[seq-0.6,seq+0.6],method='Bounded')
+        # res = minimize_scalar(dist,bounds=[seq-0.6,seq+0.6],method='Bounded')
         # lt.e('minimize_scalar')
 
-        # improved method: from observation, fun(x) is quadratic in proximity of seq
-        # we assume it to be ax^3 + bx^2 + cx + d and formulate this minimization as a linalg problem
+        # improved method: from observation, dist(x) is quadratic in proximity of seq
+        # we assume it to be ax^3 + bx^2 + cx + d and
+        # formulate this minimization as a linalg problem
         # sample some points to build the trinomial simulation
         self.debug['seq'] = seq
         iv = np.array([-0.6, -0.3, 0, 0.3, 0.6])+seq
         # formulate linear problem
         A = np.vstack([iv**3, iv**2, iv, [1, 1, 1, 1, 1]]).T
-        # B = np.mat([fun(x0), fun(x1), fun(x2)]).T
-        B = fun(iv).T
+        # B = np.mat([dist(x0), dist(x1), dist(x2)]).T
+        B = dist(iv).T
         # abc = np.linalg.solve(A,B)
         abc = np.linalg.lstsq(A, B, rcond=-1)[0]
         a = abc[0]
         b = abc[1]
         c = abc[2]
         d = abc[3]
-        def fun(x): return a*x*x*x + b*x*x + c*x + d
-        fit = minimize(fun, x0=seq, method='L-BFGS-B',
-                       bounds=((seq-0.6, seq+0.6),))
+        def poly(x):
+            return a*x*x*x + b*x*x + c*x + d
+        fit = minimize(poly, x0=seq, method='L-BFGS-B', bounds=((seq-0.6, seq+0.6),))
         min_fun_x = fit.x[0]
         self.last_u = min_fun_x % self.track_length_grid
 
         min_fun_val = float(fit.fun)
-        # find min val
-        # x = min_fun_x = (-b+(b*b-3*a*c)**0.5)/(3*a)
-        # if (seq-0.6<x<seq+0.6):
-        #    min_fun_val = a*x*x*x + b*x*x + c*x + d
-        # else:
-        #    # XXX this is a bit sketchy, maybe none of them is right
-        #    x = (-b+(b*b-3*a*c)**0.5)/(3*a)
-        #    min_fun_val = a*x*x*x + b*x*x + c*x + d
-
-        '''
-        xx = np.linspace(seq-0.6, seq+0.6)
-        plt.plot(xx, fun(xx), 'b--')
-        plt.plot(iv, fun(iv), 'bo')
-        plt.plot(xx, a*xx**3+b*xx**2+c*xx+d, 'r-')
-        plt.plot(iv, a*iv**3+b*iv**2+c*iv+d, 'ro')
-        plt.show()
-        '''
-
-        # lt.track('x err', abs(min_fun_x-res.x))
-        # lt.track('fun err',abs(min_fun_val-res.fun))
-        # print('x err', abs(min_fun_x-res.x))
-        # print('fun err',abs(min_fun_val-res.fun))
 
         raceline_point = splev(min_fun_x %
                                self.track_length_grid, self.raceline)
@@ -975,14 +975,6 @@ class RCPTrack(Track):
 
         der = splev(min_fun_x % self.track_length_grid, self.raceline, der=1)
         # der = splev(res.x,self.raceline,der=1)
-
-        if (False):
-            print('Seek local trajectory')
-            print('u = '+str(min_fun_x))
-            print('dist = '+str(min_fun_val**0.5))
-            print('closest point on track: '+str(raceline_point))
-            print('closest point orientation: ' +
-                  str(degrees(atan2(der[1], der[0]))))
 
         # calculate whether offset is ccw or cw
         # achieved by finding cross product of vec(raceline_orientation) and vec(ctrl_pnt->test_pnt)
@@ -995,29 +987,32 @@ class RCPTrack(Track):
         vec_curvature = splev(min_fun_x %
                               self.track_length_grid, self.raceline, der=2)
         norm_curvature = np.linalg.norm(vec_curvature)
-        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        # gives right sign for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
         # cross_curvature = np.cross((cos(heading),sin(heading)),vec_curvature)
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
 
         # return target velocity
-        request_velocity = self.targetVfromU(
-            min_fun_x % self.track_length_grid)
+        request_velocity = self.targetVfromU( min_fun_x % self.track_length_grid)
 
-        # reference point on raceline,lateral offset, tangent line orientation, curvature(signed), v_target(not implemented)
-        if return_u:
-            return (raceline_point, copysign(abs(min_fun_val)**0.5, cross_theta), atan2(der[1], der[0]), copysign(norm_curvature, cross_curvature), request_velocity, min_fun_x % self.track_length_grid)
-        else:
-            return (raceline_point, copysign(abs(min_fun_val)**0.5, cross_theta), atan2(der[1], der[0]), copysign(norm_curvature, cross_curvature), request_velocity)
+        retval = LocalTrajOutput(ref_point=raceline_point,
+                                 lateral_err=copysign( abs(min_fun_val)**0.5, cross_theta),
+                                 heading_err=atan2(der[1], der[0]),
+                                 curvature=copysign( norm_curvature, cross_curvature),
+                                 v_target=request_velocity,
+                                 progress=self.uToS(min_fun_x % self.track_length_grid)
+                                 )
+        return retval
 
     # create two function to map between u(raceline parameter)<->s(distance along racelien)
     # also create mapping between s -> v_ref
     # also create raceline_s, raceline parameterized with s
-
     def reconstruct_raceline(self):
         s_vec = [0]
         n_steps = 1000
         uu = np.linspace(0, self.track_length_grid, n_steps+1)
-        def dist(a, b): return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
+        def dist(a, b):
+            return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         path_len = 0
         for i in range(n_steps):
             (x_i, y_i) = splev(uu[i % n_steps], self.raceline, der=0)
@@ -1053,13 +1048,15 @@ class RCPTrack(Track):
         tck, _ = splprep(rr, u=ss, s=0, per=1)
         self.raceline_s = tck
 
-        def _norm(x): return np.linalg.norm(x, axis=0)
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
 
         xx = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
         dr = np.array(splev(xx, self.raceline_s, der=1))
         # ddr = r''(u)
         ddr = np.array(splev(xx, self.raceline_s, der=2))
-        def _norm(x): return np.linalg.norm(x, axis=0)
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
         # gives right sign for omega,
         # this is indep of track direction since it's calculated based off vehicle orientation
@@ -1082,11 +1079,15 @@ class RCPTrack(Track):
     # dt : time between each lookahead steps
 
     # Return:
-    # xref : np array of size (p+1)*2, there are p+1 entries because xref0 is the ref point for current location, and then there are p projection points
+    # xref : np array of size (p+1)*2,
+    # there are p+1 entries because xref0 is the ref point for current location,
+    # and then there are p projection points
     # psi_ref : reference heading at the reference points, size (p+1)*2
     # v_ref : reference heading at the reference points, size (p+1)*2
     # valid : a boolean indicating whether the function was able to find a valid result
-    # The function first finds a point on trajectory closest to vehicle location with local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart in path length. vk is the reference velocity at those points
+    # The function first finds a point on trajectory closest to vehicle location
+    # with local_trajectory(), then find p points down the trajectory that are spaced vk * dt
+    # apart in path length. vk is the reference velocity at those points
 
     def get_ref_point(self, state, p, dt, reverse=False):
         t = self.t
@@ -1116,8 +1117,10 @@ class RCPTrack(Track):
         t.e('find s')
 
         t.s('curvature')
-        def _norm(x): return np.linalg.norm(x, axis=0)
-        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        def _norm(x):
+            return np.linalg.norm(x, axis=0)
+        # gives right sign for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
 
         dr = np.array(splev(u0 % self.track_length_grid, self.raceline, der=1))
         ddr = vec_curvature = np.array(
@@ -1129,7 +1132,8 @@ class RCPTrack(Track):
         t.e('curvature')
 
         # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        # a cross product gives right signage for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
 
         # k_vec.append(norm_curvature)
@@ -1182,7 +1186,8 @@ class RCPTrack(Track):
                          ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
 
         # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        # a cross product gives right signage for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = der[0, :]*vec_curvature[1, :] - \
             der[1, :]*vec_curvature[0, :]
 
@@ -1230,8 +1235,10 @@ class RCPTrack(Track):
         t.e('find s')
 
         t.s('curvature')
-        def _norm(x): return np.linalg.norm(x, axis=0)
-        # gives right sign for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        def _norm(x): 
+            return np.linalg.norm(x, axis=0)
+        # gives right sign for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
 
         dr = np.array(splev(u0 % self.track_length_grid, self.raceline, der=1))
         ddr = vec_curvature = np.array(
@@ -1243,7 +1250,8 @@ class RCPTrack(Track):
         t.e('curvature')
 
         # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega, this is indep of track direction since it's calculated based off vehicle orientation
+        # a cross product gives right signage for omega,
+        # this is indep of track direction since it's calculated based off vehicle orientation
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
 
         # k_vec.append(norm_curvature)
