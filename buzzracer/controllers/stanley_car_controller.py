@@ -17,13 +17,15 @@ class StanleyCarControllerState:
 
     def __init__(self, config):
         # speed controller
-        # P = 5 # to be more aggressive use 15
-        # I = 0.0 #0.1
-        # D = 0.4
-        P = 1.5  # to be more aggressive use 15
-        I = 0.0  # 0.1
-        D = 0.005
-        self.throttle_pid = PidController(P, I, D, config.dt, 1, 1000)
+        # P = 1.5  # to be more aggressive use 15
+        # I = 0.0  # 0.1
+        # D = 0.005
+
+        P = 1.0
+        I = 0.1
+        D = 0.01
+
+        self.throttle_pid = PidController(P, I, D, config.dt, 2, 10)
         self.v_override = None
         self.debug_dict = {}
         self.predicted_traj = []
@@ -73,6 +75,7 @@ class StanleyCarController(CarController):
                 controller_config: StanleyCarControllerConfig,
                 controller_state: StanleyCarControllerState,
                 main_state: MainState,
+                car_index,
                 reverse=False):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
@@ -136,6 +139,7 @@ class StanleyCarController(CarController):
         v_target = v_target if controller_state.v_override is None else controller_state.v_override
         throttle = StanleyCarController.calc_throttle(
             car_state, v_target, car_params, controller_state.throttle_pid)
+        main_state.car_target_v[car_index] = v_target
 
         ctrl = Control(steering=steering, throttle=throttle)
         return (ctrl, True, controller_state)
