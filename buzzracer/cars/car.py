@@ -52,8 +52,6 @@ class CarParam(NamedTuple):
     ss_throttle_p1: float = 0.19171776
     """ steady state throttle = v * p0 + p1 """
 
-
-
     max_throttle: float = 0.8
     min_throttle: float = -1.0
     max_steer_left: float = radians(27)
@@ -74,6 +72,8 @@ class CarParam(NamedTuple):
     serial_port: str = '/dev/ttyUSB0'
     car_ip: str = '0.0.0.0'
     optitrack_id: int = -1
+    fhss_modem_id: int = -1
+    """ Modem number in fhss binding"""
     rendering: str = ''
     ''' path to rendering image e.g. "data/porsche_orange.png" '''
 
@@ -146,6 +146,7 @@ class CarConfig(Enum):
         max_steer_right=radians(29.77),
         max_steer_left=radians(23.21),
         optitrack_id=17,
+        fhss_modem_id=0,
         rendering='data/porsche_orange.png'
     )
     porsche_18 = CarParam(
@@ -157,6 +158,7 @@ class CarConfig(Enum):
         max_steer_right=radians(28.13),
         max_steer_left=radians(23.17),
         optitrack_id=18,
+        fhss_modem_id=1,
         rendering='data/porsche_orange.png'
     )
     porsche_19 = CarParam(
@@ -168,6 +170,46 @@ class CarConfig(Enum):
         max_steer_right=radians(30.24),
         max_steer_left=radians(22.33),
         optitrack_id=19,
+        fhss_modem_id=2,
+        rendering='data/porsche_orange.png'
+    )
+
+    audi_20 = CarParam(
+        name='audi_20',
+        m=166e-3,
+        wheelbase=98e-3,
+        lr=41e-3,
+        lf=98e-3-41e-3,
+        max_steer_right=radians(29.08),
+        max_steer_left=radians(23.95),
+        optitrack_id=20,
+        fhss_modem_id=3,
+        rendering='data/porsche_orange.png'
+    )
+
+    mclaren_21 = CarParam(
+        name='mclaren_21',
+        m=168e-3,
+        wheelbase=98e-3,
+        lr=44e-3,
+        lf=98e-3-44e-3,
+        max_steer_right=radians(27.69),
+        max_steer_left=radians(21.14),
+        optitrack_id=21,
+        fhss_modem_id=4,
+        rendering='data/porsche_orange.png'
+    )
+
+    mclaren_22 = CarParam(
+        name='mclaren_22',
+        m=169e-3,
+        wheelbase=98e-3,
+        lr=46e-3,
+        lf=98e-3-46e-3,
+        max_steer_right=radians(28.10),
+        max_steer_left=radians(22.69),
+        optitrack_id=21,
+        fhss_modem_id=5,
         rendering='data/porsche_orange.png'
     )
 
@@ -192,7 +234,7 @@ class Car(PrintObject, LogObject):
         self._throttle = 0.0
         self._steering = 0.0
         self.state = CartesianState(0, 0, 0, 0, 0, 0)
-        self.params: CarParam
+        self.param: CarParam
 
         # default values, will be overridden in config
         self.max_throttle = 1.0
@@ -223,8 +265,8 @@ class Car(PrintObject, LogObject):
 
     @steering.setter
     def steering(self, val):
-        val = val if val < self.params.max_steer_left else self.params.max_steer_left
-        val = val if val > -self.params.max_steer_right else -self.params.max_steer_right
+        val = val if val < self.param.max_steer_left else self.param.max_steer_left
+        val = val if val > -self.param.max_steer_right else -self.param.max_steer_right
         self._steering = val
 
     def pre_init(self):
@@ -302,7 +344,7 @@ class Car(PrintObject, LogObject):
         car.state = CartesianState(
             x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
 
-        car.params = eval(f'CarConfig.{config_name}.value')
+        car.param = eval(f'CarConfig.{config_name}.value')
 
         if not controller is None:
             car.controller = controller
