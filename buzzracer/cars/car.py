@@ -208,7 +208,7 @@ class CarConfig(Enum):
         lf=98e-3-46e-3,
         max_steer_right=radians(28.10),
         max_steer_left=radians(22.69),
-        optitrack_id=21,
+        optitrack_id=22,
         fhss_modem_id=5,
         rendering='data/porsche_orange.png'
     )
