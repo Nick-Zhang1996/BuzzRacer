@@ -52,13 +52,13 @@ class FHSS(Car):
     def actuate(self):
         # Car.actuate(self)
         steering_pwm = int(self.mapdata(self.steering,
-                                        self.params.max_steer_left,
-                                        -self.params.max_steer_right,
-                                        self.params.max_steer_pwm_left,
-                                        self.params.max_steer_pwm_right))
+                                        self.param.max_steer_left,
+                                        -self.param.max_steer_right,
+                                        self.param.max_steer_pwm_left,
+                                        self.param.max_steer_pwm_right))
         throttle_pwm = int(self.mapdata(self.throttle, -1.0, 1.0, 1100, 1900))
-        FHSS.pwm_values[2*self.index] = steering_pwm
-        FHSS.pwm_values[2*self.index + 1] = throttle_pwm
+        FHSS.pwm_values[2*self.param.fhss_modem_id] = steering_pwm
+        FHSS.pwm_values[2*self.param.fhss_modem_id + 1] = throttle_pwm
 
 
     @classmethod
