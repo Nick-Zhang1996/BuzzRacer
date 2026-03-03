@@ -20,7 +20,7 @@ class Optitrack(Extension):
 
     def __init__(self):
         super().__init__(handle_name='vi')
-        if Extension.main.experiment_type != ExperimentType.Realworld:
+        if Extension.main.config.experiment_type != ExperimentType.Realworld:
             self.print_error(
                 'Experiment type is not Realworld but Optitrack is loaded')
         self.vi = None

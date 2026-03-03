@@ -23,6 +23,7 @@ import struct
 from threading import Thread, Event
 
 from buzzracer.common import *
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 
 def trace(*args):
@@ -577,4 +578,4 @@ class NatNetClient:
         self.child_threads.append(commandThread)
 
         self.send_command(self.NAT_REQUEST_MODELDEF, '',
-                         self.commandSocket, (self.serverIPAddress, self.commandPort))
+                          self.commandSocket, (self.serverIPAddress, self.commandPort))
