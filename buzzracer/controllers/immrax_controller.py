@@ -210,21 +210,19 @@ class ImmraxController(CarController):
         res, controller_compute_time = self.update_planned_controls(
             sim_state_jax, self.planned_controls, self.prng_key
         )
-        self.planned_controls, self.prng_key = res
+        self.planned_controls, self.prng_key, planned_reachset = res
         self._last_update_time_ms = controller_compute_time * 1000
 
-        # self.__plot_planned_trajectory(self.planned_reachset.ox)
-        # self.__debug_compare_costs(state, self.planned_reachset.ox)
+        # self.__plot_planned_trajectory(planned_reachset.ox)
+        # self.__debug_compare_costs(state, planned_reachset.ox)
         # self.__plot_track_bounds(sim_state)
 
-        # pt0 = Polytope(sim_state_jax, self._state_eye, self._state_pert)
-        # traj_reach = self.rollout_reachset(pt0, self.planned_controls)
         # (
         #     overflow_timestep,
         #     valid_polytopes,
         #     final_widths,
-        # ) = self.__analyze_reachset_validity(traj_reach)
-        # self.__plot_reachset(traj_reach)
+        # ) = self.__analyze_reachset_validity(planned_reachset)
+        # self.__plot_reachset(planned_reachset)
         # self.__log_reachability_results(overflow_timestep, 0, final_widths)
 
         # reference_traj = traj_reach.ys[0].ox
@@ -395,10 +393,7 @@ class ImmraxController(CarController):
         return sum(components.values())
 
     def _compute_traj_int(self, pt, Hp):
-        """Compute interval overapproximation of reachset trajectory.
-
-        Returns the vmapped `interval(Hp) @ pt.iy + pt.ox` computation.
-        """
+        """Compute interval overapproximation of reachset trajectory."""
 
         # PERF: is it faster to extract Hp and pt outside or inside vmap?
         def overapproximate_pt(pt, Hp):
@@ -517,10 +512,10 @@ class ImmraxController(CarController):
         size_costs = jnp.sum(
             jax.vmap(
                 lambda w: jnp.where(jnp.isfinite(w).all(), jnp.abs(jnp.prod(w)), 1e4)
-            )(widths[: self.planning_horizon, :6])
+            )(widths[: self.planning_horizon, :2])
         )
 
-        return center_cost + size_costs
+        return center_cost + 30 * size_costs
 
     @timed
     @partial(jax.jit, static_argnums=0)
@@ -539,9 +534,12 @@ class ImmraxController(CarController):
 
         best_idx = jnp.argmin(costs)
 
+        best_reachset = jax.tree.map(lambda a: a[best_idx], reachsets)
+
         return (
             sampled_controls[best_idx],
             next_key,
+            best_reachset,
         )
 
     # ============================================================
