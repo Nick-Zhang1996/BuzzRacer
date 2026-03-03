@@ -1,6 +1,7 @@
 ''' Subclass of Car for the offboard miniz (audi 11, 12) equipped with Nano 33 IoT '''
 from __future__ import annotations
 
+import logging
 import socket
 import select
 import queue
@@ -14,6 +15,8 @@ from buzzracer.types import CartesianState
 
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class OffboardPacket(PrintObject):
@@ -104,19 +107,18 @@ class OffboardPacket(PrintObject):
         return self.type
 
 
+@Car.register
 class Offboard(Car):
     ''' Subclass of Car to handle communication with Offboard Cars'''
     available_local_port = 58998
 
-    def __init__(self, main):
-        Car.__init__(self, main)
+    def __init__(self):
+        Car.__init__(self)
 
         # Network related attributes
         self.car_port = 2390
         ''' Network port on the car'''
         self.local_ip = '192.168.10.3'
-        self.car_ip = None
-        ''' To be set by parameters '''
         self.local_port = Offboard.available_local_port
         Offboard.available_local_port += 1
         self.sock = None
@@ -138,15 +140,6 @@ class Offboard(Car):
 
         # Car parameters
         self.params: CarParam | None = None
-        self.optitrack_id: int = -1
-
-    def init_param(self):
-        ''' Parameter initialization, this will run immediately after self.params is set
-        put all parameters here. '''
-
-        # Rename some params
-        self.car_ip = self.params.car_ip
-        self.optitrack_id = self.params.optitrack_id
 
     def init_hardware(self):
         self.init_socket()
@@ -161,7 +154,19 @@ class Offboard(Car):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # non-blocking
         sock.setblocking(0)
-        sock.bind((self.local_ip, self.local_port))
+
+        max_retry = 100
+        found_port = False
+        for i in range(max_retry):
+            try:
+                sock.bind((self.local_ip, self.local_port))
+                found_port = True
+                break
+            except OSError:
+                self.local_port += 1
+        if not found_port:
+            logger.error('Unable to find a port')
+
         self.sock = sock
 
     def setup(self):
@@ -203,9 +208,9 @@ class Offboard(Car):
                 while True:
                     data, addr = self.sock.recvfrom(
                         OffboardPacket.packet_size)  # read 1 packet
-                    if self.car_ip != addr[0]:
+                    if self.params.car_ip != addr[0]:
                         self.print_warning('Packet source ip != expected car ip'
-                                           f'expected car_ip {self.car_ip}'
+                                           f'expected car_ip {self.params.car_ip}'
                                            f'actual {addr}')
                     if len(data) > 0:
                         assert len(data) == OffboardPacket.packet_size
@@ -244,7 +249,7 @@ class Offboard(Car):
 
     def send_packet(self, packet):
         sent_size = self.sock.sendto(
-            packet.packet, (self.car_ip, self.car_port))
+            packet.packet, (self.params.car_ip, self.car_port))
         self.print_debug('Sent packet of size %d', sent_size)
         self.last_sent_ts = packet.ts
 
