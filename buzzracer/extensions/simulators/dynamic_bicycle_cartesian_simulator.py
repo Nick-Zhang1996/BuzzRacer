@@ -31,7 +31,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
         '''Add a car to use DynamicBicycleCartesianSimulator for state updates
             car needs to (x,y,heading,v_forward,v_sideway,omega)
         '''
-        car.sim_state = CartesianState(*car.state)
+        car.sim_state = car.state
 
         car.state_dim = 6
         car.control_dim = 2

@@ -65,7 +65,7 @@ class Simulator(Extension, ABC):
         ''' Elapsed time in simulation'''
         self.cars: Car = []
 
-        if self.main.experiment_type != ExperimentType.Simulation:
+        if self.main.config.experiment_type != ExperimentType.Simulation:
             self.print_error(
                 'Experiment type is not Simulation but a Simulator is loaded')
 
@@ -110,7 +110,7 @@ class Simulator(Extension, ABC):
             if self.state_type == CartesianState:
                 # NOTE cartesian state is passed directly as a tuple for now
                 car.state = self.advance_dynamics(
-                    car.state, (car.steering, car.throttle), car, self.main.dt)
+                    car.state, (car.steering, car.throttle), car, self.main.config.dt)
             elif self.state_type == CurvilinearState:
                 control = Control(steering=car.steering, throttle=car.throttle)
                 curvature = self.main.track.curvature_s(car.sim_state.progress)
@@ -121,7 +121,7 @@ class Simulator(Extension, ABC):
         if self.state_noise_enabled:
             self.addStateNoise()
         self.main.new_state_update.set()
-        self.sim_t += self.main.dt
+        self.sim_t += self.main.config.dt
         self.match_real_time()
 
     def match_real_time(self):

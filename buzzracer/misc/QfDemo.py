@@ -54,7 +54,6 @@ class Main():
         # currently this is ignored and pressing 'q' the first time will cut motor
         # second 'q' will exit program
         self.slowdown = Event()
-        self.slowdown_ts = 0
 
         # --- Extensions ---
         self.extensions = []
@@ -93,7 +92,7 @@ class Main():
     def run(self):
         t = self.timer
         print_info('running ... press q to quit')
-        while not self.exit_request.isSet():
+        while not self.exit_request.is_set():
             t.s()
             self.update()
             t.e()
@@ -107,11 +106,11 @@ class Main():
             item.postFinal()
 
     # run the control/visualization update
-    # this should be called in a loop(while not self.exit_request.isSet()) continuously, without delay
+    # this should be called in a loop(while not self.exit_request.is_set()) continuously, without delay
 
     # in simulation, this is called with evenly spaced time
     # in real experiment, this is called after a new vicon update is pulled
-    # when a new vicon/optitrack state is available, vi.newState.isSet() will be true
+    # when a new vicon/optitrack state is available, vi.newState.is_set() will be true
     # client (this function) need to unset that event
 
     def update(self,):

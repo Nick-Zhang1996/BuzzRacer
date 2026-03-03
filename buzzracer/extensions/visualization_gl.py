@@ -521,7 +521,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         if key in key_map:
             command = key_map[key]
             if command == 'quit':
-                if not self.host.main.slowdown.isSet():
+                if not self.host.main.slowdown.is_set():
                     print('Slowing down, press Q again to shutdown')
                     self.host.main.slowdown.set()
                 else:

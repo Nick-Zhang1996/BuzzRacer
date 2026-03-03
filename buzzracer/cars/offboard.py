@@ -9,7 +9,7 @@ from struct import pack, unpack
 from threading import Thread, Event
 
 from buzzracer.common import PrintObject
-from buzzracer.cars.car import Car, CarParams
+from buzzracer.cars.car import Car, CarParam
 from buzzracer.types import CartesianState
 
 # NOTE ideas to try for performance
@@ -137,7 +137,7 @@ class Offboard(Car):
         self.steering_measured_vec = []
 
         # Car parameters
-        self.params: CarParams | None = None
+        self.params: CarParam | None = None
         self.optitrack_id: int = -1
 
     def init_param(self):
