@@ -74,10 +74,14 @@ class DynamicBicycleCartesian(System):
             a_sideway = (
                 1.0
                 / self.m
-                * (Fry + Ffy * jnp.cos(steering) - self.m * v_forward * omega)
+                * (
+                    Fry + Ffy - self.m * v_forward * omega
+                    # Fry + Ffy * jnp.cos(steering) - self.m * v_forward * omega
+                )  # FIXME: model mismatch. Original doesn't have cos here or in a_heading
             )
             a_heading = (
-                1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
+                1.0 / self.Iz * (Ffy * self.lf - Fry * self.lr)
+                # 1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
             )
             return v_forward, v_sideway, omega, a_forward, a_sideway, a_heading
 
@@ -87,7 +91,8 @@ class DynamicBicycleCartesian(System):
         v_forward, v_sideway, omega, a_forward, a_sideway, a_heading = jax.lax.cond(
             lt(
                 v_forward,
-                jnp.ones_like(
+                0.1
+                * jnp.ones_like(
                     v_forward
                 ),  # Adjoint reachability very sensitive to small v_forward
                 # IntervalRelation.ALL,
@@ -96,18 +101,20 @@ class DynamicBicycleCartesian(System):
                 | IntervalRelation.CONTAINS
                 | IntervalRelation.STARTED_BY,
             ),
+            # kinematic_model,
             kinematic_model,
             dynamic_model,
+            # dynamic_model,
         )
+
+        v_sideway += w_v_sideway
+        omega += w_v_heading
 
         return jnp.array(
             [
                 v_forward * jnp.cos(heading)
-                - (v_sideway + w_v_sideway)
-                * jnp.sin(heading),  # conversion from body to global frame
-                v_forward * jnp.sin(heading)
-                + v_sideway * jnp.cos(heading)
-                + w_v_heading,
+                - v_sideway * jnp.sin(heading),  # conversion from body to global frame
+                v_forward * jnp.sin(heading) + v_sideway * jnp.cos(heading),
                 omega,
                 a_forward,
                 a_sideway,

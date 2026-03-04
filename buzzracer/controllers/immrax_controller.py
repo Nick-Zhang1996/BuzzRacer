@@ -24,7 +24,7 @@ from buzzracer.controllers.stanley_car_controller import StanleyCarController
 from buzzracer.extensions.simulators.immrax_dynamic_bicycle_cartesian import (
     DynamicBicycleCartesian,
 )
-from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 from buzzracer.types import CartesianState, Control
 
 # jax.config.update("jax_debug_nans", True)
@@ -88,10 +88,11 @@ class ImmraxController(CarController):
             jax.device_put(np.eye(6)),
             jax.device_put(np.zeros((0, 6))),
             kap=5e2,
+            disable_adjoint=True,
         )
         # Pre-compute interval disturbance to avoid repeated allocation
         self._zero_disturbance_interval = icentpert(
-            self._zero_disturbance, jax.device_put(1e-2 * np.ones(2))
+            self._zero_disturbance, jax.device_put(2e-2 * np.ones(2))
         )
         self.disturbance_int = lambda t, x: self._zero_disturbance_interval
 
@@ -877,7 +878,7 @@ class ImmraxController(CarController):
             )
             control_traj = control_traj.at[i, :].set(jnp.array([steering, throttle]))
 
-            cart_state = KinematicBicycleModelCartesian.advance_dynamics(
+            cart_state = DynamicBicycleModelCartesian.advance_dynamics(
                 cart_state,
                 Control(steering=steering, throttle=throttle),
                 self.car,
