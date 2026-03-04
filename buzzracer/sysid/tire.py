@@ -1,10 +1,9 @@
 ''' Pacejka tire models with parameters from system identification experiments'''
-from math import radians, degrees
-from deprecated import deprecated
 
+import torch
 import numpy as np
 
-def tire_curve(slip):
+def tire_curve(slip, use_torch=False):
     ''' Tire curve
     Args:
         slip: slip angle in rad
@@ -16,35 +15,8 @@ def tire_curve(slip):
     B = 2.3
     D = 1.1
     # C: tail shape
-    retval = D * np.sin(C * np.arctan(B * slip))
-    return retval
-
-@deprecated
-def oldold_tire_curve(slip):
-    ''' Tire curve
-    Args:
-        slip: slip angle in rad
-    Return:
-        output: lateral friction coefficient
-    '''
-    C = 2.80646
-    B = 0.51943
-    Df = 3.93731*1.5
-    Dr = 6.23597
-    retval = Df * np.sin(C * np.arctan(B * slip))
-    return retval
-
-@deprecated
-def oldtire_curve(slip):
-    ''' Tire curve
-    Args:
-        slip: slip angle in rad
-    Return:
-        output: lateral friction coefficient
-    '''
-    C = 1.3
-    B = 12.0/3
-    D = 0.66*3
-    # C: tail shape
-    retval = D * np.sin(C * np.arctan(B * slip))
+    if use_torch:
+        retval = D * torch.sin(C * torch.arctan(B * slip))
+    else:
+        retval = D * np.sin(C * np.arctan(B * slip))
     return retval
