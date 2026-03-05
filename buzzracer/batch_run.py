@@ -1,5 +1,5 @@
 # run batch experiment
-from common import *
+from buzzracer.common import *
 from run import Main
 import glob
 import sys

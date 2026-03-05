@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from buzzracer.tracks.track_factory import TrackFactory
-from common import *
+from buzzracer.common import *
 import cv2
 import sys
 import os

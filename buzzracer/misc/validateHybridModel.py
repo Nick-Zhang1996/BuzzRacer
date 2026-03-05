@@ -7,7 +7,7 @@ from hybridSim import hybridSim
 from scipy.signal import savgol_filter
 from math import pi
 from kalmanFilter import KalmanFilter
-from common import *
+from buzzracer.common import *
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np

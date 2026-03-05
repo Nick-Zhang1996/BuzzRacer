@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import glob
 import pickle
 from scipy.signal import savgol_filter
-from common import *
+from buzzracer.common import *
 from math import cos, sin, atan2, degrees, radians
 
 

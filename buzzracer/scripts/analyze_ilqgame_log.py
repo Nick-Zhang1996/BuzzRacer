@@ -1,4 +1,4 @@
-from common import *
+from buzzracer.common import *
 import os
 import sys
 import numpy as np

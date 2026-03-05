@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from TrackFactory import TrackFactory
-from common import *
+from buzzracer.common import *
 import pickle
 import cv2
 # filename = "log.txt"

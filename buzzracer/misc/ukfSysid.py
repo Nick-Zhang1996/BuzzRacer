@@ -6,7 +6,7 @@ import cv2
 from RCPTrack import RCPtrack
 from scipy.signal import savgol_filter
 from kalmanFilter import KalmanFilter
-from common import *
+from buzzracer.common import *
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np

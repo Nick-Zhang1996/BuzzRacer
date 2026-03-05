@@ -1,5 +1,5 @@
 import sys
-from common import *
+from buzzracer.common import *
 import pickle
 import matplotlib.pyplot as plt
 from TrackFactory import TrackFactory

@@ -5,7 +5,7 @@ from math import sin, cos
 
 
 class EmptyTrack(Track):
-    def __init__(self):
+    def __init__(self, config):
         self.resolution = 400
         self.gridsize = [1, 1]
         self.scale = 2.0
@@ -25,12 +25,6 @@ class EmptyTrack(Track):
         if (length > 1):
             length = int(length)
         else:
-            pass
-            '''
-            if show:
-                plt.imshow(img)
-                plt.show()
-            '''
             return img
 
         rows = self.gridsize[0]
@@ -55,12 +49,6 @@ class EmptyTrack(Track):
         img = cv2.circle(img, src, 3, (0, 0, 0), -1)
         img = cv2.line(img, src, dest, color, thickness)
 
-        '''
-        if show:
-            plt.imshow(img)
-            plt.show()
-        '''
-
         return img
 
     def draw_car(self, img, state, steering):
@@ -76,7 +64,7 @@ class EmptyTrack(Track):
             return img
         # draw vehicle, orientation as black arrow
         img = self.draw_arrow(coord, heading, length=30,
-                             color=(0, 0, 255), thickness=5, img=img)
+                              color=(0, 0, 255), thickness=5, img=img)
 
         # draw steering angle, orientation as red arrow
         # img = self.draw_arrow(coord,heading+steering,length=20,color=(0,0,255),thickness=4,img=img)

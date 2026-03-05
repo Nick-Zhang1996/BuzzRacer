@@ -1,4 +1,4 @@
-from common import *
+from buzzracer.common import *
 from math import isnan, pi, degrees, radians, sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController

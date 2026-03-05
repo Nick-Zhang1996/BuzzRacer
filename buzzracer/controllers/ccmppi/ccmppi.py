@@ -4,7 +4,7 @@ from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator impor
 from controllers.ccmppi.ccmppi_dynamic import CCMPPI_DYNAMIC
 from controllers.ccmppi.ccmppi_kinematic import CCMPPI_KINEMATIC
 from buzzracer.utilities.execution_timer import ExecutionTimer
-from common import *
+from buzzracer.common import *
 import os
 import sys
 import numpy as np

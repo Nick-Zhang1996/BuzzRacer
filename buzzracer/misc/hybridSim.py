@@ -11,7 +11,7 @@ import torch.optim as optim
 import numpy as np
 import scipy.optimize
 
-from common import ndarray
+from buzzracer.common import ndarray
 
 from torch.utils.data import DataLoader
 from sysidDataloader import CarDataset

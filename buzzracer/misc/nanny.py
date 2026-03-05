@@ -1,6 +1,6 @@
 # nanny to restart benchmark.py when it fails
 import subprocess
-from common import *
+from buzzracer.common import *
 from time import time
 t0 = time()
 skip = 0

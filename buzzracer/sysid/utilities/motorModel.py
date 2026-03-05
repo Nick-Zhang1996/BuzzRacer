@@ -1,6 +1,6 @@
 from math import pi, degrees, radians, sin, cos, tan, atan
 from scipy.optimize import minimize
-from common import *
+from buzzracer.common import *
 from collections import namedtuple
 import numpy as np
 import matplotlib.pyplot as plt

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import logging
 from time import time
 
-from buzzracer.common import LogObject
+from buzzracer.common import LogObject, set_config_attr
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
     from buzzracer.scripts.run import MainState
@@ -38,16 +38,7 @@ class CarController(LogObject):
         config_cls = CarController.config_registry[name]
         state_cls = CarController.state_registry[name]
         config = config_cls(main_config)
-        for key, value_text in config_minidom.attributes.items():
-            if not hasattr(config, key):
-                raise AttributeError(
-                    f'Config xml specified {key}={value_text},'
-                    f'but {key} does not exist in {state_cls.__name__}')
-            try:
-                value = eval(value_text)
-            except NameError:
-                value = value_text
-            setattr(config, key, value)
+        config = set_config_attr(config_minidom, config)
         state = state_cls(config)
         controller = controller_cls()
         controller.config = config

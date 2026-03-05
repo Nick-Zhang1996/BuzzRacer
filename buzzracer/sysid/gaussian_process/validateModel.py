@@ -9,7 +9,7 @@ import cv2
 from buzzracer.tracks import rcp_track
 from scipy.signal import savgol_filter
 from buzzracer.utilities.kalman_filter import KalmanFilter
-from common import *
+from buzzracer.common import *
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np

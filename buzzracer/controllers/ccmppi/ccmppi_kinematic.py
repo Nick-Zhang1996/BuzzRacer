@@ -5,7 +5,7 @@ from cvxpy.atoms.affine.trace import trace
 from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
-from common import *
+from buzzracer.common import *
 from cvxpy.atoms.affine.transpose import transpose
 import cvxpy as cp
 import matplotlib.transforms as transforms

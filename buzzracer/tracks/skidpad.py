@@ -11,9 +11,9 @@ from buzzracer.tracks.track import Track
 
 
 class Skidpad(Track):
-    def __init__(self, main, config):
+    def __init__(self, config):
         # super(Skidpad,self).__init__()
-        Track.__init__(self, main, config)
+        Track.__init__(self, config)
 
         # default parameters, to be override
         self.radius = 2.0
@@ -22,8 +22,6 @@ class Skidpad(Track):
         self.resolution = 100
         # reference velocity, obsolete
         self.velocity = 1.0
-
-        ConfigObject.__init__(self, config)
 
         # setup
         theta_vec = np.linspace(0, 2*np.pi, 1000)

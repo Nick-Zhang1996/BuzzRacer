@@ -2,7 +2,7 @@ from collections import namedtuple
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
-from common import *
+from buzzracer.common import *
 import sys
 import os
 thisdir = os.path.dirname(os.path.abspath(__file__))

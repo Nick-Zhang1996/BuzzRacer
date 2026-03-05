@@ -7,7 +7,7 @@ from timeUtil import ExecutionTimer
 from scipy.interpolate import splprep, splev, CubicSpline, interp1d
 import matplotlib.pyplot as plt
 
-from common import *
+from buzzracer.common import *
 
 import os
 import sys

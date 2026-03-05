@@ -6,9 +6,10 @@ import os
 import pickle
 from math import atan2, sin, cos, pi, copysign, isnan
 from bisect import bisect
-from typing import NamedTuple
 from enum import Enum
 from collections.abc import Callable
+from typing import NamedTuple
+import logging
 
 import cv2
 import numpy as np
@@ -19,8 +20,11 @@ from scipy.optimize import minimize
 
 
 from buzzracer.common import BASEDIR, get_logger
-from buzzracer.tracks.track import Track
+from buzzracer.tracks.track import Track, LocalTrajOutput, TrackConfig
 from buzzracer.utilities.execution_timer import ExecutionTimer
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class Dir(Enum):
@@ -102,29 +106,14 @@ class SpeedProfileOutput(NamedTuple):
     max_v: float
 
 
-class LocalTrajOutput(NamedTuple):
-    ref_point: np.ndarray
-    lateral_err: float
-    heading_err: float
-    curvature: float
-    v_target: float
-    progress: float
-
-
 logger = get_logger('RCPTrack')
 
 
 class RCPTrack(Track):
-    # TODO: remove main, set main as class variable for Track
-    def __init__(self, main=None, config=None):
-        Track.__init__(self, main, config)
+    def __init__(self, config: TrackConfig):
+        Track.__init__(self, config)
         self.t = ExecutionTimer(True)
-        # TODO set variable directly
-        self.resolution = 200
         ''' resolution : pixels per grid side length '''
-        self.debug = {}  # TODO: remove
-        ''' Dictionary for debugging'''
-
         self.scale: float = 0.6
         ''' Edge length of one grid in meters (default 0.6m)'''
         self.gridsize: GridSize = GridSize(0, 0)
@@ -213,7 +202,7 @@ class RCPTrack(Track):
         color_side = (255, 0, 0)
         # boundary width / grid width
         deadzone = 0.087
-        gs = int(self.resolution * self.scale)
+        gs = int(self.config.resolution * self.scale)
 
         # prepare straight section (WE)
         straight = 255*np.ones([gs, gs, 3], dtype='uint8')
@@ -530,7 +519,7 @@ class RCPTrack(Track):
         save['track_length'] = self.track_length_grid
         save['raceline'] = self.raceline
         save['gridsize'] = self.gridsize
-        save['resolution'] = self.resolution
+        save['resolution'] = self.config.resolution
         save['targetVfromU'] = self.targetVfromU
         save['track'] = self.grid
         save['min_v'] = self.min_v
@@ -541,7 +530,7 @@ class RCPTrack(Track):
         full_filename = os.path.join(BASEDIR, 'buzzracer', 'data', filename)
         with open(full_filename, 'wb') as f:
             pickle.dump(save, f)
-        self.print_ok(f'Track and raceline saved at {full_filename}')
+        logger.info(f'Track and raceline saved at {full_filename}')
 
     def load(self, filename=None):
         ''' Load quadratically smoothed raceline '''
@@ -552,10 +541,10 @@ class RCPTrack(Track):
             with open(full_path, 'rb') as f:
                 save = pickle.load(f)
         except FileNotFoundError:
-            self.print_error(f"can't find saved raceline {filename}, run "
-                             " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
-                             " Example track name: full"
-                             )
+            logger.error(f"can't find saved raceline {filename}, run "
+                         " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
+                         " Example track name: full"
+                         )
             raise
 
         # Restore saved data
@@ -566,7 +555,7 @@ class RCPTrack(Track):
         self.track_length_grid = save['track_length']
         self.raceline = save['raceline']
         self.gridsize = save['gridsize']
-        # self.resolution = save['resolution']
+        # self.config.resolution = save['resolution']
         self.targetVfromU = save['targetVfromU']
         self.grid = save['track']
         self.min_v = save['min_v']
@@ -577,7 +566,7 @@ class RCPTrack(Track):
         self.y_limit = self.gridsize.rows*self.scale
         # pylint: enable=attribute-defined-outside-init
 
-        self.print_ok('Track and raceline loaded')
+        logger.info('Track and raceline loaded')
         self.reconstruct_raceline()
         self.prepare_discretized_raceline()
         return
@@ -810,7 +799,7 @@ class RCPTrack(Track):
 
         rows = self.gridsize[0]
         cols = self.gridsize[1]
-        res = int(self.resolution*self.scale)
+        res = int(self.config.resolution*self.scale)
 
         # this gives smoother result, but difficult to relate u to actual grid
         # u_new = np.linspace(self.u.min(),self.u.max(),1000)
@@ -820,9 +809,9 @@ class RCPTrack(Track):
         u_new = np.linspace(0, self.track_length_grid, 1000)
         x_new, y_new = splev(u_new, self.raceline, der=0)
         # convert to visualization coordinate
-        x_new *= self.resolution
-        y_new *= self.resolution
-        y_new = self.resolution*self.scale*rows - y_new
+        x_new *= self.config.resolution
+        y_new *= self.config.resolution
+        y_new = self.config.resolution*self.scale*rows - y_new
 
         if img is None:
             img = np.zeros([res*rows, res*cols, 3], dtype='uint8')
@@ -853,28 +842,28 @@ class RCPTrack(Track):
             for point in points:
                 x = point[0]
                 y = point[1]
-                x *= self.resolution
-                y *= self.resolution
-                y = self.resolution*self.scale*rows - y
+                x *= self.config.resolution
+                y *= self.config.resolution
+                y = self.config.resolution*self.scale*rows - y
 
                 img = cv2.circle(img, (int(x), int(y)), 5, (0, 0, 255), -1)
 
         return img
 
     def local_trajectory(self, state, wheelbase=90e-3, return_u=False):
+        """ Given the state of the car, provide geometry information of the raceline.
+        Args:
+            state: CartesianState
+        Return:
+            LocalTrajOutput
+            .ref_point: Closest point on raceline
+            .lateral_err: Lateral error. Left deviation is positive.
+            .heading_err: Orientation error from raceline tangent. CCW positive
+            .curvature: Signed curvature, CCW positive
+            .v_target: Reference speed at ref_point
+            .progress: Curve length along raceline in Frenet frame.
+        """
         # TODO refactor here onwards
-        ''' Given state of the car,
-        find the closest point on raceline to center of FRONT axle
-        calculate the lateral offset ( in meters), this will be reported as offset, 
-        which can be added directly to raceline orientation
-        (after multiplied with an aggressiveness coefficient)
-        to obtain desired front wheel orientation calculate the local derivative
-        coord should be referenced from the origin(bottom left(edited)) of the track, in meters
-        negative offset means coord is to the right of the raceline, viewing from raceline 
-        init direction
-        wheelbase is needed to calculate the local trajectory closes to the front axle instead 
-        of the old axle
-        '''
         # figure out which grid the coord is in
         coord = np.array([state.x, state.y])
         heading = state.heading
@@ -949,7 +938,6 @@ class RCPTrack(Track):
         # we assume it to be ax^3 + bx^2 + cx + d and
         # formulate this minimization as a linalg problem
         # sample some points to build the trinomial simulation
-        self.debug['seq'] = seq
         iv = np.array([-0.6, -0.3, 0, 0.3, 0.6])+seq
         # formulate linear problem
         A = np.vstack([iv**3, iv**2, iv, [1, 1, 1, 1, 1]]).T
@@ -961,6 +949,7 @@ class RCPTrack(Track):
         b = abc[1]
         c = abc[2]
         d = abc[3]
+
         def poly(x):
             return a*x*x*x + b*x*x + c*x + d
         fit = minimize(poly, x0=seq, method='L-BFGS-B', bounds=((seq-0.6, seq+0.6),))
@@ -993,14 +982,17 @@ class RCPTrack(Track):
         cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
 
         # return target velocity
-        request_velocity = self.targetVfromU( min_fun_x % self.track_length_grid)
+        request_velocity = self.targetVfromU(min_fun_x % self.track_length_grid)
+        left, right = self.precise_track_boundary((state.x, state.y), state.heading)
 
         retval = LocalTrajOutput(ref_point=raceline_point,
-                                 lateral_err=copysign( abs(min_fun_val)**0.5, cross_theta),
-                                 heading_err=atan2(der[1], der[0]),
-                                 curvature=copysign( norm_curvature, cross_curvature),
+                                 lateral_err=copysign(abs(min_fun_val)**0.5, cross_theta),
+                                 raceline_dir=atan2(der[1], der[0]),
+                                 curvature=copysign(norm_curvature, cross_curvature),
                                  v_target=request_velocity,
-                                 progress=self.uToS(min_fun_x % self.track_length_grid)
+                                 progress=self.uToS(min_fun_x % self.track_length_grid),
+                                 left_margin=left,
+                                 right_margin=right
                                  )
         return retval
 
@@ -1011,6 +1003,7 @@ class RCPTrack(Track):
         s_vec = [0]
         n_steps = 1000
         uu = np.linspace(0, self.track_length_grid, n_steps+1)
+
         def dist(a, b):
             return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         path_len = 0
@@ -1051,10 +1044,11 @@ class RCPTrack(Track):
         def _norm(x):
             return np.linalg.norm(x, axis=0)
 
-        xx = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
+        xx = np.linspace(0, self.raceline_len_m, self.config.discretized_raceline_len)
         dr = np.array(splev(xx, self.raceline_s, der=1))
         # ddr = r''(u)
         ddr = np.array(splev(xx, self.raceline_s, der=2))
+
         def _norm(x):
             return np.linalg.norm(x, axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
@@ -1072,6 +1066,21 @@ class RCPTrack(Track):
         self.curvature_s = lambda s: splev(s % self.raceline_len_m, tck)[0]
         return
 
+    # draw a point on canvas at coord
+
+    def draw_point(self, img, coord, color=(0, 0, 0)):
+        src = self.m2canvas(coord)
+        img = cv2.circle(img, src, 3, color, -1)
+
+        return img
+
+    def draw_points(self, img, coord_vec, color=(0, 0, 0)):
+        for coord in coord_vec:
+            src = self.m2canvas(coord)
+            img = cv2.circle(img, src, 3, color, -1)
+        return img
+
+    # --- Deprecated ---
     # get future reference point for dynamic MPC
     # Inputs:
     # state: vehicle state, same as in self.local_trajectory()
@@ -1094,7 +1103,7 @@ class RCPTrack(Track):
 
         t.s()
         if reverse:
-            self.print_error('reverse is not implemented')
+            logger.error('reverse is not implemented')
         # set wheelbase to 0 to get point closest to vehicle CG
         t.s('local traj')
         retval = self.local_trajectory(
@@ -1117,6 +1126,7 @@ class RCPTrack(Track):
         t.e('find s')
 
         t.s('curvature')
+
         def _norm(x):
             return np.linalg.norm(x, axis=0)
         # gives right sign for omega,
@@ -1206,195 +1216,3 @@ class RCPTrack(Track):
         t.e()
         # return offset, e_heading, np.array(v_vec),np.array(k_signed_vec), np.array(coord_vec),True
         return offset, e_heading, np.array(v_vec), np.array(k_signed_vec), np.array(coord_vec), True
-
-    def get_ref_x_y_vheading(self, state, p, dt, reverse=False):
-        t = self.t
-
-        t.s()
-        if reverse:
-            self.print_error('reverse is not implemented')
-        # set wheelbase to 0 to get point closest to vehicle CG
-        t.s('local traj')
-        retval = self.local_trajectory(
-            state, wheelbase=0.102/2.0, return_u=True)
-        t.e('local traj')
-        if retval is None:
-            return None, None, False
-
-        # parse return value from local_trajectory
-        (local_ctrl_pnt, offset, orientation, curvature, v_target, u0) = retval
-        if isnan(orientation):
-            return None, None, False
-
-        # calculate s value for projection ref points
-        t.s('find s')
-        s0 = self.uToS(u0).item()
-        v0 = self.targetVfromU(u0 % self.track_length_grid).item()
-        der = splev(u0 % self.track_length_grid, self.raceline, der=1)
-        heading0 = atan2(der[1], der[0])
-        t.e('find s')
-
-        t.s('curvature')
-        def _norm(x): 
-            return np.linalg.norm(x, axis=0)
-        # gives right sign for omega,
-        # this is indep of track direction since it's calculated based off vehicle orientation
-
-        dr = np.array(splev(u0 % self.track_length_grid, self.raceline, der=1))
-        ddr = vec_curvature = np.array(
-            splev(u0 % self.track_length_grid, self.raceline, der=2))
-        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                         ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
-
-        t.e('curvature')
-
-        # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega,
-        # this is indep of track direction since it's calculated based off vehicle orientation
-        cross_curvature = der[0]*vec_curvature[1]-der[1]*vec_curvature[0]
-
-        # k_vec.append(norm_curvature)
-        # k_sign_vec.append(cross_curvature)
-        k_vec = curvature
-        k_sign_vec = cross_curvature
-
-        u_vec = [u0]
-        s_vec = [s0]
-        k_vec = [curvature]
-        k_sign_vec = [cross_curvature]
-
-        v_vec = [v0]
-        xy_vec = [splev(s0 % self.raceline_len_m, self.raceline_s)]
-
-        t.s('main loop')
-        for k in range(1, p+1):
-            s_k = s_vec[-1] + v_vec[-1] * dt
-            s_vec.append(s_k)
-            # find ref velocity for projection ref points
-            # TODO adjust ref velocity for current vehicle velocity
-            # v_k = self.targetVfromU(u_k%self.track_length_grid)
-            # v_k = self.sToV(s_k%self.raceline_len_m)
-            v_k = self.sToV_lut(s_k % self.raceline_len_m)
-            v_vec.append(v_k)
-
-            xy_vec.append(splev(s_k % self.raceline_len_m, self.raceline_s))
-
-        t.e('main loop')
-
-        # u_vec = np.array(u_vec)%self.track_length_grid
-        # find ref heading for projection ref points
-        t.s('psi')
-        # der = np.array(splev(u_vec,self.raceline,der=1))
-        s_vec = np.array(s_vec) % self.raceline_len_m
-        der = np.array(splev(s_vec, self.raceline_s, der=1))
-        heading_vec = np.arctan2(der[1, :], der[0, :])
-        t.e('psi')
-        # find ref coordinates for projection ref points
-
-        t.s('coord')
-        coord_vec = np.array(splev(s_vec, self.raceline_s)).T
-        t.e('coord')
-
-        t.s('K')
-
-        # norm_curvature = np.linalg.norm(vec_curvature,axis=1)
-        dr = np.array(splev(s_vec, self.raceline_s, der=1))
-        ddr = vec_curvature = np.array(splev(s_vec, self.raceline_s, der=2))
-
-        curvature = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                         ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
-
-        # curvature needs to be signed to indicate whether signage target angular velocity
-        # a cross product gives right signage for omega, this is indep of track direction
-        # since it's calculated based off vehicle orientation
-        cross_curvature = der[0, :]*vec_curvature[1, :] - \
-            der[1, :]*vec_curvature[0, :]
-
-        # k_vec.append(norm_curvature)
-        # k_sign_vec.append(cross_curvature)
-        k_vec = curvature
-        k_sign_vec = cross_curvature
-
-        # TODO check dimension
-        k_signed_vec = np.copysign(k_vec, k_sign_vec)
-
-        x, y, heading, vf, vs, omega = state
-        e_heading = ((heading - heading0) + pi/2.0) % (2*pi) - pi/2.0
-        t.e('K')
-
-        t.e()
-        return np.array(xy_vec), np.array(v_vec), np.array(heading_vec)
-
-    def predict_opponent(self, state, p, dt, reverse=False):
-        ''' Predict an opponent car's future trajectory, assuming they are on ref raceline
-            and will remain there, traveling at current speed
-        Args:
-            state: opponent vehicle state, same as in self.local_trajectory()
-            p: lookahead steps
-            dt: time between each lookahead steps
-
-        Returns:
-            xref: np array of size(p+1)*2, there are p+1 entries because xref0 is the ref point
-            for current location, and then there are p projection points
-            valid: a boolean indicating whether the function was able to find a valid result
-            The function first finds a point on trajectory closest to vehicle location with
-            local_trajectory(), then find p points down the trajectory that are spaced vk * dt apart
-            in path length. vk is the reference velocity at those points
-        '''
-        if reverse:
-            self.print_error('reverse is not implemented')
-        # set wheelbase to 0 to get point closest to vehicle CG
-        retval = self.local_trajectory(
-            state, wheelbase=0.102/2.0, return_u=True)
-        if retval is None:
-            return None, None, False
-
-        # parse return value from local_trajectory
-        (local_ctrl_pnt, offset, orientation, curvature, v_target, u0) = retval
-        if isnan(orientation):
-            return None, None, False
-
-        # calculate s value for projection ref points
-        s0 = self.uToS(u0).item()
-        # use optimal velocity
-        # v0 = self.targetVfromU(u0%self.track_length_grid).item()
-        # use actual velocity
-        v0 = state[3]
-
-        def _norm(x):
-            return np.linalg.norm(x, axis=0)
-
-        s_vec = [s0]
-        v_vec = [v0]
-
-        for _ in range(1, p+1):
-            s_k = s_vec[-1] + v_vec[-1] * dt
-            s_vec.append(s_k)
-            # find ref velocity for projection ref points
-            # TODO adjust ref velocity for current vehicle velocity
-
-            # v_k = self.sToV_lut(s_k%self.raceline_len_m)
-            # NOTE assume constant velocity
-            v_k = v0
-            v_vec.append(v_k)
-
-        # find ref heading for projection ref points
-        s_vec = np.array(s_vec) % self.raceline_len_m
-        # find ref coordinates for projection ref points
-        coord_vec = np.array(splev(s_vec, self.raceline_s)).T
-
-        return coord_vec
-
-    # draw a point on canvas at coord
-    def draw_point(self, img, coord, color=(0, 0, 0)):
-        src = self.m2canvas(coord)
-        img = cv2.circle(img, src, 3, color, -1)
-
-        return img
-
-    def draw_points(self, img, coord_vec, color=(0, 0, 0)):
-        for coord in coord_vec:
-            src = self.m2canvas(coord)
-            img = cv2.circle(img, src, 3, color, -1)
-        return img

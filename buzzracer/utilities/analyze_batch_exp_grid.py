@@ -1,7 +1,7 @@
 import pandas
 import matplotlib.pyplot as plt
 import seaborn as sns
-from common import *
+from buzzracer.common import *
 import os
 import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))

@@ -1,6 +1,5 @@
 from .car_controller import CarController
-from .copg_car_controller import CopgCarController
-from .ddp_point_mass_car_controller import DdpPointMassCarController
+# from .ddp_point_mass_car_controller import DdpPointMassCarController
 from .empty_car_controller import EmptyCarController
 from .ilqgame_car_controller import iLQGameCarController
 from .ilqgame_solo_car_controller import iLQGameSoloCarController

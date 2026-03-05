@@ -5,7 +5,7 @@ from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import 
 from buzzracer.tracks.rcp_track import RCPTrack
 from buzzracer.extensions.laptimer import _Laptimer as Laptimer
 from buzzracer.cars.car import Car
-from common import *
+from buzzracer.common import *
 from cvxpy.atoms.affine.transpose import transpose
 import cvxpy as cp
 import matplotlib.transforms as transforms

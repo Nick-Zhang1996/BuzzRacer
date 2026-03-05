@@ -1,5 +1,5 @@
 import subprocess
-from common import *
+from buzzracer.common import *
 command = 'python3 child.py'
 process = subprocess.Popen(command, shell=True, stdout=None)
 process.wait()
