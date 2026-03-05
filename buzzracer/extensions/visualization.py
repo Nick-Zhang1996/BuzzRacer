@@ -43,8 +43,8 @@ class Visualization(Extension):
     def init(self):
         img_track = self.main.track.draw_track()
         self.img_blank_track = img_track.copy()
-        self.img_blank_track_with_obstacles = self.track.plot_obstacles(
-            img_track.copy())
+        self.img_blank_track_with_obstacles = self.track.plot_obstacles(self.main.cars,
+                                                                        img_track.copy())
         img_track = self.main.track.draw_raceline(img=img_track)
 
         img = img_track.copy()
@@ -128,7 +128,7 @@ class Visualization(Extension):
             for car in self.main.cars:
                 img = self.draw_car(img, car)
             img = self.draw_control_for_all_cars(img)
-            img = self.track.plot_obstacles(img)
+            img = self.track.plot_obstacles(self.main.cars, img)
             self.visualization_img = img
 
     def final(self):
@@ -247,7 +247,7 @@ class Visualization(Extension):
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
         # dynamic scale
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.param.width
+        scale = 40.0/height/200.0*self.track.config.resolution/0.0461*car.param.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(

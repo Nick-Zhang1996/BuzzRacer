@@ -8,7 +8,7 @@ from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator impor
 from buzzracer.controllers.car_controller import CarController
 from controllers.ccmppi.ccmppi import CCMPPI
 from buzzracer.utilities.execution_timer import ExecutionTimer
-from common import *
+from buzzracer.common import *
 import random
 import matplotlib.pyplot as plt
 import numpy as np

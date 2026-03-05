@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import torch
 import os
-from common import *
+from buzzracer.common import *
 from buzzracer.controllers.car_controller import CarController
 from RL.copg.car_racing.network import Actor as Actor
 from scipy.interpolate import splev as splev

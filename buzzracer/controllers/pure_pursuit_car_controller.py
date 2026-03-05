@@ -2,7 +2,6 @@ import numpy as np
 from math import sin, cos
 from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
-from planner import Planner
 
 
 class PurePursuitCarController(CarController):

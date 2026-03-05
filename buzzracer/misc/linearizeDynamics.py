@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import os
-from common import *
+from buzzracer.common import *
 from laptimer import Laptimer
 from RCPTrack import RCPtrack
 from math import pi, radians, degrees, asin, acos, isnan

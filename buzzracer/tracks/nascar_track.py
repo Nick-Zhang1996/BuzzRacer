@@ -1,11 +1,10 @@
-from common import *
 import numpy as np
 from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 
 
 class NascarTrack(CurvilinearTrack):
-    def __init__(self, main, config):
-        CurvilinearTrack.__init__(self, main, config)
+    def __init__(self, config):
+        CurvilinearTrack.__init__(self, config)
         # NOTE nascar track params
         self.length = 2.0
         self.radius = 1.0
@@ -13,8 +12,6 @@ class NascarTrack(CurvilinearTrack):
         # NOTE track specific
         self.start_pos = (0, 0)
         self.start_dir = 0
-
-        ConfigObject.__init__(self, config)
 
         # NOTE build nascar track
         ds = 0.01

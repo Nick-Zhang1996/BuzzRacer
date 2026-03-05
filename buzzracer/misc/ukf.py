@@ -6,7 +6,7 @@ from scipy.linalg import sqrtm, norm
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from math import radians, degrees
-from common import *
+from buzzracer.common import *
 
 # DEBUG
 from ethCarSim import ethCarSim

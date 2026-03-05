@@ -3,7 +3,7 @@
 # trajectory does not start at vehicle position, maybe p calculation is not as good as before cartesian_to_curvilinear
 
 # MPC based trajectory planner
-from common import *
+from buzzracer.common import *
 import matplotlib.pyplot as plt
 import numpy as np
 from buzzracer.planner.mpc import MPC

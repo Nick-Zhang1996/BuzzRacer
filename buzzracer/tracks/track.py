@@ -3,8 +3,9 @@ with a Track object A track object provides information on the trajectory and
 provide access for drawing the track."""
 import os.path
 import pickle
+import logging
 from math import cos, sin
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import cv2
 import numpy as np
@@ -12,17 +13,36 @@ from scipy.interpolate import splev
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-from buzzracer.common import ConfigObject, wrap
+from buzzracer.common import wrap, BASEDIR
 from buzzracer.types import CurvilinearState, CartesianState
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-class Track(ConfigObject):
-    def __init__(self, main, config):
-        self.main = main
-        # the following variables need to be overriden in subclass initilization
+
+class LocalTrajOutput(NamedTuple):
+    ref_point: np.ndarray  # Closest point on raceline
+    lateral_err: float  # Lateral error. Left deviation is positive.
+    raceline_dir: float  # Orientation of raceline tangent. CCW positive
+    curvature: float  # Signed curvature, CCW positive
+    v_target: float  # Reference speed at ref_point
+    progress: float  # Curve length along raceline in Frenet frame.
+    left_margin: float  # Distance to left boundary
+    right_margin: float  # Distance to right boundary
+
+
+class TrackConfig:
+    def __init__(self):
         # pixels per meter
-        self.resolution = None
+        self.resolution = 200
         self.discretized_raceline_len = 1024
+
+
+class Track:
+    main = None
+
+    def __init__(self, config: TrackConfig):
+        self.config = config
         self.raceline_len_m: float = 0.0
         ''' Total length of raceline in meters'''
         self.raceline = None
@@ -33,14 +53,12 @@ class Track(ConfigObject):
         The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
         self.sToV: Callable = lambda s: 0.0
         ''' Function to provide reference velocity given raceline s_m'''
-        # self.precise_track_boundary: Callable = lambda coord, heading: (0, 0)
-        ''' left, right = self.precise_track_boundary(coord, heading) '''
         self.curvature_s = lambda s: 0.0
         ''' Function to map track progress to signed curvature of raceline, Positive is curving left 
         The tck coefficients from splprep, use as curvature = self.curvature_s(s_m)'''
 
         self.ss: np.ndarray = np.array(0)
-        ''' np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)'''
+        ''' np.linspace(0, self.raceline_len_m, self.config.discretized_raceline_len)'''
         self.raceline_points: np.ndarray = np.array(0)
         ''' dim:(2, len) splev(ss % self.raceline_len_m, self.raceline_s) '''
         self.raceline_headings: np.ndarray = np.array(0)
@@ -69,29 +87,23 @@ class Track(ConfigObject):
         self.x_limit = None
         self.y_limit = None
 
-        ConfigObject.__init__(self, config)
-
     def init(self):
         self.set_up_obstacles()
 
-    # NOTE funs that need to move to this file TODO
+    def draw_raceline(self, img=None):
+        return img
 
-    # NOTE need to be overridden in each subclass Track
-
-    def draw_raceline(self, img=None, points=None):
-        ''' draw a raceline '''
+    def draw_track(self):
+        """ Given the state of the car, provide geometry information of the raceline.
+        Args:
+            state: CartesianState
+        Return:
+            LocalTrajOutput
+        """
         raise NotImplementedError
 
-    def draw_track(self, img=None, show=False):
-        ''' draw a picture of the track '''
+    def local_trajectory(self, state) -> LocalTrajOutput:
         raise NotImplementedError
-
-    def local_trajectory(self, state):
-        raise NotImplementedError
-
-    def set_resolution(self, res: int):
-        self.resolution = res
-        return
 
     def is_outside(self, coord):
         ''' Determine if an coordinate is outside of track boundary, used in watchdog '''
@@ -117,40 +129,32 @@ class Track(ConfigObject):
         return (False, -1)
 
     def m2canvas(self, coord):
-        x_new = int(np.clip(coord[0], 0, self.x_limit) * self.resolution)
+        x_new = int(np.clip(coord[0], 0, self.x_limit) * self.config.resolution)
         y_new = int(
-            (self.y_limit-np.clip(coord[1], 0, self.y_limit)) * self.resolution)
+            (self.y_limit-np.clip(coord[1], 0, self.y_limit)) * self.config.resolution)
         return (x_new, y_new)
 
     def draw_circle(self, img, coord, radius_m, color=(0, 0, 0)):
         ''' draw a circle on canvas at coord '''
         src = self.m2canvas(coord)
-        radius_pix = int(radius_m * self.resolution)
+        radius_pix = int(radius_m * self.config.resolution)
         img = cv2.circle(img, src, radius_pix, color, -1)
         return img
 
-    def plot_obstacles(self, img=None):
+    def plot_obstacles(self, cars, img=None):
         if not self.obstacle:
             return img
-        if img is None:
-            if not self.main.visualization.update_visualization.is_set():
-                return
-            img = self.main.visualization.visualization_img
-
         # plot obstacles
         for obs in self.obstacles:
             img = self.draw_circle(img, obs, 0.1, color=(255, 100, 100))
-        for car in self.main.cars:
+        for car in cars:
             has_collided, obs_id = self.is_in_obstacle(car.state)
             if has_collided:
                 # plot obstacle in collision red
                 img = self.draw_circle(
                     img, self.obstacles[obs_id], 0.1, color=(100, 100, 255))
 
-        if img is None:
-            self.main.visualization.visualization_img = img
-        else:
-            return img
+        return img
 
     def draw_polyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
         ''' Draw a polynomial line defined in track space
@@ -158,8 +162,8 @@ class Track(ConfigObject):
             # TODO add a deprecation warning
         '''
         if img is None:
-            img = np.zeros([int(self.resolution*self.x_limit),
-                           int(self.resolution*self.y_limit), 3], dtype='uint8')
+            img = np.zeros([int(self.config.resolution*self.x_limit),
+                           int(self.config.resolution*self.y_limit), 3], dtype='uint8')
 
         pts = [self.m2canvas(point) for point in points]
         for i in range(len(points)-1):
@@ -180,8 +184,8 @@ class Track(ConfigObject):
     # length: in pixels, though this is only qualitative
     def draw_arrow(self, source, orientation, length, color=(0, 0, 0), thickness=2, img=None):
         if img is None:
-            img = np.zeros([int(self.resolution*self.x_limit),
-                           int(self.resolution*self.y_limit), 3], dtype='uint8')
+            img = np.zeros([int(self.config.resolution*self.x_limit),
+                           int(self.config.resolution*self.y_limit), 3], dtype='uint8')
 
         length = int(length)
         src = self.m2canvas(source)
@@ -201,26 +205,26 @@ class Track(ConfigObject):
         if not self.obstacle:
             self.obstacle_count = 0
             return
-        filename = os.path.join(self.main.basedir, self.obstacle_filename)
+        filename = os.path.join(BASEDIR, self.obstacle_filename)
 
         if os.path.isfile(filename):
             with open(filename, 'rb') as f:
                 obstacles = pickle.load(f)
             self.obstacle_count = obstacles.shape[0]
-            self.print_ok(
+            logger.info(
                 f'loading obstacles at {filename}, count = {obstacles.shape[0]}')
-            self.print_ok(
+            logger.info(
                 ' if you wish to create new obstacles,'
                 'remove current obstacle file or change parameter obstacle_filename')
         else:
-            self.print_ok(
+            logger.info(
                 f'generating new obstacles, count = {self.obstacle_count}')
             obstacles = np.random.random((self.obstacle_count, 2))
             # save obstacles
             if not filename is None:
                 with open(filename, 'wb') as f:
                     pickle.dump(obstacles, f)
-                self.print_ok(f'saved obstacles at {filename}')
+                logger.info(f'saved obstacles at {filename}')
 
         # spread obstacle to entire track
         obstacles[:, 0] *= self.x_limit
@@ -230,7 +234,7 @@ class Track(ConfigObject):
 
     def prepare_discretized_raceline(self):
         """depends on self.raceline_s, self.raceline_len_m."""
-        ss = np.linspace(0, self.raceline_len_m, self.discretized_raceline_len)
+        ss = np.linspace(0, self.raceline_len_m, self.config.discretized_raceline_len)
         rr = splev(ss % self.raceline_len_m, self.raceline_s, der=0)
         drr = splev(ss % self.raceline_len_m, self.raceline_s, der=1)
         heading_vec = np.arctan2(drr[1], drr[0])
@@ -254,9 +258,13 @@ class Track(ConfigObject):
              self.raceline_right_boundary]).T
         return
 
+    def precise_track_boundary(self, coord, heading):
+        """ Return the distance to left and right boundary (left, right) """
+        raise NotImplementedError
+
     def create_boundary(self, show=False):
         '''
-         construct a (self.discretized_raceline_len * 2) vector
+         construct a (self.config.discretized_raceline_len * 2) vector
          to record the left and right track boundary as an offset to the discretized raceline
          depends on self.precise_track_boundary(coord,heading)
         '''
@@ -266,7 +274,7 @@ class Track(ConfigObject):
         left_boundary_points = []
         right_boundary_points = []
 
-        for i in range(self.discretized_raceline_len):
+        for i in range(self.config.discretized_raceline_len):
             # find normal direction
             coord = self.raceline_points[:, i]
             heading = self.raceline_headings[i]

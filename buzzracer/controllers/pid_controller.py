@@ -1,4 +1,4 @@
-from common import ndarray, angular_difference
+from buzzracer.common import ndarray, angular_difference
 import numpy as np
 
 

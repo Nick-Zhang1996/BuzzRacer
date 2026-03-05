@@ -146,7 +146,7 @@ class VisualizationGL(Extension):
         height, width = self.car_images[car].shape[:2]
         center = (width/2, height/2)
         # dynamic scale
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car.param.width
+        scale = 40.0/height/200.0*self.track.config.resolution/0.0461*car.param.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(
@@ -356,7 +356,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
             for obs in obstacles:
                 pixel_pos = self.main.track.m2canvas(obs)
-                pixel_radius = 0.1 * self.main.track.resolution
+                pixel_radius = 0.1 * self.main.track.config.resolution
                 model = self.update_transform_matrix(
                     pos=pixel_pos, scale=(pixel_radius * 2, pixel_radius * 2))
                 self.model_matrix_loc.write(model)

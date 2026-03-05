@@ -1,5 +1,5 @@
 import sys
-from common import *
+from buzzracer.common import *
 import pickle
 import matplotlib.pyplot as plt
 
@@ -32,9 +32,9 @@ def plot_file(filename, marker, label):
 
 if __name__ == '__main__':
     plot_file('../log/kinematics_results/debug_dict8.p',
-             '+', 'MPPI (same injected noise)')
+              '+', 'MPPI (same injected noise)')
     plot_file('../log/kinematics_results/debug_dict9.p',
-             'o', 'MPPI (same terminal covariance)')
+              'o', 'MPPI (same terminal covariance)')
     plot_file('../log/kinematics_results/debug_dict10.p', 'x', 'CCMPPI-mixed')
     plot_file('../log/kinematics_results/debug_dict11.p', '*', 'CCMPPI-pure')
     plt.xlabel('Laptime (s)')

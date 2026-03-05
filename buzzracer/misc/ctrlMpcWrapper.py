@@ -6,7 +6,7 @@ from time import time
 # from timeUtil import ExecutionTimer
 from buzzracer.cars import car
 from math import atan2, radians, degrees, sin, cos, pi, tan, copysign, asin, acos, isnan, exp, pi
-from common import *
+from buzzracer.common import *
 
 import os
 import sys

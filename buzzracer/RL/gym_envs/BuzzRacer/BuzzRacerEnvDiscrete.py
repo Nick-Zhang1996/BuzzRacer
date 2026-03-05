@@ -76,7 +76,7 @@ class BuzzRacerEnvDiscrete(gym.Env):
         # TODO figure out correct dimension
         height = self.car_image.get_size()[1]
         car_width = 0.0461
-        scale = 40.0/height/200.0*self.track.resolution/0.0461*car_width
+        scale = 40.0/height/200.0*self.track.config.resolution/0.0461*car_width
 
         ori_size = self.car_image.get_size()
         self.car_image = pygame.transform.scale(

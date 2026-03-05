@@ -2,7 +2,7 @@ from buzzracer.utilities.execution_timer import ExecutionTimer
 from rcvip_env_function import getfreeze_timecollosion_reachedreward
 import rcvip_simulator.Track as Track
 import rcvip_simulator.VehicleModel as VehicleModel
-from common import *
+from buzzracer.common import *
 from copg_optim.critic_functions import critic_update, get_advantage
 from copg_optim import RCoPG as CoPG
 from car_racing.network import Critic

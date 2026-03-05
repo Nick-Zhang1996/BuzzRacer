@@ -13,7 +13,7 @@ import torch.optim as optim
 import numpy as np
 import scipy.optimize
 
-from common import *
+from buzzracer.common import *
 
 from torch.utils.data import DataLoader
 from sysidDataloader import CarDataset

@@ -1,6 +1,6 @@
 # universal entry point for running the car
 import argparse
-from common import *
+from buzzracer.common import *
 from threading import Event, Lock
 from math import pi, radians, degrees
 

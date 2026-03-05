@@ -1,7 +1,7 @@
 # analyze terminal covariance
 import numpy as np
 import matplotlib.pyplot as plt
-from common import *
+from buzzracer.common import *
 import pickle
 filename = 'log.txt'
 filename = 'sat_fine_grid.txt'

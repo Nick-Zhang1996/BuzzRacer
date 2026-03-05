@@ -4,7 +4,7 @@
 # left trigger for braking
 from inputs import get_gamepad
 from threading import Thread, Lock, Event
-from common import *
+from buzzracer.common import *
 
 
 class Joystick:

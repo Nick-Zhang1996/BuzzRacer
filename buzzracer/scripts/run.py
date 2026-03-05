@@ -138,8 +138,13 @@ class Main(PrintObject, LogObject):
             self.child_processes = []
             for car in self.cars:
                 p = mp.Process(target=CarController.process_fun,
-                               args=(self.state, car.id, car.param, self.track,
-                                     car.controller.__class__, car.controller.config, car.controller.state))
+                               args=(self.state,
+                                     car.id,
+                                     car.param,
+                                     self.track,
+                                     car.controller.__class__,
+                                     car.controller.config,
+                                     car.controller.state))
                 p.start()
                 self.child_processes.append(p)
 
@@ -209,14 +214,21 @@ class Main(PrintObject, LogObject):
                 self.state.car_control_event[i].wait(0.1)
                 self.state.car_control_event[i].clear()
                 car.steering = self.state.car_control[i].steering
-                car.throttle = 0.0 if self.state.slowdown.is_set() else self.state.car_control[i].throttle
+                car.throttle = 0.0 if self.state.slowdown.is_set(
+                ) else self.state.car_control[i].throttle
             else:
                 # Call controller one by one
                 control, _, controller_state = car.controller.control(
-                    car.state, car.param, self.track, car.controller.config, car.controller.state, self.state)
+                    car.state,
+                    car.param,
+                    self.track,
+                    car.controller.config,
+                    car.controller.state,
+                    self.state,
+                    i)
                 car.controller.state = controller_state
                 car.steering = control.steering
-                
+
                 car.throttle = 0.0 if self.state.slowdown.is_set() else control.throttle
             t.e(car.param.name)
         t.e('control')
@@ -231,15 +243,15 @@ if __name__ == '__main__':
 
     # Run default.xml config if none is provided
     name = sys.argv[1] if len(sys.argv) == 2 else 'default'
-    config_filename = os.path.join(
+    config_fn = os.path.join(
         BASEDIR, 'buzzracer', 'configs', f'{name}.xml')
 
-    if os.path.exists(config_filename):
-        logger.info('using config %s', config_filename)
+    if os.path.exists(config_fn):
+        logger.info('using config %s', config_fn)
     else:
-        logger.error(config_filename + '  does not exist!')
+        logger.error(config_fn + '  does not exist!')
 
-    experiment = Main(config_filename)
+    experiment = Main(config_fn)
     experiment.run()
     experiment.timer.summary()
     # experiment.cars[0].controller.p.summary()

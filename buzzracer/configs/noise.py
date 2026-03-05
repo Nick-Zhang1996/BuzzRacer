@@ -1,7 +1,7 @@
 # Example: load a config, modify as needed, then save xml
 # to run batch experiments, you should write a file like this to generate all configs needed, then call
 # python batchExperiment.py folder_of_config
-from common import *
+from buzzracer.common import *
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 import numpy as np

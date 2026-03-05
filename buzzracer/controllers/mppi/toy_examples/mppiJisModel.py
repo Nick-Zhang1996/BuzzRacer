@@ -1,5 +1,5 @@
 # Ji's model, in mppi, run on CPU python and GPU CUDA
-from common import *
+from buzzracer.common import *
 from mppi import MPPI
 import matplotlib.pyplot as plt
 import numpy as np

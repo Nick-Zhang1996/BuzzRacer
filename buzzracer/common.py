@@ -208,3 +208,18 @@ def wrap(val):
     ''' Wrap angle to [-pi,pi]
     '''
     return (val + np.pi) % (2*np.pi) - np.pi
+
+
+def set_config_attr(config_minidom, config):
+    """ Set the attributes in dom to config"""
+    for key, value_text in config_minidom.attributes.items():
+        if not hasattr(config, key):
+            raise AttributeError(
+                f'Config xml specified {key}={value_text},'
+                f'but {key} does not exist in {config.__class__.__name__}')
+        try:
+            value = eval(value_text)
+        except NameError:
+            value = value_text
+        setattr(config, key, value)
+        return config

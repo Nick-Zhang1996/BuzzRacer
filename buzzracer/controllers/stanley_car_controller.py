@@ -114,7 +114,7 @@ class StanleyCarController(CarController):
         v_target = min(retval.v_target, controller_config.max_speed)
 
         offset = retval.lateral_err
-        orientation = retval.heading_err
+        orientation = retval.raceline_dir
 
         if isnan(orientation):
             return fail_retval
@@ -153,6 +153,6 @@ class StanleyCarController(CarController):
         ss_throttle = car_params.ss_throttle_p0 * v_target + car_params.ss_throttle_p1
         ss_throttle = ss_throttle if v_target > 0 else 0
         # PID control for throttle
-        throttle = throttle_pid.control( v_target, state.v_forward) + ss_throttle
+        throttle = throttle_pid.control(v_target, state.v_forward) + ss_throttle
 
         return max(min(throttle, car_params.max_throttle), -1)

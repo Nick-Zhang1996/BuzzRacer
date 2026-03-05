@@ -1,6 +1,6 @@
 import random
 from time import sleep
-from common import *
+from buzzracer.common import *
 import argparse
 
 # start with no. skip experiment, index start with 0
