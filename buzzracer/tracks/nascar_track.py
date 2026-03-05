@@ -38,4 +38,8 @@ class NascarTrack(CurvilinearTrack):
         xx = np.hstack(xx)
         yy = np.hstack(yy)
         r = np.vstack([xx, yy]).T
-        self.build_continuous_track(r)
+        N = r.shape[0]
+        width = 0.8
+        left_margin = np.ones(N) * width
+        right_margin = np.ones(N) * width
+        CurvilinearTrack.build_continuous_track(r, left_margin, right_margin)
