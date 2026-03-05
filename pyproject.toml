@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "buzzracer"
+version = "0.1.0"
+description = "BuzzRacer Project"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+  {name = "Nick Zhang", email = "nickzhang@gatech.edu"}
+]
+dependencies = [
+    "numpy", # TODO
+]
+
+[tool.setuptools.packages.find]
+# This tells Python: "Only look in the 'buzzracer' folder for code"
+include = ["buzzracer*"] 
+exclude = ["log*", "gifs*", "docs*","log*"]
