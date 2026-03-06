@@ -37,7 +37,6 @@ class CurvilinearTrack(Track):
     def __init__(self, config):
         Track.__init__(self, config)
         # default parameters, to be override
-        self.width = 0.8
         self.data: CurvilinearTrackData
 
         # Derived class should override the constructor,
