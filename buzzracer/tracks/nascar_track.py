@@ -42,4 +42,4 @@ class NascarTrack(CurvilinearTrack):
         width = 0.8
         left_margin = np.ones(N) * width
         right_margin = np.ones(N) * width
-        CurvilinearTrack.build_continuous_track(r, left_margin, right_margin)
+        self.data = CurvilinearTrack.build_continuous_track(r, left_margin, right_margin)
