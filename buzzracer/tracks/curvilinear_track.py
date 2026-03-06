@@ -128,17 +128,17 @@ class CurvilinearTrack(Track):
         curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
                                            ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
         curvature_s, _ = splprep(curvature_vec.reshape(1, -1), u=s_vec, s=0, per=1)
-        ss = np.linspace(0, raceline_len_m, 3000)
+        ss = np.linspace(0, raceline_len_m, n)
         r_vec = np.array(splev(ss, raceline_s, der=0))
         dr_vec = np.array(splev(ss, raceline_s, der=1))
         phi_vec = np.arctan2(dr_vec[1, :], dr_vec[0, :])
-        phi_s, _ = splprep(phi_vec, u=ss, s=0, per=1)
+        phi_s, _ = splprep(phi_vec.reshape(1,-1), u=ss, s=0, per=1)
         # Normal direction vector, dim (n,2)
         lateral = np.vstack(
             [np.cos(phi_vec+np.pi/2), np.sin(phi_vec+np.pi/2)]).T
         # boundary, n*2
-        upper = r_vec.T + lateral * left_width/2
-        lower = r_vec.T - lateral * right_width/2
+        upper = r_vec.T + lateral * left_width[:,np.newaxis]/2
+        lower = r_vec.T - lateral * right_width[:,np.newaxis]/2
 
         x_min = np.min(np.hstack([upper[:, 0], lower[:, 0]])) - 0.1
         x_max = np.max(np.hstack([upper[:, 0], lower[:, 0]])) + 0.1
@@ -160,10 +160,10 @@ class CurvilinearTrack(Track):
         # plt.plot(r_vec[0,:],r_vec[1,:],'o')
         # plt.show()
         discretized_raceline = np.vstack(
-            [r_vec.T, phi_vec, left_width, right_width]).T
+            [r_vec, phi_vec, left_width, right_width]).T
 
         return CurvilinearTrackData(
-            r_vec=r_vec,
+            r_vec=r_vec.T,
             s_vec=s_vec,
             phi_vec=phi_vec,
             curvature_vec=curvature_vec,
