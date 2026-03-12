@@ -5,7 +5,7 @@ import os.path
 import pickle
 import logging
 from math import cos, sin
-from typing import Callable, NamedTuple
+from typing import NamedTuple, TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 
 from buzzracer.common import wrap, BASEDIR
 from buzzracer.types import CurvilinearState, CartesianState
+
+if TYPE_CHECKING:
+    from buzzracer.tracks.curvilinear_track import CurvilinearTrackData
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -43,37 +46,39 @@ class Track:
 
     def __init__(self, config: TrackConfig):
         self.config = config
-        self.raceline_len_m: float = 0.0
-        ''' Total length of raceline in meters'''
-        self.raceline = None
-        ''' Spline to map track progress to raceline points. Parameterized by u, grid unit
-        The tck coefficients from splprep, use as track_point = splev(u, self.raceline)'''
-        self.raceline_s = None
-        ''' Spline to map track progress to raceline points. Parameterized by distance
-        The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
-        self.sToV: Callable = lambda s: 0.0
-        ''' Function to provide reference velocity given raceline s_m'''
-        self.curvature_s = lambda s: 0.0
-        ''' Function to map track progress to signed curvature of raceline, Positive is curving left 
-        The tck coefficients from splprep, use as curvature = self.curvature_s(s_m)'''
+        self.data: CurvilinearTrackData
+        # TODO these are moved to self.data:CurvilinearTrackData
+        # self.raceline_len_m: float = 0.0
+        # ''' Total length of raceline in meters'''
+        # self.raceline = None
+        # ''' Spline to map track progress to raceline points. Parameterized by u, grid unit
+        # The tck coefficients from splprep, use as track_point = splev(u, self.raceline)'''
+        # self.raceline_s = None
+        # ''' Spline to map track progress to raceline points. Parameterized by distance
+        # The tck coefficients from splprep, use as track_point = splev(s_m, self.raceline_s)'''
+        # self.sToV: Callable = lambda s: 0.0
+        # ''' Function to provide reference velocity given raceline s_m'''
+        # self.curvature_s = lambda s: 0.0
+        # ''' Function to map track progress to signed curvature of raceline, Positive is curving left
+        # The tck coefficients from splprep, use as curvature = self.curvature_s(s_m)'''
 
-        self.ss: np.ndarray = np.array(0)
-        ''' np.linspace(0, self.raceline_len_m, self.config.discretized_raceline_len)'''
-        self.raceline_points: np.ndarray = np.array(0)
-        ''' dim:(2, len) splev(ss % self.raceline_len_m, self.raceline_s) '''
-        self.raceline_headings: np.ndarray = np.array(0)
-        ''' dim:(len,) An array of reference headings '''
-        self.raceline_velocity: np.ndarray = np.array(0)
-        ''' dim:(len,) An array of reference velocity, from self.sToV(ss)'''
-        self.discretized_raceline: np.ndarray = np.array(0)
-        ''' dim: (len, 6)
-        [raceline_x, raceline_y, raceline_headings, vv, raceline_left_boundary, 
-        raceline_right_boundary]
-        '''
-        self.raceline_left_boundary: np.ndarray = np.array(0)
-        ''' dim:(len,) An array of distances from ref raceline to left boundary'''
-        self.raceline_right_boundary: np.ndarray = np.array(0)
-        ''' dim:(len,) An array of distances from ref raceline to right boundary'''
+        # self.ss: np.ndarray = np.array(0)
+        # ''' np.linspace(0, self.raceline_len_m, self.config.discretized_raceline_len)'''
+        # self.raceline_points: np.ndarray = np.array(0)
+        # ''' dim:(2, len) splev(ss % self.raceline_len_m, self.raceline_s) '''
+        # self.raceline_headings: np.ndarray = np.array(0)
+        # ''' dim:(len,) An array of reference headings '''
+        # self.raceline_velocity: np.ndarray = np.array(0)
+        # ''' dim:(len,) An array of reference velocity, from self.sToV(ss)'''
+        # self.discretized_raceline: np.ndarray = np.array(0)
+        # ''' dim: (len, 6)
+        # [raceline_x, raceline_y, raceline_headings, vv, raceline_left_boundary,
+        # raceline_right_boundary]
+        # '''
+        # self.raceline_left_boundary: np.ndarray = np.array(0)
+        # ''' dim:(len,) An array of distances from ref raceline to left boundary'''
+        # self.raceline_right_boundary: np.ndarray = np.array(0)
+        # ''' dim:(len,) An array of distances from ref raceline to right boundary'''
 
         # obstacles
         self.obstacle = False
@@ -343,10 +348,10 @@ class Track:
 
         if guess_s is None:
             # initial guess to avoid local minima
-            xx = np.linspace(0.0, self.raceline_len_m, 100)
+            xx = np.linspace(0.0, self.data.raceline_len_m, 100)
             yy = [dist(x) for x in xx]
             guess_s = xx[np.argmin(yy)]
-            ds = 2*self.raceline_len_m/100
+            ds = 2*self.data.raceline_len_m/100
             fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
                            bounds=((guess_s-ds, guess_s+ds),))
         else:
@@ -355,10 +360,10 @@ class Track:
 
         s = fit.x[0]
 
-        r = np.array(splev(s % self.raceline_len_m,
-                     self.raceline_s, der=0))
-        dr = np.array(splev(s % self.raceline_len_m,
-                      self.raceline_s, der=1))
+        r = np.array(splev(s % self.data.raceline_len_m,
+                     self.data.raceline_s, der=0))
+        dr = np.array(splev(s % self.data.raceline_len_m,
+                      self.data.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
         n = np.cross(dr, np.array([cart.x, cart.y]) - r)
         phi = wrap(cart.heading - np.arctan2(dr[1], dr[0]))
@@ -379,10 +384,10 @@ class Track:
             cart: Transformed cartesian state
 
         """
-        r = np.array(splev(curv.progress % self.raceline_len_m,
-                     self.raceline_s, der=0))
-        dr = np.array(splev(curv.progress % self.raceline_len_m,
-                      self.raceline_s, der=1))
+        r = np.array(splev(curv.progress % self.data.raceline_len_m,
+                     self.data.raceline_s, der=0))
+        dr = np.array(splev(curv.progress % self.data.raceline_len_m,
+                      self.data.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
 
         # ccw 90 deg

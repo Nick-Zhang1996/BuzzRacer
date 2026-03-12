@@ -21,7 +21,7 @@ class CurvilinearTrackData:
     left_boundary_vec: np.ndarray  # (N,) Left boundary points
     right_boundary_vec: np.ndarray  # (N,) Right boundary points
     discretized_raceline: np.ndarray  # (N,5), [x,y, heading, left width, right width]
-    raceline_len_m: float   # Total curve length
+    raceline_len_m: float   # Total curve length in m
     raceline_s: Any  # splprep result, maps ss -> r
     curvature_s: Any  # splprep result, maps ss -> curvature
     phi_s: Any  # splprep result, maps ss -> tangent angle
@@ -125,20 +125,22 @@ class CurvilinearTrack(Track):
         def _norm(x):
             return np.linalg.norm(x, axis=0)
         # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        curvature_vec = 1.0/(_norm(dr)**3/(_norm(dr)**2*_norm(ddr)
-                                           ** 2 - np.sum(dr*ddr, axis=0)**2)**0.5)
+        nominator = _norm(dr)**2*_norm(ddr) ** 2 - np.sum(dr*ddr, axis=0)**2
+        nominator = np.clip(nominator, a_min=0, a_max=None)**0.5
+        curvature_vec = nominator / _norm(dr)**3
+        assert not np.any(np.isnan(curvature_vec))
         curvature_s, _ = splprep(curvature_vec.reshape(1, -1), u=s_vec, s=0, per=1)
         ss = np.linspace(0, raceline_len_m, n)
         r_vec = np.array(splev(ss, raceline_s, der=0))
         dr_vec = np.array(splev(ss, raceline_s, der=1))
         phi_vec = np.arctan2(dr_vec[1, :], dr_vec[0, :])
-        phi_s, _ = splprep(phi_vec.reshape(1,-1), u=ss, s=0, per=1)
+        phi_s, _ = splprep(phi_vec.reshape(1, -1), u=ss, s=0, per=1)
         # Normal direction vector, dim (n,2)
         lateral = np.vstack(
             [np.cos(phi_vec+np.pi/2), np.sin(phi_vec+np.pi/2)]).T
         # boundary, n*2
-        upper = r_vec.T + lateral * left_width[:,np.newaxis]/2
-        lower = r_vec.T - lateral * right_width[:,np.newaxis]/2
+        upper = r_vec.T + lateral * left_width[:, np.newaxis]/2
+        lower = r_vec.T - lateral * right_width[:, np.newaxis]/2
 
         x_min = np.min(np.hstack([upper[:, 0], lower[:, 0]])) - 0.1
         x_max = np.max(np.hstack([upper[:, 0], lower[:, 0]])) + 0.1
@@ -164,7 +166,7 @@ class CurvilinearTrack(Track):
 
         return CurvilinearTrackData(
             r_vec=r_vec.T,
-            s_vec=s_vec,
+            s_vec=np.array(s_vec),
             phi_vec=phi_vec,
             curvature_vec=curvature_vec,
             left_width_vec=left_width,
