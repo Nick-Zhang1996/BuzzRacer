@@ -66,7 +66,8 @@ class DynamicBicycleCartesian(System):
 
             Ffy = tire_curve(slip_f) * self.m * 9.8 * self.lr / (self.lr + self.lf)
             Fry = (
-                1.15 * tire_curve(slip_r) * self.m * 9.8 * self.lf / (self.lr + self.lf)
+                # 1.15 * tire_curve(slip_r) * self.m * 9.8 * self.lf / (self.lr + self.lf)
+                tire_curve(slip_r) * self.m * 9.8 * self.lf / (self.lr + self.lf)
             )
 
             # Dynamics
@@ -75,13 +76,13 @@ class DynamicBicycleCartesian(System):
                 1.0
                 / self.m
                 * (
-                    Fry + Ffy - self.m * v_forward * omega
-                    # Fry + Ffy * jnp.cos(steering) - self.m * v_forward * omega
+                    # Fry + Ffy - self.m * v_forward * omega
+                    Fry + Ffy * jnp.cos(steering) - self.m * v_forward * omega
                 )  # FIXME: model mismatch. Original doesn't have cos here or in a_heading
             )
             a_heading = (
-                1.0 / self.Iz * (Ffy * self.lf - Fry * self.lr)
-                # 1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
+                # 1.0 / self.Iz * (Ffy * self.lf - Fry * self.lr)
+                1.0 / self.Iz * (Ffy * self.lf * jnp.cos(steering) - Fry * self.lr)
             )
             return v_forward, v_sideway, omega, a_forward, a_sideway, a_heading
 
