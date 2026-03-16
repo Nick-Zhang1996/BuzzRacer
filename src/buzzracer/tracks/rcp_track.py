@@ -542,7 +542,7 @@ class RCPTrack(Track):
                 save = pickle.load(f)
         except FileNotFoundError:
             logger.error(f"can't find saved raceline {filename}, run "
-                         " `python -m buzzracer.scripts.qp_smooth [track_name]` first"
+                         " `[uv run] python scripts/qp_smooth.py [track_name]` first"
                          " Example track name: full"
                          )
             raise

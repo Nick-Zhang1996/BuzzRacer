@@ -17,11 +17,12 @@ import matplotlib.pyplot as plt
 from buzzracer.common import print_ok, print_info, print_error
 from buzzracer.tracks.rcp_track_debug import RCPTrackDebug as RCPTrack
 from buzzracer.tracks.track_factory import TrackFactory
+from buzzracer.tracks.track import TrackConfig
 
 
 class QpSmooth(RCPTrack):
-    def __init__(self):
-        RCPTrack.__init__(self)
+    def __init__(self, config):
+        RCPTrack.__init__(self, config)
         # warnings.simplefilter("error")
         self.img_filename = None
 
@@ -313,7 +314,7 @@ class QpSmooth(RCPTrack):
     def draw_raceline(self, lineColor=(0, 0, 255), img=None):
         rows = self.gridsize[0]
         cols = self.gridsize[1]
-        res = self.resolution
+        res = self.config.resolution
 
         # this gives smoother result, but difficult to relate u to actual grid
         # u_new = np.linspace(self.u.min(),self.u.max(),1000)
@@ -328,10 +329,10 @@ class QpSmooth(RCPTrack):
 
         # convert to visualization coordinate
         # x_new /= self.scale
-        # x_new *= self.resolution
+        # x_new *= self.config.resolution
         # y_new /= self.scale
-        # y_new *= self.resolution
-        # y_new = self.resolution*rows - y_new
+        # y_new *= self.config.resolution
+        # y_new = self.config.resolution*rows - y_new
         x_temp = []
         y_temp = []
         for coord in zip(x_new, y_new):
@@ -364,10 +365,10 @@ class QpSmooth(RCPTrack):
             x = point[0]
             y = point[1]
             # x /= self.scale
-            # x *= self.resolution
+            # x *= self.config.resolution
             # y /= self.scale
-            # y *= self.resolution
-            # y = self.resolution*rows - y
+            # y *= self.config.resolution
+            # y = self.config.resolution*rows - y
             x, y = self.m2canvas(point)
 
             img = cv2.circle(img, (int(x), int(y)), 5, (0, 0, 255), -1)
@@ -909,7 +910,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # optimize and save
-    track: QpSmooth = QpSmooth()
+    config = TrackConfig()
+    track: QpSmooth = QpSmooth(config)
     track = TrackFactory.build(args.track_name, track=track)
     track.optimize_path(offset=0.1)
     track.save()
