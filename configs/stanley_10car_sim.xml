@@ -1,0 +1,121 @@
+<config>
+  <settings dt='0.01' multiprocess='True'>
+      <!-- Not checked, determined by if simulator or optitrack is initiated -->
+      <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+      <!--<extension handle='logger'>Logger</extension>-->
+      <extension>SpeedTracker</extension>
+      <!--<extension handle='vi'>Optitrack</extension>-->
+      <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
+      <!-- <extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
+      <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Audi_11</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_11</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Audi_12</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_12</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.4*0.6,2.3*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Porsche_16</name>
+      <hardware>Offboard</hardware>
+      <config_name>porsche_16</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,2.5*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Lambo_13</name>
+      <hardware>Offboard</hardware>
+      <config_name>lambo_13</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,2.7*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>corvette_17</name>
+      <hardware>FHSS</hardware>
+      <config_name>corvette_17</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,3.0*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Porsche_18</name>
+      <hardware>FHSS</hardware>
+      <config_name>porsche_18</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,3.2*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Porsche_19</name>
+      <hardware>FHSS</hardware>
+      <config_name>porsche_19</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,3.4*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>audi_20</name>
+      <hardware>FHSS</hardware>
+      <config_name>audi_20</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,3.6*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Mclaren_21</name>
+      <hardware>FHSS</hardware>
+      <config_name>mclaren_21</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,3.8*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+    <car>
+      <name>Mclaren_22</name>
+      <hardware>FHSS</hardware>
+      <config_name>mclaren_22</config_name>
+      <controller max_speed='0.5'>
+        <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,4.0*0.6, radians(-90), 1.0)</init_states>
+      </controller>
+    </car>
+
+  </cars>
+</config>

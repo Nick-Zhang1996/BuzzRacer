@@ -14,5 +14,7 @@ __pycache__/
 tags
 *.mp4
 nohup.out
+*.egg-info/
+outputs/
 
 src/configs/**/exp*.xml

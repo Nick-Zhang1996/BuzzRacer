@@ -1,0 +1,29 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>RealWorld</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+        <!-- <extension handle='logger'>Logger</extension> -->
+        <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
+      <extension handle='vi'>Optitrack</extension>
+      <extension handle='sysid'>SysId</extension>
+      <extension handle='visualization'>VisualizationGL</extension>
+      <!--<extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>-->
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Red Porsche</name>
+      <hardware>Offboard</hardware>
+      <config_name>porsche_16</config_name>
+      <init_states>(3.7*0.6,3.0*0.6, radians(-90), 0.1)</init_states>
+      <controller max_speed='2.0' horizon='30' lookahead='0.2'>
+        <type>StanleyCarController</type>
+      </controller>
+    </car>
+
+  </cars>
+</config>
