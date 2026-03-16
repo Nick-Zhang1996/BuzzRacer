@@ -16,11 +16,12 @@ from bisect import bisect
 from buzzracer.common import *
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.rcp_track import RCPTrack
+from buzzracer.tracks.track import TrackConfig
 
 
 class RCPTrackDebug(RCPTrack):
-    def __init__(self, main=None, config=None):
-        super().__init__(main, config)
+    def __init__(self, config: TrackConfig):
+        RCPTrack.__init__(self, config)
 
     def resolve_logname(self,):
 
