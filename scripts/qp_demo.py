@@ -1,5 +1,5 @@
 # demonstrate qpSmooth on different tracks
-from qpSmooth import QpSmooth
+from qp_smooth import QpSmooth
 
 qp = QpSmooth()
 qp.save_dir = '/home/nick/Buzzracer/'
@@ -29,7 +29,7 @@ elif (track_id == 2):
 elif (track_id == 3):
     track_size = (9, 7)
     qp.init_track('uuurrddrruuluulluulurrrrrrdldldrdrdddldlllll',
-                 track_size, scale=0.6)
+                  track_size, scale=0.6)
     qp.init_raceline((0, 0), 'l', offset=None)
     qp.img_filename = 'track3.png'
 
