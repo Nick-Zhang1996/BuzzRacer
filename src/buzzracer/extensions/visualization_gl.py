@@ -301,8 +301,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.use_texture_loc.value = 1
         # width, height
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
-        model = self.update_transform_matrix(pos=(0, 0),
-                                             scale=(1, 1))
+        model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
@@ -337,8 +336,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
         vao = self.ctx.vertex_array(self.prog, [(vbo, '2f', 'in_position')])
         self.use_texture_loc.value = 0  # Switch to solid color mode
         self.color_loc.value = polyline.color
-        model = self.update_transform_matrix(pos=(0, 0),
-                                             scale=(1, 1))
+        model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
         track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)

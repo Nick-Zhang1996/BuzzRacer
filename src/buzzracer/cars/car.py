@@ -90,7 +90,7 @@ class CarConfig(Enum):
         steer_offset=0.03014659617081118,
         optitrack_id=11,
         car_ip='192.168.10.11',
-        rendering='car_imgs/porsche_green.png')
+        rendering='car_imgs/audi_12.png')
 
     # NOTE no calibration, using audi_11 value
     audi_12 = CarParam(
@@ -107,7 +107,7 @@ class CarConfig(Enum):
         car_ip='192.168.10.12',
         max_throttle=1.0,
         min_throttle=-1.0,
-        rendering='car_imgs/porsche_orange.png')
+        rendering='car_imgs/audi_12.png')
 
     porsche_16 = CarParam(
         name='porsche_16',
@@ -121,7 +121,7 @@ class CarConfig(Enum):
         max_steer_right=radians(25),
         car_ip='192.168.10.16',
         optitrack_id=16,
-        rendering='car_imgs/porsche_orange.png')
+        rendering='car_imgs/porsche_18.png')
 
     lambo_13 = CarParam(
         name='lambo_13',
@@ -135,7 +135,7 @@ class CarConfig(Enum):
         max_steer_right=radians(26.91),
         car_ip='192.168.10.13',
         optitrack_id=13,
-        rendering='car_imgs/porsche_green.png')
+        rendering='car_imgs/lambo_13.png')
 
     corvette_17 = CarParam(
         name='corvette_17',
@@ -147,7 +147,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.21),
         optitrack_id=17,
         fhss_modem_id=0,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/corvette_17.png'
     )
     porsche_18 = CarParam(
         name='porsche_18',
@@ -159,7 +159,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.17),
         optitrack_id=18,
         fhss_modem_id=1,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/porsche_18.png'
     )
     porsche_19 = CarParam(
         name='porsche_19',
@@ -171,7 +171,7 @@ class CarConfig(Enum):
         max_steer_left=radians(22.33),
         optitrack_id=19,
         fhss_modem_id=2,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/porsche_19.png'
     )
 
     audi_20 = CarParam(
@@ -184,7 +184,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.95),
         optitrack_id=20,
         fhss_modem_id=3,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/audi_12.png'
     )
 
     mclaren_21 = CarParam(
@@ -197,7 +197,7 @@ class CarConfig(Enum):
         max_steer_left=radians(21.14),
         optitrack_id=21,
         fhss_modem_id=4,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/mclaren_21.png'
     )
 
     mclaren_22 = CarParam(
@@ -210,7 +210,7 @@ class CarConfig(Enum):
         max_steer_left=radians(22.69),
         optitrack_id=22,
         fhss_modem_id=5,
-        rendering='car_imgs/porsche_orange.png'
+        rendering='car_imgs/mclaren_22.png'
     )
 
 
