@@ -246,8 +246,7 @@ class Visualization(Extension):
         ''' Overlay Car rendering at specified location in pixel coord, for plotting controls '''
         height, width = car.image.shape[:2]
         center = (width/2, height/2)
-        # dynamic scale
-        scale = 40.0/height/200.0*self.track.config.resolution/0.0461*car.param.width
+        scale = 2.7/height*self.track.config.resolution*car.param.width
         rotate_matrix = cv2.getRotationMatrix2D(
             center=center, angle=degrees(angle), scale=scale)
         rotated_car = cv2.warpAffine(
