@@ -26,7 +26,7 @@ def reset_car_class_variable():
 def get_main_from_test_config(config_name: str):
     ''' Build a dummy main with .cars and .track'''
     test_config_folder = os.path.join(
-        BASEDIR, 'buzzracer', 'tests', 'test_configs')
+        BASEDIR, 'tests', 'test_configs')
     config_filename = os.path.join(
         test_config_folder, config_name)
     if not os.path.exists(config_filename):

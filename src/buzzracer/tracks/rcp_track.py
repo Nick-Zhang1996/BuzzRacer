@@ -527,7 +527,7 @@ class RCPTrack(Track):
         save['start_pos'] = self.start_pos
         save['start_dir'] = self.start_dir
 
-        full_filename = os.path.join(BASEDIR, 'buzzracer', 'data', filename)
+        full_filename = os.path.join(BASEDIR, 'assets', filename)
         with open(full_filename, 'wb') as f:
             pickle.dump(save, f)
         logger.info(f'Track and raceline saved at {full_filename}')
@@ -537,7 +537,7 @@ class RCPTrack(Track):
         if filename is None:
             filename = 'raceline.p'
         try:
-            full_path = os.path.join(BASEDIR, 'buzzracer', 'data', filename)
+            full_path = os.path.join(BASEDIR, 'assets', filename)
             with open(full_path, 'rb') as f:
                 save = pickle.load(f)
         except FileNotFoundError:

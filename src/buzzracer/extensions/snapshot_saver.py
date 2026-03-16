@@ -8,8 +8,10 @@ import matplotlib.pyplot as plt
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension
 
+
 class SnapshotSaver(Extension):
     ''' Extension for saving consecutive multiple snapshots of car as multiple exposure photo'''
+
     def __init__(self):
         Extension.__init__(self, 'snapshot_saver')
         self.recording = Event()
@@ -30,10 +32,9 @@ class SnapshotSaver(Extension):
         self.background = self.main.track.draw_track()
         self.background = self.main.track.draw_raceline(img=self.background)
 
-
     def toggle_snapshot(self):
         ''' Start/Stop snapshot.
-        
+
         First time called this will start snapshot, second time will stop
         Called in Main when user press 's'
         '''
@@ -64,7 +65,9 @@ class SnapshotSaver(Extension):
     def save_snapshot(self):
         if not self.img is not None:
             self.snapshot_count += 1
-            filename = os.path.join(BASEDIR, 'snapshot{self.snapshot_count}.png')
+            dirname = os.path.join(BASEDIR, 'outputs', 'snapshots')
+            os.makedirs(dirname, exist_ok=True)
+            filename = os.path.join(dirname, 'snapshot{self.snapshot_count}.png')
             cv2.imwrite(filename, self.img)
             self.print_info('saved snapshot at '+filename)
             plt.imshow(cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB))

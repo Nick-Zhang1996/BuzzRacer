@@ -49,7 +49,7 @@ class Visualization(Extension):
 
         img = img_track.copy()
         for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
+            filename = os.path.join(BASEDIR, 'assets', car.param.rendering)
             car.image = cv2.imread(filename, -1)
             if car.image is None:
                 self.print_error(f'Failed to load car image from {filename}')
@@ -77,7 +77,7 @@ class Visualization(Extension):
         except AttributeError:
             pass
 
-        filename = os.path.join(BASEDIR, 'buzzracer', 'data', 'track_img.p')
+        filename = os.path.join(BASEDIR, 'assets', 'track_img.p')
         with open(filename, 'wb') as f:
             self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)

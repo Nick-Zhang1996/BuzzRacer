@@ -6,7 +6,7 @@ from buzzracer.common import BASEDIR
 
 
 def test_stanley_controller():
-    config_filename = os.path.join(BASEDIR, 'buzzracer', 'tests',
+    config_filename = os.path.join(BASEDIR, 'tests',
                                    'test_configs', 'test_stanley.xml')
 
     if not os.path.exists(config_filename):

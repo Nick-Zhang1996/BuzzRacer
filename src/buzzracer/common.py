@@ -6,8 +6,8 @@ from enum import Enum, auto
 
 import numpy as np
 
-BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-''' BuzzRacer project base folder, contains buzzracer/, gifs/ etc.'''
+BASEDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+''' BuzzRacer project base folder.'''
 
 
 class Config:

@@ -58,7 +58,7 @@ class VisualizationGL(Extension):
 
     def init(self):
         for car in self.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
+            filename = os.path.join(BASEDIR, 'assets', car.param.rendering)
             self.car_images[car] = cv2.imread(filename, -1)
         img_track = self.main.track.draw_track()
         self.img_blank_track = img_track.copy()
@@ -106,7 +106,7 @@ class VisualizationGL(Extension):
         except AttributeError:
             pass
 
-        filename = os.path.join(BASEDIR, 'buzzracer', 'data', 'track_img.p')
+        filename = os.path.join(BASEDIR, 'assets', 'track_img.p')
         with open(filename, 'wb') as f:
             self.print_info(f'saved raw track background at {filename}')
             pickle.dump(img, f)
@@ -258,7 +258,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
 
         self.car_textures = {}
         for car in self.host.main.cars:
-            filename = os.path.join(BASEDIR, 'buzzracer', car.param.rendering)
+            filename = os.path.join(BASEDIR, 'assets', car.param.rendering)
             car_img = Image.open(filename).convert("RGBA")
             texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
             self.car_textures[car] = texture
