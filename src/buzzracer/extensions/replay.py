@@ -52,7 +52,7 @@ class Replay(Simulator):
     def load_log(self, log_name):
         ''' Load full state log '''
         # state dim: [time_steps,  car_count,  (dim_states + dim_action)]
-        full_path = os.path.join(BASEDIR, 'log', log_name)
+        full_path = os.path.join(BASEDIR, 'outputs', 'logs', log_name)
         self.print_ok(f'opening log file at {full_path}')
         with open(full_path, 'rb') as f:
             self.data = pickle.load(f)[self.skip:]

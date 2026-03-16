@@ -65,7 +65,9 @@ class Laptimer(Extension):
             logname = os.path.join(self.main.logger.log_folder,
                                    f'laptime{self.main.logger.log_no}.p')
         except AttributeError:
-            logname = os.path.join(BASEDIR, 'log', 'laptime_latest.p')
+            dirname = os.path.join(BASEDIR, 'outputs', 'logs')
+            os.makedirs(dirname, exist_ok=True)
+            logname = os.path.join(dirname, 'laptime_latest.p')
             self.print_warning(
                 f"Logger extension wasn't enabled, saving to {logname}")
         with open(logname, 'wb') as f:

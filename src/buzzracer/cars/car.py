@@ -75,7 +75,7 @@ class CarParam(NamedTuple):
     fhss_modem_id: int = -1
     """ Modem number in fhss binding"""
     rendering: str = ''
-    ''' path to rendering image e.g. "data/porsche_orange.png" '''
+    ''' path to rendering image e.g. "car_imgs/porsche_orange.png" '''
 
 
 class CarConfig(Enum):
@@ -90,7 +90,7 @@ class CarConfig(Enum):
         steer_offset=0.03014659617081118,
         optitrack_id=11,
         car_ip='192.168.10.11',
-        rendering='data/porsche_green.png')
+        rendering='car_imgs/porsche_green.png')
 
     # NOTE no calibration, using audi_11 value
     audi_12 = CarParam(
@@ -107,7 +107,7 @@ class CarConfig(Enum):
         car_ip='192.168.10.12',
         max_throttle=1.0,
         min_throttle=-1.0,
-        rendering='data/porsche_orange.png')
+        rendering='car_imgs/porsche_orange.png')
 
     porsche_16 = CarParam(
         name='porsche_16',
@@ -121,7 +121,7 @@ class CarConfig(Enum):
         max_steer_right=radians(25),
         car_ip='192.168.10.16',
         optitrack_id=16,
-        rendering='data/porsche_orange.png')
+        rendering='car_imgs/porsche_orange.png')
 
     lambo_13 = CarParam(
         name='lambo_13',
@@ -135,7 +135,7 @@ class CarConfig(Enum):
         max_steer_right=radians(26.91),
         car_ip='192.168.10.13',
         optitrack_id=13,
-        rendering='data/porsche_green.png')
+        rendering='car_imgs/porsche_green.png')
 
     corvette_17 = CarParam(
         name='corvette_17',
@@ -147,7 +147,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.21),
         optitrack_id=17,
         fhss_modem_id=0,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
     porsche_18 = CarParam(
         name='porsche_18',
@@ -159,7 +159,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.17),
         optitrack_id=18,
         fhss_modem_id=1,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
     porsche_19 = CarParam(
         name='porsche_19',
@@ -171,7 +171,7 @@ class CarConfig(Enum):
         max_steer_left=radians(22.33),
         optitrack_id=19,
         fhss_modem_id=2,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
 
     audi_20 = CarParam(
@@ -184,7 +184,7 @@ class CarConfig(Enum):
         max_steer_left=radians(23.95),
         optitrack_id=20,
         fhss_modem_id=3,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
 
     mclaren_21 = CarParam(
@@ -197,7 +197,7 @@ class CarConfig(Enum):
         max_steer_left=radians(21.14),
         optitrack_id=21,
         fhss_modem_id=4,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
 
     mclaren_22 = CarParam(
@@ -210,7 +210,7 @@ class CarConfig(Enum):
         max_steer_left=radians(22.69),
         optitrack_id=22,
         fhss_modem_id=5,
-        rendering='data/porsche_orange.png'
+        rendering='car_imgs/porsche_orange.png'
     )
 
 
@@ -246,7 +246,7 @@ class Car(PrintObject, LogObject):
         """Decorator to add a car class to the registry."""
         name = cls.__name__
         Car.registry[name] = cls
-        _logger.debug('Registered %s'%{name})
+        _logger.debug('Registered %s' % {name})
         return cls
 
     @property
@@ -308,7 +308,6 @@ class Car(PrintObject, LogObject):
         Car.main = main
         Car.cars = []
         Car.car_count = 0
-
 
     @classmethod
     def Factory(cls, config_minidom):

@@ -33,7 +33,7 @@ def reset_car_class_variable():
 def get_dummy_main():
     ''' Build a dummy main with .cars and .track'''
     test_config_folder = os.path.join(
-        BASEDIR, 'buzzracer', 'tests', 'test_configs')
+        BASEDIR, 'tests', 'test_configs')
     config_filename = os.path.join(
         test_config_folder, 'test_minimum.xml')
     if not os.path.exists(config_filename):
@@ -77,7 +77,7 @@ def are_points_collinear(points, tol=1e-2):
 def test_run_with_config(config_filename):
     ''' Cartesian models'''
     config_filename = os.path.join(
-        BASEDIR, 'buzzracer', 'tests', 'test_configs', config_filename)
+        BASEDIR, 'tests', 'test_configs', config_filename)
 
     if not os.path.exists(config_filename):
         raise FileNotFoundError

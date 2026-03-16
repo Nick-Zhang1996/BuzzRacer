@@ -34,11 +34,11 @@ class Logger(Extension):
         suffix = 'sim' if hasattr(self.main, 'simulator') else 'exp'
 
         try:
-            log_folder = os.path.join(BASEDIR, 'log',
+            log_folder = os.path.join(BASEDIR, 'outputs', 'logs',
                                       self.main.config.experiment_name)
         except AttributeError:
             log_folder = os.path.join(
-                BASEDIR, 'log',
+                BASEDIR, 'outputs', 'logs',
                 '%d_%d_%d_' % (today.year, today.month, today.day) + suffix)
 
         if not os.path.exists(log_folder):
