@@ -34,8 +34,8 @@ class Laptimer(Extension):
         self.laptime_vec_by_car: dict[Car, float] = {car: [] for car in cars}
         ''' Laptime history for each car '''
         self.laptimer_by_car: dict[Car, _Laptimer] = {
-            car: _Laptimer(self.main.track.start_pos,
-                           self.main.track.start_dir)
+            car: _Laptimer(self.main.track.data.start_pos,
+                           self.main.track.data.start_dir)
             for car in cars
         }
         ''' Laptimer object for each car '''

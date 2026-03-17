@@ -21,6 +21,7 @@
       <config_name>audi_11</config_name>
       <controller max_speed='2.0' horizon='30'>
         <type>StanleyCarController</type>
+        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
 

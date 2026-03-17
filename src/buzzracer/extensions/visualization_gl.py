@@ -27,6 +27,7 @@ from buzzracer.extensions.extension import Extension
 from buzzracer.utilities.execution_timer import ExecutionTimer
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
+    from buzzracer.tracks.track import Track
 
 
 class VisualizationGL(Extension):
@@ -60,11 +61,13 @@ class VisualizationGL(Extension):
         for car in self.main.cars:
             filename = os.path.join(BASEDIR, 'assets', car.param.rendering)
             self.car_images[car] = cv2.imread(filename, -1)
-        img_track = self.main.track.draw_track()
-        self.img_blank_track = img_track.copy()
+        img = self.main.track.draw_track()
+        self.img_blank_track = img.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(
-            img_track.copy())
-        self.img_track = self.main.track.draw_raceline(img=img_track)
+            img.copy())
+        track: Track = self.main.track
+        self.img_track = track.draw_raceline(
+            track.data.raceline_s, track.data.raceline_len_m, img=img)
         # img = img_track.copy()
         # draw static components onto background
         # self.img_track = self.draw_control_static_for_all_cars(img_track)
@@ -240,7 +243,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.prog['tex'].value = 0  # Tell the shader to use texture unit 0
 
         # track_dim_pixel = self.host.img_track.shape[:2]
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         # Project matrix from track frame to NDC
         self.ortho_matrix_loc = self.prog['ortho']
 
@@ -300,7 +304,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
         # width, height
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
@@ -339,7 +344,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
         # In your render loop:
@@ -371,8 +377,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         '''
         # track: (0,0), bottom left, (track.x_limit, track.y_limit)
         track = self.host.main.track
-        x_pix = int(track_coord[0] / track.x_limit * self.window_size[0])
-        y_pix = int(track_coord[1] / track.y_limit * self.window_size[1])
+        x_pix = int(track_coord[0] / track.config.x_limit * self.window_size[0])
+        y_pix = int(track_coord[1] / track.config.y_limit * self.window_size[1])
         return (x_pix, y_pix)
 
     def pixel_to_track(self, pix_coord: tuple[int, int]) -> tuple[float, float]:
@@ -384,8 +390,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         '''
         # track: (0,0), bottom left, (track.x_limit, track.y_limit)
         track = self.host.main.track
-        x_track = pix_coord[0] / self.window_size[0] * track.x_limit
-        y_track = pix_coord[1] / self.window_size[1] * track.y_limit
+        x_track = pix_coord[0] / self.window_size[0] * track.config.x_limit
+        y_track = pix_coord[1] / self.window_size[1] * track.config.y_limit
         return (x_track, y_track)
 
     def draw_car_pose(self, car: Car, pose: tuple[float, ...]):
@@ -407,7 +413,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
             scale=(0.19, 0.146)
         )
         self.model_matrix_loc.write(model)
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
         self.unit_quad.render(self.prog)

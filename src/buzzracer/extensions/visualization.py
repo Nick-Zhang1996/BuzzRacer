@@ -45,7 +45,10 @@ class Visualization(Extension):
         self.img_blank_track = img_track.copy()
         self.img_blank_track_with_obstacles = self.track.plot_obstacles(self.main.cars,
                                                                         img_track.copy())
-        img_track = self.main.track.draw_raceline(img=img_track)
+        track = self.track
+        img_track = self.track.draw_raceline(track.data.raceline_s,
+                                             track.data.raceline_len_m,
+                                             img=img_track)
 
         img = img_track.copy()
         for car in self.main.cars:

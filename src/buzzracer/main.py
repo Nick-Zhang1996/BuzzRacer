@@ -86,7 +86,7 @@ class Main(PrintObject, LogObject):
         # Prepare track
 
         def get_track_from_dom(dom_track):
-            track = TrackFactory.build(main=self, config=dom_track)
+            track = TrackFactory.build(config=dom_track)
             track.init()
             return track
         self.track = get_track_from_dom(self.config.dom_track)
@@ -139,6 +139,7 @@ class Main(PrintObject, LogObject):
                                      car.controller.state))
                 p.start()
                 self.child_processes.append(p)
+            logger.info("Multiprocess enabled")
 
     def run(self):
         """Run experiment until user press q in visualization window."""

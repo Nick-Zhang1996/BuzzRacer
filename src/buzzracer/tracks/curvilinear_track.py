@@ -1,12 +1,11 @@
 """ a track defined by a spline """
 # pylint: disable=unbalanced-tuple-unpacking
-from typing import Any
 from dataclasses import dataclass
 
 import numpy as np
 from scipy.interpolate import splprep, splev
 
-from buzzracer.tracks.track import Track, LocalTrajOutput
+from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
 from buzzracer.types import CartesianState
 
 
@@ -16,15 +15,22 @@ class CurvilinearTrackData:
     s_vec: np.ndarray  # (N) Cumularive curve length
     phi_vec: np.ndarray  # (N,) Ref path tangent heading
     curvature_vec: np.ndarray  # (N,)  Signed curvature
-    left_width_vec: np.ndarray  # (N,) distance to left boundary
-    right_width_vec: np.ndarray  # (N,) distance to right boundary
+    left_width_vec: np.ndarray  # (N,) Distance to left boundary
+    right_width_vec: np.ndarray  # (N,) Distance to right boundary
+    speed_vec: np.ndarray  # (N,) Target speed
+    discretized_raceline: np.ndarray  # (N,5), [x,y, heading, left width, right width]
+
+    raceline_len_m: float   # Total curve length in m
+    raceline_s: Tck  # splprep result, maps ss -> r
+    curvature_s: Tck  # splprep result, maps ss -> curvature
+    phi_s: Tck  # splprep result, maps ss -> tangent angle
+    speed_s: Tck  # splprep result, map ss ->> target speed
+
     left_boundary_vec: np.ndarray  # (N,) Left boundary points
     right_boundary_vec: np.ndarray  # (N,) Right boundary points
-    discretized_raceline: np.ndarray  # (N,5), [x,y, heading, left width, right width]
-    raceline_len_m: float   # Total curve length in m
-    raceline_s: Any  # splprep result, maps ss -> r
-    curvature_s: Any  # splprep result, maps ss -> curvature
-    phi_s: Any  # splprep result, maps ss -> tangent angle
+    start_pos: tuple[float, float]  # Start position
+    start_dir: float  # Start heading
+
     x_min: float  # Minimum x coordinate of track, for visualization boundary
     x_max: float
     y_min: float
@@ -40,10 +46,10 @@ class CurvilinearTrack(Track):
         self.data: CurvilinearTrackData
 
         # Derived class should override the constructor,
-        # call self.build_continuous_track(r) to create a curvilinear track
+        # call self.build_track(r) to create a curvilinear track
         # see NascarTrack.py for example
         # e.g.
-        # self.data = CurvilinearTrack.build_continuous_track(r, left_width, right_width)
+        # self.data = self.build_track(r, left_width, right_width)
         return
 
     def local_trajectory(self, state: CartesianState):
@@ -53,6 +59,7 @@ class CurvilinearTrack(Track):
         Return:
             LocalTrajOutput
         """
+        # TODO interpolate between reference points
         data = self.data
         x = state[0]
         y = state[1]
@@ -70,9 +77,9 @@ class CurvilinearTrack(Track):
         right_margin = data.right_width_vec[index] + offset
         return LocalTrajOutput(ref_point=raceline_point,
                                lateral_err=offset,
-                               raceline_dir=data.raceline_dir[index],
+                               raceline_dir=data.phi_vec[index],
                                curvature=data.curvature_vec[index],
-                               v_target=data.v_target[index],
+                               v_target=data.speed_vec[index],
                                progress=data.s_vec[index],
                                left_margin=left_margin,
                                right_margin=right_margin)
@@ -84,10 +91,9 @@ class CurvilinearTrack(Track):
         """
         state = CartesianState(coord[0], coord[1])
         retval = self.local_trajectory(state)
-        return retval.lateral_err > (self.width/2)*1.5
+        return retval.left_margin < 0 or retval.right_margin < 0
 
-    @staticmethod
-    def build_continuous_track(r_vec, left_width, right_width):
+    def build_track(self, r_vec, left_width, right_width):
         """ Build a Curvilinear Track.
         Args:
             r_vec: np.ndarray (N, 2) Reference points for curve.
@@ -106,13 +112,14 @@ class CurvilinearTrack(Track):
 
         s = 0
         s_vec = [s]
-        for i in range(n):
+        for i in range(n-1):
             s += ((xx[(i+1) % n]-xx[i])**2 + (yy[(i+1) % n]-yy[i])**2)**0.5
             s_vec.append(s)
+        s_vec = np.array(s_vec)
         raceline_len_m = s
         # Dim: 2*n
-        r_vec = np.vstack([r_vec, r_vec[-1]])  # splprep requres [0] == [-1]
-
+        # r_vec = np.vstack([r_vec, r_vec[-1]])  # splprep requres [0] == [-1]
+        assert np.all(np.diff(s_vec) > 0)
         tck, _ = splprep(r_vec.T, u=s_vec, s=0, per=1)
         raceline_s = tck
 
@@ -163,6 +170,15 @@ class CurvilinearTrack(Track):
         # plt.show()
         discretized_raceline = np.vstack(
             [r_vec, phi_vec, left_width, right_width]).T
+        start_pos = tuple(r_vec[:, 0])
+        start_dir = phi_vec[0]
+        spd_profile = Track.generate_speed_profile(raceline_s,
+                                                   raceline_len_m,
+                                                   mu=0.8,
+                                                   acc_max_fun=lambda x: 5.0,
+                                                   dec_max_fun=lambda x: 3.3)
+
+        speed_vec = np.array(splev(ss, spd_profile.speed_tck, der=0)).flatten()
 
         return CurvilinearTrackData(
             r_vec=r_vec.T,
@@ -171,13 +187,20 @@ class CurvilinearTrack(Track):
             curvature_vec=curvature_vec,
             left_width_vec=left_width,
             right_width_vec=right_width,
-            left_boundary_vec=upper,
-            right_boundary_vec=lower,
+            speed_vec=speed_vec,
             discretized_raceline=discretized_raceline,
+
             raceline_len_m=raceline_len_m,
             raceline_s=raceline_s,
             curvature_s=curvature_s,
             phi_s=phi_s,
+            speed_s=spd_profile.speed_tck,
+
+            left_boundary_vec=upper,
+            right_boundary_vec=lower,
+            start_pos=start_pos,
+            start_dir=start_dir,
+
             x_min=x_min,
             x_max=x_max,
             y_min=y_min,

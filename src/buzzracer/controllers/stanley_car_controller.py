@@ -8,7 +8,7 @@ from buzzracer.controllers.car_controller import CarController
 from buzzracer.controllers.pid_controller import PidController
 if TYPE_CHECKING:
     from buzzracer.cars.car import CarParam
-    from buzzracer.scripts.run import MainState
+    from buzzracer.main import MainState
     from buzzracer.tracks.track import Track
 
 
@@ -91,22 +91,23 @@ class StanleyCarController(CarController):
                     If this is false, then throttle will also be set to 0
           state: updated controller state
         '''
-        coord = (car_state.x, car_state.y)
-
         heading = car_state.heading
-        vf = car_state.v_forward
 
         # add in a slight lookahead distance
-        lookahead = 3e-2  # TODO this should vary by car
-        x_lookahead = coord[0] + cos(heading) * lookahead
-        y_lookahead = coord[1] + sin(heading) * lookahead
-        coord = (x_lookahead, y_lookahead)
+        lookahead = 3e-2 + car_params.wheelbase
 
         ctrl = Control(steering=0, throttle=0)
         fail_retval = (ctrl, False, controller_state)
 
         # inquire information about desired trajectory close to the vehicle
-        retval = track.local_trajectory(car_state)
+        lookahead_point = CartesianState(x=car_state.x + lookahead*cos(heading),
+                                         y=car_state.y + lookahead*sin(heading),
+                                         heading=heading,
+                                         v_forward=car_state.v_forward,
+                                         v_sideway=car_state.v_sideway,
+                                         omega=car_state.omega)
+
+        retval = track.local_trajectory(lookahead_point)
         if retval is None:
             return fail_retval
             # return ret
@@ -132,7 +133,8 @@ class StanleyCarController(CarController):
         # control logic
         # steering = (orientation-heading) - (offset * self.car.P)
         # - (omega-curvature*vf)*self.car.D
-        steering = (orientation-heading) - (offset * controller_config.Pfun(abs(vf)))
+        steering = (orientation-heading) - (offset *
+                                            controller_config.Pfun(abs(car_state.v_forward)))
         # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
         # handle edge case, unwrap ( -355 deg turn -> +5 turn)
         steering = (steering+pi) % (2*pi) - pi

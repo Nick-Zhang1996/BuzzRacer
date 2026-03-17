@@ -329,7 +329,7 @@ class Car(PrintObject, LogObject):
         except IndexError:
             _logger.warning(
                 'Car: no initial state specified, using track default')
-            init_states = (*Car.main.track.start_pos, Car.main.track.start_dir, 0.1)
+            # init_states = (*Car.main.track.start_pos, Car.main.track.start_dir, 0.1)
 
         config_name = config_minidom.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue

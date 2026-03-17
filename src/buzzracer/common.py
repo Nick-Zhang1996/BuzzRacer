@@ -212,6 +212,8 @@ def wrap(val):
 
 def set_config_attr(config_minidom, config):
     """ Set the attributes in dom to config"""
+    if config_minidom is None:
+        return config
     for key, value_text in config_minidom.attributes.items():
         if not hasattr(config, key):
             raise AttributeError(
