@@ -234,7 +234,7 @@ class RCPTrack(CurvilinearTrack):
             CurvilinearTrackData Object
         """
         config = self.config
-        data = self.build_track(r_vec, left_width, right_width)
+        data = CurvilinearTrack.build_track(self, r_vec, left_width, right_width)
         new_data = replace(data, x_min=0, x_max=config.x_limit,
                            y_min=0, y_max=config.y_limit)
         return new_data
@@ -372,8 +372,6 @@ class RCPTrack(CurvilinearTrack):
             current_coord = current_coord + lookup_table_dir[exit_dir]
             entry_dir = exit_dir
 
-            last_signature = signature
-
             if all(start == current_coord):
                 break
 
@@ -393,7 +391,8 @@ class RCPTrack(CurvilinearTrack):
         # m being number of datapoints
         m = len(ctrl_pts)+1
         smoothing_factor = 0.01*(m)
-        tck, u = splprep(pts.T,
+        # pylint: disable-next=unbalanced-tuple-unpacking
+        tck, _ = splprep(pts.T,
                          u=np.linspace(0, config.track_length_grid, config.track_length_grid+1),
                          s=smoothing_factor,
                          per=1)
@@ -583,6 +582,31 @@ class RCPTrack(CurvilinearTrack):
         return a vector(dist_to_left, dist_to_right)'''
         config = self.config
         heading = (heading + np.pi) % (2*np.pi) - np.pi
+        # DEBUG - Use simple in/out checking. This is more precise, but more expensive
+        step_size = 0.01
+        # find left boundary
+        left = 0.0
+        flag_in_limit = True
+        while flag_in_limit:
+            left_point = (coord[0] + left * cos(heading+np.pi/2),
+                          coord[1] + left * sin(heading+np.pi/2))
+            flag_in_limit = self.coord_is_in_track(left_point) > 0
+            left += step_size
+
+        # find right boundary
+        right = 0.0
+        flag_in_limit = True
+        while flag_in_limit:
+            right_point = (coord[0] + right * cos(heading-np.pi/2),
+                           coord[1] + right * sin(heading-np.pi/2))
+            flag_in_limit = self.coord_is_in_track(right_point) > 0
+            right += step_size
+
+        # convert metric unit to dimensionless unit
+        left /= config.scale
+        right /= config.scale
+
+        return (left*config.scale, right*config.scale)
 
         # Find the grid for coord
         # grid coordinate, (col, row), col starts from left and row starts from bottom,
@@ -762,8 +786,22 @@ class RCPTrack(CurvilinearTrack):
         dr_vec = np.array(splev(ss, raceline.raceline_s, der=1))
         heading_vec = np.arctan2(dr_vec[1], dr_vec[0])
         bdry = self.create_boundary(r_vec, heading_vec)
+        # Add smoothing. Occassionally boundary can extend to other grids
+        # Remove the spike
         left = bdry[:, 0]
         right = bdry[:, 1]
+        # plt.plot(left)
+        # plt.plot(right)
+        # plt.show()
+        for i in range(left.shape[0]-1):
+            if np.abs(left[i] - left[i+1]) > 0.2:
+                left[i+1] = left[i]
+            if np.abs(right[i] - right[i+1]) > 0.2:
+                right[i+1] = right[i]
+        # plt.plot(left)
+        # plt.plot(right)
+        # plt.show()
+
         return r_vec, left, right
 
     # RCPTrack is now a CurvilinearTrack, the parent class implementation will be more efficient

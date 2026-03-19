@@ -255,7 +255,7 @@ class Track:
         """ Return the distance to left and right boundary (left, right) """
         raise NotImplementedError
 
-    def create_boundary(self, coord_vec: np.ndarray, heading_vec: np.ndarray, show=False):
+    def create_boundary(self, coord_vec: np.ndarray, heading_vec: np.ndarray, show=True):
         '''
          Find margin to left/right boundary along a reference path 
          using self.precise_track_boundary()
@@ -298,14 +298,14 @@ class Track:
 
         if show:
             img = self.draw_track()
-            img = self.draw_raceline(self.data.raceline_s, self.data.raceline_len_m, img=img)
+            # img = self.draw_raceline(self.data.raceline_s, self.data.raceline_len_m, img=img)
+            img = self.draw_polyline(coord_vec, img=img)
             img = self.draw_polyline(
                 left_boundary_points, lineColor=(0, 255, 0), img=img)
             img = self.draw_polyline(
                 right_boundary_points, lineColor=(0, 0, 255), img=img)
             plt.imshow(img)
             plt.show()
-            return img
         return retval
 
     def cart_to_curv(self, cart: CartesianState, guess_s: float = None) -> CurvilinearState:

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev
 
 from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
@@ -164,10 +165,10 @@ class CurvilinearTrack(Track):
         # r_vec[:,0] -= x_min
         # r_vec[:,1] -= y_min
 
-        # plt.plot(upper[:,0],upper[:,1])
-        # plt.plot(lower[:,0],lower[:,1])
-        # plt.plot(r_vec[0,:],r_vec[1,:],'o')
-        # plt.show()
+        plt.plot(upper[:, 0], upper[:, 1])
+        plt.plot(lower[:, 0], lower[:, 1])
+        plt.plot(r_vec[0, :], r_vec[1, :], 'o')
+        plt.show()
         discretized_raceline = np.vstack(
             [r_vec, phi_vec, left_width, right_width]).T
         start_pos = tuple(r_vec[:, 0])
