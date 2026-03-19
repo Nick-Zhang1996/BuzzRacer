@@ -147,8 +147,8 @@ class CurvilinearTrack(Track):
         lateral = np.vstack(
             [np.cos(phi_vec+np.pi/2), np.sin(phi_vec+np.pi/2)]).T
         # boundary, n*2
-        upper = r_vec.T + lateral * left_width[:, np.newaxis]/2
-        lower = r_vec.T - lateral * right_width[:, np.newaxis]/2
+        upper = r_vec.T + lateral * left_width[:, np.newaxis]
+        lower = r_vec.T - lateral * right_width[:, np.newaxis]
 
         x_min = np.min(np.hstack([upper[:, 0], lower[:, 0]])) - 0.1
         x_max = np.max(np.hstack([upper[:, 0], lower[:, 0]])) + 0.1
@@ -165,10 +165,10 @@ class CurvilinearTrack(Track):
         # r_vec[:,0] -= x_min
         # r_vec[:,1] -= y_min
 
-        plt.plot(upper[:, 0], upper[:, 1])
-        plt.plot(lower[:, 0], lower[:, 1])
-        plt.plot(r_vec[0, :], r_vec[1, :], 'o')
-        plt.show()
+        # plt.plot(upper[:, 0], upper[:, 1])
+        # plt.plot(lower[:, 0], lower[:, 1])
+        # plt.plot(r_vec[0, :], r_vec[1, :], 'o')
+        # plt.show()
         discretized_raceline = np.vstack(
             [r_vec, phi_vec, left_width, right_width]).T
         start_pos = tuple(r_vec[:, 0])

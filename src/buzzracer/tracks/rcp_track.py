@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 import cv2
 import numpy as np
 from scipy.interpolate import splprep, splev
+import matplotlib.pyplot as plt
 
 
 from buzzracer.common import BASEDIR, get_logger
@@ -790,17 +791,11 @@ class RCPTrack(CurvilinearTrack):
         # Remove the spike
         left = bdry[:, 0]
         right = bdry[:, 1]
-        # plt.plot(left)
-        # plt.plot(right)
-        # plt.show()
         for i in range(left.shape[0]-1):
-            if np.abs(left[i] - left[i+1]) > 0.2:
+            if np.abs(left[i] - left[i+1]) > 0.5:
                 left[i+1] = left[i]
-            if np.abs(right[i] - right[i+1]) > 0.2:
+            if np.abs(right[i] - right[i+1]) > 0.5:
                 right[i+1] = right[i]
-        # plt.plot(left)
-        # plt.plot(right)
-        # plt.show()
 
         return r_vec, left, right
 

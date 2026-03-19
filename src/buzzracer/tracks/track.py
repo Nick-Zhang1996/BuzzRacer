@@ -255,7 +255,7 @@ class Track:
         """ Return the distance to left and right boundary (left, right) """
         raise NotImplementedError
 
-    def create_boundary(self, coord_vec: np.ndarray, heading_vec: np.ndarray, show=True):
+    def create_boundary(self, coord_vec: np.ndarray, heading_vec: np.ndarray, show=False):
         '''
          Find margin to left/right boundary along a reference path 
          using self.precise_track_boundary()
