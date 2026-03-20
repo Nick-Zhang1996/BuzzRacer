@@ -23,16 +23,17 @@ from matplotlib import font_manager
 from deprecated import deprecated
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 from buzzracer.utilities.execution_timer import ExecutionTimer
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
     from buzzracer.tracks.track import Track
 
 
+@Extension.register('visualization', ExtensionConfig, ExtensionState)
 class VisualizationGL(Extension):
     def __init__(self):
-        super().__init__(handle_name='visualization')
+        super().__init__()
         self.t = ExecutionTimer(False)
         self.update_visualization = Event()
         self.car_graphics = False

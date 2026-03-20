@@ -34,7 +34,7 @@ class Simulator(Extension, ABC):
     ''' State type used by this simulator, default cartesian'''
 
     def __init__(self):
-        super().__init__(handle_name='simulator')
+        super().__init__()
         # self.print_debug_enable()
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''

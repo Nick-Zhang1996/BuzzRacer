@@ -71,6 +71,7 @@ class MainConfig:
         self.car_configs = [val for val in dom_cars.getElementsByTagName('car')]
 
         self.dom_track = dom.getElementsByTagName('track')[0]
+        self.dom_extensions = dom.getElementsByTagName('extensions')[0]
         self.experiment_type = get_experiment_type_from_config_settings(dom_settings)
         self.experiment_name = os.path.basename(config_filename).split('.')[0]
 
@@ -111,7 +112,7 @@ class Main(PrintObject, LogObject):
         '''
 
         # Load Extensions defined in configs
-        Extension.load(self, self.config.dom)
+        Extension.load(self, self.config, self.config.dom_extensions)
 
         # Some modules depend on other modules to initialize
         # Use pre_init, init, and post_init for crude separation

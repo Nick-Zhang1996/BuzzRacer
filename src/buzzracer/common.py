@@ -224,4 +224,4 @@ def set_config_attr(config_minidom, config):
         except NameError:
             value = value_text
         setattr(config, key, value)
-        return config
+    return config

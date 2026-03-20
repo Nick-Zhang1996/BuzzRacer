@@ -1,15 +1,47 @@
 ''' Base class for extensions'''
-from buzzracer.common import PrintObject, Config
+from __future__ import annotations
+from typing import TYPE_CHECKING
+import logging
+
+from buzzracer.common import PrintObject, Config, set_config_attr
 from buzzracer.utilities.execution_timer import ExecutionTimer
+
+if TYPE_CHECKING:
+    from buzzracer.main import MainConfig
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+
+class ExtensionConfig:
+    """ Base class for Extension Config.
+    Subclasses can inherit this class and register the subclass in Extension.register"""
+
+    def __init__(self, main_config):
+        del main_config
+        self.name = ''
+        """ Name of this extension module (e.g. visualization, simulator)"""
+
+
+class ExtensionState:
+    """ Base class for Extension State.
+    Subclasses can inherit this class and register the subclass in Extension.register"""
+
+    def __init__(self, config: ExtensionState):
+        pass
 
 
 class Extension(PrintObject):
     ''' Base class for extensions'''
+    registry = {}
+    config_registry = {}
+    state_registry = {}
+    handle_name_registry = {}
+
     extensions = []
 
-    def __init__(self, handle_name):
+    def __init__(self):
         super().__init__()
-        self.name = handle_name
         Extension.extensions.append(self)
 
     # optional initialization
@@ -41,37 +73,46 @@ class Extension(PrintObject):
         pass
 
     @classmethod
-    def load(cls, main, config: Config):
+    def load(cls, main, main_config: MainConfig, config_minidom: Config):
         ''' Instantiate extensions as defined in config, set each extension 
-        to an attribute of main with extension.name as attribute name,
+        to an attribute of main with extension.config.name as attribute name,
         then set attributes of the extension as defined in config.'''
         Extension.main = main
         cls.print_ok('setting up extensions...')
-        config_extensions = config.getElementsByTagName('extensions')[0]
-        for config_extension in config_extensions.getElementsByTagName(
-                'extension'):
-            extension_class_name = config_extension.firstChild.nodeValue
-            try:
-                # pylint: disable-next=exec-used
-                exec(f'from buzzracer.extensions import {extension_class_name}')
-            except ImportError:
-                cls.print_error(f'Cannot import {extension_class_name}')
-                raise
+        for config_extension in config_minidom.getElementsByTagName('extension'):
+            name = config_extension.firstChild.nodeValue  # Extension class name
+            obj, obj_config, _ = Extension.factory(name, main_config, config_minidom)
+            # e.g. main.visualization = Visualization
+            # The name of an object is set at registration, it is set as the attribute of Main
+            setattr(main, obj_config.name, obj)
 
-            ext = eval(extension_class_name)()
-            cls.print_info(f'Loading {extension_class_name}')
-            setattr(main, ext.name, ext)
-            for key, raw in config_extension.attributes.items():
-                # try to parse the config as python statement, if fails
-                # then interpret as string
-                try:
-                    value = eval(raw)
-                except (NameError, SyntaxError):
-                    value = raw
-                # all other attributes in config will be added to extension
-                setattr(ext, key, value)
-                cls.print_info('main.' + ext.name + '.' + key + ' = ' +
-                               str(value))
+    @staticmethod
+    def register(handle_name, config_cls, state_cls):
+        """Decorator to add a controller class to the registry."""
+        def wrapper(cls):
+            name = cls.__name__
+            Extension.registry[name] = cls
+            Extension.config_registry[name] = config_cls
+            Extension.state_registry[name] = state_cls
+            Extension.handle_name_registry[name] = handle_name
+            print(f'registered {name}')
+            return cls
+        return wrapper
+
+    @staticmethod
+    def factory(name, main_config, config_minidom):
+        obj_cls = Extension.registry[name]
+        config_cls = Extension.config_registry[name]
+        state_cls = Extension.state_registry[name]
+        handle_name = Extension.handle_name_registry[name]
+        config = config_cls(main_config)
+        config = set_config_attr(config_minidom, config)
+        state = state_cls(config)
+        obj = obj_cls()
+        obj.config = config
+        obj.state = state
+        setattr(config, 'name', handle_name)
+        return (obj, config, state)
 
     @classmethod
     def pre_init_all(cls):
@@ -92,9 +133,9 @@ class Extension(PrintObject):
     def pre_update_all(cls, t: ExecutionTimer = None):
         if isinstance(t, ExecutionTimer):
             for extension in Extension.extensions:
-                t.s(extension.name)
+                t.s(extension.config.name)
                 extension.pre_update()
-                t.e(extension.name)
+                t.e(extension.config.name)
         else:
             for extension in Extension.extensions:
                 extension.pre_update()
@@ -103,9 +144,9 @@ class Extension(PrintObject):
     def update_all(cls, t: ExecutionTimer = None):
         if isinstance(t, ExecutionTimer):
             for extension in Extension.extensions:
-                t.s(extension.name)
+                t.s(extension.config.name)
                 extension.update()
-                t.e(extension.name)
+                t.e(extension.config.name)
         else:
             for extension in Extension.extensions:
                 extension.update()
@@ -114,9 +155,9 @@ class Extension(PrintObject):
     def post_update_all(cls, t: ExecutionTimer = None):
         if isinstance(t, ExecutionTimer):
             for extension in Extension.extensions:
-                t.s(extension.name)
+                t.s(extension.config.name)
                 extension.post_update()
-                t.e(extension.name)
+                t.e(extension.config.name)
         else:
             for extension in Extension.extensions:
                 extension.post_update()

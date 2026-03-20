@@ -12,16 +12,17 @@ import pickle
 import numpy as np
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
 
+@Extension.register('laptimer', ExtensionConfig, ExtensionState)
 class Laptimer(Extension):
     ''' Laptimer for simulation and experiments.'''
 
     def __init__(self):
-        Extension.__init__(self, 'laptimer')
+        Extension.__init__(self)
         self.text_logger.setLevel(logging.WARNING)
 
         cars = self.main.cars

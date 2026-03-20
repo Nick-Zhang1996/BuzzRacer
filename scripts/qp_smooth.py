@@ -16,7 +16,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 from buzzracer.common import print_ok, print_info, print_error, BASEDIR
-from buzzracer.tracks.rcp_track import RCPTrackRaceline
+from buzzracer.tracks.rcp_track import RCPTrackRaceline, RCPTrack
 from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.tracks.track import Track
@@ -758,13 +758,16 @@ if __name__ == '__main__':
     track.save()
 
     # verify results: load and show
-    load_track = TrackFactory.build('saved')
+    load_track: RCPTrack = TrackFactory.build('saved')
     print('-----------------')
     print_info('testing loading')
     load_track.load()
-    img_track = load_track.draw_track()
+    img = load_track.draw_track()
     rl = load_track.rcp_raceline
-    img_track = load_track.draw_raceline(rl.raceline_s, rl.raceline_len_m, img=img_track)
-    img_track = cv2.cvtColor(img_track, cv2.COLOR_BGR2RGB)
-    plt.imshow(img_track)
+    img = load_track.draw_raceline(rl.raceline_s, rl.raceline_len_m, img=img)
+    data = load_track.data
+    img = load_track.draw_polyline(data.left_boundary_vec, img=img)
+    img = load_track.draw_polyline(data.right_boundary_vec, img=img)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    plt.imshow(img)
     plt.show()
