@@ -27,8 +27,8 @@ class GameTheoreticPlannerState(ExtensionState):
 @Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
 class GameTheoreticPlanner(Extension):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config, state):
+        super().__init__(config, state)
         Extension.extensions.append(self)
         self.state: GameTheoreticPlannerState
         self.config: GameTheoreticPlannerConfig

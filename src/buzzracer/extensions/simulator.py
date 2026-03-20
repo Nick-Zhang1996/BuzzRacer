@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from buzzracer.common import ExperimentType
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, CurvilinearState, Control
 if TYPE_CHECKING:
@@ -22,23 +22,11 @@ class NoiseType(Enum):
     IMPULSE = 3
 
 
-class Simulator(Extension, ABC):
-    '''
-    Base class for simulators
-
-    car.state = CartesianState(x,y,heading,v_forward,v_sideway,omega)
-    however simulator can establish a property car.sim_state
-    that use different state representation for simulation
-    '''
-    state_type: type[CartesianState] | type[CurvilinearState] = CartesianState
-    ''' State type used by this simulator, default cartesian'''
-
-    def __init__(self):
-        super().__init__()
-        # self.print_debug_enable()
+class SimulatorConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
-        self.print_info('match_time: ' + str(self.match_time))
         self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
         ''' Dynamics model to use for simulation, must be overridden in config
         possible values: KinematicBicycleModelFrenet, DynamicBicycleModelCartesian, etc.'''
@@ -50,6 +38,22 @@ class Simulator(Extension, ABC):
         ''' Type of noise to add '''
         self.impulse_state_noise_probability: float = None
         ''' Probability of the impulse state noise being added,(0,1), only used for impulse noise'''
+
+
+class Simulator(Extension, ABC):
+    '''
+    Base class for simulators
+
+    car.state = CartesianState(x,y,heading,v_forward,v_sideway,omega)
+    however simulator can establish a property car.sim_state
+    that use different state representation for simulation
+    '''
+    state_type: type[CartesianState] | type[CurvilinearState] = CartesianState
+    ''' State type used by this simulator, default cartesian'''
+
+    def __init__(self, config, state):
+        super().__init__(config, state)
+        self.config: SimulatorConfig
         self.cars: list[Car] = []
         ''' List of all cars using this simulator. This may be a subset of main.cars'''
 
@@ -69,20 +73,19 @@ class Simulator(Extension, ABC):
             self.print_error(
                 'Experiment type is not Simulation but a Simulator is loaded')
 
-        if self.state_noise_enabled:
-            assert self.state_noise_type is not None
-            assert self.state_noise_magnitude is not None
+        if self.config.state_noise_enabled:
+            assert self.config.state_noise_type is not None
+            assert self.config.state_noise_magnitude is not None
             self.state_noise_magnitude = np.array(self.state_noise_magnitude)
             noise_type_to_fun = {NoiseType.UNIFORM: self.add_state_noise_uniform,
                                  NoiseType.NORMAL: self.add_state_noise_normal,
                                  NoiseType.IMPULSE: self.add_state_noise_impulse}
-            self.add_state_noise = noise_type_to_fun[self.state_noise_type]
+            self.add_state_noise = noise_type_to_fun[self.config.state_noise_type]
 
     def add_car(self, car):
         """register a car to use this simulation. """
         self.cars.append(car)
 
-    # TODO use Replay.VehicleDynamics
     @staticmethod
     @abstractmethod
     def advance_dynamics(state: CurvilinearState | CartesianState,
@@ -118,8 +121,8 @@ class Simulator(Extension, ABC):
                     car.sim_state, control, car, self.main.dt, curvature)
                 car.state = self.main.track.curv_to_cart(car.sim_state)
 
-        if self.state_noise_enabled:
-            self.addStateNoise()
+        if self.config.state_noise_enabled:
+            self.add_state_noise()
         self.main.new_state_update.set()
         self.sim_t += self.main.config.dt
         self.match_real_time()
@@ -127,7 +130,7 @@ class Simulator(Extension, ABC):
     def match_real_time(self):
         """Sleep to match simulation time to clock time only works when then
         entire simulation loop runs faster than realtime."""
-        if not self.match_time:
+        if not self.config.match_time:
             return
         if self.t0 is None:
             self.t0 = time()
@@ -153,5 +156,5 @@ class Simulator(Extension, ABC):
     def add_state_noise_impulse(self):
         for car in self.cars:
             val = np.random.uniform()
-            if val < self.impulse_state_noise_probability:
+            if val < self.config.impulse_state_noise_probability:
                 car.state += self.state_noise_magnitude * self.main.dt

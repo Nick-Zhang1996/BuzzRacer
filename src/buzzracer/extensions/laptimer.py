@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 class Laptimer(Extension):
     ''' Laptimer for simulation and experiments.'''
 
-    def __init__(self):
-        Extension.__init__(self)
+    def __init__(self, config, state):
+        Extension.__init__(self, config, state)
         self.text_logger.setLevel(logging.WARNING)
 
         cars = self.main.cars

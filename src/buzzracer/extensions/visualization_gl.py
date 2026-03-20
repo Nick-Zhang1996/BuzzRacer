@@ -32,8 +32,8 @@ if TYPE_CHECKING:
 
 @Extension.register('visualization', ExtensionConfig, ExtensionState)
 class VisualizationGL(Extension):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.t = ExecutionTimer(False)
         self.update_visualization = Event()
         self.car_graphics = False

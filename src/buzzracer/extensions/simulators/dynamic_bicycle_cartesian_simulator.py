@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from buzzracer.types import CartesianState, Control
-from buzzracer.extensions.simulator import Simulator
-from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
+from buzzracer.extensions.simulator import Simulator, SimulatorConfig
+from buzzracer.extensions.extension import Extension, ExtensionState
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
 
-@Extension.register('simulator', ExtensionConfig, ExtensionState)
+@Extension.register('simulator', SimulatorConfig, ExtensionState)
 class DynamicBicycleCartesianSimulator(Simulator):
     ''' Simulator for an Ackermann steering vehicle with dynamic bicycle model'''
     max_v = 3.0

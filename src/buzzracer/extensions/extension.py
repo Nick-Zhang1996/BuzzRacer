@@ -40,8 +40,10 @@ class Extension(PrintObject):
 
     extensions = []
 
-    def __init__(self):
+    def __init__(self, config: ExtensionConfig, state: ExtensionState):
         super().__init__()
+        self.config = config
+        self.state = state
         Extension.extensions.append(self)
 
     # optional initialization
@@ -82,8 +84,8 @@ class Extension(PrintObject):
         for config_extension in config_minidom.getElementsByTagName('extension'):
             name = config_extension.firstChild.nodeValue  # Extension class name
             obj, obj_config, _ = Extension.factory(name, main_config, config_minidom)
-            # e.g. main.visualization = Visualization
             # The name of an object is set at registration, it is set as the attribute of Main
+            # e.g. main.visualization = Visualization
             setattr(main, obj_config.name, obj)
 
     @staticmethod
@@ -107,11 +109,9 @@ class Extension(PrintObject):
         handle_name = Extension.handle_name_registry[name]
         config = config_cls(main_config)
         config = set_config_attr(config_minidom, config)
-        state = state_cls(config)
-        obj = obj_cls()
-        obj.config = config
-        obj.state = state
         setattr(config, 'name', handle_name)
+        state = state_cls(config)
+        obj = obj_cls(config, state)
         return (obj, config, state)
 
     @classmethod
