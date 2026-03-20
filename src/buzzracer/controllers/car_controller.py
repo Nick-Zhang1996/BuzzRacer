@@ -7,8 +7,8 @@ from time import time
 from buzzracer.common import LogObject, set_config_attr
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
-    from buzzracer.scripts.run import MainState
-    from buzzracer.cars.car import CarParam
+    from buzzracer.main import MainState
+    from buzzracer.cars.car_param import CarParam
     from buzzracer.tracks.track import Track
 
 logger = logging.getLogger(__name__)
