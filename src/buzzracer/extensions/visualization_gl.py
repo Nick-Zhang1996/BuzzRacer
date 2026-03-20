@@ -30,7 +30,13 @@ if TYPE_CHECKING:
     from buzzracer.tracks.track import Track
 
 
-@Extension.register('visualization', ExtensionConfig, ExtensionState)
+class VisualizationGLConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.show_car_info = False
+
+
+@Extension.register('visualization', VisualizationGLConfig, ExtensionState)
 class VisualizationGL(Extension):
     def __init__(self, config, state):
         super().__init__(config, state)

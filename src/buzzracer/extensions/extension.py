@@ -21,6 +21,8 @@ class ExtensionConfig:
         del main_config
         self.name = ''
         """ Name of this extension module (e.g. visualization, simulator)"""
+        self.handle = ''
+        """ [Deprecated] Duplicate of name, for backward compatiblility. """
 
 
 class ExtensionState:
@@ -83,7 +85,7 @@ class Extension(PrintObject):
         cls.print_ok('setting up extensions...')
         for config_extension in config_minidom.getElementsByTagName('extension'):
             name = config_extension.firstChild.nodeValue  # Extension class name
-            obj, obj_config, _ = Extension.factory(name, main_config, config_minidom)
+            obj, obj_config, _ = Extension.factory(name, main_config, config_extension)
             # The name of an object is set at registration, it is set as the attribute of Main
             # e.g. main.visualization = Visualization
             setattr(main, obj_config.name, obj)
