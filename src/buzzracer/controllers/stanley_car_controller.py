@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from math import isnan, pi, sin, cos
 
 from buzzracer.types import CartesianState, Control
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.car_controller import CarController, CarControllerConfig, CarControllerState
 from buzzracer.controllers.pid_controller import PidController
 if TYPE_CHECKING:
     from buzzracer.cars.car_param import CarParam
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from buzzracer.tracks.track import Track
 
 
-class StanleyCarControllerState:
+class StanleyCarControllerState(CarControllerState):
     """ State class, pickleable, contains states that need to be preserved between iterations"""
 
     def __init__(self, config):
@@ -31,10 +31,10 @@ class StanleyCarControllerState:
         self.predicted_traj = []
 
 
-class StanleyCarControllerConfig:
+class StanleyCarControllerConfig(CarControllerConfig):
     """ Config class, read-only"""
 
-    def __init__(self, main_config):
+    def __init__(self, main_config: MainConfig, car_param: CarParam):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
