@@ -334,19 +334,21 @@ class Car(PrintObject, LogObject):
         config_name = config_minidom.getElementsByTagName(
             'config_name')[0].firstChild.nodeValue
 
-        controller, controller_config, controller_state = CarController.factory(
-            controller_class_text, Car.main.config, config_controller)
-
         car = car_cls()
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
         car.state = CartesianState(
             x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
 
-        car.param = eval(f'CarConfig.{config_name}.value')
+        car.param = getattr(CarConfig, config_name).value
+
+        controller, controller_config, controller_state = CarController.factory(
+            controller_class_text, Car.main.config, car.param, config_controller)
 
         if not controller is None:
             car.controller = controller
+        else:
+            _logger.warning('No controller for %s', config_name)
 
         car.id = Car.car_count
         Car.cars.append(car)

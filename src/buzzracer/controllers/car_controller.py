@@ -7,12 +7,42 @@ from time import time
 from buzzracer.common import LogObject, set_config_attr
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
-    from buzzracer.scripts.run import MainState
+    from buzzracer.main import MainState, MainConfig
     from buzzracer.cars.car import CarParam
     from buzzracer.tracks.track import Track
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+class CarControllerConfig:
+    """ Base class for Car Controller Config.
+    Declares and stores all non-mutable configuration parameters.
+    CarController.factory will create an instance of this class, 
+    set all attribtues in config xml to the instance, then set it as controller.config
+    If an attribute is missing from declaration in __init__, it will not be configurable
+    in config xml. This avoids misspelt parameters.
+    Car Controller subclasses should subclass and add new configs. 
+    """
+
+    def __init__(self, main_config: MainConfig, car_param: CarParam):
+        pass
+
+
+class CarControllerState:
+    """ Base class for Car Controller State.
+    Declares and stores all mutable state variables for a controller.
+    CarController.factory will create an instance of this class, then set it to controller.state
+    Car Controller subclasses should subclass and add new states. 
+    The main purpose of this class is to separate the implementation and mutable data.
+    To support multi-process operation, the controller state will be moved between processes. 
+    Encapsulating the mutable states avoids unnecessary copying.
+    Controller intended for multiprocess operation should define a static function control()
+    that depends on State instance, but not self.
+    """
+
+    def __init__(self, config: CarControllerConfig):
+        pass
 
 
 class CarController(LogObject):
@@ -33,11 +63,18 @@ class CarController(LogObject):
         return wrapper
 
     @staticmethod
-    def factory(name, main_config, config_minidom):
+    def factory(name, main_config: MainConfig, car_param: CarParam, config_minidom):
+        """ Create CarController instance, corresponding Config, and State instance.
+        Args:
+            main: Class name of the controller
+            car_param: car parameters,
+            config_minidom: Minidom object for controller config.
+        Returns:
+            (controller, config, state)"""
         controller_cls = CarController.registry[name]
         config_cls = CarController.config_registry[name]
         state_cls = CarController.state_registry[name]
-        config = config_cls(main_config)
+        config = config_cls(main_config, car_param)
         config = set_config_attr(config_minidom, config)
         state = state_cls(config)
         controller = controller_cls()
