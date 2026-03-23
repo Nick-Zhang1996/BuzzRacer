@@ -5,18 +5,15 @@ import os.path
 import pickle
 import logging
 from math import cos, sin
-from typing import NamedTuple, TYPE_CHECKING, Callable
+from typing import NamedTuple, TYPE_CHECKING
 from dataclasses import dataclass
-from deprecated import deprecated
 
 import cv2
 import numpy as np
-from scipy.interpolate import splev, splprep, interp1d
-from scipy.optimize import minimize
+from scipy.interpolate import splev, splprep
 import matplotlib.pyplot as plt
 
-from buzzracer.common import wrap, BASEDIR
-from buzzracer.types import CurvilinearState, CartesianState
+from buzzracer.common import BASEDIR
 
 if TYPE_CHECKING:
     from buzzracer.tracks.curvilinear_track import CurvilinearTrackData
@@ -307,84 +304,6 @@ class Track:
             plt.imshow(img)
             plt.show()
         return retval
-
-    def cart_to_curv(self, cart: CartesianState, guess_s: float = None) -> CurvilinearState:
-        """Transform cartesian states to curvilinear states, relies on
-        self.raceline_s.
-
-        Args:
-            cart: Cartesian state
-            guess_s: estimated s (progress along ref curve)
-        Returns:
-            curv: curvilinear state
-
-        """
-        data = self.data
-
-        def dist(s):
-            val = np.linalg.norm(
-                np.array(splev(s % data.raceline_len_m,
-                         data.raceline_s)).flatten()
-                - np.array([cart.x, cart.y])
-            )
-            return val
-
-        if guess_s is None:
-            # initial guess to avoid local minima
-            xx = np.linspace(0.0, data.raceline_len_m, 100)
-            yy = [dist(x) for x in xx]
-            guess_s = xx[np.argmin(yy)]
-            ds = 2*data.raceline_len_m/100
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
-                           bounds=((guess_s-ds, guess_s+ds),))
-        else:
-            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
-                           bounds=((guess_s-0.2, guess_s+0.2),))
-
-        s = fit.x[0]
-
-        r = np.array(splev(s % data.raceline_len_m,
-                     data.raceline_s, der=0))
-        dr = np.array(splev(s % data.raceline_len_m,
-                      data.raceline_s, der=1))
-        dr = dr/np.linalg.norm(dr)
-        n = np.cross(dr, np.array([cart.x, cart.y]) - r)
-        phi = wrap(cart.heading - np.arctan2(dr[1], dr[0]))
-        return CurvilinearState(progress=s,
-                                lateral_err=n,
-                                heading_err=phi,
-                                v_forward=cart.v_forward,
-                                v_sideway=cart.v_sideway,
-                                rel_omega=cart.omega)
-
-    def curv_to_cart(self, curv: CurvilinearState) -> CartesianState:
-        """Transform curvilinear state to cartesian state. 
-        Need self.data.raceline_s.
-
-        Args:
-            curv: Curvilinear state
-        Returns:
-            cart: Transformed cartesian state
-
-        """
-        data = self.data
-        r = np.array(splev(curv.progress % data.raceline_len_m,
-                     data.raceline_s, der=0))
-        dr = np.array(splev(curv.progress % data.raceline_len_m,
-                      data.raceline_s, der=1))
-        dr = dr/np.linalg.norm(dr)
-
-        # ccw 90 deg
-        A = np.array([[0, -1], [1, 0]])
-        x, y = r + (A @ dr)*curv.lateral_err
-        ref_heading = np.arctan2(dr[1], dr[0])
-        heading = wrap(curv.heading_err + ref_heading)
-        return CartesianState(x=x,
-                              y=y,
-                              heading=heading,
-                              v_forward=curv.v_forward,
-                              v_sideway=curv.v_sideway,
-                              omega=curv.rel_omega)
 
     @staticmethod
     def reparam_raceline(raceline, bound):

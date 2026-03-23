@@ -7,6 +7,7 @@ import numpy as np
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
 from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig
 
+from buzzracer.types import CartesianState
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 if TYPE_CHECKING:
@@ -90,35 +91,51 @@ class GameTheoreticPlanner(Extension):
         solver = RD3GCasadi(solver_config, game, cpp_only=False)
         solver.init_cpp_backend()
 
-        self.solver = solver
+        self.state.solver = solver
 
     def init(self):
         # Load game theoretic solver
         self.cars = Extension.main.cars
         if self.config.multiprocess:
             pass
+        else:
+            pass
 
     def update(self):
-        state = self.state
-        solver = self.solver
+        if self.config.multiprocess:
+            pass
+        else:
+            GameTheoreticPlanner.update_fun(
+                self.state, self.main.state, self.main.track, self.config)
 
-        raw = self.main.state.car_states
-        # (N,n)
-        np_view = np.frombuffer(raw, dtype=np.float64).reshape(-1, 6)
+    @staticmethod
+    def update_fun(state, main_state, track, config):
+        t = Extension.main.timer
+        solver = state.solver
+        default = CarRacingCasadiConfig
+        N = config.car_count
+
+        t.s('cart 2 curv')
+        cart_states = (CartesianState * N).from_buffer(main_state.car_states)
+        curv_states = np.empty((default.n, N), dtype=float, order='F')
+        for i in range(N):
+            curv_states[:, i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
         # (n,N)
-        car_states = np_view.T.copy(order='F')
+        t.e('cart 2 curv')
 
         # Initial conditions for all cars
         # Initial guess for control sequence
         # From previous step
         # Stitch with stanley controller
         # Send to solver
-        x0 = car_states
+        x0 = curv_states
         default = CarRacingCasadiConfig
-        solver.guess = np.zeros((default.m, default.N, default.T), order='F')
+        solver.guess = np.zeros((default.m, N, default.T), order='F')
         solver.x0 = x0
         CarRacingCasadiConfig.x0 = x0
-        u_ref = np.zeros((default.m*default.N, default.T), order='F')
+        u_ref = np.zeros((default.m*N, default.T), order='F')
+        print(x0)
+        return
         sol = solver.solve_cpp_backend(u_ref)
         print(f'{sol.elapsed_time}, {sol.residual=}')
         # Stitch solution to previous traj (state, control)

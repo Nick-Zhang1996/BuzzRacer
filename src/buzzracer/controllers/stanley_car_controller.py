@@ -8,7 +8,7 @@ from buzzracer.controllers.car_controller import CarController, CarControllerCon
 from buzzracer.controllers.pid_controller import PidController
 if TYPE_CHECKING:
     from buzzracer.cars.car_param import CarParam
-    from buzzracer.main import MainState
+    from buzzracer.main import MainState, MainConfig
     from buzzracer.tracks.track import Track
 
 

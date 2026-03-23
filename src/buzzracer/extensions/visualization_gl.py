@@ -11,6 +11,7 @@ from math import degrees, sin, cos, radians
 import pickle
 from threading import Event, Thread
 from functools import lru_cache
+from time import sleep
 
 import moderngl
 from moderngl import Texture
@@ -82,6 +83,7 @@ class VisualizationGL(Extension):
         self.moderngl_thread = Thread(
             target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
+        sleep(2)
 
     def post_update(self):
         self.polylines = self.new_polylines

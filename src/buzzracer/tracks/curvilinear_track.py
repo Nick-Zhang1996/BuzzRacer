@@ -1,13 +1,22 @@
 """ a track defined by a spline """
 # pylint: disable=unbalanced-tuple-unpacking
 from dataclasses import dataclass
+from math import sin, cos
 
 import numpy as np
-import matplotlib.pyplot as plt
+from deprecated import deprecated
 from scipy.interpolate import splprep, splev
+from scipy.optimize import minimize
+from scipy.spatial import KDTree
 
+from buzzracer.common import wrap
+from buzzracer.types import CurvilinearState, CartesianState
 from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
-from buzzracer.types import CartesianState
+
+
+def map(val, x, y, a, b):
+    """ Map val from [x,y] to [a,b]"""
+    return (val-x) / (y-x) * (b-a) + a
 
 
 @dataclass
@@ -20,6 +29,7 @@ class CurvilinearTrackData:
     right_width_vec: np.ndarray  # (N,) Distance to right boundary
     speed_vec: np.ndarray  # (N,) Target speed
     discretized_raceline: np.ndarray  # (N,5), [x,y, heading, left width, right width]
+    kd_tree: KDTree  # KD tree of raceline points, for converting cartesian -> curvilinear coordinate
 
     raceline_len_m: float   # Total curve length in m
     raceline_s: Tck  # splprep result, maps ss -> r
@@ -181,6 +191,9 @@ class CurvilinearTrack(Track):
 
         speed_vec = np.array(splev(ss, spd_profile.speed_tck, der=0)).flatten()
 
+        # KD tree for finding closest point on raceline
+        kd_tree = KDTree(r_vec.T)
+
         return CurvilinearTrackData(
             r_vec=r_vec.T,
             s_vec=np.array(s_vec),
@@ -190,6 +203,7 @@ class CurvilinearTrack(Track):
             right_width_vec=right_width,
             speed_vec=speed_vec,
             discretized_raceline=discretized_raceline,
+            kd_tree=kd_tree,
 
             raceline_len_m=raceline_len_m,
             raceline_s=raceline_s,
@@ -237,3 +251,116 @@ class CurvilinearTrack(Track):
         state = CartesianState(coord[0], coord[1])
         retval = self.local_trajectory(state)
         return (retval.left_margin, retval.right_margin)
+
+    def cart_to_curv(self, cart: CartesianState) -> CurvilinearState:
+        """Transform cartesian states to curvilinear states, relies on
+        self.raceline_s.
+
+        Args:
+            cart: Cartesian state
+            guess_s: estimated s (progress along ref curve)
+        Returns:
+            curv: curvilinear state
+
+        """
+        data: CurvilinearTrackData = self.data
+        _, idx = data.kd_tree.query([cart.x, cart.y])
+        N = len(data.s_vec)
+        rs = data.s_vec[idx]
+        rphi = data.phi_vec[idx]
+        dx = cart.x - data.r_vec[idx, 0]
+        dy = cart.y - data.r_vec[idx, 1]
+
+        ds = dx * cos(rphi) + dy * sin(rphi)  # dot(displacement, curve tangent)
+        n = cos(rphi) * dy - sin(rphi)*dx
+        s_step = (data.s_vec[(idx+1) % N] - rs) % data.raceline_len_m  # handle wrap around
+        phi_step = (data.phi_vec[(idx+1) % N] - rphi + np.pi) % (2*np.pi) - np.pi  # wrap
+
+        phi = map(ds, 0, s_step, rphi, rphi+phi_step)
+
+        # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway
+        return CurvilinearState(progress=rs+ds,
+                                lateral_err=n,
+                                heading_err=phi,
+                                v_forward=cart.v_forward,
+                                v_sideway=cart.v_sideway,
+                                rel_omega=cart.omega)
+
+    @deprecated
+    def old_cart_to_curv(self, cart: CartesianState, guess_s: float = None) -> CurvilinearState:
+        """Transform cartesian states to curvilinear states, relies on
+        self.raceline_s.
+
+        Args:
+            cart: Cartesian state
+            guess_s: estimated s (progress along ref curve)
+        Returns:
+            curv: curvilinear state
+
+        """
+        data = self.data
+
+        def dist(s):
+            val = np.linalg.norm(
+                np.array(splev(s % data.raceline_len_m,
+                         data.raceline_s)).flatten()
+                - np.array([cart.x, cart.y])
+            )
+            return val
+
+        if guess_s is None:
+            # initial guess to avoid local minima
+            xx = np.linspace(0.0, data.raceline_len_m, 100)
+            yy = [dist(x) for x in xx]
+            guess_s = xx[np.argmin(yy)]
+            ds = 2*data.raceline_len_m/100
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-ds, guess_s+ds),), tol=1e-3)
+        else:
+            fit = minimize(dist, x0=guess_s, method='L-BFGS-B',
+                           bounds=((guess_s-0.2, guess_s+0.2),), tol=1e-3)
+
+        s = fit.x[0]
+
+        r = np.array(splev(s % data.raceline_len_m,
+                     data.raceline_s, der=0))
+        dr = np.array(splev(s % data.raceline_len_m,
+                      data.raceline_s, der=1))
+        dr = dr/np.linalg.norm(dr)
+        n = np.cross(dr, np.array([cart.x, cart.y]) - r)
+        phi = wrap(cart.heading - np.arctan2(dr[1], dr[0]))
+        return CurvilinearState(progress=s,
+                                lateral_err=n,
+                                heading_err=phi,
+                                v_forward=cart.v_forward,
+                                v_sideway=cart.v_sideway,
+                                rel_omega=cart.omega)
+
+    def curv_to_cart(self, curv: CurvilinearState) -> CartesianState:
+        """Transform curvilinear state to cartesian state. 
+        Need self.data.raceline_s.
+
+        Args:
+            curv: Curvilinear state
+        Returns:
+            cart: Transformed cartesian state
+
+        """
+        data = self.data
+        r = np.array(splev(curv.progress % data.raceline_len_m,
+                     data.raceline_s, der=0))
+        dr = np.array(splev(curv.progress % data.raceline_len_m,
+                      data.raceline_s, der=1))
+        dr = dr/np.linalg.norm(dr)
+
+        # ccw 90 deg
+        A = np.array([[0, -1], [1, 0]])
+        x, y = r + (A @ dr)*curv.lateral_err
+        ref_heading = np.arctan2(dr[1], dr[0])
+        heading = wrap(curv.heading_err + ref_heading)
+        return CartesianState(x=x,
+                              y=y,
+                              heading=heading,
+                              v_forward=curv.v_forward,
+                              v_sideway=curv.v_sideway,
+                              omega=curv.rel_omega)
