@@ -12,6 +12,24 @@ if TYPE_CHECKING:
     from buzzracer.tracks.track import Track
 
 
+class StanleyCarControllerConfig(CarControllerConfig):
+    """ Config class, read-only"""
+
+    def __init__(self, main_config: MainConfig, car_param: CarParam):
+        self.max_offset = 0.4
+        self.max_speed = 4.0
+        self.rear_end_gap = 0.2
+
+        p1 = (1.0, 2.0)
+        p2 = (4.0, 0.5)
+        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
+        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
+        self.dt = main_config.dt
+
+    def Pfun(self, v):
+        return max(min((self.Pfun_slope*v+self.Pfun_offset), 4.0), 0.5)/280*pi/0.01
+
+
 class StanleyCarControllerState(CarControllerState):
     """ State class, pickleable, contains states that need to be preserved between iterations"""
 
@@ -29,24 +47,6 @@ class StanleyCarControllerState(CarControllerState):
         self.v_override = None
         self.debug_dict = {}
         self.predicted_traj = []
-
-
-class StanleyCarControllerConfig(CarControllerConfig):
-    """ Config class, read-only"""
-
-    def __init__(self, main_config: MainConfig, car_param: CarParam):
-        self.max_offset = 0.4
-        self.max_speed = 4.0
-        self.rear_end_gap = 0.2
-
-        p1 = (1.0, 2.0)
-        p2 = (4.0, 0.5)
-        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
-        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
-        self.dt = main_config.dt
-
-    def Pfun(self, v):
-        return max(min((self.Pfun_slope*v+self.Pfun_offset), 4.0), 0.5)/280*pi/0.01
 
 
 @CarController.register(StanleyCarControllerConfig, StanleyCarControllerState)

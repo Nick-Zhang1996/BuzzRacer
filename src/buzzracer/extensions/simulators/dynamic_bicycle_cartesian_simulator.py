@@ -11,7 +11,7 @@ from buzzracer.extensions.extension import Extension, ExtensionState
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 if TYPE_CHECKING:
-    from buzzracer.cars.car import Car
+    from buzzracer.cars.car import Car, CarParam
 
 
 @Extension.register('simulator', SimulatorConfig, ExtensionState)
@@ -54,7 +54,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
     @staticmethod
     def advance_dynamics(state: CartesianState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
                          curvature: float = None) -> CartesianState:
         """advance dynamics by dt.
@@ -63,7 +63,7 @@ class DynamicBicycleCartesianSimulator(Simulator):
             state: state of the car, may be CartesianState or CurvilinearState
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
-            car: Car object, contains information about the car's kinematics, 
+            car_param: CarParam object, contains information about the car's kinematics, 
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
             curvature: unused, only for curvilinear
@@ -79,5 +79,6 @@ class DynamicBicycleCartesianSimulator(Simulator):
                                 omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
-        next_car_state = DynamicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
+        next_car_state = DynamicBicycleModelCartesian.advance_dynamics(
+            _state, _control, car_param, dt)
         return next_car_state

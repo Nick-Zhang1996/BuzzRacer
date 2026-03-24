@@ -7,7 +7,7 @@ from time import time
 from buzzracer.common import LogObject, set_config_attr
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
-    from buzzracer.main import MainState
+    from buzzracer.main import MainState, MainConfig
     from buzzracer.cars.car_param import CarParam
     from buzzracer.tracks.track import Track
 

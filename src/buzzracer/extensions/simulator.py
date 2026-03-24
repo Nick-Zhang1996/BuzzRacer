@@ -12,7 +12,7 @@ from buzzracer.extensions.extension import Extension, ExtensionConfig
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, CurvilinearState, Control
 if TYPE_CHECKING:
-    from buzzracer.cars.car import Car
+    from buzzracer.cars.car import Car, CarParam
 
 
 @unique
@@ -90,7 +90,7 @@ class Simulator(Extension, ABC):
     @abstractmethod
     def advance_dynamics(state: CurvilinearState | CartesianState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
                          curvature: float = None) -> CurvilinearState | CartesianState:
         """advance dynamics by dt.
@@ -99,7 +99,7 @@ class Simulator(Extension, ABC):
             state: state of the car, may be CartesianState or CurvilinearState
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1],
                     positive indicates acceleration
-            car: Car object, contains information about the car's kinematics,
+            car_param: CarParam object, contains information about the car's kinematics,
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
             curvature: signed curvature
@@ -113,12 +113,12 @@ class Simulator(Extension, ABC):
             if self.state_type == CartesianState:
                 # NOTE cartesian state is passed directly as a tuple for now
                 car.state = self.advance_dynamics(
-                    car.state, (car.steering, car.throttle), car, self.main.config.dt)
+                    car.state, (car.steering, car.throttle), car.param, self.main.config.dt)
             elif self.state_type == CurvilinearState:
                 control = Control(steering=car.steering, throttle=car.throttle)
                 curvature = self.main.track.curvature_s(car.sim_state.progress)
                 car.sim_state = self.advance_dynamics(
-                    car.sim_state, control, car, self.main.dt, curvature)
+                    car.sim_state, control, car.param, self.main.dt, curvature)
                 car.state = self.main.track.curv_to_cart(car.sim_state)
 
         if self.config.state_noise_enabled:
