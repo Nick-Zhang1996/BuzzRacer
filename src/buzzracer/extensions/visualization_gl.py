@@ -125,7 +125,7 @@ class VisualizationGL(Extension):
 
     # --- opencg draw function for building background ---
 
-    def draw_polyline(self, points, color: tuple[float, ...] = (0, 0, 1, 0)):
+    def draw_polyline(self, points, color: tuple[float, ...] = (0, 0, 1, 1)):
         ''' Draw a polyline from multiple points
         Args:
             points: Iterable of (x,y) in track space (unit: m)

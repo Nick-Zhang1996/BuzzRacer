@@ -2,12 +2,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from math import radians
+from dataclasses import replace
 
 import numpy as np
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
 from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig
 
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 if TYPE_CHECKING:
@@ -48,7 +49,6 @@ class GameTheoreticPlanner(Extension):
 
     def __init__(self, config, state):
         super().__init__(config, state)
-        Extension.extensions.append(self)
         self.state: GameTheoreticPlannerState
         self.config: GameTheoreticPlannerConfig
 
@@ -63,8 +63,8 @@ class GameTheoreticPlanner(Extension):
         J_R = np.eye(default.m) * 1.0
 
         # TODO resample if cars collide
-        s_vec = np.random.uniform(low=2.0, high=3.0, size=N)
-        v_vec = np.random.uniform(low=0.5, high=1.5, size=N)
+        s_vec = np.random.uniform(low=0.0, high=0.1, size=N)
+        v_vec = np.random.uniform(low=1.0, high=1.0, size=N)
         phi_vec = np.random.uniform(low=radians(-5), high=radians(5), size=N)
         n_vec = np.random.uniform(low=-0.1, high=0.1, size=N)
         vs_vec = np.zeros(N)
@@ -106,36 +106,55 @@ class GameTheoreticPlanner(Extension):
             pass
         else:
             GameTheoreticPlanner.update_fun(
-                self.state, self.main.state, self.main.track, self.config)
+                self.state, self.main.state, self.main.track, self.config, self.main.visualization)
 
     @staticmethod
-    def update_fun(state, main_state, track, config):
+    def update_fun(state, main_state, track, config, visualization):
         t = Extension.main.timer
         solver = state.solver
         default = CarRacingCasadiConfig
+        n = default.n
+        m = default.m
         N = config.car_count
+        T = config.horizon
 
         t.s('cart 2 curv')
         cart_states = (CartesianState * N).from_buffer(main_state.car_states)
-        curv_states = np.empty((default.n, N), dtype=float, order='F')
+        curv_states = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
             curv_states[:, i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
         # (n,N)
         t.e('cart 2 curv')
 
-        # Initial conditions for all cars
-        # Initial guess for control sequence
-        # From previous step
-        # Stitch with stanley controller
-        # Send to solver
         x0 = curv_states
         default = CarRacingCasadiConfig
-        solver.guess = np.zeros((default.m, N, default.T), order='F')
+        # NOTE not used
+        solver.guess = np.zeros((m, N, T), order='F')
+        # Initial conditions for all cars
         solver.x0 = x0
-        CarRacingCasadiConfig.x0 = x0
-        u_ref = np.zeros((default.m*N, default.T), order='F')
-        print(x0)
-        return
+        new_config = replace(solver.game.config, x0=x0)
+        solver.game.config = new_config
+        # TODO: Initial guess for control sequence
+        # From previous step
+        # Stitch with stanley controller
+        u_ref = np.zeros((m*N, T), order='F')
+
+        # Send to solver
         sol = solver.solve_cpp_backend(u_ref)
         print(f'{sol.elapsed_time}, {sol.residual=}')
+
+        # DEBUG: Visualize planned trajectory for all agents
+        # (n*N,T)
+        curv_trajs = sol.x.reshape((n, N, T), order='F')
+        cart_traj_k_i = []
+        for i in range(N):
+            cart_traj_k = []
+            for k in range(T):
+                curv_state = CurvilinearState(*curv_trajs[:, i, k])
+                cart_traj_k.append(track.curv_to_cart(curv_state))
+            cart_traj_k_i.append(cart_traj_k)
+        for i in range(N):
+            points = [(v.x, v.y) for v in cart_traj_k_i[i]]
+            visualization.draw_polyline(points)
+
         # Stitch solution to previous traj (state, control)

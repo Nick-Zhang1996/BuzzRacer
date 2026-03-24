@@ -85,7 +85,7 @@ class CurvilinearState(ctypes.Structure):
     ''' Longitudinal speed, forward positive '''
     v_sideway: float
     ''' Lateral speed, left positive '''
-    rel_omega: float
+    rel_omega: float = 0
     ''' Relative angular velocity w.r.t. desired on ref curve at current speed, ccw positive'''
 
     _fields_ = [

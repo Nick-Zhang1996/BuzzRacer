@@ -274,9 +274,11 @@ class CurvilinearTrack(Track):
         ds = dx * cos(rphi) + dy * sin(rphi)  # dot(displacement, curve tangent)
         n = cos(rphi) * dy - sin(rphi)*dx
         s_step = (data.s_vec[(idx+1) % N] - rs) % data.raceline_len_m  # handle wrap around
-        phi_step = (data.phi_vec[(idx+1) % N] - rphi + np.pi) % (2*np.pi) - np.pi  # wrap
+        phi_step = wrap(data.phi_vec[(idx+1) % N] - rphi)
 
-        phi = map(ds, 0, s_step, rphi, rphi+phi_step)
+        # Interpolated ref pi
+        precise_rphi = map(ds, 0, s_step, rphi, rphi+phi_step)
+        phi = wrap(cart.heading - precise_rphi)
 
         # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway
         return CurvilinearState(progress=rs+ds,
