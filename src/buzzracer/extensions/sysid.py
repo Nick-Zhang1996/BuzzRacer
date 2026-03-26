@@ -2,13 +2,10 @@
 
 import os
 import logging
-from time import time
 import pickle
-from enum import Enum
 
-import numpy as np
-from buzzracer.extensions.extension import Extension
 from buzzracer.common import BASEDIR
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -62,9 +59,10 @@ class StateMachine():
                     self.host.main.exit_request.set()
 
 
+@Extension.register('sysid', ExtensionConfig, ExtensionState)
 class SysId(Extension):
-    def __init__(self):
-        super().__init__(handle_name='sysid')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.sm = StateMachine(self, self.main)
 
     def update(self):

@@ -145,7 +145,7 @@ class Track:
 
         return img
 
-    def draw_polyline(self, points, img=None, lineColor=(0, 0, 255), thickness=3):
+    def draw_polyline(self, points, img=None, lineColor=(0, 0, 255, 255), thickness=3):
         ''' Draw a polynomial line defined in track space
             points: a list of coordinates in format (x,y)
         '''
@@ -153,7 +153,6 @@ class Track:
         if img is None:
             img = np.zeros([int(config.resolution*config.x_limit),
                            int(config.resolution*config.y_limit), 3], dtype='uint8')
-
         pts = [self.m2canvas(point) for point in points]
         for i in range(len(points)-1):
             p1 = np.array(pts[i])
@@ -163,7 +162,7 @@ class Track:
             img = cv2.line(img, tuple(p1), tuple(p2), color=lineColor, thickness=thickness)
         return img
 
-    def draw_trajectory(self, traj_points, img=None, lineColor=(0, 0, 255), thickness=3):
+    def draw_trajectory(self, traj_points, img=None, lineColor=(0, 0, 255, 255), thickness=3):
         return self.draw_polyline(traj_points[:, 1:3], img, lineColor, thickness)
 
     # draw ONE arrow, unit: meter, coord sys: dimensioned

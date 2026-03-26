@@ -6,12 +6,11 @@
   <track>saved</track>
 
   <extensions>
-      <extension handle='laptimer'>Laptimer</extension>
-      <extension handle='logger'>Logger</extension>
-      <extension handle='visualization'>VisualizationGL</extension>
-      <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
-      <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
-    <extension>Gifsaver</extension>
+      <extension>Laptimer</extension>
+      <extension>Logger</extension>
+      <extension>VisualizationGL</extension>
+      <extension match_time='True'>DynamicBicycleCartesianSimulator</extension>
+      <extension>SnapshotSaver</extension>
   </extensions>
 
   <cars>

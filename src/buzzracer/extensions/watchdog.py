@@ -2,16 +2,17 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
 
+@Extension.register('watchdog', ExtensionConfig, ExtensionState)
 class Watchdog(Extension):
     ''' Extension to terminate experiment if stuck or something goes wrong'''
 
-    def __init__(self):
-        Extension.__init__(self, handle_name='watchdog')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.triggered = False
         ''' A halting condition has been detected by Watchdog'''
         self.trigger_reason: str = ''
@@ -24,6 +25,7 @@ class Watchdog(Extension):
             x = car.state[0]
             y = car.state[1]
             vf = car.state[3]
+            laptimer = self.main.laptimer.laptimer_by_car[car]
 
             # if car is outside track, halt
             if (self.main.track.is_outside((x, y))):
@@ -37,17 +39,17 @@ class Watchdog(Extension):
                 msg.append('car stopped, terminating experiment')
 
             # if no new laps in a long time, halt
-            if (self.main.simulator.sim_t - car.laptimer.last_lap_ts > 20):
+            if (self.main.simulator.sim_t - laptimer.last_lap_ts > 20):
                 self.triggered = True
                 msg.append('No new laps detected for %.2f s, terminating experiment' %
-                           (car.laptimer.last_laptime))
+                           (laptimer.last_laptime))
 
             # if laptime is unreasonable, halt
-            if (car.laptimer.new_lap.is_set() and car.lap_count > 0):
-                if (car.laptimer.last_laptime < 2.0):
+            if (laptimer.new_lap.is_set() and car.lap_count > 0):
+                if (laptimer.last_laptime < 2.0):
                     self.triggered = True
                     msg.append('unreasonable laptime: %.2f, terminating experiment' %
-                               (car.laptimer.last_laptime))
+                               (laptimer.last_laptime))
 
         combined_msg = ' , and '.join(msg)
         self.print_warning(combined_msg)

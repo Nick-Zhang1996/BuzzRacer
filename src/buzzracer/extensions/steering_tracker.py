@@ -2,12 +2,15 @@
 
 import numpy as np
 
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('steering_tracker', ExtensionConfig, ExtensionState)
 class SteeringTracker(Extension):
-    def __init__(self):
-        Extension.__init__(self, 'steering_tracker')
+    """ Track the steering angle on miniz car"""
+
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.pos_vec = None
 
         self.vi = None

@@ -1,13 +1,14 @@
 ''' Track position tracking performance and control effort '''
 import numpy as np
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('performance_tracker', ExtensionConfig, ExtensionState)
 class PerformanceTracker(Extension):
     ''' Extension to track control effort and other performance metrics. '''
 
-    def __init__(self):
-        Extension.__init__(self, 'performance_tracker')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.car = self.main.cars[0]
         self.control_effort_vec = []
         self.terminal_cov = 0

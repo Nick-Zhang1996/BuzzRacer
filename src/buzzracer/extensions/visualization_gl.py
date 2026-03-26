@@ -96,8 +96,11 @@ class VisualizationGL(Extension):
 
     def get_current_frame(self) -> Image:
         try:
+            while len(_WindowConfig.frame_queue) > 1:
+                raw_pixels = _WindowConfig.frame_queue.get_nowait()
             raw_pixels = _WindowConfig.frame_queue.get_nowait()
             img = Image.frombytes('RGB', _WindowConfig.window_size, raw_pixels)
+            # pylint: disable-next=no-member
             return img.transpose(Image.FLIP_TOP_BOTTOM)
         except queue.Empty:
             return None
@@ -380,8 +383,10 @@ class _WindowConfig(moderngl_window.WindowConfig):
         track_dim_m = (track.config.x_limit, track.config.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
+        self.ctx.line_width = 3.0
         # In your render loop:
         vao.render(mode=moderngl.Context.LINE_STRIP, vertices=points.shape[0])
+        self.ctx.line_width = 1.0
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""

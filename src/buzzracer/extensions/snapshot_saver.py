@@ -6,14 +6,24 @@ import cv2
 import matplotlib.pyplot as plt
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+class SnapshotSaverConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.interval = 20
+        ''' Number of frames between snapshots '''
+
+
+@Extension.register('gif_saver', SnapshotSaverConfig, ExtensionState)
 class SnapshotSaver(Extension):
-    ''' Extension for saving consecutive multiple snapshots of car as multiple exposure photo'''
+    ''' Extension for saving consecutive multiple snapshots of car as multiple exposure photo.
+        Press "s" in visualization to start/stop snapshot sequence
+        '''
 
-    def __init__(self):
-        Extension.__init__(self, 'snapshot_saver')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.recording = Event()
         ''' Currently taking snapshot'''
 
@@ -22,8 +32,6 @@ class SnapshotSaver(Extension):
         ''' Elapsed time steps while taking snapshot, for counting keyframe'''
         self.snapshot_count = 0
         ''' Current number of shutter opening during this snapshot '''
-        self.interval = 20
-        ''' Number of frames between snapshots '''
         self.background = None
         ''' Background of track. '''
 
@@ -40,15 +48,17 @@ class SnapshotSaver(Extension):
         '''
         if self.recording.is_set():
             self.recording.clear()
+            self.main.visualization.save_frames.clear()
             self.print_info('snapshot stopping')
         else:
             self.recording.set()
+            self.main.visualization.save_frames.set()
             self.timestep = 0
             self.print_info('snapshot started')
 
     def post_update(self):
         # save a multiple exposure photo
-        if (self.recording.is_set() and self.timestep % self.interval == 0):
+        if (self.recording.is_set() and self.timestep % self.config.interval == 0):
             if self.img is None:
                 img = self.background.copy()
             else:

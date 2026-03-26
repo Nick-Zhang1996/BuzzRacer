@@ -99,7 +99,6 @@ class Extension(PrintObject):
             Extension.config_registry[name] = config_cls
             Extension.state_registry[name] = state_cls
             Extension.handle_name_registry[name] = handle_name
-            print(f'registered {name}')
             return cls
         return wrapper
 

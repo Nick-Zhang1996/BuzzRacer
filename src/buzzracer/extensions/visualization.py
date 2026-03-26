@@ -9,12 +9,20 @@ import pickle
 import cv2
 from PIL import Image
 import numpy as np
+import matplotlib.pyplot as plt
 
 from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
-@Extension.register('visualization', ExtensionConfig, ExtensionState)
+class VisualizationConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.car_graphics = True
+        ''' Use realistic cartoon image for car sprite, slower but prettier'''
+
+
+@Extension.register('visualization', VisualizationConfig, ExtensionState)
 class Visualization(Extension):
     def __init__(self, config, state):
         super().__init__(config, state)
@@ -23,8 +31,6 @@ class Visualization(Extension):
         self.frame_dt = 1.0/self.update_freq
         self.frame_dt = 0.0
         self.count = 0
-        self.car_graphics = False
-        ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.main.breakpoint = Event()
         self.visualization_ts: float = 0.0
@@ -69,6 +75,18 @@ class Visualization(Extension):
     def post_init(self,):
         # self.save_blank_img()
         pass
+
+    def draw_polyline(self, points, color):
+        ''' Draw a polyline from multiple points
+        Args:
+            points: Iterable of (x,y) in track space (unit: m)
+            lineColor: RGBA color, range (0,1)
+        '''
+        assert len(color) == 4
+        img = self.visualization_img
+        self.visualization_img = self.main.track.draw_polyline(points, img=img, lineColor=color)
+        self.visualization_img = img
+        return
 
     def save_blank_img(self):
         ''' Save the blank background as pickle dump'''
@@ -227,7 +245,7 @@ class Visualization(Extension):
             return img
         # overlay vehicle image, orientation as headed
         # significant performance impact
-        if self.car_graphics:
+        if self.config.car_graphics:
             img = self.overlay_car_rendering(img, car)
         else:
             # draw vehicle, orientation as black arrow

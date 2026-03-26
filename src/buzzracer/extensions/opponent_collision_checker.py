@@ -1,15 +1,14 @@
 ''' Check collision with opponents, for iLQGameController. '''
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('opponent_collision_checker', ExtensionConfig, ExtensionState)
 class OpponentCollisionChecker(Extension):
-    ''' Check collision with opponents, for iLQGameController. 
-
-    NOTE this only checks car 0
+    ''' Check collision with opponents.  NOTE this only checks car 0
     '''
 
-    def __init__(self):
-        Extension.__init__(self, 'opponent_collision_checker')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.collision_count = 0
         self.last_collision_ts = -1e3
         self.lockout_timestep = 10
