@@ -3,26 +3,39 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import numpy as np
 
-from buzzracer.extensions.extension import Extension
+from buzzracer.common import get_logger
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
-# count number of times car is in collision with boundary
+logger = get_logger(__name__)
 
 
+class BoundaryCheckerState(ExtensionState):
+    def __init__(self, config):
+        super().__init__(config)
+        self.discretized_raceline: np.ndarray
+        self.collision_count: dict[Car, int]
+        self.car_is_in_collision: dict[Car, bool]
+
+
+@Extension.register('boundary_checker', ExtensionConfig, ExtensionState)
 class BoundaryChecker(Extension):
-    ''' Extension to check boundary violations. '''
+    ''' Extension to check boundary violations.
+    Count number of times car is in collision with boundary.
+    Does not consider vehicle width, only counts when vehicle origin is out of track boundary.
+      '''
 
-    def __init__(self):
-        Extension.__init__(self, 'boundary_checker')
-        self.collision_count: dict[Car, int] = {
+    def __init__(self, config, state):
+        super().__init__(config, state)
+        self.state.collision_count = {
             car: 0
             for car in self.main.cars
         }
         ''' Running sum of collision count, resets every lap'''
-        self.discretized_raceline = self.main.track.discretized_raceline
+        self.state.discretized_raceline = self.main.track.data.discretized_raceline
         ''' Local reference of discretized raceline'''
-        self.car_is_in_collision: dict[Car, bool] = {
+        self.state.car_is_in_collision = {
             car: False
             for car in self.main.cars
         }
@@ -33,34 +46,34 @@ class BoundaryChecker(Extension):
             if self.is_out_of_boundary(car):
                 if not car.in_collision:
                     car.in_collision = True
-                    self.collision_count[car] += 1
+                    self.state.collision_count[car] += 1
                     self.print_ok(
                         self.prefix(), 'car %d collision = %d' %
-                        (car.id, self.collision_count[car]))
+                        (car.id, self.state.collision_count[car]))
             else:
-                self.car_is_in_collision = False
+                self.state.car_is_in_collision = False
 
     def final(self):
         for car in self.main.cars:
-            self.print_info('car %d, total boundary violation = %d' %
-                            (car.id, self.collision_count[car]))
-            car.total_boundary_collision = self.collision_count[car.id]
+            logger.info('car %d, total boundary violation = %d' %
+                        (car.id, self.state.collision_count[car]))
+            car.total_boundary_collision = self.state.collision_count[car]
 
     def is_out_of_boundary(self, car):
         car_coord = car.state[0:2]
         car_heading = car.state[2]
-        left, right = self.main.track.precise_track_boundary(
-            car_coord, car_heading)
+        left, right = self.main.track.precise_track_boundary(car_coord, car_heading)
         out = left < 0 or right < 0
         return out
 
     def is_out_of_boundary_discrete(self, car):
         # x, y, heading, vf, vs, omega = car.state
         x, y, _ = car.state
-        ref_points = self.discretized_raceline[:, 0:2]
-        ref_heading = self.discretized_raceline[:, 2]
-        left_bdry = self.discretized_raceline[:, 3]
-        right_bdry = self.discretized_raceline[:, 4]
+        ref = self.state.discretized_racelien
+        ref_points = ref[:, 0:2]
+        ref_heading = ref[:, 2]
+        left_bdry = ref[:, 3]
+        right_bdry = ref[:, 4]
         # self.discretized_raceline = np.vstack([
         # self.raceline_points,
         # self.raceline_headings,

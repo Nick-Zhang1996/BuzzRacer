@@ -98,8 +98,9 @@ class CurvilinearTrack(Track):
         dyy = data.r_vec[:, 1]-y
         index = np.argmin(dxx**2+dyy**2)
         raceline_point = data.r_vec[index]
+        N = len(data.r_vec)
 
-        dr = data.r_vec[index+1] - data.r_vec[index]
+        dr = data.r_vec[(index+1) % N] - data.r_vec[index]
         track_to_car = (x-data.r_vec[index, 0], y-data.r_vec[index, 1])
         # Positive offset means car is to the left of the trajectory(need to turn right)
         offset = np.cross(dr/np.linalg.norm(dr), track_to_car).item()

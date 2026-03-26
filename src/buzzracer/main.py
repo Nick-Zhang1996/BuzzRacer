@@ -44,6 +44,7 @@ class MainConfig:
     def __init__(self, config_filename):
         self.dt = 0.01
         self.multiprocess = False
+        self.config_filename = config_filename
 
         dom = minidom.parse(config_filename)
         self.dom = dom

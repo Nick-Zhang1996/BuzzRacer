@@ -90,10 +90,10 @@ def get_logger(name: str, level=logging.INFO):
     logger.setLevel(level)  # set min log level
 
     # avoid duplicate handlers if already configured
+    logger.propagate = False
     if not logger.handlers:
         ch = logging.StreamHandler()
-        formatter = ColoredFormatter(
-            "%(message)s")  # message only, prefix handled manually
+        formatter = ColoredFormatter("%(message)s")  # message only, prefix handled manually
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 

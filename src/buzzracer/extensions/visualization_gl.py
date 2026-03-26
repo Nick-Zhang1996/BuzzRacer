@@ -12,6 +12,7 @@ import pickle
 from threading import Event, Thread
 from functools import lru_cache
 from time import sleep
+import queue
 
 import moderngl
 from moderngl import Texture
@@ -43,11 +44,14 @@ class VisualizationGL(Extension):
         super().__init__(config, state)
         self.t = ExecutionTimer(False)
         self.update_visualization = Event()
-        self.car_graphics = False
         self.show_car_info = True
         ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.main.breakpoint = Event()
+        self.save_frames = Event()
+        """ If set, save frames, never cleared"""
+        self.new_frame = Event()
+        """ new state available, instruct gl to save frame"""
 
         self.img_track = None
         '''' Image of a track, with static visualization components like debuggint text '''
@@ -71,8 +75,7 @@ class VisualizationGL(Extension):
             self.car_images[car] = cv2.imread(filename, -1)
         img = self.main.track.draw_track()
         self.img_blank_track = img.copy()
-        self.img_blank_track_with_obstacles = self.track.plot_obstacles(
-            img.copy())
+        self.img_blank_track_with_obstacles = self.track.plot_obstacles(img.copy())
         track: Track = self.main.track
         self.img_track = track.draw_raceline(
             track.data.raceline_s, track.data.raceline_len_m, img=img)
@@ -88,10 +91,21 @@ class VisualizationGL(Extension):
     def post_update(self):
         self.polylines = self.new_polylines
         self.new_polylines = []
+        if self.save_frames.is_set():
+            self.new_frame.set()
+
+    def get_current_frame(self) -> Image:
+        try:
+            raw_pixels = _WindowConfig.frame_queue.get_nowait()
+            img = Image.frombytes('RGB', _WindowConfig.window_size, raw_pixels)
+            return img.transpose(Image.FLIP_TOP_BOTTOM)
+        except queue.Empty:
+            return None
 
     def _moderngl_thread_function(self):
         _WindowConfig.host = self
         _WindowConfig.t = self.t
+        _WindowConfig.frame_queue = queue.Queue()
         # Don't really need args, but must provide a non-empty one so it doesn't
         # try to parse the actual sys.argv
         rows, cols = self.img_track.shape[:2]
@@ -203,6 +217,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
     vsync = True
     host = None
     t = None  # ExecutionTimer instance
+    frame_queue = None  # Frame queue
+    window_size = None  # (cols, rows)
 
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
@@ -276,6 +292,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
             texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
             self.car_textures[car] = texture
         _WindowConfig.transform_matrix = _WindowConfig.create_transform_matrix()
+        self.host.window = self
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
@@ -340,6 +357,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
         for polyline in self.host.polylines:
             self.draw_polyline(polyline)
         self.t.e('polyline')
+        self.t.s('save frame')
+        if self.host.new_frame.is_set():
+            raw_pixels = self.wnd.fbo.read(components=3)
+            self.frame_queue.put(raw_pixels)
+            self.host.new_frame.clear()
+        self.t.e('save frame')
         self.t.e()
 
     def draw_polyline(self, polyline: Polyline):

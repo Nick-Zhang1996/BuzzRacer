@@ -11,23 +11,24 @@ from .game_theoretic_planner import GameTheoreticPlanner
 
 # FIXME update these also
 
-# from .boundary_checker import BoundaryChecker
 # from .performance_tracker import PerformanceTracker
 # from .speed_tracker import SpeedTracker
 # from .watchdog import Watchdog
-# from .collision_checker import CollisionChecker
-# from .gif_saver import Gifsaver
-# from .logger import Logger
+from .collision_checker import CollisionChecker
+from .gif_saver import Gifsaver
+from .logger import Logger
 # from .replay import Replay
 # from .steering_tracker import SteeringTracker
-# from .config_logger import ConfigLogger
 # from .opponent_collision_checker import OpponentCollisionChecker
 # from .simulator import Simulator
 # from .step_counter import StepCounter
-# from .crosstrack_error_tracker import CrosstrackErrorTracker
+from .crosstrack_error_tracker import CrosstrackErrorTracker
 # from .lap_counter import LapCounter
 # from .optitrack import Optitrack
 # from .snapshot_saver import SnapshotSaver
-# from .visualization import Visualization
+from .visualization import Visualization
 # from .sysid import SysId
-#
+from .boundary_checker import BoundaryChecker
+
+# Uncommonly used extensions. commented for faster loading time
+# from .config_logger import ConfigLogger

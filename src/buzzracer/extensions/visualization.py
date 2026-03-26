@@ -11,12 +11,13 @@ from PIL import Image
 import numpy as np
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('visualization', ExtensionConfig, ExtensionState)
 class Visualization(Extension):
-    def __init__(self):
-        super().__init__(handle_name='visualization')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.update_visualization = Event()
         self.update_freq = 100
         self.frame_dt = 1.0/self.update_freq
@@ -29,6 +30,7 @@ class Visualization(Extension):
         self.visualization_ts: float = 0.0
         ''' clock time of last visualization update'''
 
+        self.save_frames = Event()
         self.visualization_ts = time()
 
         self.img_track = None
@@ -266,3 +268,6 @@ class Visualization(Extension):
         bg_img = cv2.cvtColor(bg_img, cv2.COLOR_RGBA2BGRA)
 
         return bg_img
+
+    def get_current_frame(self) -> Image:
+        return Image.fromarray(cv2.cvtColor(self.visualization_img, cv2.COLOR_BGR2RGB))

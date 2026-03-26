@@ -2,17 +2,18 @@
 from xml.dom import minidom
 import os
 
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('config_logger', ExtensionConfig, ExtensionState)
 class ConfigLogger(Extension):
-    ''' Log experiment wide metadata and statistics'''
+    ''' Log experiment wide metadata and statistics. This needs rewriting for specific applicaiton'''
 
-    def __init__(self):
-        Extension.__init__(self, 'config_logger')
+    def __init__(self, config, state):
+        super().__init__(config, state)
 
     def init(self):
-        config = minidom.parse(self.main.config_filename)
+        config = minidom.parse(self.main.config.config_filename)
         config_extensions = config.getElementsByTagName('extensions')[0]
         for config_extension in config_extensions.getElementsByTagName(
                 'extension'):
