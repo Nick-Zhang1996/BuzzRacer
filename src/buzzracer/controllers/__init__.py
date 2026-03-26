@@ -1,12 +1,14 @@
-from .car_controller import CarController
-# from .ddp_point_mass_car_controller import DdpPointMassCarController
-from .empty_car_controller import EmptyCarController
-from .ilqgame_car_controller import iLQGameCarController
-from .ilqgame_solo_car_controller import iLQGameSoloCarController
+from .controller import Controller
+from .empty_controller import EmptyController
+from .stanley_controller import StanleyController
+
+# TODO refactor
+# from .ddp_point_mass_controller import DdpPointMassController
+from .ilqgame_controller import iLQGameController
+from .ilqgame_solo_controller import iLQGameSoloController
 from .lqgame import my_solve_lq_game
 from .mpc import MPC
 from .pid_controller import PidController
-from .point_mass_car_controller import PointMassCarController
-from .point_mass_mpc_car_controller import PointMassMpcCarController
-from .pure_pursuit_car_controller import PurePursuitCarController
-from .stanley_car_controller import StanleyCarController
+from .point_mass_controller import PointMassController
+from .point_mass_mpc_controller import PointMassMpcController
+from .pure_pursuit_controller import PurePursuitController

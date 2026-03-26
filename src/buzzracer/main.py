@@ -11,8 +11,7 @@ from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.cars.car import Car
 from buzzracer.extensions.extension import Extension
-from buzzracer.controllers.car_controller import CarController
-
+from buzzracer.controllers.controller import Controller
 
 logger = get_logger(__name__)
 
@@ -41,9 +40,11 @@ class MainState:
 
 
 class MainConfig:
+
     def __init__(self, config_filename):
         self.dt = 0.01
         self.multiprocess = False
+        self.config_filename = config_filename
 
         dom = minidom.parse(config_filename)
         self.dom = dom
@@ -58,8 +59,10 @@ class MainConfig:
         def get_experiment_type_from_config_settings(dom_settings):
             exp_type_text = dom_settings.getElementsByTagName(
                 'experiment_type')[0].firstChild.nodeValue
-            type_map = {'Simulation': ExperimentType.Simulation,
-                        'RealWorld': ExperimentType.Realworld}
+            type_map = {
+                'Simulation': ExperimentType.Simulation,
+                'RealWorld': ExperimentType.Realworld
+            }
             try:
                 return type_map[exp_type_text]
             except KeyError as e:
@@ -68,10 +71,14 @@ class MainConfig:
                     f'must be one of {list(type_map.keys())}') from e
 
         dom_cars: Config = dom.getElementsByTagName('cars')[0]
-        self.car_configs = [val for val in dom_cars.getElementsByTagName('car')]
+        self.car_configs = [
+            val for val in dom_cars.getElementsByTagName('car')
+        ]
 
         self.dom_track = dom.getElementsByTagName('track')[0]
-        self.experiment_type = get_experiment_type_from_config_settings(dom_settings)
+        self.dom_extensions = dom.getElementsByTagName('extensions')[0]
+        self.experiment_type = get_experiment_type_from_config_settings(
+            dom_settings)
         self.experiment_name = os.path.basename(config_filename).split('.')[0]
 
 
@@ -86,14 +93,17 @@ class Main(PrintObject, LogObject):
         # Prepare track
 
         def get_track_from_dom(dom_track):
-            track = TrackFactory.build(main=self, config=dom_track)
+            track = TrackFactory.build(config=dom_track)
             track.init()
             return track
+
         self.track = get_track_from_dom(self.config.dom_track)
 
         # Prepare cars
         Car.reset(self)
-        self.cars: list[Car] = [Car.Factory(cfg) for cfg in self.config.car_configs]
+        self.cars: list[Car] = [
+            Car.Factory(cfg) for cfg in self.config.car_configs
+        ]
         self.print_info(f' total cars: {len(self.cars)}')
         self.state = MainState(len(self.cars))
 
@@ -111,7 +121,7 @@ class Main(PrintObject, LogObject):
         '''
 
         # Load Extensions defined in configs
-        Extension.load(self, self.config.dom)
+        Extension.load(self, self.config, self.config.dom_extensions)
 
         # Some modules depend on other modules to initialize
         # Use pre_init, init, and post_init for crude separation
@@ -129,16 +139,14 @@ class Main(PrintObject, LogObject):
         if self.config.multiprocess:
             self.child_processes = []
             for car in self.cars:
-                p = mp.Process(target=CarController.process_fun,
-                               args=(self.state,
-                                     car.id,
-                                     car.param,
-                                     self.track,
+                p = mp.Process(target=Controller.process_fun,
+                               args=(self.state, car.id, car.param, self.track,
                                      car.controller.__class__,
                                      car.controller.config,
                                      car.controller.state))
                 p.start()
                 self.child_processes.append(p)
+            logger.info("Multiprocess enabled")
 
     def run(self):
         """Run experiment until user press q in visualization window."""
@@ -211,17 +219,13 @@ class Main(PrintObject, LogObject):
             else:
                 # Call controller one by one
                 control, _, controller_state = car.controller.control(
-                    car.state,
-                    car.param,
-                    self.track,
-                    car.controller.config,
-                    car.controller.state,
-                    self.state,
-                    i)
+                    car.state, car.param, self.track, car.controller.config,
+                    car.controller.state, self.state, i)
                 car.controller.state = controller_state
                 car.steering = control.steering
 
-                car.throttle = 0.0 if self.state.slowdown.is_set() else control.throttle
+                car.throttle = 0.0 if self.state.slowdown.is_set(
+                ) else control.throttle
             t.e(car.param.name)
         t.e('control')
 

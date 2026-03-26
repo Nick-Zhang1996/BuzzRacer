@@ -16,11 +16,12 @@ from bisect import bisect
 from buzzracer.common import *
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.rcp_track import RCPTrack
+from buzzracer.tracks.track import TrackConfig
 
 
 class RCPTrackDebug(RCPTrack):
-    def __init__(self, main=None, config=None):
-        super().__init__(main, config)
+    def __init__(self, config: TrackConfig):
+        RCPTrack.__init__(self, config)
 
     def resolve_logname(self,):
 
@@ -169,7 +170,7 @@ class RCPTrackDebug(RCPTrack):
         # original path
         steps = 1000
         u = np.linspace(0, self.u[-1], steps)
-        x, y = splev(u, self.raceline, der=0)
+        x, y = splev(u, self.rcp_raceline, der=0)
         # quantify error
         error = ((x[-1]-sol.y[0, -1])**2 + (y[-1]-sol.y[1, -1])**2)**0.5
         print('error %.2f' % error)
@@ -190,8 +191,8 @@ class RCPTrackDebug(RCPTrack):
         def dist(a, b): return ((a[0]-b[0])**2+(a[1]-b[1])**2)**0.5
         vv = speed_profile_fun(xx)
         for i in range(n_steps):
-            (x_i, y_i) = splev(xx[i % n_steps], self.raceline, der=0)
-            (x_i_1, y_i_1) = splev(xx[(i+1) % n_steps], self.raceline, der=0)
+            (x_i, y_i) = splev(xx[i % n_steps], self.rcp_raceline, der=0)
+            (x_i_1, y_i_1) = splev(xx[(i+1) % n_steps], self.rcp_raceline, der=0)
             # distance between two steps
             ds = dist((x_i, y_i), (x_i_1, y_i_1))
             path_len += ds
@@ -205,7 +206,7 @@ class RCPTrackDebug(RCPTrack):
 
         # cartesian distance from two u(parameter)
         def distuu(u1, u2): return dist(
-            splev(u1, self.raceline, der=0), splev(u2, self.raceline, der=0))
+            splev(u1, self.rcp_raceline, der=0), splev(u2, self.rcp_raceline, der=0))
 
         vel_vec = []
         ds_vec = []
@@ -213,7 +214,7 @@ class RCPTrackDebug(RCPTrack):
         # get velocity at each point
         for i in range(n_steps):
             # tangential direction
-            tan_dir = splev(xx[i], self.raceline, der=1)
+            tan_dir = splev(xx[i], self.rcp_raceline, der=1)
             tan_dir = np.array(tan_dir/np.linalg.norm(tan_dir))
             vel_now = vv[i] * tan_dir
             vel_vec.append(vel_now)
@@ -303,9 +304,9 @@ class RCPTrackDebug(RCPTrack):
         # K: curvature
         # let raceline curve be r(u)
         # dr = r'(u), parameterized with xx/u
-        dr = np.array(splev(u, self.raceline, der=1))
+        dr = np.array(splev(u, self.rcp_raceline, der=1))
         # ddr = r''(u)
-        ddr = np.array(splev(u, self.raceline, der=2))
+        ddr = np.array(splev(u, self.rcp_raceline, der=2))
 
         def _norm(x):
             return np.linalg.norm(x, axis=0)
@@ -324,7 +325,7 @@ class RCPTrackDebug(RCPTrack):
         self.K = S_interp(self.S)
 
         # phi0: heading at u=0
-        x, y = splev(0, self.raceline, der=1)
+        x, y = splev(0, self.rcp_raceline, der=1)
 
         self.phi0 = atan2(y, x)
-        self.x0, self.y0 = splev(0, self.raceline, der=0)
+        self.x0, self.y0 = splev(0, self.rcp_raceline, der=0)

@@ -15,7 +15,7 @@
       <hardware>Orca</hardware>
       <config_name>orca</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 
@@ -24,7 +24,7 @@
       <hardware>Orca</hardware>
       <config_name>orca</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 

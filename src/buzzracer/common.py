@@ -90,10 +90,10 @@ def get_logger(name: str, level=logging.INFO):
     logger.setLevel(level)  # set min log level
 
     # avoid duplicate handlers if already configured
+    logger.propagate = False
     if not logger.handlers:
         ch = logging.StreamHandler()
-        formatter = ColoredFormatter(
-            "%(message)s")  # message only, prefix handled manually
+        formatter = ColoredFormatter("%(message)s")  # message only, prefix handled manually
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 
@@ -212,6 +212,8 @@ def wrap(val):
 
 def set_config_attr(config_minidom, config):
     """ Set the attributes in dom to config"""
+    if config_minidom is None:
+        return config
     for key, value_text in config_minidom.attributes.items():
         if not hasattr(config, key):
             raise AttributeError(
@@ -222,4 +224,4 @@ def set_config_attr(config_minidom, config):
         except NameError:
             value = value_text
         setattr(config, key, value)
-        return config
+    return config

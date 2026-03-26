@@ -22,7 +22,7 @@
       <hardware>Offboard</hardware>
       <config_name>audi_11</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,2.1*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -32,7 +32,7 @@
       <hardware>Offboard</hardware>
       <config_name>audi_12</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.4*0.6,2.3*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -42,7 +42,7 @@
       <hardware>Offboard</hardware>
       <config_name>porsche_16</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,2.5*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -52,7 +52,7 @@
       <hardware>Offboard</hardware>
       <config_name>lambo_13</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,2.7*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -62,7 +62,7 @@
       <hardware>FHSS</hardware>
       <config_name>corvette_17</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,3.0*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -72,7 +72,7 @@
       <hardware>FHSS</hardware>
       <config_name>porsche_18</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,3.2*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -82,7 +82,7 @@
       <hardware>FHSS</hardware>
       <config_name>porsche_19</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,3.4*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -92,7 +92,7 @@
       <hardware>FHSS</hardware>
       <config_name>audi_20</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,3.6*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -102,7 +102,7 @@
       <hardware>FHSS</hardware>
       <config_name>mclaren_21</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,3.8*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -112,7 +112,7 @@
       <hardware>FHSS</hardware>
       <config_name>mclaren_22</config_name>
       <controller max_speed='0.5'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.2*0.6,4.0*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>

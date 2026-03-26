@@ -1,7 +1,8 @@
 ''' Subclass of Car for radio-controlled Mini-z'''
 import serial
 
-from buzzracer.cars.car import Car, CarParam
+from buzzracer.cars.car import Car
+from buzzracer.cars.car_param import CarParam
 
 
 class OldOffboard(Car):

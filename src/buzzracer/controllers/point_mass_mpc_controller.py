@@ -1,14 +1,19 @@
 from buzzracer.common import *
 from math import isnan, pi, degrees, radians, sin, cos
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 from buzzracer.controllers.pid_controller import PidController
 
 
-class PointMassCarController(CarController):
+class PointMassMpcController(Controller):
     """for sanity check of point mass curvilinear model."""
 
     def __init__(self, car, config):
         super().__init__(car, config)
+
+    def init(self):
+        self.simulator = self.main.simulator
+        assert (isinstance(self.simulator,
+                           KinematicBicycleCurvilinearSimulator))
 
     def control(self):
         for car in self.main.cars:

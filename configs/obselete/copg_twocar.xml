@@ -23,7 +23,7 @@
         max_speed='1.0'
         model_weights_pth='src/copg/rcvip_racing/trained_model/rcvip_half_lr/copg/model/agent1_9980.pth'
       >
-        <type>CopgCarController</type>
+        <type>CopgController</type>
       </controller>
     </car>
 
@@ -33,7 +33,7 @@
       <config_name>lambo</config_name>
       <init_states>(3.4*0.6,2.3*0.6, radians(-90), 0.1)</init_states>
       <controller max_speed='1.0'>
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
       </controller>
     </car>
 

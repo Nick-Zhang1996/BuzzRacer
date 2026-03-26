@@ -4,7 +4,6 @@ from buzzracer.common import *
 from threading import Event, Lock
 from math import pi, radians, degrees
 
-
 from KinematicBicycleCartesianSimulator import KinematicBicycleCartesianSimulator
 from DynamicBicycleCartesianSimulator import DynamicBicycleCartesianSimulator
 
@@ -12,8 +11,8 @@ from timeUtil import ExecutionTimer
 from TrackFactory import TrackFactory
 
 from Car import Car
-from StanleyCarController import StanleyCarController
-from CcmppiCarController import CcmppiCarController
+from StanleyController import StanleyController
+from CcmppiController import CcmppiController
 
 # Extensions
 from Laptimer import Laptimer
@@ -29,6 +28,7 @@ from Watchdog import Watchdog
 
 
 class Main():
+
     def __init__(self, params={}):
         self.timer = ExecutionTimer(True)
         # state update rate
@@ -38,10 +38,13 @@ class Main():
         self.track = TrackFactory(name='full')
 
         self.simulator = DynamicBicycleCartesianSimulator(self)
-        # car0 = Car.Factory(self, "porsche", controller=StanleyCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
+        # car0 = Car.Factory(self, "porsche", controller=StanleyController,init_states=(3.7*0.6,1.75*0.6, radians(-90), 1.0))
         Car.reset()
-        car0 = Car.Factory(self, 'porsche', controller=CcmppiCarController, init_states=(
-            3.7*0.6, 1.75*0.6, radians(-90), 1.0))
+        car0 = Car.Factory(self,
+                           'porsche',
+                           controller=CcmppiController,
+                           init_states=(3.7 * 0.6, 1.75 * 0.6, radians(-90),
+                                        1.0))
 
         self.cars = Car.cars
         print_info('[main] total cars: %d' % (len(self.cars)))
@@ -111,7 +114,7 @@ class Main():
     # when a new vicon/optitrack state is available, self.new_state_update.set() will be true
     # client (this function) need to unset that event
 
-    def update(self,):
+    def update(self, ):
         # -- Extension update --
         for item in self.extensions:
             item.pre_update()
@@ -131,7 +134,7 @@ class Main():
 
     # call before exiting
 
-    def stop(self,):
+    def stop(self, ):
         for car in self.cars:
             car.stopStateUpdate(car)
 
@@ -140,8 +143,10 @@ if __name__ == '__main__':
     # start with no. skip experiment, index start with 0
     # e.g. skip = 3 means skip 0,1,2
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--skip', help='number of experiments to skip', type=int, default=0)
+    parser.add_argument('--skip',
+                        help='number of experiments to skip',
+                        type=int,
+                        default=0)
     args = parser.parse_args()
     print_info('skipping %d experiments' % (args.skip))
 
@@ -172,8 +177,12 @@ if __name__ == '__main__':
                 # for algorithm in ['mppi-same-injected','ccmppi']:
                 for algorithm in ['ccmppi']:
                     samples = 4096
-                    params = {'samples': samples,
-                              'algorithm': algorithm, 'alfa': alfa, 'beta': beta}
+                    params = {
+                        'samples': samples,
+                        'algorithm': algorithm,
+                        'alfa': alfa,
+                        'beta': beta
+                    }
 
                     experiment_count += 1
                     if (experiment_count < args.skip):
@@ -181,8 +190,8 @@ if __name__ == '__main__':
 
                     print_info(
                         '-------------- start one experiment ------------')
-                    print_info('experiment no.%d, algorithm: %s, samples: %d' % (
-                        experiment_count, algorithm, samples))
+                    print_info('experiment no.%d, algorithm: %s, samples: %d' %
+                               (experiment_count, algorithm, samples))
                     experiment = Main(params)
                     experiment.run()
 
@@ -200,9 +209,12 @@ if __name__ == '__main__':
                         collisions = -1
                         control_effort = -1
                         terminal_cov = -1
-                        print_warning(' bad experiment '+str(e))
+                        print_warning(' bad experiment ' + str(e))
                     text = '%25s, %d, %d, %.4f, %d, %.5f, %.5f, %.5f, %d, %s, %.2f, %.2f' % (
-                        algorithm, samples, laps, laptime, collisions, control_effort, terminal_cov, laptime_stddev, experiment.logger.log_no, str(experiment.watchdog.triggered), alfa, beta)
+                        algorithm, samples, laps, laptime, collisions,
+                        control_effort, terminal_cov, laptime_stddev,
+                        experiment.logger.log_no,
+                        str(experiment.watchdog.triggered), alfa, beta)
                     print_info(text)
                     with open(log_filename, 'a') as f:
                         f.write(text + '\n')

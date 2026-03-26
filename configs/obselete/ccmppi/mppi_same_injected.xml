@@ -28,7 +28,7 @@
         max_speed='3.0'
         horizon='30' 
         >
-        <type>CcmppiCarController</type>
+        <type>CcmppiController</type>
       </controller>
     </car>
 

@@ -16,11 +16,13 @@ import numpy as np
 import pickle
 import os
 import sys
+
 base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
 sys.path.append(base_dir)
 
 
 class CCMPPI_DYNAMIC():
+
     def __init__(self, dt, N, noise_cov, track, debug_info=None):
         # set time horizon
         self.N = N
@@ -39,8 +41,9 @@ class CCMPPI_DYNAMIC():
         # terminal covariance constrain
         # not needed with soft constraint
         # self.sigma_f = np.diag([1e-3]*self.n)
-        self.control_limit = np.array(
-            [[-0.7, 0.7], [-radians(27.1), radians(27.1)]])
+        self.control_limit = np.array([[-0.7, 0.7],
+                                       [-radians(27.1),
+                                        radians(27.1)]])
 
         # set up parameters for the model
         self.setup_param()
@@ -53,7 +56,7 @@ class CCMPPI_DYNAMIC():
 
     def setup_param(self):
         # dimension
-        self.lf = lf = 0.09-0.036
+        self.lf = lf = 0.09 - 0.036
         self.lr = lr = 0.036
         self.L = 0.09
         # basic properties
@@ -74,7 +77,7 @@ class CCMPPI_DYNAMIC():
         # NOTE load track instead of re-constructing
         fulltrack = RCPTrack()
         # for laptimer
-        fulltrack.start_pos = (0.6*3.5, 0.6*1.75)
+        fulltrack.start_pos = (0.6 * 3.5, 0.6 * 1.75)
         fulltrack.startDir = radians(90)
         fulltrack.load()
         self.track = fulltrack
@@ -93,7 +96,7 @@ class CCMPPI_DYNAMIC():
         data = data.squeeze(1)
 
         t = data[:, 0]
-        t = t-t[0]
+        t = t - t[0]
         x = data[:, 1]
         y = data[:, 2]
         # NOTE unwrapped
@@ -104,10 +107,9 @@ class CCMPPI_DYNAMIC():
         dy = np.diff(y) / dt
         dheading = np.diff(heading)
 
-        heading = (np.pi + heading) % (2*np.pi) - np.pi
+        heading = (np.pi + heading) % (2 * np.pi) - np.pi
         steering = data[:, 4]
         throttle = data[:, 5]
-
         '''
         exp_kf_x = data[:,6]
         exp_kf_y = data[:,7]
@@ -118,7 +120,7 @@ class CCMPPI_DYNAMIC():
 
         # search for log_no lap
         self.track = RCPTrack()
-        self.track.start_pos = (0.6*3.5, 0.6*1.75)
+        self.track.start_pos = (0.6 * 3.5, 0.6 * 1.75)
         self.track.startDir = radians(90)
         self.track.load()
         laptimer = Laptimer(self.track.start_pos, self.track.startDir)
@@ -134,7 +136,7 @@ class CCMPPI_DYNAMIC():
                     current_lap += 1
                     if (current_lap == lap_no):
                         start_index = index
-                    if (current_lap == lap_no+1):
+                    if (current_lap == lap_no + 1):
                         end_index = index
                         self.ref_laptime = t[end_index] - t[start_index]
                 index += 1
@@ -162,11 +164,11 @@ class CCMPPI_DYNAMIC():
 
     def nearest_spd_cholesky(self, A):
         # print(np.linalg.eigvals(A))
-        B = (A + A.T)/2
+        B = (A + A.T) / 2
         U, Sigma, V = np.linalg.svd(B)
         H = np.dot(np.dot(V.T, np.diag(Sigma)), V)
-        Ahat = (B+H)/2
-        Ahat = (Ahat + Ahat.T)/2
+        Ahat = (B + H) / 2
+        Ahat = (Ahat + Ahat.T) / 2
         p = 1
         k = 0
         spacing = np.spacing(np.linalg.norm(A))
@@ -210,7 +212,8 @@ class CCMPPI_DYNAMIC():
             x_r[i] += epsilon
             x_post_r = self.update_dynamics(x_r, nominal_ctrl, self.dt)
 
-            A[:, i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
+            A[:,
+              i] += (x_post_r.flatten() - x_post_l.flatten()) / (2 * epsilon)
             '''
             print("perturbing x%d"%(i))
             print(A[:,i])
@@ -235,7 +238,8 @@ class CCMPPI_DYNAMIC():
             x_post_r = self.update_dynamics(x0, u_r, self.dt)
             x_post_r = x_post_r.copy()
 
-            B[:, i] += (x_post_r.flatten() - x_post_l.flatten()) / (2*epsilon)
+            B[:,
+              i] += (x_post_r.flatten() - x_post_l.flatten()) / (2 * epsilon)
 
         x0 = nominal_state.copy()
         u0 = nominal_ctrl.copy()
@@ -260,11 +264,11 @@ class CCMPPI_DYNAMIC():
         V = x0[2]
         throttle = u0[0]
         steering = u0[1]
-        beta = np.arctan(np.tan(steering)*self.lr/(self.lr+self.lf))
-        dX = V*cos(psi + beta) * dt
-        dY = V*sin(psi + beta) * dt
+        beta = np.arctan(np.tan(steering) * self.lr / (self.lr + self.lf))
+        dX = V * cos(psi + beta) * dt
+        dY = V * sin(psi + beta) * dt
         dV = throttle * dt
-        dheading = V/self.lr*sin(beta) * dt
+        dheading = V / self.lr * sin(beta) * dt
 
         x0[0] += dX
         x0[1] += dY
@@ -289,23 +293,23 @@ class CCMPPI_DYNAMIC():
         A = np.vstack(A)
 
         # B (N+1)n x Nm
-        row0 = np.zeros((n, m*N))
+        row0 = np.zeros((n, m * N))
         B = [row0]
         # row 1 to row N
-        for i in range(1, N+1):
+        for i in range(1, N + 1):
             row_i = B[-1].copy()
-            row_i = As[:, :, i-1] @ row_i
-            row_i[:, (i-1)*m:i*m] = Bs[:, :, i-1]
+            row_i = As[:, :, i - 1] @ row_i
+            row_i[:, (i - 1) * m:i * m] = Bs[:, :, i - 1]
             B.append(row_i)
         B = np.vstack(B)
 
         # C: n(N+1) x nN
-        row0 = np.zeros((n, n*N))
+        row0 = np.zeros((n, n * N))
         C = [row0]
-        for i in range(1, N+1):
+        for i in range(1, N + 1):
             row_i = C[-1].copy()
-            row_i = As[:, :, i-1] @ row_i
-            row_i[:, (i-1)*n:i*n] = np.eye(n)
+            row_i = As[:, :, i - 1] @ row_i
+            row_i[:, (i - 1) * n:i * n] = np.eye(n)
             C.append(row_i)
         C = np.vstack(C)
 
@@ -319,13 +323,13 @@ class CCMPPI_DYNAMIC():
         # D = B.copy() * Sigma_epsilon
 
         Sigma_epsilon_half = self.nearest_spd_cholesky(Sigma_epsilon)
-        row0 = np.zeros((n, m*N))
+        row0 = np.zeros((n, m * N))
         D = [row0]
         # row 1 to row N
-        for i in range(1, N+1):
+        for i in range(1, N + 1):
             row_i = D[-1].copy()
-            row_i = As[:, :, i-1] @ row_i
-            row_i[:, (i-1)*m:i*m] = Bs[:, :, i-1] @ Sigma_epsilon_half
+            row_i = As[:, :, i - 1] @ row_i
+            row_i[:, (i - 1) * m:i * m] = Bs[:, :, i - 1] @ Sigma_epsilon_half
             D.append(row_i)
         D = np.vstack(D)
         return A, B, C, d, D
@@ -346,7 +350,7 @@ class CCMPPI_DYNAMIC():
 
         x, y, _, _, _, __ = state
 
-        dist_sqr = (ref_xx-x)**2 + (ref_yy-y)**2
+        dist_sqr = (ref_xx - x)**2 + (ref_yy - y)**2
         # start : index of closest ref point to car
         start = np.argmin(dist_sqr)
 
@@ -355,20 +359,21 @@ class CCMPPI_DYNAMIC():
         ref_traj_wrapped = np.vstack([self.ref_traj, self.ref_traj[:self.N]])
         ref_ctrl_wrapped = np.vstack([self.ref_ctrl, self.ref_ctrl[:self.N]])
 
-        x = ref_traj_wrapped[start:start+self.N, 0]
-        vx = ref_traj_wrapped[start:start+self.N, 1]
-        y = ref_traj_wrapped[start:start+self.N, 2]
-        vy = ref_traj_wrapped[start:start+self.N, 3]
-        heading = ref_traj_wrapped[start:start+self.N, 4]
-        omega = ref_traj_wrapped[start:start+self.N, 5]
-        v = np.sqrt(vx*vx + vy*vy)
+        x = ref_traj_wrapped[start:start + self.N, 0]
+        vx = ref_traj_wrapped[start:start + self.N, 1]
+        y = ref_traj_wrapped[start:start + self.N, 2]
+        vy = ref_traj_wrapped[start:start + self.N, 3]
+        heading = ref_traj_wrapped[start:start + self.N, 4]
+        omega = ref_traj_wrapped[start:start + self.N, 5]
+        v = np.sqrt(vx * vx + vy * vy)
 
-        v_forward = vx*np.cos(heading) + vy*np.sin(heading)
-        v_sideway = -vx*np.sin(heading) + vy*np.cos(heading)
+        v_forward = vx * np.cos(heading) + vy * np.sin(heading)
+        v_sideway = -vx * np.sin(heading) + vy * np.cos(heading)
         self.ref_state_vec = ref_state_vec = np.vstack(
             [x, y, heading, v_forward, v_sideway, omega]).T
 
-        self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start+self.N]
+        self.ref_ctrl_vec = ref_ctrl_vec = ref_ctrl_wrapped[start:start +
+                                                            self.N]
 
         # find reference throttle and steering
 
@@ -407,14 +412,14 @@ class CCMPPI_DYNAMIC():
             # print_info("[cc] state diff")
             # print(state_diff.flatten())
 
-        A, B, C, d, D = self.make_batch_dynamics(
-            As, Bs, ds, None, self.Sigma_epsilon)
+        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None,
+                                                 self.Sigma_epsilon)
 
         # cost matrix
         # Q = np.eye(n)
         # Q_bar = np.kron(np.eye(N+1, dtype=int), Q)
         # soft constraint Q matrix
-        Q_bar = np.zeros([(N+1)*self.n, (N+1)*self.n])
+        Q_bar = np.zeros([(N + 1) * self.n, (N + 1) * self.n])
         # Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 50
         Q_bar[-self.n:, -self.n:] = np.eye(self.n) * 3000
 
@@ -430,24 +435,26 @@ class CCMPPI_DYNAMIC():
         # sigma_f = self.sigma_f
 
         # setup cvxpy
-        I = np.eye(n*(N+1))
-        E_N = np.zeros((n, n*(N+1)))
-        E_N[:, n*(N):] = np.eye(n)
+        I = np.eye(n * (N + 1))
+        E_N = np.zeros((n, n * (N + 1)))
+        E_N[:, n * (N):] = np.eye(n)
 
         # assemble K as a diagonal block matrix with K_0..K_N-1 as var
         Ks = [cp.Variable((m, n)) for i in range(N)]
         # K dim: mN x n(N+1)
-        K = cp.hstack([Ks[0], np.zeros((m, (N)*n))])
+        K = cp.hstack([Ks[0], np.zeros((m, (N) * n))])
         for i in range(1, N):
             line = cp.hstack(
-                [np.zeros((m, n*i)), Ks[i], np.zeros((m, (N-i)*n))])
+                [np.zeros((m, n * i)), Ks[i],
+                 np.zeros((m, (N - i) * n))])
             K = cp.vstack([K, line])
 
-        objective = cp.Minimize(cp.norm(
-            cp.vec(R_bar_sqrt @ K @ D)) + cp.norm(cp.vec(Q_bar_sqrt @ (I + B@K) @ D)))
+        objective = cp.Minimize(
+            cp.norm(cp.vec(R_bar_sqrt @ K @ D)) +
+            cp.norm(cp.vec(Q_bar_sqrt @ (I + B @ K) @ D)))
 
         # TODO verify with Ji
-        sigma_y_sqrt = self.nearest_spd_cholesky(D@D.T)
+        sigma_y_sqrt = self.nearest_spd_cholesky(D @ D.T)
         # hard constraint, cvxpy doesn't respect this for some reasons
         # constraints = [cp.bmat([[sigma_f, E_N @(I+B@K)@sigma_y_sqrt], [ sigma_y_sqrt@(I+B @ K).T@E_N.T, I ]]) >= 0]
         constraints = []
@@ -481,15 +488,16 @@ class CCMPPI_DYNAMIC():
 
         # return terminal covariance, theoretical values with and without cc
         if (return_sx):
-            reconstruct_K = np.hstack([Ks[0], np.zeros((m, (N)*n))])
+            reconstruct_K = np.hstack([Ks[0], np.zeros((m, (N) * n))])
             for i in range(1, N):
                 line = np.hstack(
-                    [np.zeros((m, n*i)), Ks[i], np.zeros((m, (N-i)*n))])
+                    [np.zeros((m, n * i)), Ks[i],
+                     np.zeros((m, (N - i) * n))])
                 reconstruct_K = np.vstack([reconstruct_K, line])
             Sigma_0 = np.zeros([n, n])
             # Sx_cc = (I + B@K.value ) @ (A @ Sigma_0 @ A.T + D @ D.T ) @ (I + B@K.value ).T
-            Sx_cc = (I + B@reconstruct_K) @ (A @ Sigma_0 @
-                                             A.T + D @ D.T) @ (I + B@reconstruct_K).T
+            Sx_cc = (I + B @ reconstruct_K) @ (A @ Sigma_0 @ A.T + D @ D.T) @ (
+                I + B @ reconstruct_K).T
             Sx_nocc = (A @ Sigma_0 @ A.T + D @ D.T)
             return Ks, As, Bs, ds, Sx_cc, Sx_nocc
         else:
@@ -520,7 +528,7 @@ class CCMPPI_DYNAMIC():
             x_i = x0.copy()
             # print("sample %d"%(j))
             for i in range(sim_steps):
-                mean = [0.0]*self.m
+                mean = [0.0] * self.m
                 # generate random variable epsilon or retrieve from self.rand_val
                 if (self.rand_vals is None):
                     cov = self.Sigma_epsilon
@@ -528,12 +536,13 @@ class CCMPPI_DYNAMIC():
                 else:
                     epsilon = self.rand_vals[j, i, :]
                 v = self.ref_ctrl_vec[i, :]
-                control = (v+epsilon + self.Ks[i] @ y_i)
+                control = (v + epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
-                        control[k] = np.clip(
-                            control[k], self.control_limit[k, 0], self.control_limit[k, 1])
+                        control[k] = np.clip(control[k], self.control_limit[k,
+                                                                            0],
+                                             self.control_limit[k, 1])
 
                 # print("states = %7.4f, %7.4f, %7.4f, %7.4f, ctrl =  %7.4f, %7.4f,"%(x_i[0], x_i[1], x_i[2], x_i[3], control[0], control[1]))
                 x_i = DynamicBicycleCartesianSimulator.advance_dynamics(
@@ -553,19 +562,20 @@ class CCMPPI_DYNAMIC():
             # print("sample %d"%(j))
             for i in range(sim_steps):
                 # generate random variable epsilon
-                mean = [0.0]*self.m
+                mean = [0.0] * self.m
                 cov = self.Sigma_epsilon
                 if (self.rand_vals is None):
                     epsilon = np.random.multivariate_normal(mean, cov)
                 else:
                     epsilon = self.rand_vals[j, i, :]
                 v = self.ref_ctrl_vec[i, :]
-                control = v+epsilon
+                control = v + epsilon
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
-                        control[k] = np.clip(
-                            control[k], self.control_limit[k, 0], self.control_limit[k, 1])
+                        control[k] = np.clip(control[k], self.control_limit[k,
+                                                                            0],
+                                             self.control_limit[k, 1])
                 # x_i = As[:,:,i] @ x_i + Bs[:,:,i] @ control + ds[:,:,i].flatten()
                 x_i = DynamicBicycleCartesianSimulator.advance_dynamics(
                     x_i, (control[1], control[0]), self.car)
@@ -574,8 +584,10 @@ class CCMPPI_DYNAMIC():
 
         nocc_states_vec = np.array(nocc_states_vec)
 
-        ret_dict = {'cc_states_vec': cc_states_vec,
-                    'nocc_states_vec': nocc_states_vec}
+        ret_dict = {
+            'cc_states_vec': cc_states_vec,
+            'nocc_states_vec': nocc_states_vec
+        }
         return ret_dict
 
     # simulate model with and without cc
@@ -599,7 +611,7 @@ class CCMPPI_DYNAMIC():
             x_i = x0.copy()
             for i in range(sim_steps):
                 # generate random variable epsilon
-                mean = [0.0]*self.m
+                mean = [0.0] * self.m
                 cov = self.Sigma_epsilon
                 if (self.rand_vals is None):
                     epsilon = np.random.multivariate_normal(mean, cov)
@@ -607,18 +619,18 @@ class CCMPPI_DYNAMIC():
                     epsilon = self.rand_vals[j, i, :]
                 v = self.ref_ctrl_vec[i, :]
 
-                control = (v+epsilon + self.Ks[i] @ y_i)
+                control = (v + epsilon + self.Ks[i] @ y_i)
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
-                        control[k] = np.clip(
-                            control[k], self.control_limit[k, 0], self.control_limit[k, 1])
+                        control[k] = np.clip(control[k], self.control_limit[k,
+                                                                            0],
+                                             self.control_limit[k, 1])
                 x_i = As[:, :, i] @ x_i + \
                     Bs[:, :, i] @ control + ds[:, :, i].flatten()
                 # TODO is this the right format?
                 y_i = As[:, :, i] @ y_i + Bs[:, :, i] @ epsilon
                 cc_states_vec[j].append(x_i.flatten())
-
                 '''
                 if (j==0):
                     print("step %d, control: %.2f, %.2f"%(i,control[0], control[1]))
@@ -634,27 +646,30 @@ class CCMPPI_DYNAMIC():
             x_i = x0.copy()
             for i in range(sim_steps):
                 # generate random variable epsilon
-                mean = [0.0]*self.m
+                mean = [0.0] * self.m
                 cov = self.Sigma_epsilon
                 if (self.rand_vals is None):
                     epsilon = np.random.multivariate_normal(mean, cov)
                 else:
                     epsilon = self.rand_vals[j, i, :]
                 v = self.ref_ctrl_vec[i, :]
-                control = v+epsilon
+                control = v + epsilon
                 # apply input constraints
                 if (self.debug_info['input_constraint']):
                     for k in range(self.m):
-                        control[k] = np.clip(
-                            control[k], self.control_limit[k, 0], self.control_limit[k, 1])
+                        control[k] = np.clip(control[k], self.control_limit[k,
+                                                                            0],
+                                             self.control_limit[k, 1])
                 x_i = As[:, :, i] @ x_i + \
                     Bs[:, :, i] @ control + ds[:, :, i].flatten()
                 nocc_states_vec[j].append(x_i.flatten())
 
         nocc_states_vec = np.array(nocc_states_vec)
 
-        ret_dict = {'cc_states_vec': cc_states_vec,
-                    'nocc_states_vec': nocc_states_vec}
+        ret_dict = {
+            'cc_states_vec': cc_states_vec,
+            'nocc_states_vec': nocc_states_vec
+        }
         return ret_dict
 
     # compare linearized batch dynamics against
@@ -674,21 +689,21 @@ class CCMPPI_DYNAMIC():
         yy = self.ref_traj[:, 2]
         x = state[0]
         y = state[2]
-        dist_sqr = (xx-x)**2 + (yy-y)**2
+        dist_sqr = (xx - x)**2 + (yy - y)**2
         # start : index of closest ref point to car
         start = ref_traj_index = np.argmin(dist_sqr)
 
         # ref_traj: x,dx,y,dy,heading,dheading
-        x = self.ref_traj[start:start+self.N, 0]
-        vx = self.ref_traj[start:start+self.N, 1]
-        y = self.ref_traj[start:start+self.N, 2]
-        vy = self.ref_traj[start:start+self.N, 3]
-        heading = self.ref_traj[start:start+self.N, 4]
-        v = np.sqrt(vx*vx + vy*vy)
+        x = self.ref_traj[start:start + self.N, 0]
+        vx = self.ref_traj[start:start + self.N, 1]
+        y = self.ref_traj[start:start + self.N, 2]
+        vy = self.ref_traj[start:start + self.N, 3]
+        heading = self.ref_traj[start:start + self.N, 4]
+        v = np.sqrt(vx * vx + vy * vy)
 
         # reference state trajectory and control
         ref_state_vec = np.vstack([x, y, v, heading]).T
-        ref_ctrl_vec = self.ref_ctrl[start:start+self.N]
+        ref_ctrl_vec = self.ref_ctrl[start:start + self.N]
 
         # As = [A0..A(N-1)]
         # linearize dynamics around ref traj
@@ -707,8 +722,8 @@ class CCMPPI_DYNAMIC():
         self.As = As = np.dstack(As)
         self.Bs = Bs = np.dstack(Bs)
         self.ds = ds = np.dstack(ds).reshape((self.n, 1, self.N))
-        A, B, C, d, D = self.make_batch_dynamics(
-            As, Bs, ds, None, self.Sigma_epsilon)
+        A, B, C, d, D = self.make_batch_dynamics(As, Bs, ds, None,
+                                                 self.Sigma_epsilon)
 
         # simulate with batch dynamics
         # X = AA x0 + BB u + C d + D noise
@@ -726,7 +741,6 @@ class CCMPPI_DYNAMIC():
         car_state = (x0[0], x0[1], x0[3], 0, 0, 0)
         print(car_state)
         img = self.track.draw_car(img_track.copy(), car_state, u0[1])
-
         '''
         actual_future_traj  = ref_state_vec[:,(0,1)]
         img = self.track.draw_polyline(actual_future_traj,lineColor=(255,0,0),img=img.copy())
@@ -734,8 +748,9 @@ class CCMPPI_DYNAMIC():
 
         predicted_states = xx_linearized.reshape((-1, self.n))
         predicted_future_traj = predicted_states[:, (0, 1)]
-        img = self.track.draw_polyline(
-            predicted_future_traj, lineColor=(0, 255, 0), img=img.copy())
+        img = self.track.draw_polyline(predicted_future_traj,
+                                       lineColor=(0, 255, 0),
+                                       img=img.copy())
 
         plt.imshow(img)
         plt.show()
@@ -749,13 +764,16 @@ class CCMPPI_DYNAMIC():
         n_std = 3.0
         mean_x, mean_y = mean
         cov = cov_matrix
-        pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
+        pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
         # Using a special case to obtain the eigenvalues of this
         # two-dimensionl dataset.
         ell_radius_x = np.sqrt(1 + pearson)
         ell_radius_y = np.sqrt(1 - pearson)
-        ellipse = Ellipse((0, 0), width=ell_radius_x * 2, height=ell_radius_y * 2,
-                          facecolor=facecolor, edgecolor=color)
+        ellipse = Ellipse((0, 0),
+                          width=ell_radius_x * 2,
+                          height=ell_radius_y * 2,
+                          facecolor=facecolor,
+                          edgecolor=color)
 
         # Calculating the stdandard deviation of x from
         # the squareroot of the variance and multiplying
@@ -774,7 +792,7 @@ class CCMPPI_DYNAMIC():
         return ax.add_patch(ellipse)
 
     def test_single_frame(self):
-        state = np.array([0.6*3.5, 0.6*1.75, radians(90), 1.0, 0, 0])
+        state = np.array([0.6 * 3.5, 0.6 * 1.75, radians(90), 1.0, 0, 0])
         # dim: N*m*n
         Ks, As, Bs, ds, = self.cc(state, True)
 
@@ -786,22 +804,22 @@ class CCMPPI_DYNAMIC():
         Ks = np.array(Ks)
         Ks[0] = 0.0
         Ks_flat = np.array(Ks, dtype=np.float32).flatten()
-        print(Ks[0, 1, 2]-Ks_flat[0*n*m + 1*n + 2])
+        print(Ks[0, 1, 2] - Ks_flat[0 * n * m + 1 * n + 2])
 
         # A (n*n)
         # As_p[i,j] = p*n*n + i*n + j
         As_flat = np.array(As, dtype=np.float32).flatten()
-        print(As[0, 1, 2]-As_flat[0*n*n + 1*n + 2])
+        print(As[0, 1, 2] - As_flat[0 * n * n + 1 * n + 2])
 
         # B (n*m)
         # Bs_p[i,j] = p*m*n + i*m + j
         Bs_flat = np.array(Bs, dtype=np.float32).flatten()
-        print(Bs[0, 2, 1]-Bs_flat[0*m*n + 2*m + 1])
+        print(Bs[0, 2, 1] - Bs_flat[0 * m * n + 2 * m + 1])
 
         # d (n*1)
         # Bs_p[i] = p*n + i*
         ds_flat = np.array(ds, dtype=np.float32).flatten()
-        print(ds[1, 2]-ds_flat[1*n + 2])
+        print(ds[1, 2] - ds_flat[1 * n + 2])
 
         ret_dict = self.simulate()
         # self.test_linearization()
@@ -821,7 +839,7 @@ class CCMPPI_DYNAMIC():
 
         # prepare track map
         track = RCPTrack()
-        track.start_pos = (0.6*3.5, 0.6*1.75)
+        track.start_pos = (0.6 * 3.5, 0.6 * 1.75)
         track.startDir = radians(90)
         track.load()
 
@@ -833,9 +851,10 @@ class CCMPPI_DYNAMIC():
         img = track.draw_car(img, x0, car_steering)
 
         for i in range(cc_states_vec.shape[0]):
-            img = track.draw_polyline(
-                cc_states_vec[i, :, :], img=img, lineColor=(200, 200, 200), thickness=1)
-
+            img = track.draw_polyline(cc_states_vec[i, :, :],
+                                      img=img,
+                                      lineColor=(200, 200, 200),
+                                      thickness=1)
         '''
         for i in range(nocc_states_vec.shape[0]):
             img = track.draw_polyline(nocc_states_vec[i,:,:],img=img,lineColor=(200,200,200),thickness=1)
@@ -848,8 +867,9 @@ class CCMPPI_DYNAMIC():
         state = self.debug_info['x0'].copy()
 
         # dim: N*m*n
-        Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc(
-            state, return_sx=True, debug=True)
+        Ks, As, Bs, ds, Sx_cc, Sx_nocc = self.cc(state,
+                                                 return_sx=True,
+                                                 debug=True)
         theory_cc_cov_mtx = Sx_cc[-4:-2, -4:-2]
         theory_nocc_cov_mtx = Sx_nocc[-4:-2, -4:-2]
 
@@ -873,11 +893,13 @@ class CCMPPI_DYNAMIC():
         y_mean = np.mean(cc_states_vec[:, -1, 1])
         cc_cov_mtx = np.cov(xy_vec)
         self.plot_confidence_ellipse(ax_cc, (x_mean, y_mean), cc_cov_mtx)
-        self.plot_confidence_ellipse(
-            ax_cc, (x_mean, y_mean), theory_cc_cov_mtx, color='blue')
+        self.plot_confidence_ellipse(ax_cc, (x_mean, y_mean),
+                                     theory_cc_cov_mtx,
+                                     color='blue')
 
-        plt.title('with CC (%s, input limit= %s)' % (
-            self.debug_info['model'], str(self.debug_info['input_constraint'])))
+        plt.title('with CC (%s, input limit= %s)' %
+                  (self.debug_info['model'],
+                   str(self.debug_info['input_constraint'])))
         plt.axis('square')
         left, right = plt.xlim()
         up, down = plt.ylim()
@@ -894,11 +916,13 @@ class CCMPPI_DYNAMIC():
         y_mean = np.mean(nocc_states_vec[:, -1, 1])
         nocc_cov_mtx = np.cov(xy_vec)
         self.plot_confidence_ellipse(ax_nocc, (x_mean, y_mean), nocc_cov_mtx)
-        self.plot_confidence_ellipse(
-            ax_nocc, (x_mean, y_mean), theory_nocc_cov_mtx, color='blue')
+        self.plot_confidence_ellipse(ax_nocc, (x_mean, y_mean),
+                                     theory_nocc_cov_mtx,
+                                     color='blue')
 
-        plt.title('without CC (%s, input limit= %s)' % (
-            self.debug_info['model'], str(self.debug_info['input_constraint'])))
+        plt.title('without CC (%s, input limit= %s)' %
+                  (self.debug_info['model'],
+                   str(self.debug_info['input_constraint'])))
         plt.xlim(left, right)
         plt.ylim(up, down)
         plt.axis('square')
@@ -918,14 +942,16 @@ class CCMPPI_DYNAMIC():
 if __name__ == '__main__':
     dt = 0.01
     # np.vstack([x,y,heading,v_forward, v_sideway,omega]).T
-    state = np.array([0.6*0.7, 0.6*0.5,  radians(130), 0.5, 0.0, 0.0])
+    state = np.array([0.6 * 0.7, 0.6 * 0.5, radians(130), 0.5, 0.0, 0.0])
     ratio = 1.0
-    noise_cov = np.diag([(0.7*ratio)**2, radians(20.0*ratio)**2])
+    noise_cov = np.diag([(0.7 * ratio)**2, radians(20.0 * ratio)**2])
     debug_info = {'x0': state, 'model': 'dynamic', 'input_constraint': True}
 
     main = CCMPPI_DYNAMIC(dt, 20, noise_cov, debug_info)
-    car = Car.Factory(main, 'porsche', controller=StanleyCarController,
-                      init_states=(3.7*0.6, 1.75*0.6, radians(-90), 1.0))
+    car = Car.Factory(main,
+                      'porsche',
+                      controller=StanleyController,
+                      init_states=(3.7 * 0.6, 1.75 * 0.6, radians(-90), 1.0))
     car.noise = False
     DynamicBicycleCartesianSimulator.dt = dt
     DynamicBicycleCartesianSimulator.max_v = 30.0

@@ -11,7 +11,7 @@ from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 
 if TYPE_CHECKING:
-    from buzzracer.cars.car import Car
+    from buzzracer.cars.car import CarParam
 
 
 class KinematicBicycleModelCartesian(VehicleDynamics):
@@ -22,16 +22,16 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
     @staticmethod
     def advance_dynamics(state: CartesianState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
-                         curvature: float=None,
-                         use_torch: bool=False) -> CartesianState:
+                         curvature: float = None,
+                         use_torch: bool = False) -> CartesianState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
             state: Current state of the vehicle
             control: Control for the vehicle
-            car: Car object to supply vehicle sysid parameters like mass, Iz, wheelbase
+            car: CarParam object to supply vehicle sysid parameters like mass, Iz, wheelbase
             dt: time step in seconds e.g. 0.01
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
@@ -41,19 +41,23 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
 
         del curvature
         if use_torch:
-            beta = torch.arctan(np.tan(control.steering) * car.param.lr / (car.param.lf + car.param.lr))
+            beta = torch.arctan(np.tan(control.steering) * car_param.lr /
+                                (car_param.lf + car_param.lr))
             dxdt = state.v_forward * torch.cos(state.heading + beta)
             dydt = state.v_forward * torch.sin(state.heading + beta)
-            dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
+            dvdt = 6.17 * (control.throttle - state.v_forward /
+                           15.2 - 0.333) * (state.v_forward > 0)
             dheadingdt = state.v_forward * \
-                torch.cos(beta) / (car.param.lf + car.param.lr) * torch.tan(control.steering)
+                torch.cos(beta) / (car_param.lf + car_param.lr) * torch.tan(control.steering)
         else:
-            beta = np.arctan(np.tan(control.steering) * car.param.lr / (car.param.lf + car.param.lr))
+            beta = np.arctan(np.tan(control.steering) * car_param.lr /
+                             (car_param.lf + car_param.lr))
             dxdt = state.v_forward * np.cos(state.heading + beta)
             dydt = state.v_forward * np.sin(state.heading + beta)
-            dvdt = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
+            dvdt = 6.17 * (control.throttle - state.v_forward /
+                           15.2 - 0.333) * (state.v_forward > 0)
             dheadingdt = state.v_forward * \
-                np.cos(beta) / (car.param.lf + car.param.lr) * np.tan(control.steering)
+                np.cos(beta) / (car_param.lf + car_param.lr) * np.tan(control.steering)
 
         x = state.x + dt * dxdt
         y = state.y + dt * dydt
@@ -74,16 +78,16 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
     @staticmethod
     def advance_dynamics(state: CurvilinearState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
-                         curvature: float=None,
-                         use_torch: bool=False) -> CurvilinearState:
+                         curvature: float = None,
+                         use_torch: bool = False) -> CurvilinearState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
             state: Current state of the vehicle
             control: Control for the vehicle
-            car: Car object to supply vehicle sysid parameters like mass, Iz, wheelbase
+            car_param: CarParam object to supply vehicle sysid parameters like mass, Iz, wheelbase
             dt: time step in seconds e.g. 0.01
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
@@ -92,37 +96,41 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
 
         # Origin at CG, beta is the angle between CG velocity and car orientation
         if use_torch:
-            beta = torch.arctan(torch.tan(control.steering) * car.param.lr / (car.param.lf + car.param.lr))
+            beta = torch.arctan(torch.tan(control.steering) *
+                                car_param.lr / (car_param.lf + car_param.lr))
 
             dsdt = (state.v_forward * torch.cos(state.heading_err) - state.v_sideway *
                     torch.sin(state.heading_err))/(1-state.lateral_err*curvature)
             dndt = state.v_forward * torch.sin(state.heading_err) + \
                 state.v_sideway * torch.cos(state.heading_err)
             # acceleration at rear wheel
-            acc_rw = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
+            acc_rw = 6.17 * (control.throttle - state.v_forward /
+                             15.2 - 0.333) * (state.v_forward > 0)
             acc_cg = acc_rw / torch.cos(beta)
             d_v_forward_dt = acc_cg * torch.cos(beta)
             d_v_sideway_dt = acc_cg * torch.sin(beta)
 
             total_v = torch.sqrt(state.v_forward**2 + state.v_sideway**2)
-            d_heading_dt = total_v / car.param.lr * torch.sin(beta)
+            d_heading_dt = total_v / car_param.lr * torch.sin(beta)
             d_rel_heading_dt = d_heading_dt - curvature * dsdt
 
         else:
-            beta = np.arctan(np.tan(control.steering) * car.param.lr / (car.param.lf + car.param.lr))
+            beta = np.arctan(np.tan(control.steering) * car_param.lr /
+                             (car_param.lf + car_param.lr))
 
             dsdt = (state.v_forward * np.cos(state.heading_err) - state.v_sideway *
                     np.sin(state.heading_err))/(1-state.lateral_err*curvature)
             dndt = state.v_forward * np.sin(state.heading_err) + \
                 state.v_sideway * np.cos(state.heading_err)
             # acceleration at rear wheel
-            acc_rw = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0)
+            acc_rw = 6.17 * (control.throttle - state.v_forward /
+                             15.2 - 0.333) * (state.v_forward > 0)
             acc_cg = acc_rw / np.cos(beta)
             d_v_forward_dt = acc_cg * np.cos(beta)
             d_v_sideway_dt = acc_cg * np.sin(beta)
 
             total_v = np.sqrt(state.v_forward**2 + state.v_sideway**2)
-            d_heading_dt = total_v / car.param.lr * np.sin(beta)
+            d_heading_dt = total_v / car_param.lr * np.sin(beta)
             d_rel_heading_dt = d_heading_dt - curvature * dsdt
 
         return CurvilinearState(

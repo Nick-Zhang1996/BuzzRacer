@@ -12,16 +12,17 @@ import pickle
 import numpy as np
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
 
+@Extension.register('laptimer', ExtensionConfig, ExtensionState)
 class Laptimer(Extension):
     ''' Laptimer for simulation and experiments.'''
 
-    def __init__(self):
-        Extension.__init__(self, 'laptimer')
+    def __init__(self, config, state):
+        Extension.__init__(self, config, state)
         self.text_logger.setLevel(logging.WARNING)
 
         cars = self.main.cars
@@ -34,8 +35,8 @@ class Laptimer(Extension):
         self.laptime_vec_by_car: dict[Car, float] = {car: [] for car in cars}
         ''' Laptime history for each car '''
         self.laptimer_by_car: dict[Car, _Laptimer] = {
-            car: _Laptimer(self.main.track.start_pos,
-                           self.main.track.start_dir)
+            car: _Laptimer(self.main.track.data.start_pos,
+                           self.main.track.data.start_dir)
             for car in cars
         }
         ''' Laptimer object for each car '''

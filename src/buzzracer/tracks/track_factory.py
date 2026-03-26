@@ -1,5 +1,6 @@
 from buzzracer.common import get_logger, set_config_attr
 from buzzracer.tracks.track import TrackConfig
+from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 from buzzracer.tracks.rcp_track import RCPTrack, GridSize
 from buzzracer.tracks.empty_track import EmptyTrack
 from buzzracer.tracks.skidpad import Skidpad
@@ -30,7 +31,7 @@ class TrackFactory:
         return TrackFactory.get_mapping().keys()
 
     @staticmethod
-    def build(name=None, *, main=None, config=None, track=None):
+    def build(name=None, *, config=None):
         ''' create a track
             name: name of track, if absent, use config
             main,config: parameters to assign to track
@@ -44,16 +45,15 @@ class TrackFactory:
             else:
                 name = config.firstChild.nodeValue
         if (name in mapping):
-            return mapping[name](config, track=track)
+            return mapping[name](config)
         else:
             logger.error('unknown track name, use one in %s', mapping.keys())
 
     @staticmethod
-    def prepare_saved_track(config_dom, track=None):
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
+    def prepare_saved_track(config_dom):
+        config = TrackConfig()
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
         track.load()
         return track
 
@@ -64,112 +64,81 @@ class TrackFactory:
         return EmptyTrack(config)
 
     @staticmethod
-    def prepare_rcp_track(config_dom, track=None):
+    def prepare_rcp_track(config_dom):
         # row, col
-        track_size = GridSize(6, 4)
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
-        # drivable surface width 0.563, square tile side length 0.6
-        track.init_track('uuurrullurrrdddddluulddl', track_size, scale=0.6)
-        # add manual offset for each control points
-        adjustment = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-        adjustment[0] = -0.2
-        adjustment[1] = -0.2
-        # bottom right turn
-        adjustment[2] = -0.2
-        adjustment[3] = 0.5
-        adjustment[4] = -0.2
-
-        # bottom middle turn
-        adjustment[6] = -0.2
-
-        # bottom left turn
-        adjustment[9] = -0.2
-
-        # left L turn
-        adjustment[12] = 0.5
-        adjustment[13] = 0.5
-
-        adjustment[15] = -0.5
-        adjustment[16] = 0.5
-        adjustment[18] = 0.5
-
-        adjustment[21] = 0.35
-        adjustment[22] = 0.35
-
-        # start coord, direction, sequence number of origin
-        # pick a grid as the starting grid, this doesn't matter much, however a starting grid in the middle of a long straight helps
-        # to find sequence number of origin, start from the start coord(seq no = 0), and follow the track, each time you encounter a new grid it's seq no is 1+previous seq no. If origin is one step away in the forward direction from start coord, it has seq no = 1
-        # track.init_raceline((3,3),'d',offset=adjustment)
-        track.init_raceline((3, 3), 'd', offset=None)
-        # track.start_pos = (0.6*3.5,0.6*1.75)
-        # track.start_dir = radians(90)
+        config = RCPTrack.build_config('uuurrullurrrdddddluulddl', GridSize(6, 4))
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
+        rcp_raceline = track.build_raceline((3, 3), 'd', offset=None)
+        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        data = track.build_track(r_vec, left, right)
+        track.rcp_raceline = rcp_raceline
+        track.data = data
         return track
 
     @staticmethod
-    def prepare_skidpad(config_dom, track=None):
+    def prepare_skidpad(config_dom):
         config = TrackConfig()
         set_config_attr(config_dom, config)
         track = Skidpad(config)
         return track
 
     @staticmethod
-    def prepare_rcp_track_small(config_dom, track=None):
-        # current track setup in mk103, L shaped
-        # width 0.563, length 0.6
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
-        track.init_track('uuruurddddll', GridSize(5, 3), scale=0.6)
-        # add manual offset for each control points
+    def prepare_rcp_track_small(config_dom):
+        config = RCPTrack.build_config('uuruurddddll', GridSize(5, 3))
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
+        # Add manual offset for each control points
         adjustment = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         adjustment[4] = -0.5
         adjustment[8] = -0.5
         adjustment[9] = 0
         adjustment[10] = -0.5
-        track.init_raceline((2, 2), 'd', offset=adjustment)
+        rcp_raceline = track.build_raceline((2, 2), 'd', offset=adjustment)
+        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        data = track.build_track(r_vec, left, right)
+        track.rcp_raceline = rcp_raceline
+        track.data = data
         return track
 
     @staticmethod
-    def prepare_rcp_track_big(config_dom, track=None):
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
-        track.init_track('urruulluururrdrdddlddlll', GridSize(7, 5), scale=0.6)
-        track.init_raceline((2, 0), 'l')
+    def prepare_rcp_track_big(config_dom):
+        config = RCPTrack.build_config('urruulluururrdrdddlddlll', GridSize(7, 5))
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
+        rcp_raceline = track.build_raceline((2, 0), 'l')
+        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        data = track.build_track(r_vec, left, right)
+        track.rcp_raceline = rcp_raceline
+        track.data = data
         return track
 
     @staticmethod
-    def prepare_easy_track(config_dom, track=None):
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
-        # track.init_track('uuruluurrrddddldll',GridSize(6,4),scale=0.6)
-        # track.init_raceline((3,3),'d')
-        track.init_track('uuuuurrrddddldll', GridSize(6, 4), scale=0.6)
-        track.init_raceline((3, 3), 'd')
+    def prepare_easy_track(config_dom):
+        config = RCPTrack.build_config('uuuuurrrddddldll', GridSize(6, 4))
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
+        rcp_raceline = track.build_raceline((3, 3), 'd')
+        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        data = track.build_track(r_vec, left, right)
+        track.rcp_raceline = rcp_raceline
+        track.data = data
         return track
 
     @staticmethod
-    def prepare_circle(config_dom, track=None):
-        if (track is None):
-            config = TrackConfig()
-            set_config_attr(config_dom, config)
-            track = RCPTrack(config)
-        track_size = GridSize(6, 6)
-        track.init_track('uuuururrrdrdddldllll', track_size, scale=0.6)
-        track.init_raceline((0, 2), 'u', offset=None)
+    def prepare_circle(config_dom):
+        config = RCPTrack.build_config('uuuururrrdrdddldllll', GridSize(6, 6), scale=0.6)
+        set_config_attr(config_dom, config)
+        track = RCPTrack(config)
+        rcp_raceline = track.build_raceline((0, 2), 'u', offset=None)
+        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        data = track.build_track(r_vec, left, right)
+        track.rcp_raceline = rcp_raceline
+        track.data = data
         return track
 
     @staticmethod
-    def prepare_nascar_track(config_dom, track=None):
+    def prepare_nascar_track(config_dom):
         config = TrackConfig()
         set_config_attr(config_dom, config)
         track = NascarTrack(config)

@@ -10,8 +10,8 @@ from struct import pack, unpack
 from threading import Thread, Event
 
 from buzzracer.common import PrintObject
-from buzzracer.cars.car import Car, CarParam
-from buzzracer.types import CartesianState
+from buzzracer.cars.car import Car
+from buzzracer.cars.car_param import CarParam
 
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages

@@ -4,7 +4,7 @@ import pickle
 import matplotlib.pyplot as plt
 from pycuda.compiler import SourceModule
 import pycuda.driver as drv
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 import numpy as np
 from time import time, sleep
 from math import radians, degrees, cos, sin, ceil, floor, atan, tan
@@ -13,7 +13,8 @@ import pycuda.autoinit
 global drv
 
 
-class CvarCarController(CarController):
+class CvarController(Controller):
+
     def __init__(self, car, config):
         super().__init__(car, config)
         np.set_printoptions(
@@ -23,14 +24,15 @@ class CvarCarController(CarController):
         self.n = self.state_dim = 6
         self.m = self.control_dim = 2
         self.samples_count = None  # to be set in config
-        self.horizon = None       # to be set in config
+        self.horizon = None  # to be set in config
 
         self.track = self.car.main.track
         self.dt = 0.02
         self.discretized_raceline_len = 1024
         self.temperature = 0.01
-        self.control_limit = np.array(
-            [[-1.0, 1.0], [-radians(27.1), radians(27.1)]])
+        self.control_limit = np.array([[-1.0, 1.0],
+                                       [-radians(27.1),
+                                        radians(27.1)]])
 
         P = 1
         I = 0.0
@@ -75,8 +77,9 @@ class CvarCarController(CarController):
         # self.noise_mean = np.array([0.207,0])
 
         # sample control change rate val/sec
-        self.control_noise_cov = np.array(
-            [(self.car.max_throttle*2/0.4)**2, (radians(27.0)*2/0.2)**2])
+        self.control_noise_cov = np.array([
+            (self.car.max_throttle * 2 / 0.4)**2, (radians(27.0) * 2 / 0.2)**2
+        ])
         self.control_noise_mean = np.array([0.0, 0])
 
         self.state_noise_magnitude = np.array(self.state_noise_magnitude)
@@ -96,9 +99,11 @@ class CvarCarController(CarController):
         ss = np.linspace(0, self.track.raceline_len_m,
                          self.discretized_raceline_len)
         rr = splev(ss % self.track.raceline_len_m,
-                   self.track.raceline_s, der=0)
+                   self.track.raceline_s,
+                   der=0)
         drr = splev(ss % self.track.raceline_len_m,
-                    self.track.raceline_s, der=1)
+                    self.track.raceline_s,
+                    der=1)
         heading_vec = np.arctan2(drr[1], drr[0])
         vv = self.track.sToV(ss)
         top_speed = 10
@@ -112,8 +117,10 @@ class CvarCarController(CarController):
 
         # describe track boundary as offset from raceline
         self.create_boundary()
-        self.discretized_raceline = np.vstack(
-            [self.raceline_points, self.raceline_headings, vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        self.discretized_raceline = np.vstack([
+            self.raceline_points, self.raceline_headings, vv,
+            self.raceline_left_boundary, self.raceline_right_boundary
+        ]).T
         '''
         left = np.array(self.raceline_left_boundary)
         right = np.array(self.raceline_right_boundary)
@@ -143,10 +150,10 @@ class CvarCarController(CarController):
             right_boundary.append(right)
 
             # debug boundary points
-            left_point = (coord[0] + left * cos(heading+np.pi/2),
-                          coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),
-                           coord[1] + right * sin(heading-np.pi/2))
+            left_point = (coord[0] + left * cos(heading + np.pi / 2),
+                          coord[1] + left * sin(heading + np.pi / 2))
+            right_point = (coord[0] + right * cos(heading - np.pi / 2),
+                           coord[1] + right * sin(heading - np.pi / 2))
 
             left_boundary_points.append(left_point)
             right_boundary_points.append(right_point)
@@ -172,10 +179,12 @@ class CvarCarController(CarController):
             img = self.track.draw_track()
             img *= 0
             # img = self.track.draw_raceline(img = img)
-            img = self.track.draw_polyline(
-                left_boundary_points, lineColor=(0, 255, 0), img=img)
-            img = self.track.draw_polyline(
-                right_boundary_points, lineColor=(0, 255, 0), img=img)
+            img = self.track.draw_polyline(left_boundary_points,
+                                           lineColor=(0, 255, 0),
+                                           img=img)
+            img = self.track.draw_polyline(right_boundary_points,
+                                           lineColor=(0, 255, 0),
+                                           img=img)
             with open('track_boundary_img.p', 'wb') as f:
                 self.print_info('saved raw track background')
                 pickle.dump(img, f)
@@ -220,7 +229,8 @@ class CvarCarController(CarController):
         self.cuda_evaluate_noisy_control_sequence = self.get_function_safe(
             'evaluate_noisy_control_sequence')
 
-        self.cuda_set_control_limit = self.get_function_safe('set_control_limit')
+        self.cuda_set_control_limit = self.get_function_safe(
+            'set_control_limit')
         self.cuda_set_control_noise_cov = self.get_function_safe(
             'set_control_noise_cov')
         self.cuda_set_control_noise_mean = self.get_function_safe(
@@ -249,32 +259,38 @@ class CvarCarController(CarController):
         # TODO:
         # set control limit
         device_control_limit = self.to_device(self.control_limit)
-        self.cuda_set_control_limit(
-            device_control_limit, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_control_limit(device_control_limit,
+                                    block=(1, 1, 1),
+                                    grid=(1, 1, 1))
 
         # set control noise variance
         device_control_noise_cov = self.to_device(self.control_noise_cov)
-        self.cuda_set_control_noise_cov(
-            device_control_noise_cov, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_control_noise_cov(device_control_noise_cov,
+                                        block=(1, 1, 1),
+                                        grid=(1, 1, 1))
         # set control noise mean
         device_control_noise_mean = self.to_device(self.control_noise_mean)
-        self.cuda_set_control_noise_mean(
-            device_control_noise_mean, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_control_noise_mean(device_control_noise_mean,
+                                         block=(1, 1, 1),
+                                         grid=(1, 1, 1))
 
         # set state noise magnitude
         device_state_noise_magnitude = self.to_device(
             self.state_noise_magnitude)
-        self.cuda_set_state_noise_magnitude(
-            device_state_noise_magnitude, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_state_noise_magnitude(device_state_noise_magnitude,
+                                            block=(1, 1, 1),
+                                            grid=(1, 1, 1))
         # set state noise mean
         device_state_noise_mean = self.to_device(self.state_noise_mean)
-        self.cuda_set_state_noise_mean(
-            device_state_noise_mean, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_state_noise_mean(device_state_noise_mean,
+                                       block=(1, 1, 1),
+                                       grid=(1, 1, 1))
 
         # set raceline
         device_raceline = self.to_device(self.discretized_raceline)
-        self.cuda_set_raceline(
-            device_raceline, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_raceline(device_raceline,
+                               block=(1, 1, 1),
+                               grid=(1, 1, 1))
 
         obstacle_count = np.int32(self.track.obstacle_count)
         obstacle_radius = np.float32(self.track.obstacle_radius)
@@ -282,14 +298,18 @@ class CvarCarController(CarController):
             device_obstacles = self.to_device(self.track.obstacles)
         else:
             device_obstacles = np.uint64(0)
-        self.cuda_set_obstacle(obstacle_count, obstacle_radius,
-                               device_obstacles, block=(1, 1, 1), grid=(1, 1, 1))
+        self.cuda_set_obstacle(obstacle_count,
+                               obstacle_radius,
+                               device_obstacles,
+                               block=(1, 1, 1),
+                               grid=(1, 1, 1))
         sleep(1)
 
     def init_curand(self):
-        seed = np.int32(int(time()*10000))
-        self.cuda_init_curand_kernel(seed, block=(
-            self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
+        seed = np.int32(int(time() * 10000))
+        self.cuda_init_curand_kernel(seed,
+                                     block=(self.curand_kernel_n, 1, 1),
+                                     grid=(1, 1, 1))
         # self.rand_vals = np.zeros(self.samples_count*self.horizon*self.m, dtype=np.float32)
         # self.device_rand_vals = drv.to_device(self.rand_vals)
 
@@ -307,9 +327,9 @@ class CvarCarController(CarController):
         else:
             # employ multiple grid,
             self.cuda_sample_block_size = (1024, 1, 1)
-            self.cuda_sample_grid_size = (ceil(self.samples_count/1024.0), 1)
+            self.cuda_sample_grid_size = (ceil(self.samples_count / 1024.0), 1)
 
-        total_samples_count = (1+self.subsamples_count)*self.samples_count
+        total_samples_count = (1 + self.subsamples_count) * self.samples_count
         if (total_samples_count < 1024):
             # if sample count is small only employ one grid
             self.cuda_total_sample_block_size = (total_samples_count, 1, 1)
@@ -317,13 +337,15 @@ class CvarCarController(CarController):
         else:
             # employ multiple grid,
             self.cuda_total_sample_block_size = (1024, 1, 1)
-            self.cuda_total_sample_grid_size = (
-                ceil(total_samples_count/1024.0), 1)
+            self.cuda_total_sample_grid_size = (ceil(total_samples_count /
+                                                     1024.0), 1)
 
-        self.print_info('sample: cuda block size %d, grid size %d' % (
-            self.cuda_sample_block_size[0], self.cuda_sample_grid_size[0]))
-        self.print_info('total sample: cuda block size %d, grid size %d' % (
-            self.cuda_total_sample_block_size[0], self.cuda_total_sample_grid_size[0]))
+        self.print_info(
+            'sample: cuda block size %d, grid size %d' %
+            (self.cuda_sample_block_size[0], self.cuda_sample_grid_size[0]))
+        self.print_info('total sample: cuda block size %d, grid size %d' %
+                        (self.cuda_total_sample_block_size[0],
+                         self.cuda_total_sample_grid_size[0]))
         return
 
     def get_function_safe(self, name):
@@ -368,15 +390,17 @@ class CvarCarController(CarController):
         else:
             device_opponent_traj = self.to_device(opponent_traj)
 
-        ref_control_rate = np.vstack(
-            [self.old_ref_control_rate[1:, :], np.zeros([1, self.m], dtype=np.float32)])
+        ref_control_rate = np.vstack([
+            self.old_ref_control_rate[1:, :],
+            np.zeros([1, self.m], dtype=np.float32)
+        ])
         # ref_control_rate = np.zeros([self.horizon,self.m],dtype=np.float32)
 
         # generate random var
-        self.cuda_generate_control_noise(
-            block=(self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
-        self.cuda_generate_state_noise(
-            block=(self.curand_kernel_n, 1, 1), grid=(1, 1, 1))
+        self.cuda_generate_control_noise(block=(self.curand_kernel_n, 1, 1),
+                                         grid=(1, 1, 1))
+        self.cuda_generate_state_noise(block=(self.curand_kernel_n, 1, 1),
+                                       grid=(1, 1, 1))
 
         # cuda inputs
         device_ref_control_rate = self.to_device(ref_control_rate)
@@ -384,11 +408,12 @@ class CvarCarController(CarController):
         device_last_control = self.to_device(self.last_control)
 
         # cuda outputs
-        sampled_control_rate = np.zeros(
-            self.samples_count*self.horizon*self.m, dtype=np.float32)
+        sampled_control_rate = np.zeros(self.samples_count * self.horizon *
+                                        self.m,
+                                        dtype=np.float32)
         costs = np.zeros((self.samples_count), dtype=np.float32)
         collision_count = np.zeros(
-            (self.samples_count*self.subsamples_count), dtype=np.float32)
+            (self.samples_count * self.subsamples_count), dtype=np.float32)
 
         # code can be configured to return sampled trajectory by uncommented related lines
         # here and in .cu file
@@ -405,8 +430,8 @@ class CvarCarController(CarController):
             # drv.Out(sampled_trajectory),
             opponent_count,
             device_opponent_traj,
-            block=self.cuda_total_sample_block_size, grid=self.cuda_total_sample_grid_size
-        )
+            block=self.cuda_total_sample_block_size,
+            grid=self.cuda_total_sample_grid_size)
 
         # sampled_trajectory = sampled_trajectory.reshape(self.samples_count, self.horizon, self.n)
 
@@ -443,13 +468,13 @@ class CvarCarController(CarController):
         if (self.enable_cvar):
             # paper:23-28
             # find highest cost quantile
-            count = int((1-self.cvar_a)*self.subsamples_count)
+            count = int((1 - self.cvar_a) * self.subsamples_count)
             if (count == 0):
                 self.print_error(
                     'cvar_alpha too large or subsample count too low')
 
-            mean_collision_vec = np.mean(
-                collision_count, axis=1).reshape(-1, 1)
+            mean_collision_vec = np.mean(collision_count,
+                                         axis=1).reshape(-1, 1)
             collision_count = (collision_count -
                                mean_collision_vec) * 10 + mean_collision_vec
 
@@ -470,7 +495,6 @@ class CvarCarController(CarController):
             cvar_costs = 0
         # self.print_info('mppi cost (min/avg/max)',np.min(costs), np.mean(costs), np.max(costs))
         # self.print_info('cvar cost (min/avg/max)',np.min(cvar_costs), np.mean(cvar_costs), np.max(cvar_costs))
-
         '''
         mppi_costs = costs.copy()
 
@@ -495,7 +519,7 @@ class CvarCarController(CarController):
         self.old_ref_control_rate = control_rate
         # self.print_info("steering rate: %.2f"%(degrees(control_rate[0,1])))
 
-        control = self.last_control + np.cumsum(control_rate, axis=0)*self.dt
+        control = self.last_control + np.cumsum(control_rate, axis=0) * self.dt
         # display expected trajectory
         # 5Hz impact
         '''
@@ -507,21 +531,20 @@ class CvarCarController(CarController):
         # self.last_ref_control = control.copy()
         self.last_ref_control = np.zeros_like(control)
 
-        self.car.throttle += control_rate[0, 0]*self.dt
+        self.car.throttle += control_rate[0, 0] * self.dt
         # XXX
 
         retval = self.track.local_trajectory(self.car.state)
         (local_ctrl_pnt, offset, orientation, curvature, v_target) = retval
         self.car.throttle = self.throttle_pid.control(
             v_target, vf) + self.steady_state_throttle(v_target)
-        self.car.steering += control_rate[0, 1]*self.dt
+        self.car.steering += control_rate[0, 1] * self.dt
 
         # self.print_info("T: %.2f, S: %.2f"%(self.car.throttle, degrees(self.car.steering)))
         self.last_control = [self.car.throttle, self.car.steering]
         dt = time() - t
-        self.freq_vec.append(1.0/dt)
+        self.freq_vec.append(1.0 / dt)
         # self.print_info("mean freq = %.2f Hz"%(np.mean(self.freq_vec)))
-
         '''
         display_trajectory = sampled_trajectory[:,:,0:2]
         for i in range(display_trajectory.shape[0]):
@@ -544,10 +567,10 @@ class CvarCarController(CarController):
     def synthesize_control(self, cost_vec, sampled_control_rate):
         cost_vec = np.array(cost_vec)
         beta = np.min(cost_vec)
-        cost_mean = np.mean(cost_vec-beta)  # around 35
+        cost_mean = np.mean(cost_vec - beta)  # around 35
 
         # calculate weights
-        weights = np.exp(- (cost_vec - beta)/cost_mean/self.temperature)
+        weights = np.exp(-(cost_vec - beta) / cost_mean / self.temperature)
         weights = weights / np.sum(weights)
         # self.print_info("best cost %.2f, max weight %.2f"%(beta,np.max(weights)))
 

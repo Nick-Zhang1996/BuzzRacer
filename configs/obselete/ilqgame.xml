@@ -21,7 +21,7 @@
       <config_name>sim_red</config_name>
       <init_states>(3.7*0.6,3.0*0.6, radians(-90), 2.1)</init_states>
       <controller>
-        <type>iLQGameCarController</type>
+        <type>iLQGameController</type>
       </controller>
     </car>
 
@@ -31,7 +31,7 @@
       <config_name>sim_green</config_name>
       <init_states>(3.9*0.6,3.3*0.6, radians(-90), 2.0)</init_states>
       <controller>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 

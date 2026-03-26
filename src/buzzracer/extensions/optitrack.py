@@ -13,13 +13,15 @@ from buzzracer.extensions.extension import Extension
 from buzzracer.utilities.kalman_filter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
 from buzzracer.types import CartesianState, Control
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
+@Extension.register('vi', ExtensionConfig, ExtensionState)
 class Optitrack(Extension):
     ''' interface for Optitrack Motive stream via NatNet SDK library'''
 
-    def __init__(self):
-        super().__init__(handle_name='vi')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         if Extension.main.config.experiment_type != ExperimentType.Realworld:
             self.print_error(
                 'Experiment type is not Realworld but Optitrack is loaded')

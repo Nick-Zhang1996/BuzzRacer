@@ -25,7 +25,7 @@
         horizon='30' 
         samples_count='1024' 
         >
-        <type>MppiCarController</type>
+        <type>MppiController</type>
       </controller>
     </car>
 

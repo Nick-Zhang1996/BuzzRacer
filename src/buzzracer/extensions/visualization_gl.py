@@ -11,6 +11,8 @@ from math import degrees, sin, cos, radians
 import pickle
 from threading import Event, Thread
 from functools import lru_cache
+from time import sleep
+import queue
 
 import moderngl
 from moderngl import Texture
@@ -23,22 +25,33 @@ from matplotlib import font_manager
 from deprecated import deprecated
 
 from buzzracer.common import BASEDIR
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 from buzzracer.utilities.execution_timer import ExecutionTimer
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
+    from buzzracer.tracks.track import Track
 
 
+class VisualizationGLConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.show_car_info = False
+
+
+@Extension.register('visualization', VisualizationGLConfig, ExtensionState)
 class VisualizationGL(Extension):
-    def __init__(self):
-        super().__init__(handle_name='visualization')
+    def __init__(self, config, state):
+        super().__init__(config, state)
         self.t = ExecutionTimer(False)
         self.update_visualization = Event()
-        self.car_graphics = False
         self.show_car_info = True
         ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.main.breakpoint = Event()
+        self.save_frames = Event()
+        """ If set, save frames, never cleared"""
+        self.new_frame = Event()
+        """ new state available, instruct gl to save frame"""
 
         self.img_track = None
         '''' Image of a track, with static visualization components like debuggint text '''
@@ -60,11 +73,12 @@ class VisualizationGL(Extension):
         for car in self.main.cars:
             filename = os.path.join(BASEDIR, 'assets', car.param.rendering)
             self.car_images[car] = cv2.imread(filename, -1)
-        img_track = self.main.track.draw_track()
-        self.img_blank_track = img_track.copy()
-        self.img_blank_track_with_obstacles = self.track.plot_obstacles(
-            img_track.copy())
-        self.img_track = self.main.track.draw_raceline(img=img_track)
+        img = self.main.track.draw_track()
+        self.img_blank_track = img.copy()
+        self.img_blank_track_with_obstacles = self.track.plot_obstacles(img.copy())
+        track: Track = self.main.track
+        self.img_track = track.draw_raceline(
+            track.data.raceline_s, track.data.raceline_len_m, img=img)
         # img = img_track.copy()
         # draw static components onto background
         # self.img_track = self.draw_control_static_for_all_cars(img_track)
@@ -72,14 +86,29 @@ class VisualizationGL(Extension):
         self.moderngl_thread = Thread(
             target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
+        sleep(2)
 
     def post_update(self):
         self.polylines = self.new_polylines
         self.new_polylines = []
+        if self.save_frames.is_set():
+            self.new_frame.set()
+
+    def get_current_frame(self) -> Image:
+        try:
+            while len(_WindowConfig.frame_queue) > 1:
+                raw_pixels = _WindowConfig.frame_queue.get_nowait()
+            raw_pixels = _WindowConfig.frame_queue.get_nowait()
+            img = Image.frombytes('RGB', _WindowConfig.window_size, raw_pixels)
+            # pylint: disable-next=no-member
+            return img.transpose(Image.FLIP_TOP_BOTTOM)
+        except queue.Empty:
+            return None
 
     def _moderngl_thread_function(self):
         _WindowConfig.host = self
         _WindowConfig.t = self.t
+        _WindowConfig.frame_queue = queue.Queue()
         # Don't really need args, but must provide a non-empty one so it doesn't
         # try to parse the actual sys.argv
         rows, cols = self.img_track.shape[:2]
@@ -113,7 +142,7 @@ class VisualizationGL(Extension):
 
     # --- opencg draw function for building background ---
 
-    def draw_polyline(self, points, color: tuple[float, ...] = (0, 0, 1, 0)):
+    def draw_polyline(self, points, color: tuple[float, ...] = (0, 0, 1, 1)):
         ''' Draw a polyline from multiple points
         Args:
             points: Iterable of (x,y) in track space (unit: m)
@@ -191,6 +220,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
     vsync = True
     host = None
     t = None  # ExecutionTimer instance
+    frame_queue = None  # Frame queue
+    window_size = None  # (cols, rows)
 
     ''' Access point to VisualizationGL instance to retrieve current car/track state '''
 
@@ -240,7 +271,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.prog['tex'].value = 0  # Tell the shader to use texture unit 0
 
         # track_dim_pixel = self.host.img_track.shape[:2]
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         # Project matrix from track frame to NDC
         self.ortho_matrix_loc = self.prog['ortho']
 
@@ -263,6 +295,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
             texture = self.ctx.texture(car_img.size, 4, car_img.tobytes())
             self.car_textures[car] = texture
         _WindowConfig.transform_matrix = _WindowConfig.create_transform_matrix()
+        self.host.window = self
 
     def texture_from_image(self, img):
         ''' Convert final image to an RGBA moderngl texture '''
@@ -300,7 +333,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         self.bg_texture.use(location=0)
         self.use_texture_loc.value = 1
         # width, height
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
@@ -326,6 +360,12 @@ class _WindowConfig(moderngl_window.WindowConfig):
         for polyline in self.host.polylines:
             self.draw_polyline(polyline)
         self.t.e('polyline')
+        self.t.s('save frame')
+        if self.host.new_frame.is_set():
+            raw_pixels = self.wnd.fbo.read(components=3)
+            self.frame_queue.put(raw_pixels)
+            self.host.new_frame.clear()
+        self.t.e('save frame')
         self.t.e()
 
     def draw_polyline(self, polyline: Polyline):
@@ -339,11 +379,14 @@ class _WindowConfig(moderngl_window.WindowConfig):
         model = self.update_transform_matrix(pos=(0, 0), scale=(1, 1))
         self.model_matrix_loc.write(model)
 
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
+        self.ctx.line_width = 3.0
         # In your render loop:
         vao.render(mode=moderngl.Context.LINE_STRIP, vertices=points.shape[0])
+        self.ctx.line_width = 1.0
 
     def draw_obstacles(self):
         """Draws obstacles as solid color quads."""
@@ -371,8 +414,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         '''
         # track: (0,0), bottom left, (track.x_limit, track.y_limit)
         track = self.host.main.track
-        x_pix = int(track_coord[0] / track.x_limit * self.window_size[0])
-        y_pix = int(track_coord[1] / track.y_limit * self.window_size[1])
+        x_pix = int(track_coord[0] / track.config.x_limit * self.window_size[0])
+        y_pix = int(track_coord[1] / track.config.y_limit * self.window_size[1])
         return (x_pix, y_pix)
 
     def pixel_to_track(self, pix_coord: tuple[int, int]) -> tuple[float, float]:
@@ -384,8 +427,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
         '''
         # track: (0,0), bottom left, (track.x_limit, track.y_limit)
         track = self.host.main.track
-        x_track = pix_coord[0] / self.window_size[0] * track.x_limit
-        y_track = pix_coord[1] / self.window_size[1] * track.y_limit
+        x_track = pix_coord[0] / self.window_size[0] * track.config.x_limit
+        y_track = pix_coord[1] / self.window_size[1] * track.config.y_limit
         return (x_track, y_track)
 
     def draw_car_pose(self, car: Car, pose: tuple[float, ...]):
@@ -407,7 +450,8 @@ class _WindowConfig(moderngl_window.WindowConfig):
             scale=(0.19, 0.146)
         )
         self.model_matrix_loc.write(model)
-        track_dim_m = (self.host.track.x_limit, self.host.track.y_limit)
+        track = self.host.track
+        track_dim_m = (track.config.x_limit, track.config.y_limit)
         ortho_mtx = self.ortho(0, track_dim_m[0], 0, track_dim_m[1])
         self.ortho_matrix_loc.write(ortho_mtx)
         self.unit_quad.render(self.prog)

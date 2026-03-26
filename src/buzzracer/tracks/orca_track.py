@@ -18,7 +18,7 @@ class OrcaTrack(Track):
         super().__init__(main, config)
         self.set_resolution(200)
         self.load_track()
-        self.build_continuous_track()
+        self.build_track()
 
     def load_track(self,):
         # config = json.load(open('../copg/car_racing/config.json'))
@@ -50,7 +50,7 @@ class OrcaTrack(Track):
         spline, u = splprep(coord_vec.T, u=s_vec, s=smoothing_factor, per=1)
         return spline
 
-    def build_continuous_track(self):
+    def build_track(self):
         s_vec = self.s
         # n*2
         r_vec = np.vstack([self.X, self.Y]).T
@@ -68,8 +68,8 @@ class OrcaTrack(Track):
         y_max = np.max(np.hstack([upper[:, 1], lower[:, 1]])) + 0.1
 
         # shift track to first quadrant, x,y>0
-        self.x_limit = x_max - x_min
-        self.y_limit = y_max - y_min
+        config.x_limit = x_max - x_min
+        config.y_limit = y_max - y_min
         upper[:, 0] -= x_min
         upper[:, 1] -= y_min
         lower[:, 0] -= x_min
@@ -95,8 +95,8 @@ class OrcaTrack(Track):
 
     # draw a picture of the track
     def draw_track(self):
-        x_pix = int(self.x_limit*self.resolution)
-        y_pix = int(self.y_limit*self.resolution)
+        x_pix = int(config.x_limit*self.resolution)
+        y_pix = int(config.y_limit*self.resolution)
         # height, width
         img = 255*np.ones([y_pix, x_pix, 3], dtype=np.uint8)
         img = self.draw_polyline(
@@ -115,7 +115,7 @@ class OrcaTrack(Track):
 if __name__ == '__main__':
     track = OrcaTrack(None, None)
     track.load_track()
-    track.build_continuous_track()
+    track.build_track()
     img = track.draw_track()
     plt.imshow(img)
     plt.show()

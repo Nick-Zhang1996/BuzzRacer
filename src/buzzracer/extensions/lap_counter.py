@@ -4,19 +4,26 @@ from typing import TYPE_CHECKING
 from threading import Event
 import cv2
 
-from buzzracer.extensions.extension import Extension
+from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
 
 
-class LapCounter(Extension):
-    ''' Extension to terminate experiment after a certain number of laps. '''
+class LapCounterConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.total_laps = 0
+        ''' Laps to run before termination'''
+        self.plot_lap_count = False
 
-    def __init__(self):
-        Extension.__init__(self, 'lap_counter')
-        self.plotLapCountFlag = True
-        self.total_laps = None
-        ''' Laps to run before termination, set in config files'''
+
+@Extension.register('lap_counter', LapCounterConfig, ExtensionState)
+class LapCounter(Extension):
+    ''' Extension to terminate experiment after a certain number of laps.
+     If multiple car exist, then experiment stops after any car finishes'''
+
+    def __init__(self, config, state):
+        Extension.__init__(self, config, state)
         self.lap_count: dict[Car, int] = {car: 0 for car in self.main.cars}
         ''' Laps completed for each car'''
         self.is_hot_lap: dict[Car, Event] = {
@@ -25,26 +32,26 @@ class LapCounter(Extension):
         }
         ''' Car has started a hot-lap where laptime is expected to be representative'''
 
-        self.print_ok('[LapCounter]: total %d laps' % (self.total_laps))
+        self.print_ok('total %d laps' % (self.config.total_laps))
 
     def update(self):
         for car in self.main.cars:
-            if self.plotLapCountFlag:
+            if self.config.plot_lap_count:
                 self.plot_lap_count(car)
-            if car.laptimer.new_lap.is_set():
+            if self.main.laptimer.laptimer_by_car[car].new_lap.is_set():
                 if not self.is_hot_lap[car].is_set():
                     # car crossed finishing line for first time
                     # warm-up completed, hot-lap started
                     # laptimes from now on are representative
                     self.is_hot_lap[car].set()
                     self.print_ok('car%d critical lap start, total = %d laps',
-                                  car.id, self.total_laps)
+                                  car.id, self.config.total_laps)
                     continue
 
                 self.lap_count[car] += 1
-                self.print_ok('car%d, %d laps remaining', car.id,
-                              car.laps_remaining)
-                if self.lap_count[car] == self.total_laps:
+                laps_remaining = self.config.total_laps - self.lap_count[car]
+                self.print_ok('car%d, %d laps remaining', car.id, laps_remaining)
+                if self.lap_count[car] >= self.config.total_laps:
                     self.print_ok(f'car{car.id} critical lap end')
                     self.is_hot_lap[car].clear()
                     self.main.exit_request.set()

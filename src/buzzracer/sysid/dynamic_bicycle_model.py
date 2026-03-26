@@ -15,7 +15,7 @@ from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 from buzzracer.sysid.tire import tire_curve
 
 if TYPE_CHECKING:
-    from buzzracer.cars.car import Car
+    from buzzracer.cars.car import CarParam
 
 
 class DynamicBicycleModelCartesian(VehicleDynamics):
@@ -27,7 +27,7 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
     @staticmethod
     def advance_dynamics(state: CartesianState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
                          curvature: float = None,
                          use_torch: bool = False) -> CartesianState:
@@ -36,22 +36,22 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
         Args:
             state: Current state of the vehicle
             control: Control for the vehicle
-            car: Car object to supply vehicle sysid parameters like mass, Iz, wheelbase
+            car_param: CarParam object to supply vehicle sysid parameters like mass, Iz, wheelbase
             dt: time step in seconds e.g. 0.01
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
             states at next timestep
         '''
-        lf = car.param.lf
-        lr = car.param.lr
+        lf = car_param.lf
+        lr = car_param.lr
 
-        Iz = car.param.Iz
-        m = car.param.m
+        Iz = car_param.Iz
+        m = car_param.m
 
         # for small longitudinal velocity use kinematic model
         # to avoid numerical instability caused by 1/vx
         if state.v_forward < 0.05:
-            return KinematicBicycleModelCartesian.advance_dynamics(state, control, car, dt, use_torch=use_torch)
+            return KinematicBicycleModelCartesian.advance_dynamics(state, control, car_param, dt, use_torch=use_torch)
 
         vx = state.v_forward
         vy = state.v_sideway
@@ -107,16 +107,16 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
     @staticmethod
     def advance_dynamics(state: CurvilinearState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
-                         curvature: float=None,
-                         use_torch: bool=False) -> CurvilinearState:
+                         curvature: float = None,
+                         use_torch: bool = False) -> CurvilinearState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
             state: Current state of the vehicle
             control: Control for the vehicle
-            car: Car object to supply vehicle sysid parameters like mass, Iz, wheelbase
+            car_param: CarParam object to supply vehicle sysid parameters like mass, Iz, wheelbase
             dt: time step in seconds e.g. 0.01
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
         Return:
@@ -125,13 +125,13 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
         Ref: https://arxiv.org/pdf/2005.00826
         '''
         if state.v_forward < 0.1:
-            return KinematicBicycleModelFrenet.advance_dynamics(state, control, car, dt, curvature, use_torch=use_torch)
+            return KinematicBicycleModelFrenet.advance_dynamics(state, control, car_param, dt, curvature, use_torch=use_torch)
 
-        lf = car.param.lf
-        lr = car.param.lr
+        lf = car_param.lf
+        lr = car_param.lr
 
-        Iz = car.param.Iz
-        m = car.param.m
+        Iz = car_param.Iz
+        m = car_param.m
 
         if use_torch:
             dsdt = (state.v_forward * torch.cos(state.heading_err)
@@ -150,7 +150,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
             slip_f = -torch.arctan(
                 (omega * lf + state.v_sideway) / torch.max([state.v_forward, 1e-3])
             ) + control.steering
-            slip_r = torch.arctan((omega * lr - state.v_sideway) / torch.max([state.v_forward, 1e-3]))
+            slip_r = torch.arctan((omega * lr - state.v_sideway) /
+                                  torch.max([state.v_forward, 1e-3]))
 
             # Lateral forces from front and rear tires
             Ffy = tire_curve(slip_f, use_torch) * m * 9.8 * lr / (lr + lf)

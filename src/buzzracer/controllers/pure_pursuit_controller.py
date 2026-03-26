@@ -1,12 +1,47 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import numpy as np
 from math import sin, cos
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller, ControllerConfig, ControllerState
 from buzzracer.controllers.pid_controller import PidController
 
+if TYPE_CHECKING:
+    from buzzracer.cars.car_param import CarParam
+    from buzzracer.main import MainState, MainConfig
+    from buzzracer.tracks.track import Track
 
-class PurePursuitCarController(CarController):
-    def __init__(self, car, config):
-        super().__init__(car, config)
+
+class PurePursuitControllerConfig(ControllerConfig):
+    """ Config class, read-only"""
+
+    def __init__(self, main_config: MainConfig, car_param: CarParam):
+        self.max_speed = 4.0
+
+
+class PurePursuitControllerState(ControllerState):
+    """ State class, pickleable, contains states that need to be preserved between iterations"""
+
+    def __init__(self, config):
+        # speed controller
+        # P = 1.5  # to be more aggressive use 15
+        # I = 0.0  # 0.1
+        # D = 0.005
+
+        P = 1.0
+        I = 0.1
+        D = 0.01
+
+        self.throttle_pid = PidController(P, I, D, config.dt, 2, 10)
+        self.v_override = None
+        self.debug_dict = {}
+        self.predicted_traj = []
+
+
+@Controller.register(PurePursuitControllerConfig, PurePursuitControllerState)
+class PurePursuitController(Controller):
+
+    def __init__(self):
+        super().__init__()
         self.v_override = None
         self.max_speed = 5
         self.max_offset = 0.4
@@ -35,7 +70,7 @@ class PurePursuitCarController(CarController):
             self.planner = None
 
     def init(self):
-        CarController.init(self)
+        Controller.init(self)
         self.track.prepare_discretized_raceline()
         self.track.create_boundary()
         self.discretized_raceline = self.track.discretized_raceline
@@ -51,7 +86,7 @@ class PurePursuitCarController(CarController):
             self.planner.plan()
             raceline_pnts = self.planner.best_plan_traj_points
             # TODO
-            raceline_speed = np.ones_like(raceline_pnts[:, 0])*2.0
+            raceline_speed = np.ones_like(raceline_pnts[:, 0]) * 2.0
             self.planner.plot_all_solutions()
 
         x, y, heading, vf, vs, omega = self.car.state
@@ -65,8 +100,8 @@ class PurePursuitCarController(CarController):
         # change to local reference frame
         dx = raceline_pnts[idx_lookahead, 0] - x
         dy = raceline_pnts[idx_lookahead, 1] - y
-        dx_body = dx*cos(heading) + dy*sin(heading)
-        dy_body = -dx*sin(heading) + dy*cos(heading)
+        dx_body = dx * cos(heading) + dy * sin(heading)
+        dy_body = -dx * sin(heading) + dy * cos(heading)
 
         # pure pursuit
         theta = np.arctan2(dx_body, dy_body)

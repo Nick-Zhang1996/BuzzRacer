@@ -4,15 +4,14 @@ from buzzracer.common import *
 from threading import Event, Lock
 from math import pi, radians, degrees
 
-
 from KinematicBicycleCartesianSimulator import KinematicBicycleCartesianSimulator
 
 from timeUtil import ExecutionTimer
 from TrackFactory import TrackFactory
 
 from Car import Car
-from StanleyCarController import StanleyCarController
-from CcmppiCarController import CcmppiCarController
+from StanleyController import StanleyController
+from CcmppiController import CcmppiController
 
 # Extensions
 from Laptimer import Laptimer
@@ -29,6 +28,7 @@ from StepCounter import StepCounter
 
 
 class Main():
+
     def __init__(self, params={}):
         self.timer = ExecutionTimer(True)
         # state update rate
@@ -40,9 +40,11 @@ class Main():
         # self.track = TrackFactory(name='full')
 
         Car.reset()
-        # car0 = Car.Factory(self, "porsche", controller=CcmppiCarController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
-        car0 = Car.Factory(self, 'porsche', controller=CcmppiCarController, init_states=(
-            1.0, 0.25, radians(90), 3))
+        # car0 = Car.Factory(self, "porsche", controller=CcmppiController,init_states=(3.7*0.6,1.75*0.6, radians(-90),2.0))
+        car0 = Car.Factory(self,
+                           'porsche',
+                           controller=CcmppiController,
+                           init_states=(1.0, 0.25, radians(90), 3))
 
         self.cars = Car.cars
         print_info('[main] total cars: %d' % (len(self.cars)))
@@ -113,7 +115,7 @@ class Main():
     # when a new vicon/optitrack state is available, self.new_state_update is set
     # client (this function) need to unset that event
 
-    def update(self,):
+    def update(self, ):
         # -- Extension update --
         for item in self.extensions:
             item.pre_update()
@@ -133,7 +135,7 @@ class Main():
 
     # call before exiting
 
-    def stop(self,):
+    def stop(self, ):
         for car in self.cars:
             car.stopStateUpdate(car)
 
@@ -142,8 +144,10 @@ if __name__ == '__main__':
     # start with no. skip experiment, index start with 0
     # e.g. skip = 3 means skip 0,1,2
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--skip', help='number of experiments to skip', type=int, default=0)
+    parser.add_argument('--skip',
+                        help='number of experiments to skip',
+                        type=int,
+                        default=0)
     args = parser.parse_args()
     print_info('skipping %d experiments' % (args.skip))
 
@@ -163,8 +167,12 @@ if __name__ == '__main__':
     for algorithm in ['narrow-mppi', 'narrow-ccmppi']:
         # for algorithm in ['wide-ccmppi']:
         samples = 4096
-        params = {'samples': samples, 'algorithm': algorithm,
-                  'alfa': alfa, 'beta': beta}
+        params = {
+            'samples': samples,
+            'algorithm': algorithm,
+            'alfa': alfa,
+            'beta': beta
+        }
 
         experiment_count += 1
         if (experiment_count < args.skip):

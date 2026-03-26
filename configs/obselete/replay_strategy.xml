@@ -16,7 +16,7 @@
       <hardware>Offboard</hardware>
       <config_name>audi_11</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 
@@ -25,7 +25,7 @@
       <hardware>Offboard</hardware>
       <config_name>audi_12</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 
