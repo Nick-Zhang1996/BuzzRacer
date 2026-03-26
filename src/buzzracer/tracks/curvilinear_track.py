@@ -21,28 +21,47 @@ def map(val, x, y, a, b):
 
 @dataclass
 class CurvilinearTrackData:
-    r_vec: np.ndarray  # (N,2)
-    s_vec: np.ndarray  # (N) Cumularive curve length
-    phi_vec: np.ndarray  # (N,) Ref path tangent heading
-    curvature_vec: np.ndarray  # (N,)  Signed curvature
-    left_width_vec: np.ndarray  # (N,) Distance to left boundary
-    right_width_vec: np.ndarray  # (N,) Distance to right boundary
-    speed_vec: np.ndarray  # (N,) Target speed
-    discretized_raceline: np.ndarray  # (N,5), [x,y, heading, left width, right width]
-    kd_tree: KDTree  # KD tree of raceline points, for converting cartesian -> curvilinear coordinate
+    r_vec: np.ndarray
+    """ (N,2) """
+    s_vec: np.ndarray
+    """  (N) Cumularive curve length """
+    phi_vec: np.ndarray
+    """  (N,) Ref path tangent heading """
+    curvature_vec: np.ndarray
+    """  (N,)  Signed curvature """
+    left_width_vec: np.ndarray
+    """ (N,) Distance to left boundary """
+    right_width_vec: np.ndarray
+    """  (N,) Distance to right boundary """
+    speed_vec: np.ndarray
+    """  (N,) Target speed """
+    discretized_raceline: np.ndarray
+    """  (N,5), [x,y, heading, left width, right width] """
+    kd_tree: KDTree
+    """  KD tree of raceline points, for converting cartesian -> curvilinear coordinate """
 
-    raceline_len_m: float   # Total curve length in m
-    raceline_s: Tck  # splprep result, maps ss -> r
-    curvature_s: Tck  # splprep result, maps ss -> curvature
-    phi_s: Tck  # splprep result, maps ss -> tangent angle
-    speed_s: Tck  # splprep result, map ss ->> target speed
+    raceline_len_m: float
+    """  Total curve length in m """
+    raceline_s: Tck
+    """  splprep result, maps ss -> r """
+    curvature_s: Tck
+    """  splprep result, maps ss -> curvature """
+    phi_s: Tck
+    """  splprep result, maps ss -> tangent angle """
+    speed_s: Tck
+    """  splprep result, map ss ->> target speed """
 
-    left_boundary_vec: np.ndarray  # (N,) Left boundary points
-    right_boundary_vec: np.ndarray  # (N,) Right boundary points
-    start_pos: tuple[float, float]  # Start position
-    start_dir: float  # Start heading
+    left_boundary_vec: np.ndarray
+    """  (N,) Left boundary points """
+    right_boundary_vec: np.ndarray
+    """  (N,) Right boundary points """
+    start_pos: tuple[float, float]
+    """  Start position """
+    start_dir: float
+    """  Start heading """
 
-    x_min: float  # Minimum x coordinate of track, for visualization boundary
+    x_min: float
+    """  Minimum x coordinate of track, for visualization boundary """
     x_max: float
     y_min: float
     y_max: float

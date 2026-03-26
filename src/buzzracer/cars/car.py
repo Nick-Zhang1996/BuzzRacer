@@ -6,7 +6,6 @@ import logging
 from math import degrees, radians
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType
-from buzzracer.controllers.controller import Controller
 from buzzracer.types import CartesianState
 from buzzracer.cars.car_param import CarParam, CarConfig
 
@@ -30,7 +29,7 @@ class Car(PrintObject, LogObject):
 
     def __init__(self):
         LogObject.__init__(self)
-        self.controller: Controller = None
+        self.controller = None
         self._throttle = 0.0
         self._steering = 0.0
         self.state = CartesianState(0, 0, 0, 0, 0, 0)
@@ -111,6 +110,7 @@ class Car(PrintObject, LogObject):
 
     @classmethod
     def Factory(cls, config_minidom):
+        from buzzracer.controllers.controller import Controller
         try:
             car_cls_text = config_minidom.getElementsByTagName(
                 'hardware')[0].firstChild.nodeValue
