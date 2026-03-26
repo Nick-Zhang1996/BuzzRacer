@@ -26,7 +26,6 @@ dependencies = [
     "pygame==2.6.1",
     "pyserial==3.5",
     "pyttsx3==2.99",
-    "rd3g",
     "scipy~=1.16.0",
     "seaborn==0.13.2",
     "sympy==1.14.0",
@@ -39,6 +38,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/buzzracer"]
-
-[tool.uv.sources]
-rd3g = { path = "../hybrid", editable = true }

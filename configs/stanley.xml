@@ -10,7 +10,7 @@
       <extension>Logger</extension>
       <extension>VisualizationGL</extension>
       <extension match_time='True'>DynamicBicycleCartesianSimulator</extension>
-      <extension>SnapshotSaver</extension>
+      <!--<extension>Gifsaver</extension>-->
   </extensions>
 
   <cars>

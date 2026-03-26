@@ -7,7 +7,7 @@ from .simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartes
 from .extension import Extension
 from .laptimer import Laptimer
 from .visualization_gl import VisualizationGL
-from .game_theoretic_planner import GameTheoreticPlanner
+# from .game_theoretic_planner import GameTheoreticPlanner
 
 # FIXME update these also
 
