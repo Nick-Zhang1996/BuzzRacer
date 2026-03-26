@@ -15,7 +15,7 @@
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 
@@ -24,7 +24,7 @@
       <hardware>OldOffboard</hardware>
       <config_name>lambo</config_name>
       <controller max_speed='1.0'>
-        <type>EmptyCarController</type>
+        <type>EmptyController</type>
       </controller>
     </car>
 

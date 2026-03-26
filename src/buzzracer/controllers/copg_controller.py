@@ -3,14 +3,15 @@ import numpy as np
 import torch
 import os
 from buzzracer.common import *
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 from RL.copg.car_racing.network import Actor as Actor
 from scipy.interpolate import splev as splev
 from scipy.optimize import minimize as minimize
 from time import time
 
 
-class CopgCarController(CarController):
+class CopgController(Controller):
+
     def __init__(self, car, config):
         self.model_weights_pth = None
         super().__init__(car, config)
@@ -18,8 +19,9 @@ class CopgCarController(CarController):
 
         self.model = Actor(10, 2, std=0.1)
         try:
-            self.model.load_state_dict(torch.load(
-                os.path.join(self.main.basedir, self.model_weights_pth)))
+            self.model.load_state_dict(
+                torch.load(
+                    os.path.join(self.main.basedir, self.model_weights_pth)))
         except FileNotFoundError:
             self.print_error(f'cannot find specified .pth file')
             sys.exit(1)
@@ -47,7 +49,8 @@ class CopgCarController(CarController):
 
         # as in original model, last state angular velocity is ignored
         action_distribution = self.model(
-            torch.cat([ego_curvi_state_torch[:5], opponent_curvi_state_torch[:5]]))
+            torch.cat(
+                [ego_curvi_state_torch[:5], opponent_curvi_state_torch[:5]]))
         action = action_distribution.sample().numpy()
 
         self.car.throttle = action[0]
@@ -59,7 +62,7 @@ class CopgCarController(CarController):
         # every inquiry
         cart_state = car.state
         coord = (cart_state[0], cart_state[1])
-        dist = np.sum((self.track.r-coord)**2, axis=1)
+        dist = np.sum((self.track.r - coord)**2, axis=1)
         idx = np.argmin(dist)
         s = self.track.s_vec[idx]
         r = self.track.r[idx]
@@ -75,19 +78,24 @@ class CopgCarController(CarController):
         coord = np.array((cart_state[0], cart_state[1]))
 
         def dist_fun(u):
-            disp = np.array(splev(u.item() % self.track.raceline_len_m,
-                            self.track.raceline_s, der=0)) - coord
-            return disp[0]**2+disp[1]**2
+            disp = np.array(
+                splev(u.item() % self.track.raceline_len_m,
+                      self.track.raceline_s,
+                      der=0)) - coord
+            return disp[0]**2 + disp[1]**2
+
         retval = minimize(dist_fun, car.last_s)
         s = retval.x.item()
         car.last_s = s
 
-        r = np.array(splev(s % self.track.raceline_len_m,
-                     self.track.raceline_s, der=0)).flatten()
+        r = np.array(
+            splev(s % self.track.raceline_len_m, self.track.raceline_s,
+                  der=0)).flatten()
         rp = coord - r
-        dr = np.array(splev(s % self.track.raceline_len_m,
-                      self.track.raceline_s, der=1)).flatten()
-        d = float(np.cross(dr, rp)/np.linalg.norm(dr))
+        dr = np.array(
+            splev(s % self.track.raceline_len_m, self.track.raceline_s,
+                  der=1)).flatten()
+        d = float(np.cross(dr, rp) / np.linalg.norm(dr))
         rel_heading = cart_state[2] - np.arctan2(dr[1], dr[0])
 
         return (s, d, rel_heading, cart_state[3], cart_state[4], cart_state[5])

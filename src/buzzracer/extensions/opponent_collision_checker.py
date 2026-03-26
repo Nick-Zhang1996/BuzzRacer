@@ -1,9 +1,9 @@
-''' Check collision with opponents, for iLQGameCarController. '''
+''' Check collision with opponents, for iLQGameController. '''
 from buzzracer.extensions.extension import Extension
 
 
 class OpponentCollisionChecker(Extension):
-    ''' Check collision with opponents, for iLQGameCarController. 
+    ''' Check collision with opponents, for iLQGameController. 
 
     NOTE this only checks car 0
     '''

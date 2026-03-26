@@ -20,7 +20,7 @@
         horizon='30' 
         samples_count='1024' 
         >
-        <type>MppiCarController</type>
+        <type>MppiController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>
@@ -32,7 +32,7 @@
       <controller
         horizon='30' 
         >
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
         <init_states>(3.7*0.6,1.0*0.6, radians(-90), 1.0)</init_states>
       </controller>
     </car>

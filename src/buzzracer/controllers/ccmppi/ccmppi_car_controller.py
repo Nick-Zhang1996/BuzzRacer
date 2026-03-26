@@ -5,7 +5,7 @@ from time import time, sleep
 import pickle
 from buzzracer.extensions.simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
 from buzzracer.extensions.simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 from controllers.ccmppi.ccmppi import CCMPPI
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.common import *
@@ -15,12 +15,14 @@ import numpy as np
 import cv2
 import os
 import sys
-base_dir = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), './ccmppi/')
+
+base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        './ccmppi/')
 sys.path.append(base_dir)
 
 
-class CcmppiCarController(CarController):
+class CcmppiController(Controller):
+
     def __init__(self, car, config):
         # default parameters
         # diagnal terms of control cost matrix u'Ru
@@ -49,7 +51,6 @@ class CcmppiCarController(CarController):
         self.terminal_cov_vec = []
         self.plotDebugFlag = True
         self.getEstimatedTerminalCovFlag = False
-
         '''
         # set config items
         for key,value_text in config.attributes.items():
@@ -70,18 +71,18 @@ class CcmppiCarController(CarController):
         algorithm = self.algorithm
 
         if (algorithm == 'ccmppi'):
-            self.noise_cov = np.diag(
-                [(self.car.max_throttle)**2, radians(20.0)**2])
+            self.noise_cov = np.diag([(self.car.max_throttle)**2,
+                                      radians(20.0)**2])
             cc_ratio = 0.8
         elif (algorithm == 'mppi-same-injected'):
             ratio = 1.0
-            self.noise_cov = np.diag(
-                [(self.car.max_throttle*ratio)**2, radians(20.0*ratio)**2])
+            self.noise_cov = np.diag([(self.car.max_throttle * ratio)**2,
+                                      radians(20.0 * ratio)**2])
             cc_ratio = 0.0
         elif (algorithm == 'mppi-same-terminal-cov'):
             ratio = 0.4
-            self.noise_cov = np.diag(
-                [(self.car.max_throttle*ratio)**2, radians(20.0*ratio)**2])
+            self.noise_cov = np.diag([(self.car.max_throttle * ratio)**2,
+                                      radians(20.0 * ratio)**2])
             cc_ratio = 0.0
         self.print_info(algorithm)
         self.print_info(' injected noise' + str(self.noise_cov))
@@ -90,7 +91,8 @@ class CcmppiCarController(CarController):
         self.discretized_raceline_len = 1024
         # control noise for MPPI exploration
         self.control_limit = np.array(
-            [[-self.car.max_throttle, self.car.max_throttle], [-radians(27.1), radians(27.1)]])
+            [[-self.car.max_throttle, self.car.max_throttle],
+             [-radians(27.1), radians(27.1)]])
 
         # discretize raceline for use in MPPI
         self.prepare_discretized_raceline()
@@ -102,17 +104,19 @@ class CcmppiCarController(CarController):
             self.print_info('using default cc_ratio %.2f' % cc_ratio)
         self.cc_ratio = cc_ratio
 
-        arg_list = {'samples': self.samples,
-                    'horizon': self.horizon,
-                    'control_dim': 2,
-                    'temperature': self.temperature,
-                    'dt': self.ccmppi_dt,
-                    'noise_cov': self.noise_cov,
-                    'cc_ratio': self.cc_ratio,
-                    'raceline': self.discretized_raceline,
-                    'cuda_filename': 'controller/ccmppi/ccmppi.cu',
-                    'max_v': self.max_speed,
-                    'R_diag': self.R_diag}
+        arg_list = {
+            'samples': self.samples,
+            'horizon': self.horizon,
+            'control_dim': 2,
+            'temperature': self.temperature,
+            'dt': self.ccmppi_dt,
+            'noise_cov': self.noise_cov,
+            'cc_ratio': self.cc_ratio,
+            'raceline': self.discretized_raceline,
+            'cuda_filename': 'controller/ccmppi/ccmppi.cu',
+            'max_v': self.max_speed,
+            'R_diag': self.R_diag
+        }
         if (self.model == KinematicBicycleCartesianSimulator):
             arg_list['state_dim'] = 4
             arg_list['model_name'] = KinematicBicycleCartesianSimulator
@@ -134,16 +138,20 @@ class CcmppiCarController(CarController):
 
     def additional_setup(self):
         self.opponent_prediction = np.repeat(
-            self.track.obstacles[:, np.newaxis, :], self.horizon_steps + 1, axis=1)
+            self.track.obstacles[:, np.newaxis, :],
+            self.horizon_steps + 1,
+            axis=1)
         self.obstacles = self.track.obstacles
 
     def prepare_discretized_raceline(self):
         ss = np.linspace(0, self.track.raceline_len_m,
                          self.discretized_raceline_len)
         rr = splev(ss % self.track.raceline_len_m,
-                   self.track.raceline_s, der=0)
+                   self.track.raceline_s,
+                   der=0)
         drr = splev(ss % self.track.raceline_len_m,
-                    self.track.raceline_s, der=1)
+                    self.track.raceline_s,
+                    der=1)
         heading_vec = np.arctan2(drr[1], drr[0])
         vv = self.track.sToV(ss)
 
@@ -155,8 +163,10 @@ class CcmppiCarController(CarController):
 
         # describe track boundary as offset from raceline
         self.create_boundary()
-        self.discretized_raceline = np.vstack(
-            [self.raceline_points, self.raceline_headings, vv, self.raceline_left_boundary, self.raceline_right_boundary]).T
+        self.discretized_raceline = np.vstack([
+            self.raceline_points, self.raceline_headings, vv,
+            self.raceline_left_boundary, self.raceline_right_boundary
+        ]).T
         return
 
     def create_boundary(self, show=False):
@@ -178,10 +188,10 @@ class CcmppiCarController(CarController):
             right_boundary.append(right)
 
             # debug boundary points
-            left_point = (coord[0] + left * cos(heading+np.pi/2),
-                          coord[1] + left * sin(heading+np.pi/2))
-            right_point = (coord[0] + right * cos(heading-np.pi/2),
-                           coord[1] + right * sin(heading-np.pi/2))
+            left_point = (coord[0] + left * cos(heading + np.pi / 2),
+                          coord[1] + left * sin(heading + np.pi / 2))
+            right_point = (coord[0] + right * cos(heading - np.pi / 2),
+                           coord[1] + right * sin(heading - np.pi / 2))
 
             left_boundary_points.append(left_point)
             right_boundary_points.append(right_point)
@@ -206,10 +216,12 @@ class CcmppiCarController(CarController):
         if (show):
             img = self.track.draw_track()
             img = self.track.draw_raceline(img=img)
-            img = self.track.draw_polyline(
-                left_boundary_points, lineColor=(0, 255, 0), img=img)
-            img = self.track.draw_polyline(
-                right_boundary_points, lineColor=(0, 0, 255), img=img)
+            img = self.track.draw_polyline(left_boundary_points,
+                                           lineColor=(0, 255, 0),
+                                           img=img)
+            img = self.track.draw_polyline(right_boundary_points,
+                                           lineColor=(0, 0, 255),
+                                           img=img)
             plt.imshow(img)
             plt.show()
             return img
@@ -250,17 +262,19 @@ class CcmppiCarController(CarController):
         p.s('local traj')
         if self.last_s is None:
             # use self.lr as wheelbase to use center of gravity in evaluation
-            retval = track.local_trajectory(
-                car_states, wheelbase=self.car.lr, return_u=True)
+            retval = track.local_trajectory(car_states,
+                                            wheelbase=self.car.lr,
+                                            return_u=True)
             if retval is None:
                 print_warning(
-                    '[ctrlCcmppiWrapper:ctrl_car] local_trajectory returned None')
+                    '[ctrlCcmppiWrapper:ctrl_car] local_trajectory returned None'
+                )
                 ret = (0, 0, False, debug_dict)
                 return ret
             else:
                 # parse return value from local_trajectory
-                (local_ctrl_pnt, offset, orientation,
-                 curvature, v_target, u0) = retval
+                (local_ctrl_pnt, offset, orientation, curvature, v_target,
+                 u0) = retval
                 # save for estimate at next step
                 self.last_s = track.uToS(u0).item()
         p.e('local traj')
@@ -285,8 +299,8 @@ class CcmppiCarController(CarController):
 
         p.s('ccmppi')
         # dynamic simulator
-        uu = self.ccmppi.control(
-            states.copy(), self.opponent_prediction, self.control_limit)
+        uu = self.ccmppi.control(states.copy(), self.opponent_prediction,
+                                 self.control_limit)
         control = uu[0]
         throttle = control[0]
         steering = control[1]
@@ -339,8 +353,8 @@ class CcmppiCarController(CarController):
         # Line thickness of 2 px
         thickness = 2
         # Using cv2.putText() method
-        img = cv2.putText(img, text, org, font,
-                          fontScale, color, thickness, cv2.LINE_AA)
+        img = cv2.putText(img, text, org, font, fontScale, color, thickness,
+                          cv2.LINE_AA)
         self.main.visualization.visualization_img = img
 
     def plot_algorithm(self):
@@ -364,8 +378,8 @@ class CcmppiCarController(CarController):
         # Line thickness of 2 px
         thickness = 2
         # Using cv2.putText() method
-        img = cv2.putText(img, text, org, font,
-                          fontScale, color, thickness, cv2.LINE_AA)
+        img = cv2.putText(img, text, org, font, fontScale, color, thickness,
+                          cv2.LINE_AA)
         self.car.main.visualization.visualization_img = img
 
     def get_estimated_terminal_cov(self):
@@ -471,8 +485,9 @@ class CcmppiCarController(CarController):
         # trajectory following synthesized control sequence
         sim_state = states.copy()
         for i in range(self.horizon_steps):
-            sim_state = self.apply_discrete_dynamics(
-                sim_state, self.debug_uu[i], self.ccmppi_dt)
+            sim_state = self.apply_discrete_dynamics(sim_state,
+                                                     self.debug_uu[i],
+                                                     self.ccmppi_dt)
             if (self.model == KinematicBicycleCartesianSimulator):
                 # x,y,vf,heading = sim_state
                 x, y, heading, vf, vs, omega = sim_state
@@ -485,16 +500,19 @@ class CcmppiCarController(CarController):
         # plot sampled trajectory (if car follow one sampled control traj)
         coords_vec = self.debug_dict['rollout_traj_vec']
         for coords in coords_vec:
-            img = self.car.main.track.draw_polyline(
-                coords, lineColor=(200, 200, 200), img=img)
+            img = self.car.main.track.draw_polyline(coords,
+                                                    lineColor=(200, 200, 200),
+                                                    img=img)
 
         # plot ideal trajectory (if car follow synthesized control)
         coords = self.debug_dict['ideal_traj']
         for coord in coords:
             x, y = coord
-            img = self.car.main.track.draw_point(img, (x, y), color=(255, 0, 0))
-        img = self.car.main.track.draw_polyline(
-            coords, lineColor=(100, 0, 100), img=img)
+            img = self.car.main.track.draw_point(img, (x, y),
+                                                 color=(255, 0, 0))
+        img = self.car.main.track.draw_polyline(coords,
+                                                lineColor=(100, 0, 100),
+                                                img=img)
 
         # plot resultant trajectory from constant control
         '''
@@ -529,7 +547,6 @@ class CcmppiCarController(CarController):
                 img = self.car.main.track.draw_point(img,(x,y),color=(255,0,0))
             img = self.car.main.track.draw_polyline(coords,lineColor=(100,0,0),img=img)
         '''
-
         '''
         coords_vec = np.array(coords_vec)
         for i in range(len(coords_vec)):
@@ -551,15 +568,16 @@ class CcmppiCarController(CarController):
     def apply_discrete_dynamics(self, states, control, dt):
         # return self.sim.update_car(dt,control[0], control[1],external_states=state)
         # NOTE kinematic simulator and dynamic simulator use different state representation
-        return self.model.advance_dynamics(states, (control[1], control[0]), car=self.car)
+        return self.model.advance_dynamics(states, (control[1], control[0]),
+                                           car=self.car)
 
     def predict_opponent(self):
         self.opponent_prediction = []
         for opponent in self.opponents:
-            traj = self.track.predict_opponent(
-                opponent.state, self.horizon_steps, self.ccmppi_dt)
+            traj = self.track.predict_opponent(opponent.state,
+                                               self.horizon_steps,
+                                               self.ccmppi_dt)
             self.opponent_prediction.append(traj)
-
 
 if __name__ == '__main__':
     pass

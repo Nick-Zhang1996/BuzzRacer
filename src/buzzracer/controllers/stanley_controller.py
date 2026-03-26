@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from math import isnan, pi, sin, cos
 
 from buzzracer.types import CartesianState, Control
-from buzzracer.controllers.car_controller import CarController, CarControllerConfig, CarControllerState
+from buzzracer.controllers.controller import Controller, ControllerConfig, ControllerState
 from buzzracer.controllers.pid_controller import PidController
 if TYPE_CHECKING:
     from buzzracer.cars.car_param import CarParam
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from buzzracer.tracks.track import Track
 
 
-class StanleyCarControllerConfig(CarControllerConfig):
+class StanleyControllerConfig(ControllerConfig):
     """ Config class, read-only"""
 
     def __init__(self, main_config: MainConfig, car_param: CarParam):
@@ -22,15 +22,16 @@ class StanleyCarControllerConfig(CarControllerConfig):
 
         p1 = (1.0, 2.0)
         p2 = (4.0, 0.5)
-        self.Pfun_slope = (p2[1]-p1[1])/(p2[0]-p1[0])
-        self.Pfun_offset = p1[1] - p1[0]*self.Pfun_slope
+        self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
         self.dt = main_config.dt
 
     def Pfun(self, v):
-        return max(min((self.Pfun_slope*v+self.Pfun_offset), 4.0), 0.5)/280*pi/0.01
+        return max(min((self.Pfun_slope * v + self.Pfun_offset), 4.0),
+                   0.5) / 280 * pi / 0.01
 
 
-class StanleyCarControllerState(CarControllerState):
+class StanleyControllerState(ControllerState):
     """ State class, pickleable, contains states that need to be preserved between iterations"""
 
     def __init__(self, config):
@@ -49,11 +50,12 @@ class StanleyCarControllerState(CarControllerState):
         self.predicted_traj = []
 
 
-@CarController.register(StanleyCarControllerConfig, StanleyCarControllerState)
-class StanleyCarController(CarController):
+@Controller.register(StanleyControllerConfig, StanleyControllerState)
+class StanleyController(Controller):
+
     def __init__(self):
         # load config etc
-        CarController.__init__(self)
+        Controller.__init__(self)
         # integral limit, lpf curoff freq
         # self.throttle_pid = PidController(P,I,D,dt,1,2)
         # try:
@@ -72,8 +74,8 @@ class StanleyCarController(CarController):
     def control(car_state: CartesianState,
                 car_params: CarParam,
                 track: Track,
-                controller_config: StanleyCarControllerConfig,
-                controller_state: StanleyCarControllerState,
+                controller_config: StanleyControllerConfig,
+                controller_state: StanleyControllerState,
                 main_state: MainState,
                 car_index,
                 reverse=False):
@@ -100,12 +102,13 @@ class StanleyCarController(CarController):
         fail_retval = (ctrl, False, controller_state)
 
         # inquire information about desired trajectory close to the vehicle
-        lookahead_point = CartesianState(x=car_state.x + lookahead*cos(heading),
-                                         y=car_state.y + lookahead*sin(heading),
-                                         heading=heading,
-                                         v_forward=car_state.v_forward,
-                                         v_sideway=car_state.v_sideway,
-                                         omega=car_state.omega)
+        lookahead_point = CartesianState(
+            x=car_state.x + lookahead * cos(heading),
+            y=car_state.y + lookahead * sin(heading),
+            heading=heading,
+            v_forward=car_state.v_forward,
+            v_sideway=car_state.v_sideway,
+            omega=car_state.omega)
 
         retval = track.local_trajectory(lookahead_point)
         if retval is None:
@@ -133,13 +136,13 @@ class StanleyCarController(CarController):
         # control logic
         # steering = (orientation-heading) - (offset * self.car.P)
         # - (omega-curvature*vf)*self.car.D
-        steering = (orientation-heading) - (offset *
-                                            controller_config.Pfun(abs(car_state.v_forward)))
+        steering = (orientation - heading) - (
+            offset * controller_config.Pfun(abs(car_state.v_forward)))
         # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
         # handle edge case, unwrap ( -355 deg turn -> +5 turn)
-        steering = (steering+pi) % (2*pi) - pi
+        steering = (steering + pi) % (2 * pi) - pi
         v_target = v_target if controller_state.v_override is None else controller_state.v_override
-        throttle = StanleyCarController.calc_throttle(
+        throttle = StanleyController.calc_throttle(
             car_state, v_target, car_params, controller_state.throttle_pid)
         main_state.car_target_v[car_index] = v_target
 
@@ -148,13 +151,15 @@ class StanleyCarController(CarController):
 
     # PID controller for forward velocity
     @staticmethod
-    def calc_throttle(state: CartesianState, v_target, car_params: CarParam, throttle_pid):
+    def calc_throttle(state: CartesianState, v_target, car_params: CarParam,
+                      throttle_pid):
         # forgot how we got this
         # throttle = (acc_target + 1.01294228)/4.95445214
 
         ss_throttle = car_params.ss_throttle_p0 * v_target + car_params.ss_throttle_p1
         ss_throttle = ss_throttle if v_target > 0 else 0
         # PID control for throttle
-        throttle = throttle_pid.control(v_target, state.v_forward) + ss_throttle
+        throttle = throttle_pid.control(v_target,
+                                        state.v_forward) + ss_throttle
 
         return max(min(throttle, car_params.max_throttle), -1)

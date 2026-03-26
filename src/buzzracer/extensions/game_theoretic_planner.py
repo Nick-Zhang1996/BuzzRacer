@@ -10,7 +10,7 @@ from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig
 
 from buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
-from buzzracer.controllers.stanley_car_controller import StanleyCarController, StanleyCarControllerConfig, StanleyCarControllerState
+from buzzracer.controllers.stanley_controller import StanleyController, StanleyControllerConfig, StanleyControllerState
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Number of steps to keep in previous trajectory in next iteration """
         self.multiprocess: bool = False
         self.dt: float = main_config.dt
-        self.stanley_config = StanleyCarControllerConfig(main_config, None)
+        self.stanley_config = StanleyControllerConfig(main_config, None)
 
 
 class GameTheoreticPlannerState(ExtensionState):
@@ -47,10 +47,12 @@ class GameTheoreticPlannerState(ExtensionState):
         """ (n=5, N, T) of Curvilinear State Trajectory """
         self.ctrl_traj: np.ndarray = None
         """ (m*N, T) of ctrl trajectory """
-        self.stanley_state: StanleyCarControllerState = StanleyCarControllerState(config)
+        self.stanley_state: StanleyControllerState = StanleyControllerState(
+            config)
 
 
-@Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
+@Extension.register('planner', GameTheoreticPlannerConfig,
+                    GameTheoreticPlannerState)
 class GameTheoreticPlanner(Extension):
 
     def __init__(self, config, state):
@@ -87,14 +89,16 @@ class GameTheoreticPlanner(Extension):
             N=N,
             n=default.n,
             m=default.m,
-            n_hi=4 * N * c.horizon if default.double_circle_h else N * c.horizon,
+            n_hi=4 * N * c.horizon if default.double_circle_h else N *
+            c.horizon,
             collision_radius=default.collision_radius,
             x0=x0.copy(order='F'),
             target_x_ref=x_ref.copy(order='F'),
             J_Qr=J_Qr.copy(order='F'),
             J_R=J_R.copy(order='F'))
         game = CarRacingCasadi(game_config, self.main.track)
-        solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
+        solver_config = RD3GCasadiConfig(inertia_correction=False,
+                                         iterations=20)
         solver = RD3GCasadi(solver_config, game, cpp_only=False)
         solver.init_cpp_backend()
 
@@ -113,8 +117,9 @@ class GameTheoreticPlanner(Extension):
         if self.config.multiprocess:
             pass
         else:
-            GameTheoreticPlanner.update_fun(
-                self.state, self.main.state, self.main.track, self.config, self.main.visualization)
+            GameTheoreticPlanner.update_fun(self.state, self.main.state,
+                                            self.main.track, self.config,
+                                            self.main.visualization)
 
     @staticmethod
     def update_fun(state, main_state, track, config, visualization):
@@ -130,7 +135,8 @@ class GameTheoreticPlanner(Extension):
         cart_states = (CartesianState * N).from_buffer(main_state.car_states)
         curv_states = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
-            curv_states[:, i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
+            curv_states[:,
+                        i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
         # (n,N)
         t.e('cart 2 curv')
 
@@ -149,15 +155,18 @@ class GameTheoreticPlanner(Extension):
         # TODO: Initial guess for control sequence
         # From previous step
         # Stitch with stanley controller
-        u_ref = np.zeros((m*N, T), order='F')
+        u_ref = np.zeros((m * N, T), order='F')
 
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
         for i in range(N):
             x = cart_states[i]
             for k in range(T):
                 # Simulate with stanley controller
-                u, _, _ = StanleyCarController.control(
-                    x, state.car_params[i], track, config.stanley_config, state.stanley_state, main_state, i)
+                u, _, _ = StanleyController.control(x, state.car_params[i],
+                                                    track,
+                                                    config.stanley_config,
+                                                    state.stanley_state,
+                                                    main_state, i)
                 u_ref_3d[:, i, k] = u.to_tuple()
                 x = DynamicBicycleModelCartesian.advance_dynamics(
                     x, u, state.car_params[i], solver.game.config.dt)

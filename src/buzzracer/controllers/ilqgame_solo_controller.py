@@ -1,11 +1,11 @@
-
 from buzzracer.common import *
-from buzzracer.controllers.ilqgame_car_controller import iLQGameCarController
+from buzzracer.controllers.ilqgame_controller import iLQGameController
 from buzzracer.controllers.lqgame import my_solve_lq_game
 from scipy.linalg import block_diag
 
 
-class iLQGameSoloCarController(iLQGameCarController):
+class iLQGameSoloController(iLQGameController):
+
     def __init__(self, car, config):
         super().__init__(car, config)
         self.iterations = 1
@@ -44,13 +44,16 @@ class iLQGameSoloCarController(iLQGameCarController):
 
             # barrier function: opponent collision
             delta_x = xx_i[t] - xx_j[t]
-            if (np.abs(delta_x[0]) < 1.5*self.opponent_min_distance_s and np.abs(delta_x[2]) < 1.5*self.opponent_min_distance_n):
+            if (np.abs(delta_x[0]) < 1.5 * self.opponent_min_distance_s and
+                    np.abs(delta_x[2]) < 1.5 * self.opponent_min_distance_n):
                 # self.print_info('collision avoidance')
                 sgn_s = -1 if delta_x[0] > 0 else 1
                 sgn_n = -1 if delta_x[2] > 0 else 1
                 Q1_x += 2 * II.T @ self.Qcol @ II
-                q1_x += (np.array([[sgn_s*2*self.opponent_min_distance_s, 0,
-                         sgn_n*2*self.opponent_min_distance_n, 0]]) @ self.Qcol @ II)
+                q1_x += (np.array([[
+                    sgn_s * 2 * self.opponent_min_distance_s, 0,
+                    sgn_n * 2 * self.opponent_min_distance_n, 0
+                ]]) @ self.Qcol @ II)
 
             # barrier function: track boundary
             cart_states_i = self.simulator.curv2_cart(xx_i[t].flatten())
@@ -97,8 +100,8 @@ class iLQGameSoloCarController(iLQGameCarController):
             # normal ctrl cost: (ay/ay_max-1)**2 + (ax/ax_max-1)**2
             # R1 = 0.01*np.diag([1.0/car_i.max_ay,1.0/car_i.max_ax])
             # R2 = 0.01*np.diag([1.0/car_j.max_ay,1.0/car_j.max_ax])
-            R1 = 0.005*np.diag([1.0, 1.0])
-            R2 = 0.005*np.diag([1.0, 1.0])
+            R1 = 0.005 * np.diag([1.0, 1.0])
+            R2 = 0.005 * np.diag([1.0, 1.0])
             r1_x = np.zeros((1, self.m))
             r2_x = np.zeros((1, self.m))
 
@@ -128,16 +131,16 @@ class iLQGameSoloCarController(iLQGameCarController):
             else:
                 self.print_error('this has shown to be uneffective')
                 # linear control barrier
-                ayi_n = uu_i[t][0]/car_i.max_ay
-                axi_n = uu_i[t][1]/car_i.max_ax
+                ayi_n = uu_i[t][0] / car_i.max_ay
+                axi_n = uu_i[t][1] / car_i.max_ax
                 if ((axi_n)**2 + (ayi_n)**2 > 1.0):
                     ax = uu_i[t][1].item()
                     ay = uu_i[t][0].item()
                     axm = car_i.max_ax
                     aym = car_i.max_ay
-                    theta = np.arctan2(ax/axm, ay/aym)
-                    p = [aym*np.cos(theta), axm*np.sin(theta)]
-                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    theta = np.arctan2(ax / axm, ay / aym)
+                    p = [aym * np.cos(theta), axm * np.sin(theta)]
+                    C = -(p[1] * ax / axm**2 + p[0] * ay / aym**2)
                     R1 = self.control_barrier_cost*2 * \
                         np.array([[ay**2/aym**4, ax*ay/(axm**2*aym**2)],
                                  [ax*ay/(axm**2*aym**2), ax**2/axm**4]])
@@ -145,16 +148,17 @@ class iLQGameSoloCarController(iLQGameCarController):
                         np.array([[2*ay/aym**2, 2*ax/axm**2]])
 
                 # normalized ay,ax for agent i
-                ayj_n = uu_j[t][0]/car_j.max_ay
-                axj_n = uu_j[t][1]/car_j.max_ax
-                if ((uu_j[t][1]/car_j.max_ax)**2 + (uu_j[t][0]/car_j.max_ay)**2 > 1.0):
+                ayj_n = uu_j[t][0] / car_j.max_ay
+                axj_n = uu_j[t][1] / car_j.max_ax
+                if ((uu_j[t][1] / car_j.max_ax)**2 +
+                    (uu_j[t][0] / car_j.max_ay)**2 > 1.0):
                     ax = uu_j[t][1].item()
                     ay = uu_j[t][0].item()
                     axm = car_j.max_ax
                     aym = car_j.max_ay
-                    theta = np.arctan2(ax/axm, ay/aym)
-                    p = [aym*np.cos(theta), axm*np.sin(theta)]
-                    C = -(p[1] * ax/axm**2 + p[0]*ay/aym**2)
+                    theta = np.arctan2(ax / axm, ay / aym)
+                    p = [aym * np.cos(theta), axm * np.sin(theta)]
+                    C = -(p[1] * ax / axm**2 + p[0] * ay / aym**2)
                     R2 = self.control_barrier_cost*2 * \
                         np.array([[ay**2/aym**4, ax*ay/(axm**2*aym**2)],
                                  [ax*ay/(axm**2*aym**2), ax**2/axm**4]])

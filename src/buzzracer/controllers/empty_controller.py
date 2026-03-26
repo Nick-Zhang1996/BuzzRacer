@@ -1,8 +1,9 @@
 ''' Empty Car contorller, doesn't do anything, mainly for testing'''
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 
 
-class EmptyCarController(CarController):
+class EmptyController(Controller):
+
     def __init__(self, car, config):
         super().__init__(car, config)
         self.car.throttle = 0
@@ -18,4 +19,4 @@ class EmptyCarController(CarController):
 
     def calc_throttle(self, ax):
         vx = self.car.state[3]
-        return ax/6.17+0.333 + vx/15.2
+        return ax / 6.17 + 0.333 + vx / 15.2

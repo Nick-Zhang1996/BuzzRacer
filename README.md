@@ -108,7 +108,7 @@ src/buzzracer/extensions/laptimer.py
 src/buzzracer/extensions/visualization.py
 src/buzzracer/extensions/simulator.py
 src/buzzracer/extensions/simulator/dynamic_bicycle_model.py
-src/buzzracer/controllers/car_controller.py
-src/buzzracer/controllers/stanley_car_controller.py
+src/buzzracer/controllers/controller.py
+src/buzzracer/controllers/stanley_controller.py
 ```
 

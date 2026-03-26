@@ -37,7 +37,7 @@
       <controller
         horizon='30' 
         >
-        <type>StanleyCarController</type>
+        <type>StanleyController</type>
       </controller>
     </car>
   </cars>

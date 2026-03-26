@@ -6,10 +6,9 @@ import logging
 from math import degrees, radians
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType
-from buzzracer.controllers.car_controller import CarController
+from buzzracer.controllers.controller import Controller
 from buzzracer.types import CartesianState
 from buzzracer.cars.car_param import CarParam, CarConfig
-
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
@@ -31,7 +30,7 @@ class Car(PrintObject, LogObject):
 
     def __init__(self):
         LogObject.__init__(self)
-        self.controller: CarController = None
+        self.controller: Controller = None
         self._throttle = 0.0
         self._steering = 0.0
         self.state = CartesianState(0, 0, 0, 0, 0, 0)
@@ -119,9 +118,10 @@ class Car(PrintObject, LogObject):
         except IndexError:
             _logger.warning('No hardware specified')
 
-        config_controller = config_minidom.getElementsByTagName('controller')[0]
-        controller_class_text = config_controller.getElementsByTagName('type')[
-            0].firstChild.nodeValue
+        config_controller = config_minidom.getElementsByTagName(
+            'controller')[0]
+        controller_class_text = config_controller.getElementsByTagName(
+            'type')[0].firstChild.nodeValue
 
         try:
             init_states_text = config_minidom.getElementsByTagName(
@@ -138,13 +138,18 @@ class Car(PrintObject, LogObject):
         car = car_cls()
         # (x,y,theta,vforward,vsideway=0,omega)
         x, y, heading, v_forward = init_states
-        car.state = CartesianState(
-            x=x, y=y, heading=heading, v_forward=v_forward, v_sideway=0, omega=0)
+        car.state = CartesianState(x=x,
+                                   y=y,
+                                   heading=heading,
+                                   v_forward=v_forward,
+                                   v_sideway=0,
+                                   omega=0)
 
         car.param = getattr(CarConfig, config_name).value
 
-        controller, controller_config, controller_state = CarController.factory(
-            controller_class_text, Car.main.config, car.param, config_controller)
+        controller, controller_config, controller_state = Controller.factory(
+            controller_class_text, Car.main.config, car.param,
+            config_controller)
 
         if not controller is None:
             car.controller = controller
