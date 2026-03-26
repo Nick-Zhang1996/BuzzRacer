@@ -5,15 +5,16 @@ The Kinematic Bicycle Model:
 '''
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import numpy as np
-from buzzracer.extensions.simulator import Simulator
+from buzzracer.extensions.simulator import Simulator, SimulatorConfig
 from buzzracer.types import CartesianState, Control
+from buzzracer.extensions.extension import Extension, ExtensionState
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
 if TYPE_CHECKING:
-    from buzzracer.cars.car import Car
+    from buzzracer.cars.car import CarParam
 
 
+@Extension.register('simulator', SimulatorConfig, ExtensionState)
 class KinematicBicycleCartesianSimulator(Simulator):
     ''' Simulator for Ackerman steering vehicle with Kinematic Bicycle Model '''
 
@@ -21,10 +22,6 @@ class KinematicBicycleCartesianSimulator(Simulator):
     simple_throttle_model = False
     state_type = CartesianState
     ''' If True, throttle is the acceleration without mapping'''
-
-    def __init__(self):
-        super().__init__()
-        self.simple_throttle_model = False
 
     def init(self):
         super().init()
@@ -38,7 +35,7 @@ class KinematicBicycleCartesianSimulator(Simulator):
     @staticmethod
     def advance_dynamics(state:  CartesianState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
                          curvature: float = None) -> CartesianState:
         """advance dynamics by dt.
@@ -63,5 +60,6 @@ class KinematicBicycleCartesianSimulator(Simulator):
                                 omega=omega)
         steering, throttle = control
         _control = Control(steering=steering, throttle=throttle)
-        next_car_state = KinematicBicycleModelCartesian.advance_dynamics(_state, _control, car, dt)
+        next_car_state = KinematicBicycleModelCartesian.advance_dynamics(
+            _state, _control, car_param, dt)
         return next_car_state

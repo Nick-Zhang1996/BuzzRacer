@@ -6,6 +6,7 @@ from enum import Enum, unique
 from abc import ABC, abstractmethod
 
 import numpy as np
+from scipy.interpolate import splev
 
 from buzzracer.common import ExperimentType
 from buzzracer.extensions.extension import Extension, ExtensionConfig
@@ -116,9 +117,10 @@ class Simulator(Extension, ABC):
                     car.state, (car.steering, car.throttle), car.param, self.main.config.dt)
             elif self.state_type == CurvilinearState:
                 control = Control(steering=car.steering, throttle=car.throttle)
-                curvature = self.main.track.curvature_s(car.sim_state.progress)
+                curvature_s = self.main.track.data.curvature_s
+                curvature = splev(car.sim_state.progress, curvature_s)[0]
                 car.sim_state = self.advance_dynamics(
-                    car.sim_state, control, car.param, self.main.dt, curvature)
+                    car.sim_state, control, car.param, self.main.config.dt, curvature)
                 car.state = self.main.track.curv_to_cart(car.sim_state)
 
         if self.config.state_noise_enabled:

@@ -1,6 +1,8 @@
 ''' Import all classes to buzzracer.extension namespace '''
 from .simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
-# from .simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
+from .simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
+
+# Need some debugging
 # from .simulators.dynamic_bicycle_curvilinear_simulator import DynamicBicycleCurvilinearSimulator
 # from .simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
 
