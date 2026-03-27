@@ -369,10 +369,8 @@ class CurvilinearTrack(Track):
 
         """
         data = self.data
-        r = np.array(splev(curv.progress % data.raceline_len_m,
-                     data.raceline_s, der=0))
-        dr = np.array(splev(curv.progress % data.raceline_len_m,
-                      data.raceline_s, der=1))
+        r = np.array(splev(curv.progress % data.raceline_len_m, data.raceline_s, der=0))
+        dr = np.array(splev(curv.progress % data.raceline_len_m, data.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
 
         # ccw 90 deg

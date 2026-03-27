@@ -67,7 +67,7 @@ class GameTheoreticPlanner(Extension):
         c = self.config
         N = c.car_count
         default = CarRacingCasadiConfig
-        J_Qr = np.diag([0, 5.0, 0.5, 2.0, 0.1])
+        J_Qr = np.diag([0, 5.0, 1.0, 1.0, 0.1])
         J_R = np.eye(default.m) * 1.0
 
         # TODO resample if cars collide
@@ -89,17 +89,15 @@ class GameTheoreticPlanner(Extension):
             N=N,
             n=default.n,
             m=default.m,
-            n_hi=4 * N * c.horizon if default.double_circle_h else N *
-            c.horizon,
+            n_hi=(4 * N+2) * c.horizon if default.double_circle_h else (2+N) * c.horizon,
             collision_radius=default.collision_radius,
             x0=x0.copy(order='F'),
             target_x_ref=x_ref.copy(order='F'),
             J_Qr=J_Qr.copy(order='F'),
             J_R=J_R.copy(order='F'))
         game = CarRacingCasadi(game_config, self.main.track)
-        solver_config = RD3GCasadiConfig(inertia_correction=False,
-                                         iterations=20)
-        solver = RD3GCasadi(solver_config, game, cpp_only=False)
+        solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
+        solver = RD3GCasadi(solver_config, game, cpp_only=True)
         solver.init_cpp_backend()
 
         self.state.solver = solver
@@ -123,6 +121,12 @@ class GameTheoreticPlanner(Extension):
 
     @staticmethod
     def update_fun(state, main_state, track, config, visualization):
+
+        # Dirty hack to get some initial states
+        # idx = [10, 200, 400, 800]
+        # for i in idx:
+        #     val = np.hstack([track.data.r_vec[i], track.data.phi_vec[i]])
+        #     print(val)
         t = Extension.main.timer
         solver = state.solver
         default = CarRacingCasadiConfig
@@ -135,8 +139,7 @@ class GameTheoreticPlanner(Extension):
         cart_states = (CartesianState * N).from_buffer(main_state.car_states)
         curv_states = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
-            curv_states[:,
-                        i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
+            curv_states[:, i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
         # (n,N)
         t.e('cart 2 curv')
 
@@ -174,10 +177,19 @@ class GameTheoreticPlanner(Extension):
         # Call solver
         sol = solver.solve_cpp_backend(u_ref)
         print(f'{sol.elapsed_time}, {sol.residual=}')
+        print(u_ref)
+        print(x0)
+        if main_state.breakpoint.is_set():
+            breakpoint()
 
         # DEBUG: Visualize planned trajectory for all agents
         # (n*N,T)
-        curv_trajs = sol.x.reshape((n, N, T), order='F')
+        # x_ref = sol.x
+        gc = solver.game.config
+        params_np = [gc.get_int_param_np(), gc.get_double_param_np()]
+        x_ref = solver.cpp_solver.rollout(solver.x0, u_ref, *params_np)
+        curv_trajs = x_ref.reshape((n, N, T), order='F')
+
         cart_traj_k_i = []
         for i in range(N):
             cart_traj_k = []

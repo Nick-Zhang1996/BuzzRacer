@@ -23,9 +23,12 @@
       <config_name>corvette_17</config_name>
       <controller max_speed='1.5'>
         <type>StanleyController</type>
-        <init_states>(3.2*0.6,3.4*0.6, radians(-90), 1.0)</init_states>
+        <init_states>(2.2205607, 2.35815044, -1.43484611, 1.0)</init_states>
       </controller>
     </car>
+
+
+
 
     <car>
       <name>Porsche_18</name>
@@ -33,7 +36,7 @@
       <config_name>porsche_18</config_name>
       <controller max_speed='1.5'>
         <type>StanleyController</type>
-        <init_states>(3.2*0.6,3.8*0.6, radians(-90), 1.0)</init_states>
+        <init_states>(1.88333728,0.47559478, -3.01720037, 1.0)</init_states>
       </controller>
     </car>
 
@@ -43,7 +46,7 @@
       <config_name>porsche_19</config_name>
       <controller max_speed='1.5'>
         <type>StanleyController</type>
-        <init_states>(3.2*0.6,4.2*0.6, radians(-90), 1.0)</init_states>
+        <init_states>(0.79314882,0.61250251, -2.13986013, 1.0)</init_states>
       </controller>
     </car>
 
@@ -53,7 +56,7 @@
       <config_name>audi_20</config_name>
       <controller max_speed='1.5'>
         <type>StanleyController</type>
-        <init_states>(3.2*0.6,4.6*0.6, radians(-90), 1.0)</init_states>
+        <init_states>(0.47801504, 3.07869876, 1.46571846, 1.0)</init_states>
       </controller>
     </car>
 

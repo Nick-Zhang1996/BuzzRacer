@@ -30,6 +30,8 @@ class MainState:
         currently this is ignored and pressing 'q' the first time will cut motor
         second 'q' will exit program
         '''
+        self.breakpoint = mp.Event()
+        """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
         self.car_states = mp.Array(CartesianState, car_count, lock=False)
         self.car_states_event = [mp.Event() for _ in range(car_count)]
         """ Car specific event for new state available, set by main"""

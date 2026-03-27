@@ -47,7 +47,6 @@ class VisualizationGL(Extension):
         self.show_car_info = True
         ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
-        self.main.breakpoint = Event()
         self.save_frames = Event()
         """ If set, save frames, never cleared"""
         self.new_frame = Event()
@@ -574,7 +573,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
                 print('Paused. Check console to continue.')
                 input('Press Enter in the console to continue...')
             elif command == 'breakpoint':
-                self.host.main.breakpoint.set()
+                self.host.main.state.breakpoint.set()
             elif command == 'snapshot':
                 try:
                     self.host.main.snapshot.toggle_snapshot()
