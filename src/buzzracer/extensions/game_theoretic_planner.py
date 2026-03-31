@@ -1,17 +1,20 @@
 """ Game Theoretic Planner, responsible for generating ref traj for multiple cars """
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from math import radians
 from dataclasses import replace
 
 import numpy as np
-from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
-from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig
+from scipy.interpolate import splev
 
-from buzzracer.types import CartesianState, CurvilinearState
+from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
+from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig, Solution
+
+from buzzracer.common import BASEDIR
+from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 from buzzracer.controllers.stanley_controller import StanleyController, StanleyControllerConfig, StanleyControllerState
 from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
@@ -136,70 +139,93 @@ class GameTheoreticPlanner(Extension):
         T = config.horizon
 
         t.s('cart 2 curv')
-        cart_states = (CartesianState * N).from_buffer(main_state.car_states)
-        curv_states = np.empty((n, N), dtype=float, order='F')
+        cart_x0 = (CartesianState * N).from_buffer(main_state.car_states)
+        curv_x0 = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
-            curv_states[:, i] = track.cart_to_curv(cart_states[i]).to_tuple()[:5]
+            curv_x0[:, i] = track.cart_to_curv(cart_x0[i]).to_tuple()[:5]
         # (n,N)
         t.e('cart 2 curv')
 
-        x0 = curv_states
         default = CarRacingCasadiConfig
-        # NOTE not used
-        solver.guess = np.zeros((m, N, T), order='F')
         # Initial conditions for all cars
-        solver.x0 = x0
+        solver.x0 = curv_x0
         x_ref = np.zeros((default.n, N), order='F')
         for i in range(N):
-            x_ref[3, i] = cart_states[i].v_forward  # target speed
+            x_ref[3, i] = cart_x0[i].v_forward  # target speed
 
-        new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
+        new_config = replace(solver.game.config, x0=curv_x0, target_x_ref=x_ref)
         solver.game.config = new_config
         # TODO: Initial guess for control sequence
-        # From previous step
-        # Stitch with stanley controller
+        # From previous step, stitch with stanley controller
         u_ref = np.zeros((m * N, T), order='F')
 
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
         for i in range(N):
-            x = cart_states[i]
+            x = cart_x0[i]
             for k in range(T):
                 # Simulate with stanley controller
-                u, _, _ = StanleyController.control(x, state.car_params[i],
-                                                    track,
-                                                    config.stanley_config,
-                                                    state.stanley_state,
-                                                    main_state, i)
-                u_ref_3d[:, i, k] = u.to_tuple()
+                if False:
+                    u, _, _ = StanleyController.control(x, state.car_params[i],
+                                                        track,
+                                                        config.stanley_config,
+                                                        state.stanley_state,
+                                                        main_state, i)
+                    u_ref_3d[:, i, k] = u.to_tuple()
+                else:
+                    u = Control(0, 0)
                 x = DynamicBicycleModelCartesian.advance_dynamics(
                     x, u, state.car_params[i], solver.game.config.dt)
 
         # Call solver
-        sol = solver.solve_cpp_backend(u_ref)
+        sol: Solution = solver.solve_cpp_backend(u_ref)
         print(f'{sol.elapsed_time}, {sol.residual=}')
-        print(u_ref)
-        print(x0)
         if main_state.breakpoint.is_set():
-            breakpoint()
+            # save = {'x0': x0, 'target_x_ref': x_ref, 'u_ref': u_ref}
+            # with open(os.path.join(BASEDIR, 'outputs', 'input.p'), 'wb') as f:
+            #     pickle.dump(save, f)
+            solver.visualize(sol.u)
+            main_state.breakpoint.clear()
 
         # DEBUG: Visualize planned trajectory for all agents
         # (n*N,T)
         # x_ref = sol.x
         gc = solver.game.config
         params_np = [gc.get_int_param_np(), gc.get_double_param_np()]
-        x_ref = solver.cpp_solver.rollout(solver.x0, u_ref, *params_np)
-        curv_trajs = x_ref.reshape((n, N, T), order='F')
-
-        cart_traj_k_i = []
+        # x_ref = solver.cpp_solver.rollout(solver.x0, sol.u, *params_np)
+        # FIXME: dt should be compatible
+        # DEBUG: simulate cars without control
         for i in range(N):
-            cart_traj_k = []
+            x = CurvilinearState(*curv_x0[:, i])
+            no_control_states = []
             for k in range(T):
-                curv_state = CurvilinearState(*curv_trajs[:, i, k])
-                cart_traj_k.append(track.curv_to_cart(curv_state))
-            cart_traj_k_i.append(cart_traj_k)
-        for i in range(N):
-            points = [(v.x, v.y) for v in cart_traj_k_i[i]]
+                u = Control(0, 0.5)
+                k = splev(x.progress % track.data.raceline_len_m, track.data.curvature_s)[0].item()
+                print(f'{x=}, {k=}')
+                x = KinematicBicycleModelFrenet.advance_dynamics(
+                    x, u, state.car_params[i], solver.game.config.dt, curvature=k)
+                no_control_states.append(track.curv_to_cart(x))
+            points = [(v.x, v.y) for v in no_control_states]
             visualization.draw_polyline(points)
+
+        # x_ref = solver.cpp_solver.rollout(solver.x0, u_ref, *params_np)
+        # curv_trajs = x_ref.reshape((n, N, T), order='F')
+
+        # cart_traj_k_i = []
+        # for i in range(N):
+        #     cart_traj_k = []
+        #     for k in range(T):
+        #         # curv_state = CurvilinearState(*curv_trajs[:, i, k])
+        #         curv_state = CurvilinearState(progress=curv_trajs[0, i, k],
+        #                                       lateral_err=curv_trajs[1, i, k],
+        #                                       heading_err=curv_trajs[2, i, k],
+        #                                       v_forward=curv_trajs[3, i, k],
+        #                                       v_sideway=curv_trajs[4, i, k],
+        #                                       rel_omega=0.0)
+        #         cart_traj_k.append(track.curv_to_cart(curv_state))
+        #     cart_traj_k_i.append(cart_traj_k)
+        # for i in range(N):
+        #     points = [(v.x, v.y) for v in cart_traj_k_i[i]]
+        #     visualization.draw_polyline(points)
 
         state.ctrl_traj = u_ref
 

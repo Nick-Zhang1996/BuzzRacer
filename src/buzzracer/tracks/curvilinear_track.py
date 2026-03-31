@@ -162,10 +162,8 @@ class CurvilinearTrack(Track):
 
         def _norm(x):
             return np.linalg.norm(x, axis=0)
-        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        nominator = _norm(dr)**2*_norm(ddr) ** 2 - np.sum(dr*ddr, axis=0)**2
-        nominator = np.clip(nominator, a_min=0, a_max=None)**0.5
-        curvature_vec = nominator / _norm(dr)**3
+        # (dx*ddy - dy*ddx)
+        curvature_vec = (dr[0]*ddr[1] - dr[1]*ddr[0]) / _norm(dr)**3
         assert not np.any(np.isnan(curvature_vec))
         curvature_s, _ = splprep(curvature_vec.reshape(1, -1), u=s_vec, s=0, per=1)
         ss = np.linspace(0, raceline_len_m, n)
