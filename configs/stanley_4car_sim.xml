@@ -28,15 +28,14 @@
     </car>
 
 
-
-
     <car>
       <name>Porsche_18</name>
       <hardware>FHSS</hardware>
       <config_name>porsche_18</config_name>
       <controller max_speed='1.5'>
         <type>StanleyController</type>
-        <init_states>(1.88333728,0.47559478, -3.01720037, 1.0)</init_states>
+        <!-- <init_states>(1.88333728,0.47559478, -3.01720037, 1.0)</init_states> -->
+        <init_states>(2.0205607, 2.35815044, -1.43484611, 1.0)</init_states>
       </controller>
     </car>
 

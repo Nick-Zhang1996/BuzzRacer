@@ -7,6 +7,7 @@ from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
+    from buzzracer.cars.car_param import CarParam
 
 
 class KinematicBicycleCurvilinearSimulator(Simulator):
@@ -14,10 +15,6 @@ class KinematicBicycleCurvilinearSimulator(Simulator):
         with Kinematic Bicycle Model
     '''
     state_type = CurvilinearState
-
-    def __init__(self):
-        super().__init__()
-        self.track = self.main.track
 
     def init(self):
         super().init()
@@ -47,20 +44,20 @@ class KinematicBicycleCurvilinearSimulator(Simulator):
     @staticmethod
     def advance_dynamics(state: CurvilinearState,
                          control: Control,
-                         car: Car,
+                         car_param: CarParam,
                          dt: float,
-                         curvature: float=None):
+                         curvature: float = None):
         """advance dynamics by self.dt.
         using car frame origined at CG with x pointing forward, y leftward
         Args:
             state: state of the car
             control: (steering,throttle) steering in rad, left positive, throttle in [-1,1], 
                     positive indicates acceleration
-            car: Car object, contains information about the car's kinematics, 
+            car_param: CarParam object, contains information about the car's kinematics, 
                 also contains car.sim_state for simulators that do not use car.state for update
             dt: Time step to advance dynamics by, unit:seconds
             curvature: signed curvature
         Return: 
             state at next time step.
         """
-        return KinematicBicycleModelFrenet.advance_dynamics(state, control, car, dt, curvature)
+        return KinematicBicycleModelFrenet.advance_dynamics(state, control, car_param, dt, curvature)
