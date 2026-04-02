@@ -34,6 +34,7 @@ class MainState:
         """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
         self.car_states = mp.Array(CartesianState, car_count, lock=False)
         self.car_states_event = [mp.Event() for _ in range(car_count)]
+        self.car_states_first_available = mp.Event()
         """ Car specific event for new state available, set by main"""
         self.car_control = mp.Array(Control, car_count, lock=False)
         self.car_control_event = [mp.Event() for _ in range(car_count)]
@@ -45,7 +46,7 @@ class MainConfig:
 
     def __init__(self, config_filename):
         self.dt = 0.01
-        self.multiprocess = False
+        self.multiprocess = True
         self.config_filename = config_filename
 
         dom = minidom.parse(config_filename)
@@ -203,7 +204,9 @@ class Main(PrintObject, LogObject):
         if self.config.multiprocess:
             for i, car in enumerate(self.cars):
                 self.state.car_states[i] = car.state
+                # logger.info(f'{i=}, {car.state=}')
                 self.state.car_states_event[i].set()
+        self.state.car_states_first_available.set()
         t.e('wait new state update')
 
         t.s('control')

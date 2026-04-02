@@ -2,11 +2,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from dataclasses import replace
-import os
 import logging
-from math import radians
+import multiprocessing as mp
+import os
 
 import pickle
+import ctypes
 import numpy as np
 
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
@@ -20,9 +21,11 @@ from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
+    from buzzracer.main import MainState
+    from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 class GameTheoreticPlannerConfig(ExtensionConfig):
@@ -36,10 +39,15 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Number of cars, N """
         self.stitching_steps: int = 10
         """ Number of steps to keep in previous trajectory in next iteration """
-        self.multiprocess: bool = False
+        self.multiprocess: bool = True
+        """ Run planner in a separate process, necessary for realtime operation"""
+        if self.multiprocess:
+            assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
         self.dt: float = main_config.dt
         self.use_stanley_control_guess: bool = False
         self.stanley_config = StanleyControllerConfig(main_config, None)
+        self.max_traj_len: int = 100
+        """ Maximum length of trajectory. Defines buffer size for mp.Array"""
 
 
 class GameTheoreticPlannerState(ExtensionState):
@@ -51,12 +59,18 @@ class GameTheoreticPlannerState(ExtensionState):
         """ (N, ) Cars under this planner """
         self.car_params: list[CarParam] = None
         self.cart_traj: np.ndarray = None
-        """ (n=6, N, T) of Cartesian State Trajectory """
+        """ (n=6, N, traj_len) non-process safe Cartesian State Trajectory """
         self.curv_traj: np.ndarray = None
-        """ (n=5, N, T) of Curvilinear State Trajectory """
+        """ (n=5, N, traj_len) non-process safe Curvilinear State Trajectory """
+        self.cart_traj_len: int = mp.Value(ctypes.c_int)
+        """ cart_traj_sync.shape[2] Length of cart_traj """
+        self.cart_traj_sync = mp.Array(ctypes.c_double, 6*config.car_count*config.max_traj_len)
+        """ (n=6, N, cart_traj_len) Process safe Cartesian State Trajectory"""
         # self.ctrl_traj: np.ndarray = None
-        """ (m*N, T) of ctrl trajectory """
+        # """ (m*N, T) of ctrl trajectory """
         self.stanley_state: StanleyControllerState = StanleyControllerState(config)
+        self.child_process: mp.Process = None
+        self.planner_ready: mp.synchronize.Event = mp.Event()
 
 
 @Extension.register('planner', GameTheoreticPlannerConfig,
@@ -68,11 +82,27 @@ class GameTheoreticPlanner(Extension):
         self.state: GameTheoreticPlannerState
         self.config: GameTheoreticPlannerConfig
 
+    def init(self):
+        # Load game theoretic solver
+        self.state.cars = Extension.main.cars
+        self.state.car_params = [car.param for car in self.state.cars]
+        if self.config.multiprocess:
+            p = mp.Process(target=GameTheoreticPlanner.process_fun,
+                           args=(self.state, self.main.state,
+                                 self.main.track, self.config))
+            p.start()
+            self.state.child_process = p
+        else:
+            self.state.solver = GameTheoreticPlanner.make_solver(self.config, self.main.track)
+            # TODO wait till first plan is available
+
+    @staticmethod
+    def make_solver(config, track):
         # Setup casadi solver
         # x = [s, n, phi, v_forward, v_sideway]
         # J_Qr = np.diag([0, 5.0, 0.1, 1.0, 0.1])
         # J_R = np.eye(m) * 1.0
-        c = self.config
+        c = config
         N = c.car_count
         default = CarRacingCasadiConfig
         J_Qr = np.diag([0, 5.0, 1.0, 1.0, 0.1])
@@ -103,32 +133,51 @@ class GameTheoreticPlanner(Extension):
             target_x_ref=x_ref.copy(order='F'),
             J_Qr=J_Qr.copy(order='F'),
             J_R=J_R.copy(order='F'))
-        game = CarRacingCasadi(game_config, self.main.track)
+        game = CarRacingCasadi(game_config, track)
         solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
         solver = RD3GCasadi(solver_config, game, cpp_only=False)
         solver.init_cpp_backend()
-
-        self.state.solver = solver
-
-    def init(self):
-        # Load game theoretic solver
-        self.state.cars = Extension.main.cars
-        self.state.car_params = [car.param for car in self.state.cars]
-        if self.config.multiprocess:
-            pass
-        else:
-            pass
+        return solver
 
     def update(self):
+        state = self.state
+        config = self.config
         if self.config.multiprocess:
-            pass
+            # When the planner runs in a different process, state.cart_traj in
+            # the main process is not updated, instead, new cart_traj are passed in queue
+            shape = (6, config.car_count, state.cart_traj_len.value)
+            state.cart_traj = np.frombuffer(state.cart_traj_sync.get_obj(),
+                                            dtype=np.float64,
+                                            count=shape[0]*shape[1]*shape[2]
+                                            ).reshape(shape, order='F').copy()
         else:
             GameTheoreticPlanner.update_fun(self.state, self.main.state,
-                                            self.main.track, self.config,
-                                            self.main.visualization)
+                                            self.main.track, self.config)
+        cart_traj = self.state.cart_traj
+        if cart_traj.shape[2] > 0:
+            for i in range(self.config.car_count):
+                points = cart_traj[:2, i, :].T
+                self.main.visualization.draw_polyline(points)
 
     @staticmethod
-    def update_fun(state, main_state, track, config: GameTheoreticPlannerConfig, visualization):
+    def process_fun(state: GameTheoreticPlannerState,
+                    main_state: MainState,
+                    track: CurvilinearTrack,
+                    config: GameTheoreticPlannerConfig):
+        """ Process function to run update_fun in a loop """
+        try:
+            state.solver = GameTheoreticPlanner.make_solver(config, track)
+            while not main_state.exit_request.is_set():
+                GameTheoreticPlanner.update_fun(state, main_state, track, config)
+        finally:
+            main_state.exit_request.set()
+
+    @staticmethod
+    def update_fun(state: GameTheoreticPlannerState,
+                   main_state: MainState,
+                   track: CurvilinearTrack,
+                   config: GameTheoreticPlannerConfig):
+        """ Update planner with a new plan, stitch to current plan """
 
         # Dirty hack to get some initial states
         # idx = [10, 200, 400, 800]
@@ -143,7 +192,11 @@ class GameTheoreticPlanner(Extension):
         N = config.car_count
         T = config.horizon
 
-        # Get curvilinear states
+        # Wait till main_state.car_states are available
+        if not main_state.car_states_first_available.wait(0.1):
+            logger.debug('Waiting for main_state.car_states...')
+            return
+
         cart_x = (CartesianState * N).from_buffer(main_state.car_states)
         curv_x = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
@@ -156,6 +209,8 @@ class GameTheoreticPlanner(Extension):
         # Find stitching point on state.curv_traj[sti_idx]
         # This must be AFTER all cars max progress. We cannot plan behind the cars
         # THis must be BEFORE end of last traj
+        # TODO what if cars are not following planned path perfectly?
+        # do we continue planning from car position or from previous plan?
         # TODO validate trajectory, discard implausible ones
         # TODO assert monotonicity in progress
         # TODO wrap raceline_len_m
@@ -170,6 +225,9 @@ class GameTheoreticPlanner(Extension):
         cart_x0 = state.cart_traj[:, :, next_plan_idx]
         new_curv_traj = GameTheoreticPlanner.plan_from_x0(
             solver, cart_x0, curv_x0, track, config, state, main_state)
+        if new_curv_traj is None:
+            logger.debug('No valid output from planner')
+            return
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
         for i in range(N):
             for k in range(T):
@@ -183,9 +241,13 @@ class GameTheoreticPlanner(Extension):
         state.cart_traj = np.dstack(
             [state.cart_traj[:, :, realized_idx:next_plan_idx], new_cart_traj])
 
-        for i in range(N):
-            points = state.cart_traj[:2, i, :].T
-            visualization.draw_polyline(points)
+        flat_cart_traj = state.cart_traj.flatten(order='F')
+        flat_cart_traj_len = len(flat_cart_traj)
+        # TODO handle when created trajectory is too long
+        with state.cart_traj_sync.get_lock():
+            state.cart_traj_sync[:flat_cart_traj_len] = flat_cart_traj
+        state.cart_traj_len.value = state.cart_traj.shape[2]
+        state.planner_ready.set()
 
     @staticmethod
     def plan_from_x0(solver, cart_x0: np.ndarray, curv_x0: np.ndarray, track, config, state, main_state):
@@ -198,7 +260,7 @@ class GameTheoreticPlanner(Extension):
         solver.x0 = curv_x0
         x_ref = np.zeros((n, N), order='F')
         for i in range(N):
-            x_ref[3, i] = cart_x0[3, i]  # target speed
+            x_ref[3, i] = 1.0  # target speed
 
         new_config = replace(solver.game.config, x0=curv_x0, target_x_ref=x_ref, dt=0.02)
         solver.game.config = new_config
@@ -224,12 +286,21 @@ class GameTheoreticPlanner(Extension):
                     x, u, state.car_params[i], solver.game.config.dt)
 
         # Call solver
+        assert not np.any(np.isnan(u_ref))
+        assert not np.any(np.isnan(curv_x0))
         sol: Solution = solver.solve_cpp_backend(u_ref)
         # sol: Solution = solver.solve(u_ref)
-        print(f'{sol.elapsed_time}, {sol.residual=}')
+        # print(f'{sol.elapsed_time=}, {sol.residual=}')
+        if np.isnan(sol.residual):
+            return None
+
         # Clip solution to reasonable number
-        clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
-        if main_state.breakpoint.is_set():
+        # TODO clip steering
+        # clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
+        clip_u = sol.u
+
+        # Save inputs to solver when user press 'b'
+        if np.isnan(sol.residual) or main_state.breakpoint.is_set():
             save = {'x0': curv_x0, 'target_x_ref': x_ref, 'u_ref': u_ref}
             filename = os.path.join(BASEDIR, 'outputs', 'input.p')
             with open(filename, 'wb') as f:
@@ -238,7 +309,6 @@ class GameTheoreticPlanner(Extension):
             sol: Solution = solver.solve(u_ref)
             solver.visualize(sol.u)
             main_state.breakpoint.clear()
-            breakpoint()
 
         # DEBUG: Visualize planned trajectory for all agents
         # (n*N,T)
