@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from time import time, sleep
 from enum import Enum, unique
 from abc import ABC, abstractmethod
+import logging
 
 import numpy as np
 
@@ -13,6 +14,9 @@ from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, CurvilinearState, Control
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 @unique
@@ -62,8 +66,7 @@ class Simulator(Extension, ABC):
         ''' Real time / sim time. If larger than 1.0, simulation will be slowed down.
             This allow easier human interpretation of fast simulations.
             Only useful if match_time = True '''
-        self.print_info('real/sim time ratio = %.1f ' %
-                        (self.real_sim_time_ratio))
+        self.print_info('real/sim time ratio = %.1f ' % (self.real_sim_time_ratio))
 
         self.sim_t = 0
         ''' Elapsed time in simulation'''
@@ -112,6 +115,7 @@ class Simulator(Extension, ABC):
         for car in self.cars:
             if self.state_type == CartesianState:
                 # NOTE cartesian state is passed directly as a tuple for now
+                logger.debug(f'{car.steering=}, {car.throttle=}')
                 car.state = self.advance_dynamics(
                     car.state, (car.steering, car.throttle), car.param, self.main.config.dt)
             elif self.state_type == CurvilinearState:

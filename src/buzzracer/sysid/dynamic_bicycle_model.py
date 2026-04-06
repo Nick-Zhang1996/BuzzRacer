@@ -69,7 +69,7 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
         Fry = 1.15 * tire_curve(slip_r, use_torch) * m * 9.8 * lf / (lr + lf)
 
         # Dynamics
-        d_vx = 6.17 * (control.throttle - vx / 15.2 - 0.333) * (vx > 0)
+        d_vx = 6.17 * (control.throttle + (-vx / 15.2 - 0.333)*(vx > 0))
         # d_vy is measured in body-attached frame
         d_vy = 1.0 / m * (Fry + Ffy - m * vx * omega)
         d_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
@@ -159,8 +159,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
 
             # in body frame
             d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
-            d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0) + \
-                omega * state.v_sideway
+            d_vx_body = 6.17 * (control.throttle + (-state.v_forward / 15.2 - 0.333)
+                                * (state.v_forward > 0)) + omega * state.v_sideway
             d_rel_heading_dt = state.rel_omega
 
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
@@ -190,8 +190,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
 
             # in body frame
             d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
-            d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0) + \
-                omega * state.v_sideway
+            d_vx_body = 6.17 * (control.throttle + (- state.v_forward / 15.2 - 0.333)
+                                * (state.v_forward > 0)) + omega * state.v_sideway
             d_rel_heading_dt = state.rel_omega
 
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate

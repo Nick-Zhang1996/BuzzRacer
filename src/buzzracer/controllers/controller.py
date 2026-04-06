@@ -2,7 +2,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
-from time import time
 
 from buzzracer.common import LogObject, set_config_attr
 from buzzracer.types import CartesianState, Control
@@ -25,8 +24,10 @@ class ControllerConfig:
     Car Controller subclasses should subclass and add new configs. 
     """
 
+    # pylint:disable-next=unused-argument
     def __init__(self, main_config: MainConfig, car_param: CarParam):
-        pass
+        """ Use planner instead of main.track """
+        self.planner = False
 
 
 class ControllerState:
@@ -111,14 +112,13 @@ class Controller(LogObject):
                 controller_state,
                 main_state,
                 car_index,
-                reverse=False):
+                planner_state=None):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
         Args:
           state: CartesianState (x,y,heading,v_forward,v_sideway,omega)
           car_params: CarParams, parameters of the car
           track: track object, can be RCPTrack or skidpad
-          reverse: true if running in opposite direction of raceline init direction
 
         Outputs:
           control: Control(steering, throttle)
@@ -126,7 +126,7 @@ class Controller(LogObject):
                     If this is false, then throttle will also be set to 0
           state: updated controller state
         '''
-        del car_state, car_params, track, controller_config, reverse, main_state
+        del car_state, car_params, track, controller_config, main_state, car_index, planner_state
         ctrl = Control(steering=0, throttle=0)
         valid = False
         return (ctrl, valid, controller_state)
@@ -134,7 +134,7 @@ class Controller(LogObject):
     @staticmethod
     def process_fun(main_state: MainState, car_index: int,
                     car_params: CarParam, track: Track, controller_cls,
-                    controller_config, controller_state):
+                    controller_config, controller_state, planner_state=None):
         while not main_state.exit_request.is_set():
             v_override = 0.0 if main_state.slowdown.is_set() else None
             controller_state.v_override = v_override
@@ -143,11 +143,11 @@ class Controller(LogObject):
                 continue
             main_state.car_states_event[car_index].clear()
 
-            control, valid, state = controller_cls.control(
+            control, valid, state, msg = controller_cls.control(
                 main_state.car_states[car_index], car_params, track,
-                controller_config, controller_state, main_state, car_index)
+                controller_config, controller_state, main_state, car_index, planner_state)
             if not valid:
-                logger.warning('Invalid control for %s' % {car_params.name})
+                logger.warning('Invalid control for %s, %s' % (car_params.name, msg))
             controller_state = state
             main_state.car_control[car_index] = control
             main_state.car_control_event[car_index].set()

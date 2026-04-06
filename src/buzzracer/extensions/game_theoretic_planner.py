@@ -57,6 +57,7 @@ class GameTheoreticPlannerState(ExtensionState):
         super().__init__(config)
         self.cars: Car = None
         """ (N, ) Cars under this planner """
+        self.car_count: int = config.car_count
         self.car_params: list[CarParam] = None
         self.cart_traj: np.ndarray = None
         """ (n=6, N, traj_len) non-process safe Cartesian State Trajectory """
@@ -139,17 +140,24 @@ class GameTheoreticPlanner(Extension):
         solver.init_cpp_backend()
         return solver
 
+    @staticmethod
+    def get_cart_traj_sync(state):
+        """ Retrieve planned trajectory, in sync. Call from another process
+        Args:
+            state: planner state """
+        # When the planner runs in a different process, state.cart_traj in
+        # the main process is not updated, instead, new cart_traj are placed in cart_traj_sync
+        shape = (6, state.car_count, state.cart_traj_len.value)
+        cart_traj = np.frombuffer(state.cart_traj_sync.get_obj(),
+                                  dtype=np.float64,
+                                  count=shape[0]*shape[1]*shape[2]
+                                  ).reshape(shape, order='F').copy()
+        return cart_traj
+
     def update(self):
         state = self.state
-        config = self.config
         if self.config.multiprocess:
-            # When the planner runs in a different process, state.cart_traj in
-            # the main process is not updated, instead, new cart_traj are passed in queue
-            shape = (6, config.car_count, state.cart_traj_len.value)
-            state.cart_traj = np.frombuffer(state.cart_traj_sync.get_obj(),
-                                            dtype=np.float64,
-                                            count=shape[0]*shape[1]*shape[2]
-                                            ).reshape(shape, order='F').copy()
+            state.cart_traj = GameTheoreticPlanner.get_cart_traj_sync(state)
         else:
             GameTheoreticPlanner.update_fun(self.state, self.main.state,
                                             self.main.track, self.config)

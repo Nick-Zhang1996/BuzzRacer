@@ -139,6 +139,9 @@ class Main(PrintObject, LogObject):
         for car in self.cars:
             car.post_init()
 
+        if not hasattr(self, 'planner'):
+            self.planner = None
+
         if self.config.multiprocess:
             self.child_processes = []
             for car in self.cars:
@@ -146,7 +149,9 @@ class Main(PrintObject, LogObject):
                                args=(self.state, car.id, car.param, self.track,
                                      car.controller.__class__,
                                      car.controller.config,
-                                     car.controller.state))
+                                     car.controller.state,
+                                     self.planner.state)
+                               )
                 p.start()
                 self.child_processes.append(p)
             logger.info("Multiprocess enabled")

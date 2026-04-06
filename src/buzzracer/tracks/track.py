@@ -26,14 +26,22 @@ logger.setLevel(logging.INFO)
 
 
 class LocalTrajOutput(NamedTuple):
-    ref_point: np.ndarray  # Closest point on raceline
-    lateral_err: float  # Lateral error. Left deviation is positive.
-    raceline_dir: float  # Orientation of raceline tangent. CCW positive
-    curvature: float  # Signed curvature, CCW positive
-    v_target: float  # Reference speed at ref_point
-    progress: float  # Curve length along raceline in Frenet frame.
-    left_margin: float  # Distance to left boundary
-    right_margin: float  # Distance to right boundary
+    ref_point: np.ndarray
+    """ Closest point on raceline """
+    lateral_err: float
+    """  Lateral error. Left deviation is positive. """
+    raceline_dir: float
+    """  Orientation of raceline tangent. CCW positive """
+    curvature: float
+    """  Signed curvature, CCW positive """
+    v_target: float
+    """  Reference speed at ref_point """
+    progress: float
+    """  Curve length along raceline in Frenet frame. """
+    left_margin: float
+    """  Distance to left boundary """
+    right_margin: float
+    """  Distance to right boundary """
 
 
 class SpeedProfileOutput(NamedTuple):
