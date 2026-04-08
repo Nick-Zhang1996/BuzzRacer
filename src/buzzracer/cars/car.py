@@ -6,7 +6,7 @@ import logging
 from math import degrees, radians
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.cars.car_param import CarParam, CarConfig
 
 _logger = logging.getLogger(__name__)
@@ -110,29 +110,30 @@ class Car(PrintObject, LogObject):
 
     @classmethod
     def Factory(cls, config_minidom):
+        cm = config_minidom
         from buzzracer.controllers.controller import Controller
         try:
-            car_cls_text = config_minidom.getElementsByTagName(
-                'hardware')[0].firstChild.nodeValue
+            car_cls_text = cm.getElementsByTagName('hardware')[0].firstChild.nodeValue
             car_cls = Car.registry[car_cls_text]
         except IndexError:
             _logger.warning('No hardware specified')
 
-        config_controller = config_minidom.getElementsByTagName(
-            'controller')[0]
-        controller_class_text = config_controller.getElementsByTagName(
-            'type')[0].firstChild.nodeValue
+        config_ctrl = cm.getElementsByTagName('controller')[0]
+        controller_class_text = config_ctrl.getElementsByTagName('type')[0].firstChild.nodeValue
 
+        # pylint: disable-next=unused-variable
+        def curv(s, n, phi, v):
+            curv = CurvilinearState(s, n, phi, v)
+            cart = Car.main.track.curv_to_cart(curv)
+            return cart.to_tuple()[:4]
         try:
-            init_states_text = config_minidom.getElementsByTagName(
-                'init_states')[0].firstChild.nodeValue
+            init_states_text = cm.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
             _logger.warning('Car: no initial state specified, using track default')
             init_states = (*Car.main.track.data.start_pos, Car.main.track.data.start_dir, 0.1)
 
-        config_name = config_minidom.getElementsByTagName(
-            'config_name')[0].firstChild.nodeValue
+        config_name = cm.getElementsByTagName('config_name')[0].firstChild.nodeValue
 
         car = car_cls()
         # (x,y,theta,vforward,vsideway=0,omega)
@@ -148,7 +149,7 @@ class Car(PrintObject, LogObject):
 
         controller, controller_config, controller_state = Controller.factory(
             controller_class_text, Car.main.config, car.param,
-            config_controller)
+            config_ctrl)
 
         if not controller is None:
             car.controller = controller

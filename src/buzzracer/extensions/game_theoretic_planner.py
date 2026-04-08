@@ -5,6 +5,7 @@ from dataclasses import replace
 import logging
 import multiprocessing as mp
 import os
+import copy
 
 import pickle
 import ctypes
@@ -37,7 +38,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Game horizon """
         self.car_count: int = 4
         """ Number of cars, N """
-        self.stitching_steps: int = 10
+        self.stitching_steps: int = 5
         """ Number of steps to keep in previous trajectory in next iteration """
         self.multiprocess: bool = True
         """ Run planner in a separate process, necessary for realtime operation"""
@@ -74,8 +75,7 @@ class GameTheoreticPlannerState(ExtensionState):
         self.planner_ready: mp.synchronize.Event = mp.Event()
 
 
-@Extension.register('planner', GameTheoreticPlannerConfig,
-                    GameTheoreticPlannerState)
+@Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
 class GameTheoreticPlanner(Extension):
 
     def __init__(self, config, state):
@@ -137,7 +137,7 @@ class GameTheoreticPlanner(Extension):
         game = CarRacingCasadi(game_config, track)
         solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
         solver = RD3GCasadi(solver_config, game, cpp_only=False)
-        solver.init_cpp_backend()
+        # solver.init_cpp_backend() # TODO set after cpp done
         return solver
 
     @staticmethod
@@ -265,7 +265,8 @@ class GameTheoreticPlanner(Extension):
         N = config.car_count
         T = config.horizon
         # Initial conditions for all cars
-        solver.x0 = curv_x0
+        x0 = curv_x0
+        x0[3, :] = 1.0  # override speed
         x_ref = np.zeros((n, N), order='F')
         for i in range(N):
             x_ref[3, i] = 1.0  # target speed
@@ -281,12 +282,12 @@ class GameTheoreticPlanner(Extension):
             x = CartesianState(*cart_x0[i])
             for k in range(T):
                 if config.use_stanley_control_guess:
-                    u, _, _ = StanleyController.control(x,
-                                                        state.car_params[i],
-                                                        track,
-                                                        config.stanley_config,
-                                                        state.stanley_state,
-                                                        main_state, i)
+                    u, _, _, _ = StanleyController.control(x,
+                                                           state.car_params[i],
+                                                           track,
+                                                           config.stanley_config,
+                                                           state.stanley_state,
+                                                           main_state, i)
                     u_ref_3d[:, i, k] = u.to_tuple()
                 else:
                     u = Control(0, 0)
@@ -296,9 +297,9 @@ class GameTheoreticPlanner(Extension):
         # Call solver
         assert not np.any(np.isnan(u_ref))
         assert not np.any(np.isnan(curv_x0))
-        sol: Solution = solver.solve_cpp_backend(u_ref)
-        # sol: Solution = solver.solve(u_ref)
-        # print(f'{sol.elapsed_time=}, {sol.residual=}')
+        # sol: Solution = solver.solve_cpp_backend(u_ref)
+        sol: Solution = solver.solve(u_ref)
+        print(f'{sol.elapsed_time=}, {sol.residual=}')
         if np.isnan(sol.residual):
             return None
 
@@ -309,20 +310,45 @@ class GameTheoreticPlanner(Extension):
 
         # Save inputs to solver when user press 'b'
         if np.isnan(sol.residual) or main_state.breakpoint.is_set():
-            save = {'x0': curv_x0, 'target_x_ref': x_ref, 'u_ref': u_ref}
+            gc = copy.copy(solver.game.config)
+            print(dir(gc))
+            delattr(gc, '_int_param_sx')
+            delattr(gc, '_int_param_np')
+            delattr(gc, '_double_param_sx')
+            delattr(gc, '_double_param_np')
+            delattr(gc, '_param_dict')
+            save = {'x0': curv_x0, 'target_x_ref': x_ref, 'u_ref': u_ref, 'gc': gc}
             filename = os.path.join(BASEDIR, 'outputs', 'input.p')
-            with open(filename, 'wb') as f:
-                pickle.dump(save, f)
-            logger.info(f'Saved to {filename}')
+
+            with open(filename, 'rb') as f:
+                data = pickle.load(f)
+            solver.game.config = data['gc']
+            solver.game.config.__post_init__()
+            u_ref = data['u_ref']
+
+            solver.cpp_solver = None
             sol: Solution = solver.solve(u_ref)
-            solver.visualize(sol.u)
+            solver.visualize(sol.u)  # this gives incorrect results
+
+            new_solver = RD3GCasadi(solver.config, solver.game)
+            sol: Solution = new_solver.solve(u_ref)
+            new_solver.visualize(sol.u)  # this works
+
+            # with open(filename, 'wb') as f:
+            #     pickle.dump(save, f)
+            # logger.info('Saved to %s', filename)
             main_state.breakpoint.clear()
+            main_state.exit_request.set()
 
         # DEBUG: Visualize planned trajectory for all agents
         # (n*N,T)
         # x_ref = sol.x
         gc = solver.game.config
         params_np = [gc.get_int_param_np(), gc.get_double_param_np()]
-        x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
+        # TODO
+        # x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
+        clip_u = clip_u.reshape((gc.m*gc.N, gc.T), order='F')
+        x_ref = solver.rollout_casadi(x0, clip_u, *params_np).full()
+
         curv_trajs = x_ref.reshape((n, N, T), order='F')
         return curv_trajs

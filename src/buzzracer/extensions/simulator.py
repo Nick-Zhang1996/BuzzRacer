@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 @unique

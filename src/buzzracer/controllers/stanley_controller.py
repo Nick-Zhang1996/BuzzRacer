@@ -28,10 +28,15 @@ class StanleyControllerConfig(ControllerConfig):
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
 
+        # p1 = (1.0, 2.0)
+        # p2 = (4.0, 0.5)
+        # self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        # self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
         p1 = (1.0, 2.0)
-        p2 = (4.0, 0.5)
+        p2 = (4.0, 1.0)
         self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
         self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
+
         self.dt = main_config.dt
 
     def Pfun(self, v):
@@ -86,8 +91,7 @@ class StanleyController(Controller):
 
         Outputs:
           control: Control(steering, throttle)
-          valid:    If the car can be controlled here, false if too far off reference.
-                    If this is false, then throttle will also be set to 0
+          valid:    If the car can be controlled here, false if too far off reference. If this is false, then throttle will also be set to 0
           state: updated controller state
           msg: Message explaining cause for invalid control
         '''
