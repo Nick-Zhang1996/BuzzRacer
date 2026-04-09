@@ -1,3 +1,4 @@
+# pylint: disable=logging-fstring-interpolation
 """ Game Theoretic Planner, responsible for generating ref traj for multiple cars """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -77,6 +78,7 @@ class GameTheoreticPlannerState(ExtensionState):
 
 @Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
 class GameTheoreticPlanner(Extension):
+    """ Central planner that relies on a dynamic game solver. """
 
     def __init__(self, config, state):
         super().__init__(config, state)
@@ -95,32 +97,20 @@ class GameTheoreticPlanner(Extension):
             self.state.child_process = p
         else:
             self.state.solver = GameTheoreticPlanner.make_solver(self.config, self.main.track)
-            # TODO wait till first plan is available
 
     @staticmethod
     def make_solver(config, track):
-        # Setup casadi solver
+        """ Setup casadi solver """
         # x = [s, n, phi, v_forward, v_sideway]
-        # J_Qr = np.diag([0, 5.0, 0.1, 1.0, 0.1])
-        # J_R = np.eye(m) * 1.0
         c = config
-        N = c.car_count
+        N = c.car_count  # pylint: disable=invalid-name
         default = CarRacingCasadiConfig
-        J_Qr = np.diag([0, 5.0, 1.0, 1.0, 0.1])
-        J_R = np.eye(default.m) * 1.0
+        J_Qr = np.diag([0, 5.0, 1.0, 1.0, 0.1])  # pylint: disable=invalid-name
+        J_R = np.eye(default.m) * 1.0  # pylint: disable=invalid-name
 
-        # TODO resample if cars collide
-        # s_vec = np.random.uniform(low=0.0, high=0.1, size=N)
-        # v_vec = np.random.uniform(low=1.0, high=1.0, size=N)
-        # phi_vec = np.random.uniform(low=radians(-5), high=radians(5), size=N)
-        # n_vec = np.random.uniform(low=-0.1, high=0.1, size=N)
-        # vs_vec = np.zeros(N)
-
-        # n, N
-        # x0 = np.vstack([s_vec, n_vec, phi_vec, v_vec, vs_vec])
         x0 = np.zeros((default.n, N))
         x_ref = np.zeros((default.n, N))
-        x_ref[3, :] = 1.0  # target initial speed
+        x_ref[3, :] = 1.0  # dummy target speed
 
         game_config = CarRacingCasadiConfig(
             T=c.horizon,
@@ -186,19 +176,12 @@ class GameTheoreticPlanner(Extension):
                    track: CurvilinearTrack,
                    config: GameTheoreticPlannerConfig):
         """ Update planner with a new plan, stitch to current plan """
-
-        # Dirty hack to get some initial states
-        # idx = [10, 200, 400, 800]
-        # for i in idx:
-        #     val = np.hstack([track.data.r_vec[i], track.data.phi_vec[i]])
-        #     print(val)
-        t = Extension.main.timer
+        # t = Extension.main.timer
         default = CarRacingCasadiConfig
         solver = state.solver
         n = default.n
-        m = default.m
-        N = config.car_count
-        T = config.horizon
+        N = config.car_count  # pylint: disable=invalid-name
+        T = config.horizon  # pylint: disable=invalid-name
 
         # Wait till main_state.car_states are available
         if not main_state.car_states_first_available.wait(0.1):
@@ -209,26 +192,41 @@ class GameTheoreticPlanner(Extension):
         curv_x = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
             curv_x[:, i] = track.cart_to_curv(cart_x[i]).to_tuple()[:5]
+
+        # Curvilinear state has a discontinuity around progress=0
+        # Loosely assume care are close together, reposition the discontinuity in Frenet progress
+        # from finishing line to the opposite of car mean position
+        # s domain: [ split_point, curv_len + split_point]
+        curv_len = track.data.raceline_len_m
+        current_s = np.sort(curv_x[0, :])
+        current_s = np.hstack([current_s[-1]-curv_len, current_s])
+        gaps = np.diff(current_s) % curv_len
+        max_gap_s = current_s[np.argmax(gaps)+1]  # s with biggest gap BEFORE it
+        split_point = (max_gap_s - 0.1*curv_len) % curv_len
+        curv_x[0, :] = (curv_x[0, :] - split_point) % curv_len + split_point
+
         cart_x = np.asarray([val.to_tuple() for val in cart_x])
         if state.curv_traj is None:
+            # First plan
             state.curv_traj = curv_x.reshape((n, N, 1), order='F')  # s, n, heading_err, vf, vs
             state.cart_traj = cart_x.reshape((6, N, 1), order='F')  # x,y,heading,vf,vs,omega
 
-        # Find stitching point on state.curv_traj[sti_idx]
-        # This must be AFTER all cars max progress. We cannot plan behind the cars
-        # THis must be BEFORE end of last traj
-        # TODO what if cars are not following planned path perfectly?
-        # do we continue planning from car position or from previous plan?
-        # TODO validate trajectory, discard implausible ones
-        # TODO assert monotonicity in progress
-        # TODO wrap raceline_len_m
-        realized_idx = np.max(
-            [np.searchsorted(state.curv_traj[0, i, :], curv_x[0, i]) for i in range(N)])
-        margin = config.horizon - realized_idx + config.stitching_steps
+        state.curv_traj[0, :, :] = (state.curv_traj[0, :, :] - split_point) % curv_len + split_point
+        if not np.all(np.diff(state.curv_traj[0, :, :]) > 0):
+            logger.warning("Planned traj progress is not monotonic")
+
+        # Find stitching point on state.curv_traj
+        # After all cars current progress. We cannot plan behind the cars' current pos
+        realized_idx_car = [np.searchsorted(
+            state.curv_traj[0, i, :], curv_x[0, i]) for i in range(N)]
+        max_realized_idx = np.max(realized_idx_car)
+        min_realized_idx = np.min(realized_idx_car)
+        current_plan_horizon = state.curv_traj.shape[-1] - 1
+        margin = current_plan_horizon - (max_realized_idx + config.stitching_steps)
         if margin <= 0:
-            logger.warning(f'Planner cannot maintain sufficient margin to future, {margin=}')
-        next_plan_idx = np.clip(realized_idx + config.stitching_steps,
-                                a_min=None, a_max=state.curv_traj.shape[-1]-1)
+            logger.warning('Planner cannot maintain sufficient margin to future, %d', margin)
+        next_plan_idx = np.clip(max_realized_idx + config.stitching_steps,
+                                a_min=0, a_max=state.curv_traj.shape[-1]-1)
         curv_x0 = state.curv_traj[:, :, next_plan_idx]
         cart_x0 = state.cart_traj[:, :, next_plan_idx]
         new_curv_traj = GameTheoreticPlanner.plan_from_x0(
@@ -245,25 +243,43 @@ class GameTheoreticPlanner(Extension):
         # Remove realized traj
         # Stitch new plan onto state.curv_traj
         state.curv_traj = np.dstack(
-            [state.curv_traj[:, :, realized_idx:next_plan_idx], new_curv_traj])
+            [state.curv_traj[:, :, min_realized_idx:next_plan_idx], new_curv_traj])
         state.cart_traj = np.dstack(
-            [state.cart_traj[:, :, realized_idx:next_plan_idx], new_cart_traj])
+            [state.cart_traj[:, :, min_realized_idx:next_plan_idx], new_cart_traj])
 
-        flat_cart_traj = state.cart_traj.flatten(order='F')
+        # Clip traj when created trajectory is too long
+        traj_len = state.cart_traj.shape[2]
+        if traj_len > config.max_traj_len:
+            traj_len = config.max_traj_len
+            logger.warning('Planned trajectory exceeds buffer length.'
+                           f'{traj_len=}, {config.max_traj_len=}'
+                           'Consider increasing buffer or reducing stitching steps')
+
+        flat_cart_traj = state.cart_traj[:, :, :traj_len].flatten(order='F')
         flat_cart_traj_len = len(flat_cart_traj)
-        # TODO handle when created trajectory is too long
+
         with state.cart_traj_sync.get_lock():
             state.cart_traj_sync[:flat_cart_traj_len] = flat_cart_traj
-        state.cart_traj_len.value = state.cart_traj.shape[2]
+        state.cart_traj_len.value = traj_len
         state.planner_ready.set()
 
     @staticmethod
-    def plan_from_x0(solver, cart_x0: np.ndarray, curv_x0: np.ndarray, track, config, state, main_state):
+    def plan_from_x0(solver,
+                     cart_x0: np.ndarray,
+                     curv_x0: np.ndarray,
+                     track: CurvilinearTrack,
+                     config: GameTheoreticPlannerConfig,
+                     state: GameTheoreticPlannerState,
+                     main_state: MainState):
+        """ Call game solver to build a plan. 
+        Return:
+            curv_traj: (n,N,T) Planned trajectory. From rolling out control solution.
+        """
         default = CarRacingCasadiConfig
         n = default.n
         m = default.m
-        N = config.car_count
-        T = config.horizon
+        N = config.car_count  # pylint: disable=invalid-name
+        T = config.horizon  # pylint: disable=invalid-name
         # Initial conditions for all cars
         x0 = curv_x0
         x0[3, :] = 1.0  # override speed
@@ -271,7 +287,7 @@ class GameTheoreticPlanner(Extension):
         for i in range(N):
             x_ref[3, i] = 1.0  # target speed
 
-        new_config = replace(solver.game.config, x0=curv_x0, target_x_ref=x_ref, dt=0.02)
+        new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref, dt=0.02)
         solver.game.config = new_config
         # TODO: Initial guess for control sequence
         # From previous step, stitch with stanley controller
@@ -299,16 +315,16 @@ class GameTheoreticPlanner(Extension):
         assert not np.any(np.isnan(curv_x0))
         # sol: Solution = solver.solve_cpp_backend(u_ref)
         sol: Solution = solver.solve(u_ref)
-        print(f'{sol.elapsed_time=}, {sol.residual=}')
+        logger.info(f'{sol.elapsed_time=}, {sol.residual=}')
+        # TODO reject high residual solutions
         if np.isnan(sol.residual):
             return None
 
         # Clip solution to reasonable number
-        # TODO clip steering
         # clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
         clip_u = sol.u
 
-        # Save inputs to solver when user press 'b'
+        # Save inputs to solver when user press 'b' for triaging
         if np.isnan(sol.residual) or main_state.breakpoint.is_set():
             gc = copy.copy(solver.game.config)
             print(dir(gc))
@@ -319,36 +335,24 @@ class GameTheoreticPlanner(Extension):
             delattr(gc, '_param_dict')
             save = {'x0': curv_x0, 'target_x_ref': x_ref, 'u_ref': u_ref, 'gc': gc}
             filename = os.path.join(BASEDIR, 'outputs', 'input.p')
-
-            with open(filename, 'rb') as f:
-                data = pickle.load(f)
-            solver.game.config = data['gc']
-            solver.game.config.__post_init__()
-            u_ref = data['u_ref']
-
-            solver.cpp_solver = None
+            with open(filename, 'wb') as f:
+                pickle.dump(save, f)
+            logger.info('Saved to %s', filename)
             sol: Solution = solver.solve(u_ref)
             solver.visualize(sol.u)  # this gives incorrect results
-
-            new_solver = RD3GCasadi(solver.config, solver.game)
-            sol: Solution = new_solver.solve(u_ref)
-            new_solver.visualize(sol.u)  # this works
-
-            # with open(filename, 'wb') as f:
-            #     pickle.dump(save, f)
-            # logger.info('Saved to %s', filename)
             main_state.breakpoint.clear()
-            main_state.exit_request.set()
+            # main_state.exit_request.set()
 
-        # DEBUG: Visualize planned trajectory for all agents
-        # (n*N,T)
+        #  Visualize planned trajectory for all agents
+        # NOTE use solution or re-do rollout (n*N,T)
         # x_ref = sol.x
         gc = solver.game.config
         params_np = [gc.get_int_param_np(), gc.get_double_param_np()]
-        # TODO
-        # x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
         clip_u = clip_u.reshape((gc.m*gc.N, gc.T), order='F')
-        x_ref = solver.rollout_casadi(x0, clip_u, *params_np).full()
+        if solver.cpp_solver is None:
+            x_ref = solver.rollout_casadi(x0, clip_u, *params_np).full()
+        else:
+            x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
 
         curv_trajs = x_ref.reshape((n, N, T), order='F')
         return curv_trajs

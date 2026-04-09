@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from buzzracer.common import LogObject, set_config_attr
+from buzzracer.common import LogObject, set_config_attr, LoggingFilter
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
     from buzzracer.main import MainState, MainConfig
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+logger.addFilter(LoggingFilter(interval=1.0))
 
 
 class ControllerConfig:
@@ -135,6 +136,7 @@ class Controller(LogObject):
     def process_fun(main_state: MainState, car_index: int,
                     car_params: CarParam, track: Track, controller_cls,
                     controller_config, controller_state, planner_state=None):
+        """ Entry point for multi process control. """
         while not main_state.exit_request.is_set():
             v_override = 0.0 if main_state.slowdown.is_set() else None
             controller_state.v_override = v_override
@@ -147,7 +149,7 @@ class Controller(LogObject):
                 main_state.car_states[car_index], car_params, track,
                 controller_config, controller_state, main_state, car_index, planner_state)
             if not valid:
-                logger.warning('Invalid control for %s, %s' % (car_params.name, msg))
+                logger.warning('Invalid control for %s, %s', car_params.name, msg)
             controller_state = state
             main_state.car_control[car_index] = control
             main_state.car_control_event[car_index].set()
