@@ -50,6 +50,8 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         self.stanley_config = StanleyControllerConfig(main_config, None)
         self.max_traj_len: int = 100
         """ Maximum length of trajectory. Defines buffer size for mp.Array"""
+        self.residual_threshold: int = 1.0
+        """ Maxmimum residual of accepted solutions. """
 
 
 class GameTheoreticPlannerState(ExtensionState):
@@ -229,11 +231,21 @@ class GameTheoreticPlanner(Extension):
                                 a_min=0, a_max=state.curv_traj.shape[-1]-1)
         curv_x0 = state.curv_traj[:, :, next_plan_idx]
         cart_x0 = state.cart_traj[:, :, next_plan_idx]
-        new_curv_traj = GameTheoreticPlanner.plan_from_x0(
+        retval = GameTheoreticPlanner.plan_from_x0(
             solver, cart_x0, curv_x0, track, config, state, main_state)
-        if new_curv_traj is None:
+        if retval is None:
             logger.debug('No valid output from planner')
             return
+        new_curv_traj, residual = retval
+        if residual > config.residual_threshold:
+            if margin > 0:
+                # Reject high residual solutions if existing plan has enough margin to future
+                logger.warning('Rejected solution with residual %.4f, margin=%d', residual, margin)
+                return
+            else:
+                logger.warning('Forced to accept solution with residual %.4f, '
+                               'because margin=%d', residual, margin)
+
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
         for i in range(N):
             for k in range(T):
@@ -274,6 +286,7 @@ class GameTheoreticPlanner(Extension):
         """ Call game solver to build a plan. 
         Return:
             curv_traj: (n,N,T) Planned trajectory. From rolling out control solution.
+            residual: 
         """
         default = CarRacingCasadiConfig
         n = default.n
@@ -315,7 +328,7 @@ class GameTheoreticPlanner(Extension):
         assert not np.any(np.isnan(curv_x0))
         # sol: Solution = solver.solve_cpp_backend(u_ref)
         sol: Solution = solver.solve(u_ref)
-        logger.info(f'{sol.elapsed_time=}, {sol.residual=}')
+        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}')
         # TODO reject high residual solutions
         if np.isnan(sol.residual):
             return None
@@ -355,4 +368,4 @@ class GameTheoreticPlanner(Extension):
             x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
 
         curv_trajs = x_ref.reshape((n, N, T), order='F')
-        return curv_trajs
+        return curv_trajs, sol.residual
