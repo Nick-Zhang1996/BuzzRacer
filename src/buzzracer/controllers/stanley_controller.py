@@ -28,20 +28,19 @@ class StanleyControllerConfig(ControllerConfig):
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
 
-        # p1 = (1.0, 2.0)
-        # p2 = (4.0, 0.5)
-        # self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
-        # self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
         p1 = (1.0, 2.0)
-        p2 = (4.0, 1.0)
+        p2 = (4.0, 0.5)
         self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
         self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
+        # p1 = (1.0, 4.0)
+        # p2 = (4.0, 1.0)
+        # self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
+        # self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
 
         self.dt = main_config.dt
 
     def Pfun(self, v):
-        return max(min((self.Pfun_slope * v + self.Pfun_offset), 4.0),
-                   0.5) / 280 * pi / 0.01
+        return max(min((self.Pfun_slope * v + self.Pfun_offset), 4.0), 0.5) / 280 * pi / 0.01
 
 
 class StanleyControllerState(ControllerState):
@@ -98,7 +97,7 @@ class StanleyController(Controller):
         heading = car_state.heading
 
         # add in a slight lookahead distance
-        lookahead = 3e-2 + car_params.wheelbase
+        lookahead = 3e-2 + car_params.lf
 
         ctrl = Control(steering=0, throttle=0)
 

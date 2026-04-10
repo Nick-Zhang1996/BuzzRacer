@@ -4,10 +4,11 @@ import os.path
 import cv2
 from PIL import Image
 
-from buzzracer.common import BASEDIR, ExperimentType, get_logger
+from buzzracer.common import BASEDIR, ExperimentType, get_logger, LoggingFilter
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 logger = get_logger(__name__)
+logger.addFilter(LoggingFilter(interval=5.0))
 
 
 class GifsaverConfig(ExtensionConfig):
@@ -58,7 +59,7 @@ class Gifsaver(Extension):
         if frame is not None:
             self.gifimages.append(frame)
         else:
-            logger.warning("Ignoring empty frame received")
+            logger.warning("Ignoring empty frame received (rate=0.2Hz)")
 
     def post_update(self):
         self.count += 1

@@ -14,6 +14,7 @@
       <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
       <!-- <extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
       <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
+      <extension>Gifsaver</extension>
   </extensions>
 
   <cars>
@@ -35,7 +36,7 @@
       <controller max_speed='0.2' planner='True'>
         <type>StanleyController</type>
         <!-- <init_states>(1.88333728,0.47559478, -3.01720037, 1.0)</init_states> -->
-        <init_states>curv(0.6, -0.05, -0.3, 0.2)</init_states>
+        <init_states>curv(0.3, -0.15, -0.3, 0.2)</init_states>
       </controller>
     </car>
 

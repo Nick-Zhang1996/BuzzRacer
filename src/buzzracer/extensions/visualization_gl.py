@@ -95,7 +95,7 @@ class VisualizationGL(Extension):
 
     def get_current_frame(self) -> Image:
         try:
-            while len(_WindowConfig.frame_queue) > 1:
+            while _WindowConfig.frame_queue.qsize() > 1:
                 raw_pixels = _WindowConfig.frame_queue.get_nowait()
             raw_pixels = _WindowConfig.frame_queue.get_nowait()
             img = Image.frombytes('RGB', _WindowConfig.window_size, raw_pixels)
