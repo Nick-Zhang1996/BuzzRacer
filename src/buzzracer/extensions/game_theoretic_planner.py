@@ -45,13 +45,14 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Run planner in a separate process, necessary for realtime operation"""
         if self.multiprocess:
             assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
-        self.dt: float = main_config.dt
+        self.dt: float = 0.02
         self.use_stanley_control_guess: bool = False
         self.stanley_config = StanleyControllerConfig(main_config, None)
         self.max_traj_len: int = 100
         """ Maximum length of trajectory. Defines buffer size for mp.Array"""
         self.residual_threshold: int = 1.0
         """ Maxmimum residual of accepted solutions. """
+        self.use_cpp_solver: bool = True
 
 
 class GameTheoreticPlannerState(ExtensionState):
@@ -116,7 +117,7 @@ class GameTheoreticPlanner(Extension):
 
         game_config = CarRacingCasadiConfig(
             T=c.horizon,
-            dt=default.dt,
+            dt=config.dt,
             N=N,
             n=default.n,
             m=default.m,
@@ -128,8 +129,9 @@ class GameTheoreticPlanner(Extension):
             J_R=J_R.copy(order='F'))
         game = CarRacingCasadi(game_config, track)
         solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
-        solver = RD3GCasadi(solver_config, game, cpp_only=False)
-        # solver.init_cpp_backend() # TODO set after cpp done
+        solver = RD3GCasadi(solver_config, game, cpp_only=config.use_cpp_solver)
+        if config.use_cpp_solver:
+            solver.init_cpp_backend()
         return solver
 
     @staticmethod
@@ -224,7 +226,7 @@ class GameTheoreticPlanner(Extension):
         max_realized_idx = np.max(realized_idx_car)
         min_realized_idx = np.min(realized_idx_car)
         current_plan_horizon = state.curv_traj.shape[-1] - 1
-        margin = current_plan_horizon - (max_realized_idx + config.stitching_steps)
+        margin = current_plan_horizon - (max_realized_idx.item() + config.stitching_steps)
         if margin <= 0:
             logger.warning('Planner cannot maintain sufficient margin to future, %d', margin)
         next_plan_idx = np.clip(max_realized_idx + config.stitching_steps,
@@ -236,15 +238,18 @@ class GameTheoreticPlanner(Extension):
         if retval is None:
             logger.debug('No valid output from planner')
             return
-        new_curv_traj, residual = retval
-        if residual > config.residual_threshold:
+        new_curv_traj, sol = retval
+        if sol.residual > config.residual_threshold:
             if margin > 0:
                 # Reject high residual solutions if existing plan has enough margin to future
-                logger.warning('Rejected solution with residual %.4f, margin=%d', residual, margin)
+                logger.warning('Rejected solution with residual %.4f, margin=%d',
+                               sol.residual, margin)
                 return
             else:
                 logger.warning('Forced to accept solution with residual %.4f, '
-                               'because margin=%d', residual, margin)
+                               'because margin=%d', sol.residual, margin)
+
+        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}, {margin=}')
 
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
         for i in range(N):
@@ -295,12 +300,12 @@ class GameTheoreticPlanner(Extension):
         T = config.horizon  # pylint: disable=invalid-name
         # Initial conditions for all cars
         x0 = curv_x0
-        x0[3, :] = 1.0  # override speed
+        x0[3, :] = np.clip(x0[3, :], a_min=1.0, a_max=None)  # override speed
         x_ref = np.zeros((n, N), order='F')
         for i in range(N):
-            x_ref[3, i] = 1.0  # target speed
+            x_ref[3, i] = x0[3, i]  # target speed
 
-        new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref, dt=0.02)
+        new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
         solver.game.config = new_config
         # TODO: Initial guess for control sequence
         # From previous step, stitch with stanley controller
@@ -326,9 +331,10 @@ class GameTheoreticPlanner(Extension):
         # Call solver
         assert not np.any(np.isnan(u_ref))
         assert not np.any(np.isnan(curv_x0))
-        # sol: Solution = solver.solve_cpp_backend(u_ref)
-        sol: Solution = solver.solve(u_ref)
-        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}')
+        if config.use_cpp_solver:
+            sol: Solution = solver.solve_cpp_backend(u_ref)
+        else:
+            sol: Solution = solver.solve(u_ref)
         # TODO reject high residual solutions
         if np.isnan(sol.residual):
             return None
@@ -365,7 +371,7 @@ class GameTheoreticPlanner(Extension):
         if solver.cpp_solver is None:
             x_ref = solver.rollout_casadi(x0, clip_u, *params_np).full()
         else:
-            x_ref = solver.cpp_solver.rollout(solver.x0, clip_u, *params_np)
+            x_ref = solver.cpp_solver.rollout(x0, clip_u, *params_np)
 
         curv_trajs = x_ref.reshape((n, N, T), order='F')
-        return curv_trajs, sol.residual
+        return curv_trajs, sol

@@ -120,6 +120,14 @@ class StanleyController(Controller):
                                       ).reshape(shape, order='F').copy()
             retval = StanleyController.local_trajectory_from_traj(
                 cart_traj[:, car_index, :], lookahead_point)
+            track_retval = track.local_trajectory(lookahead_point)
+            if retval is None:
+                # Fallback to stanley
+                retval = track_retval
+                name = car_params.name
+                logger.info(f"{name} fallback to stanley")
+            else:
+                retval = retval._replace(v_target=track_retval.v_target)
         else:
             retval = track.local_trajectory(lookahead_point)
         if retval is None:
@@ -189,6 +197,8 @@ class StanleyController(Controller):
         # print(f'{dx=},{dy=},{rdx=},{rdy=}')
         offset = (rdx * dy - rdy * dx) / (rdx*rdx + rdy*rdy)**0.5  # cross product
         phi = np.arctan2(rdy, rdx)
+        if i == len(dist)-2:
+            return None
 
         return LocalTrajOutput(ref_point=cart_traj[:2, i],
                                lateral_err=offset,
