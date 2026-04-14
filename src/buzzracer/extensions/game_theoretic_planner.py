@@ -11,6 +11,7 @@ import copy
 import pickle
 import ctypes
 import numpy as np
+import matplotlib.pyplot as plt
 
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
 from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig, Solution
@@ -319,20 +320,23 @@ class GameTheoreticPlanner(Extension):
         # Initial conditions for all cars
         x0 = curv_x0
         x0[3, :] = np.clip(x0[3, :], a_min=1.0, a_max=None)  # override speed
+        cart_x0[3, :] = np.clip(cart_x0[3, :], a_min=1.0, a_max=None)  # override speed
         x_ref = np.zeros((n, N), order='F')
         for i in range(N):
             x_ref[3, i] = x0[3, i]  # target speed
 
         new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
         solver.game.config = new_config
-        # TODO: Initial guess for control sequence
-        # From previous step, stitch with stanley controller
         u_ref = np.zeros((m * N, T), order='F')
 
+        # Initial guess for control sequence from stanley controller
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
+        debug_stanley_states = []
         for i in range(N):
             x = CartesianState(*cart_x0[:, i])
+            debug_states = []
             for k in range(T):
+                debug_states.append(x)
                 if config.use_stanley_control_guess:
                     u, _, _, _ = StanleyController.control(x,
                                                            state.car_params[i],
@@ -346,12 +350,15 @@ class GameTheoreticPlanner(Extension):
                     u_ref_3d[:, i, k] = u.to_tuple()
                 else:
                     u = Control(0, 0)
+                # logger.debug(f'{x=}, {u=}')
                 x = KinematicBicycleModelCartesian.advance_dynamics(
-                    x, u, state.car_params[i], solver.game.config.dt, simple_throttle=True)
+                    x, u, state.car_params[i], config.dt, simple_throttle=True)
+                debug_states.append(x)
+            debug_stanley_states.append(debug_states)
 
         # Call solver
         assert not np.any(np.isnan(u_ref))
-        assert not np.any(np.isnan(curv_x0))
+        assert not np.any(np.isnan(x0))
         if config.use_cpp_solver:
             sol: Solution = solver.solve_cpp_backend(u_ref)
         else:
@@ -365,25 +372,42 @@ class GameTheoreticPlanner(Extension):
         clip_u = sol.u
 
         # Save inputs to solver when user press 'b' for triaging
-        # if np.isnan(sol.residual) or main_state.breakpoint.is_set():
-        if True:
+        if np.isnan(sol.residual) or main_state.breakpoint.is_set():
+            main_state.breakpoint.clear()
+            main_state.exit_request.set()
             gc = copy.copy(solver.game.config)
-            print(dir(gc))
             delattr(gc, '_int_param_sx')
             delattr(gc, '_int_param_np')
             delattr(gc, '_double_param_sx')
             delattr(gc, '_double_param_np')
             delattr(gc, '_param_dict')
-            save = {'x0': curv_x0, 'target_x_ref': x_ref, 'u_ref': u_ref, 'gc': gc}
+            save = {'x0': x0, 'target_x_ref': x_ref, 'u_ref': u_ref, 'gc': gc}
             filename = os.path.join(BASEDIR, 'outputs', 'input.p')
             with open(filename, 'wb') as f:
                 pickle.dump(save, f)
             logger.info('Saved to %s', filename)
             # sol: Solution = solver.solve(u_ref)
-            solver.visualize(u_ref)
-            print(u_ref.reshape((m, N, T), order='F')[:, 0, :])
-            main_state.breakpoint.clear()
-            main_state.exit_request.set()
+            # TODO DEBUG
+            # I suspect that casadi_rollout() and KinematicBicycle Model are different, debug here
+            # Get kinBike traj, following u_ref
+            solver_traj = solver._rollout_full_x(u_ref.reshape((m, N, T), order='F'))
+            ax = solver.visualize(u_ref, show=False)
+            for i in range(N):
+                kinbike_traj = np.array([(v.x, v.y) for v in debug_stanley_states[i]])
+                solver_curv_state = [CurvilinearState(*solver_traj[:, i, k]) for k in range(T)]
+                solver_cart_traj = np.asarray(
+                    [track.curv_to_cart(val).to_tuple()[:2] for val in solver_curv_state])
+
+                print(f'{i=}, {kinbike_traj.shape=}, {solver_traj.shape=}')
+                # print(u_ref.reshape((m, N, T), order='F')[0, i, :])
+                print(f'{kinbike_traj=}')
+                # print(f'{solver_cart_traj=}')
+                # fig, ax = plt.subplots()
+                ax.plot(kinbike_traj[:, 0], kinbike_traj[:, 1], 'o-', label='kin')
+                ax.plot(solver_cart_traj[:, 0], solver_cart_traj[:, 1], label='solver')
+            ax.legend()
+            # ax.set_aspect('equal', adjustable='box')
+            plt.show()
 
         #  Visualize planned trajectory for all agents
         # NOTE use solution or re-do rollout (n*N,T)
