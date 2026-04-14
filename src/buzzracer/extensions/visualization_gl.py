@@ -35,7 +35,8 @@ if TYPE_CHECKING:
 class VisualizationGLConfig(ExtensionConfig):
     def __init__(self, main_config):
         super().__init__(main_config)
-        self.show_car_info = False
+        self.show_car_info = True
+        ''' Visualize car throttle/steering'''
 
 
 @Extension.register('visualization', VisualizationGLConfig, ExtensionState)
@@ -44,14 +45,11 @@ class VisualizationGL(Extension):
         super().__init__(config, state)
         self.t = ExecutionTimer(False)
         self.update_visualization = Event()
-        self.show_car_info = True
-        ''' Use realistic cartoon image for car sprite'''
         self.track = self.main.track
         self.save_frames = Event()
         """ If set, save frames, never cleared"""
         self.new_frame = Event()
         """ new state available, instruct gl to save frame"""
-
         self.img_track = None
         '''' Image of a track, with static visualization components like debuggint text '''
         self.img_blank_track = None
@@ -351,7 +349,7 @@ class _WindowConfig(moderngl_window.WindowConfig):
             self.t.s('car')
             self.draw_car(car)
             self.t.e('car')
-            if self.host.show_car_info:
+            if self.host.config.show_car_info:
                 self.t.s('car_ui')
                 self.draw_car_ui(car, i)
                 self.t.e('car_ui')
