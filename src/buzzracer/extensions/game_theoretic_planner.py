@@ -19,7 +19,7 @@ from buzzracer.common import BASEDIR
 from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 from buzzracer.controllers.stanley_controller import StanleyController, StanleyControllerConfig, StanleyControllerState
-from buzzracer.sysid.dynamic_bicycle_model import DynamicBicycleModelCartesian
+from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
@@ -45,12 +45,12 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Run planner in a separate process, necessary for realtime operation"""
         if self.multiprocess:
             assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
-        self.dt: float = 0.02
-        self.use_stanley_control_guess: bool = False
+        self.dt: float = 0.03
+        self.use_stanley_control_guess: bool = True
         self.stanley_config = StanleyControllerConfig(main_config, None)
         self.max_traj_len: int = 100
         """ Maximum length of trajectory. Defines buffer size for mp.Array"""
-        self.residual_threshold: int = 1.0
+        self.residual_threshold: int = 100.0
         """ Maxmimum residual of accepted solutions. """
         self.use_cpp_solver: bool = True
 
@@ -209,7 +209,7 @@ class GameTheoreticPlanner(Extension):
         split_point = (max_gap_s - 0.1*curv_len) % curv_len
         curv_x[0, :] = (curv_x[0, :] - split_point) % curv_len + split_point
 
-        cart_x = np.asarray([val.to_tuple() for val in cart_x])
+        cart_x = np.asarray([val.to_tuple() for val in cart_x], order='F').T
         if state.curv_traj is None:
             # First plan
             state.curv_traj = curv_x.reshape((n, N, 1), order='F')  # s, n, heading_err, vf, vs
@@ -221,24 +221,32 @@ class GameTheoreticPlanner(Extension):
 
         # Find stitching point on state.curv_traj
         # After all cars current progress. We cannot plan behind the cars' current pos
-        realized_idx_car = [np.searchsorted(
-            state.curv_traj[0, i, :], curv_x[0, i]) for i in range(N)]
-        max_realized_idx = np.max(realized_idx_car)
-        min_realized_idx = np.min(realized_idx_car)
+        realized_idx_car = np.fromiter(
+            (np.searchsorted(state.curv_traj[0, i, :], curv_x[0, i]) for i in range(N)),
+            dtype=np.intp,
+            count=N)
+        max_realized_idx = int(np.max(realized_idx_car))
+
         current_plan_horizon = state.curv_traj.shape[-1] - 1
-        margin = current_plan_horizon - (max_realized_idx.item() + config.stitching_steps)
-        if margin <= 0:
-            logger.warning('Planner cannot maintain sufficient margin to future, %d', margin)
-        next_plan_idx = np.clip(max_realized_idx + config.stitching_steps,
-                                a_min=0, a_max=state.curv_traj.shape[-1]-1)
-        curv_x0 = state.curv_traj[:, :, next_plan_idx]
-        cart_x0 = state.cart_traj[:, :, next_plan_idx]
+        min_margin = current_plan_horizon - (max_realized_idx + config.stitching_steps)
+        if min_margin <= 0:
+            logger.warning('Planner cannot maintain sufficient margin to future, %d', min_margin)
+        next_plan_idx_car = np.clip(realized_idx_car + config.stitching_steps,
+                                    a_min=0, a_max=state.curv_traj.shape[-1]-1)
+        margin = min_margin
+        curv_x0 = np.empty((n, N), dtype=state.curv_traj.dtype, order='F')
+        cart_x0 = np.empty((6, N), dtype=state.cart_traj.dtype, order='F')
+        for i in range(N):
+            next_plan_idx = next_plan_idx_car[i]
+            curv_x0[:, i] = state.curv_traj[:, i, next_plan_idx]
+            cart_x0[:, i] = state.cart_traj[:, i, next_plan_idx]
         retval = GameTheoreticPlanner.plan_from_x0(
             solver, cart_x0, curv_x0, track, config, state, main_state)
         if retval is None:
             logger.debug('No valid output from planner')
             return
         new_curv_traj, sol = retval
+        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}, {margin=}')
         if sol.residual > config.residual_threshold:
             if margin > 0:
                 # Reject high residual solutions if existing plan has enough margin to future
@@ -249,8 +257,6 @@ class GameTheoreticPlanner(Extension):
                 logger.warning('Forced to accept solution with residual %.4f, '
                                'because margin=%d', sol.residual, margin)
 
-        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}, {margin=}')
-
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
         for i in range(N):
             for k in range(T):
@@ -259,10 +265,22 @@ class GameTheoreticPlanner(Extension):
 
         # Remove realized traj
         # Stitch new plan onto state.curv_traj
-        state.curv_traj = np.dstack(
-            [state.curv_traj[:, :, min_realized_idx:next_plan_idx], new_curv_traj])
-        state.cart_traj = np.dstack(
-            [state.cart_traj[:, :, min_realized_idx:next_plan_idx], new_cart_traj])
+        stitch_len = int(min(config.stitching_steps, np.min(next_plan_idx_car)))
+        stitch_start_idx_car = next_plan_idx_car - stitch_len
+        stitched_curv = np.empty((n, N, stitch_len+T),
+                                 dtype=state.curv_traj.dtype, order='F')
+        stitched_cart = np.empty((6, N, stitch_len+T),
+                                 dtype=state.cart_traj.dtype, order='F')
+        for i in range(N):
+            next_plan_idx = next_plan_idx_car[i]
+            stitch_start_idx = stitch_start_idx_car[i]
+            stitched_curv[:, i, :stitch_len] = state.curv_traj[:, i, stitch_start_idx:next_plan_idx]
+            stitched_cart[:, i, :stitch_len] = state.cart_traj[:, i, stitch_start_idx:next_plan_idx]
+            stitched_curv[:, i, stitch_len:stitch_len+T] = new_curv_traj[:, i, :]
+            stitched_cart[:, i, stitch_len:stitch_len+T] = new_cart_traj[:, i, :]
+
+        state.curv_traj = stitched_curv
+        state.cart_traj = stitched_cart
 
         # Clip traj when created trajectory is too long
         traj_len = state.cart_traj.shape[2]
@@ -313,7 +331,7 @@ class GameTheoreticPlanner(Extension):
 
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
         for i in range(N):
-            x = CartesianState(*cart_x0[i])
+            x = CartesianState(*cart_x0[:, i])
             for k in range(T):
                 if config.use_stanley_control_guess:
                     u, _, _, _ = StanleyController.control(x,
@@ -322,11 +340,14 @@ class GameTheoreticPlanner(Extension):
                                                            config.stanley_config,
                                                            state.stanley_state,
                                                            main_state, i)
+                    # only use steering, keep throttle 0
+                    # print(f'{i=}, {k=}, {u=}')
+                    u = Control(u.steering, 0)
                     u_ref_3d[:, i, k] = u.to_tuple()
                 else:
                     u = Control(0, 0)
-                x = DynamicBicycleModelCartesian.advance_dynamics(
-                    x, u, state.car_params[i], solver.game.config.dt)
+                x = KinematicBicycleModelCartesian.advance_dynamics(
+                    x, u, state.car_params[i], solver.game.config.dt, simple_throttle=True)
 
         # Call solver
         assert not np.any(np.isnan(u_ref))
@@ -344,7 +365,8 @@ class GameTheoreticPlanner(Extension):
         clip_u = sol.u
 
         # Save inputs to solver when user press 'b' for triaging
-        if np.isnan(sol.residual) or main_state.breakpoint.is_set():
+        # if np.isnan(sol.residual) or main_state.breakpoint.is_set():
+        if True:
             gc = copy.copy(solver.game.config)
             print(dir(gc))
             delattr(gc, '_int_param_sx')
@@ -357,10 +379,11 @@ class GameTheoreticPlanner(Extension):
             with open(filename, 'wb') as f:
                 pickle.dump(save, f)
             logger.info('Saved to %s', filename)
-            sol: Solution = solver.solve(u_ref)
-            solver.visualize(sol.u)  # this gives incorrect results
+            # sol: Solution = solver.solve(u_ref)
+            solver.visualize(u_ref)
+            print(u_ref.reshape((m, N, T), order='F')[:, 0, :])
             main_state.breakpoint.clear()
-            # main_state.exit_request.set()
+            main_state.exit_request.set()
 
         #  Visualize planned trajectory for all agents
         # NOTE use solution or re-do rollout (n*N,T)

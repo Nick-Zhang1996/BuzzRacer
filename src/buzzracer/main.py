@@ -150,7 +150,7 @@ class Main(PrintObject, LogObject):
                                      car.controller.__class__,
                                      car.controller.config,
                                      car.controller.state,
-                                     self.planner.state)
+                                     None if self.planner is None else self.planner.state)
                                )
                 p.start()
                 self.child_processes.append(p)

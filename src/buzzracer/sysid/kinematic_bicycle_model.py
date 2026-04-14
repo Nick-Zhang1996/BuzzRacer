@@ -25,7 +25,8 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
                          car_param: CarParam,
                          dt: float,
                          curvature: float = None,
-                         use_torch: bool = False) -> CartesianState:
+                         use_torch: bool = False,
+                         simple_throttle: bool = False) -> CartesianState:
         ''' Step dynamics forward by dt, x+ = x + f(x,u)*dt
 
         Args:
@@ -34,6 +35,8 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
             car: CarParam object to supply vehicle sysid parameters like mass, Iz, wheelbase
             dt: time step in seconds e.g. 0.01
             curvature: signed curvature of ref curve, ccw positive (only used for CurvilinearState)
+            use_torch: use torch
+            simple_throttle: If true, throttle = acceleration
         Return:
             state at next timestep
 
@@ -54,8 +57,11 @@ class KinematicBicycleModelCartesian(VehicleDynamics):
                              (car_param.lf + car_param.lr))
             dxdt = state.v_forward * np.cos(state.heading + beta)
             dydt = state.v_forward * np.sin(state.heading + beta)
-            dvdt = 6.17 * (control.throttle + (- state.v_forward /
-                           15.2 - 0.333) * (state.v_forward > 0))
+            if simple_throttle:
+                dvdt = control.throttle
+            else:
+                dvdt = 6.17 * (control.throttle + (- state.v_forward /
+                                                   15.2 - 0.333) * (state.v_forward > 0))
             dheadingdt = state.v_forward * \
                 np.cos(beta) / (car_param.lf + car_param.lr) * np.tan(control.steering)
 

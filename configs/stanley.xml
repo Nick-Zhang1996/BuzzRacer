@@ -7,10 +7,8 @@
 
   <extensions>
       <extension>Laptimer</extension>
-      <extension>Logger</extension>
       <extension>VisualizationGL</extension>
       <extension match_time='True'>DynamicBicycleCartesianSimulator</extension>
-      <extension>SnapshotSaver</extension>
   </extensions>
 
   <cars>

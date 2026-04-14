@@ -6,6 +6,7 @@ import logging
 import numpy as np
 from math import pi, sin, cos
 
+from buzzracer.common import LoggingFilter
 from buzzracer.types import CartesianState, Control
 from buzzracer.controllers.controller import Controller, ControllerConfig, ControllerState
 from buzzracer.controllers.pid_controller import PidController
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logger.addFilter(LoggingFilter(interval=1.0))
 
 
 class StanleyControllerConfig(ControllerConfig):
