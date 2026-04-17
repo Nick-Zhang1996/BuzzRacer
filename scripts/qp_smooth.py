@@ -752,7 +752,7 @@ if __name__ == '__main__':
     # optimize and save
     main = QpSmooth()
     track = TrackFactory.build(args.track_name)
-    track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.1)
+    track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.15)
     r_vec, left, right = track.process_rcp_raceline(track.rcp_raceline)
     track.data = track.build_track(r_vec, left, right)
     track.save()
