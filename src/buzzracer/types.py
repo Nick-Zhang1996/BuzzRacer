@@ -1,6 +1,7 @@
 
 ''' Define types used througout the project'''
 import ctypes
+from math import isnan
 
 
 class Control(ctypes.Structure):
@@ -15,6 +16,21 @@ class Control(ctypes.Structure):
         ('steering', ctypes.c_double),
         ('throttle', ctypes.c_double)
     ]
+
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
 
     def to_tuple(self) -> tuple:
         """Returns the control as a standard Python tuple."""
@@ -45,6 +61,21 @@ class CartesianState(ctypes.Structure):
         ('v_sideway', ctypes.c_double),
         ('omega', ctypes.c_double)
     ]
+
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
 
     def to_tuple(self) -> tuple:
         """Returns the state as a standard Python tuple."""
@@ -96,6 +127,21 @@ class CurvilinearState(ctypes.Structure):
         ('v_sideway', ctypes.c_double),
         ('rel_omega', ctypes.c_double)
     ]
+
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
 
     def to_tuple(self) -> tuple:
         """Returns the curvilinear state as a standard Python tuple."""
