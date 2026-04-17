@@ -1,20 +1,19 @@
 <config>
   <settings dt='0.01' multiprocess='True'>
       <!-- Not checked, determined by if simulator or optitrack is initiated -->
-      <experiment_type>Simulation</experiment_type>
+      <experiment_type>RealWorld</experiment_type>
   </settings>
 
   <track>saved</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
-      <!--<extension handle='logger'>Logger</extension>-->
+      <extension handle='logger'>Logger</extension>
       <extension handle='planner'>GameTheoreticPlanner</extension>
-      <!--<extension handle='vi'>Optitrack</extension>-->
+      <extension handle='vi'>Optitrack</extension>
       <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
       <!-- <extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
-      <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
-      <extension>Gifsaver</extension>
+      <!-- <extension>Gifsaver</extension>-->
   </extensions>
 
   <cars>
@@ -36,7 +35,7 @@
       <controller max_speed='1.2' planner='True'>
         <type>StanleyController</type>
         <!-- <init_states>(1.88333728,0.47559478, -3.01720037, 1.0)</init_states> -->
-        <init_states>curv(0.3, -0.15, -0.3, 0.2)</init_states>
+        <init_states>curv(0.2, -0.15, -0.3, 0.2)</init_states>
       </controller>
     </car>
 
@@ -46,7 +45,7 @@
       <config_name>lambo_13</config_name>
       <controller max_speed='1.2' planner='True'>
         <type>StanleyController</type>
-        <init_states>curv(1.0, 0.05, -0.1, 0.2)</init_states>
+        <init_states>curv(0.9, 0.05, -0.1, 0.2)</init_states>
       </controller>
     </car>
 
@@ -56,7 +55,7 @@
       <config_name>porsche_16</config_name>
       <controller max_speed='1.2' planner='True'>
         <type>StanleyController</type>
-        <init_states>curv(0.9, -0.15, -0.3, 0.2)</init_states>
+        <init_states>curv(0.9, -0.05, -0.3, 0.2)</init_states>
       </controller>
     </car>
 
