@@ -295,7 +295,9 @@ class CurvilinearTrack(Track):
         phi_step = wrap(data.phi_vec[(idx+1) % N] - rphi)
 
         # Interpolated ref pi
-        precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
+        # FIXME hacky
+        # precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
+        precise_rphi = fmap(ds, 0, 0.0111, rphi, rphi+phi_step)
         phi = wrap(cart.heading - precise_rphi)
 
         # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway
