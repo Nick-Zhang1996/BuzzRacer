@@ -300,7 +300,10 @@ class CurvilinearTrack(Track):
         # Probably off by an index somewhere
         # This only occues when the car is in a specific position near the finishing line
         # Not easy to replicate
+        # idx=np.int64(1023), cart=CartesianState(x=2.178, y=2.455, heading=-7.702, v_forward=0.767, v_sideway=-0.011, omega=-0.324)
         # precise_rphi = fmap(ds, 0, 0.0111, rphi, rphi+phi_step)
+        if s_step < 0.01:
+            print(f'{idx=}, {cart=}')
         assert s_step > 0.01
         phi = wrap(cart.heading - precise_rphi)
 
