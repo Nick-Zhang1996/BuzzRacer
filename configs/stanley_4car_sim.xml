@@ -14,7 +14,7 @@
       <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
       <!-- <extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
       <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
-      <extension>Gifsaver</extension>
+      <!-- <extension>Gifsaver</extension> -->
   </extensions>
 
   <cars>

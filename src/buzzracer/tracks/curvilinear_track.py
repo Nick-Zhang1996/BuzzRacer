@@ -295,9 +295,13 @@ class CurvilinearTrack(Track):
         phi_step = wrap(data.phi_vec[(idx+1) % N] - rphi)
 
         # Interpolated ref pi
-        # FIXME hacky
-        # precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
-        precise_rphi = fmap(ds, 0, 0.0111, rphi, rphi+phi_step)
+        precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
+        # FIXME Below is a fix, but hacky, we need to make sure ds > 0 by construction
+        # Probably off by an index somewhere
+        # This only occues when the car is in a specific position near the finishing line
+        # Not easy to replicate
+        # precise_rphi = fmap(ds, 0, 0.0111, rphi, rphi+phi_step)
+        assert s_step > 0.01
         phi = wrap(cart.heading - precise_rphi)
 
         # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway

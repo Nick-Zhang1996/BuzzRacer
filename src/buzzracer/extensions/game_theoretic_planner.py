@@ -46,11 +46,13 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         if self.multiprocess:
             assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
         self.dt: float = 0.02
+        # TODO use multiple work processes to evaluate multiple initial guess simultaneously
+        # e.g. zero control, stanley (following left/middle/right raceline)
         self.use_stanley_control_guess: bool = True
         self.stanley_config = StanleyControllerConfig(main_config, None)
         self.max_traj_len: int = 100
         """ Maximum length of trajectory. Defines buffer size for mp.Array"""
-        self.residual_threshold: int = 1e10
+        self.residual_threshold: int = 1.0
         """ Maxmimum residual of accepted solutions. """
         self.use_cpp_solver: bool = True
 
