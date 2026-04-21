@@ -139,7 +139,7 @@ class Controller(LogObject):
                     car_params: CarParam, track: Track, controller_cls,
                     controller_config, controller_state, planner_state=None):
         """ Entry point for multi process control. """
-        timer = ExecutionTimer(enable=True, clock=process_time, clock_name='process_cpu')
+        timer = ExecutionTimer(enable=False, clock=process_time, clock_name='process_cpu')
         try:
             while not main_state.exit_request.is_set():
                 timer.s()
