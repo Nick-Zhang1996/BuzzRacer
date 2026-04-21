@@ -37,9 +37,9 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         super().__init__(main_config)
         self.horizon: int = 20
         """ Game horizon """
-        self.car_count: int = 4
+        self.car_count: int = 8
         """ Number of cars, N """
-        self.stitching_steps: int = 5
+        self.stitching_steps: int = 10
         """ Number of steps to keep in previous trajectory in next iteration """
         self.multiprocess: bool = True
         """ Run planner in a separate process, necessary for realtime operation"""
@@ -116,6 +116,8 @@ class GameTheoreticPlanner(Extension):
         x0 = np.zeros((default.n, N))
         x_ref = np.zeros((default.n, N))
         x_ref[3, :] = 1.0  # dummy target speed
+        rows_per_collision = 4 if default.double_circle_h else 1
+        n_h = (rows_per_collision * (N * (N - 1) // 2) + 2 * N) * c.horizon
 
         game_config = CarRacingCasadiConfig(
             T=c.horizon,
@@ -123,7 +125,7 @@ class GameTheoreticPlanner(Extension):
             N=N,
             n=default.n,
             m=default.m,
-            n_hi=(4 * N+2) * c.horizon if default.double_circle_h else (2+N) * c.horizon,
+            n_h=n_h,
             collision_radius=default.collision_radius,
             x0=x0.copy(order='F'),
             target_x_ref=x_ref.copy(order='F'),
