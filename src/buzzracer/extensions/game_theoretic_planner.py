@@ -20,6 +20,7 @@ from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 from buzzracer.controllers.stanley_controller import StanleyController, StanleyControllerConfig, StanleyControllerState
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
+from buzzracer.tracks.track import LocalTrajOutput
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
@@ -28,6 +29,92 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+class ShiftedRacelineTrack:
+    """Lightweight track-like wrapper exposing local_trajectory on a shifted raceline."""
+
+    def __init__(self,
+                 name: str,
+                 r_vec: np.ndarray,
+                 s_vec: np.ndarray,
+                 phi_vec: np.ndarray,
+                 curvature_vec: np.ndarray,
+                 left_width_vec: np.ndarray,
+                 right_width_vec: np.ndarray,
+                 speed_vec: np.ndarray):
+        self.name = name
+        self.r_vec = r_vec
+        self.s_vec = s_vec
+        self.phi_vec = phi_vec
+        self.curvature_vec = curvature_vec
+        self.left_width_vec = left_width_vec
+        self.right_width_vec = right_width_vec
+        self.speed_vec = speed_vec
+
+    @classmethod
+    def from_track(cls,
+                   name: str,
+                   track: CurvilinearTrack,
+                   requested_shift: float,
+                   boundary_buffer: float):
+        """Build a left/right shifted copy of the reference raceline."""
+        data = track.data
+        applied_shift = np.full_like(data.left_width_vec, requested_shift, dtype=float)
+        if requested_shift >= 0:
+            max_shift = np.maximum(data.left_width_vec - boundary_buffer, 0.0)
+            applied_shift = np.minimum(applied_shift, max_shift)
+        else:
+            max_shift = np.maximum(data.right_width_vec - boundary_buffer, 0.0)
+            applied_shift = -np.minimum(-applied_shift, max_shift)
+
+        lateral = np.column_stack((
+            np.cos(data.phi_vec + np.pi / 2),
+            np.sin(data.phi_vec + np.pi / 2)))
+        shifted_points = data.r_vec + lateral * applied_shift[:, np.newaxis]
+        tangent = np.roll(shifted_points, -1, axis=0) - shifted_points
+        shifted_heading = np.arctan2(tangent[:, 1], tangent[:, 0])
+        left_width = data.left_width_vec - applied_shift
+        right_width = data.right_width_vec + applied_shift
+
+        return cls(name=name,
+                   r_vec=shifted_points,
+                   s_vec=data.s_vec,
+                   phi_vec=shifted_heading,
+                   curvature_vec=data.curvature_vec,
+                   left_width_vec=left_width,
+                   right_width_vec=right_width,
+                   speed_vec=data.speed_vec)
+
+    def local_trajectory(self, state: CartesianState) -> LocalTrajOutput:
+        """Mimic CurvilinearTrack.local_trajectory on shifted geometry."""
+        x = state[0]
+        y = state[1]
+
+        dxx = self.r_vec[:, 0] - x
+        dyy = self.r_vec[:, 1] - y
+        index = int(np.argmin(dxx**2 + dyy**2))
+        raceline_point = self.r_vec[index]
+        point_count = len(self.r_vec)
+
+        dr = self.r_vec[(index + 1) % point_count] - self.r_vec[index]
+        dr_norm = np.linalg.norm(dr)
+        if dr_norm < 1e-9:
+            track_tangent = np.array([np.cos(self.phi_vec[index]), np.sin(self.phi_vec[index])])
+        else:
+            track_tangent = dr / dr_norm
+        track_to_car = (x - self.r_vec[index, 0], y - self.r_vec[index, 1])
+        offset = track_tangent[0] * track_to_car[1] - track_tangent[1] * track_to_car[0]
+        left_margin = self.left_width_vec[index] - offset
+        right_margin = self.right_width_vec[index] + offset
+        return LocalTrajOutput(ref_point=raceline_point,
+                               lateral_err=offset,
+                               raceline_dir=self.phi_vec[index],
+                               curvature=self.curvature_vec[index],
+                               v_target=self.speed_vec[index],
+                               progress=self.s_vec[index],
+                               left_margin=left_margin,
+                               right_margin=right_margin)
 
 
 class GameTheoreticPlannerConfig(ExtensionConfig):
@@ -46,10 +133,12 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         if self.multiprocess:
             assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
         self.dt: float = 0.02
-        # TODO use multiple work processes to evaluate multiple initial guess simultaneously
-        # e.g. zero control, stanley (following left/middle/right raceline)
         self.use_stanley_control_guess: bool = True
         self.stanley_config = StanleyControllerConfig(main_config, None)
+        self.initial_guess_shift_margin: float = 0.04
+        """ Lateral shift for left/right Stanley reference lines. """
+        self.initial_guess_boundary_buffer: float = 1e-3
+        """ Keep shifted racelines slightly inside the track boundary. """
         self.max_traj_len: int = 100
         """ Maximum length of trajectory. Defines buffer size for mp.Array"""
         self.residual_threshold: int = 1.0
@@ -76,9 +165,10 @@ class GameTheoreticPlannerState(ExtensionState):
         """ (n=6, N, cart_traj_len) Process safe Cartesian State Trajectory"""
         # self.ctrl_traj: np.ndarray = None
         # """ (m*N, T) of ctrl trajectory """
-        self.stanley_state: StanleyControllerState = StanleyControllerState(config)
         self.child_process: mp.Process = None
         self.planner_ready: mp.synchronize.Event = mp.Event()
+        self.solver = None
+        self.initial_guess_tracks = None
 
 
 @Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
@@ -102,6 +192,13 @@ class GameTheoreticPlanner(Extension):
             self.state.child_process = p
         else:
             self.state.solver = GameTheoreticPlanner.make_solver(self.config, self.main.track)
+            self.state.initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(
+                self.main.track, self.config)
+
+    def final(self):
+        child = self.state.child_process
+        if child is not None and child.is_alive():
+            child.join(timeout=1.0)
 
     @staticmethod
     def make_solver(config, track):
@@ -139,6 +236,18 @@ class GameTheoreticPlanner(Extension):
         return solver
 
     @staticmethod
+    def make_initial_guess_tracks(track: CurvilinearTrack,
+                                  config: GameTheoreticPlannerConfig):
+        """Create shifted Stanley reference tracks used for the single mixed guess."""
+        shift = config.initial_guess_shift_margin
+        return {
+            'left_raceline': ShiftedRacelineTrack.from_track(
+                'left_raceline', track, shift, config.initial_guess_boundary_buffer),
+            'right_raceline': ShiftedRacelineTrack.from_track(
+                'right_raceline', track, -shift, config.initial_guess_boundary_buffer),
+        }
+
+    @staticmethod
     def get_cart_traj_sync(state):
         """ Retrieve planned trajectory, in sync. Call from another process
         Args:
@@ -173,6 +282,7 @@ class GameTheoreticPlanner(Extension):
         """ Process function to run update_fun in a loop """
         try:
             state.solver = GameTheoreticPlanner.make_solver(config, track)
+            state.initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(track, config)
             while not main_state.exit_request.is_set():
                 GameTheoreticPlanner.update_fun(state, main_state, track, config)
         finally:
@@ -186,7 +296,6 @@ class GameTheoreticPlanner(Extension):
         """ Update planner with a new plan, stitch to current plan """
         # t = Extension.main.timer
         default = CarRacingCasadiConfig
-        solver = state.solver
         n = default.n
         N = config.car_count  # pylint: disable=invalid-name
         T = config.horizon  # pylint: disable=invalid-name
@@ -245,12 +354,13 @@ class GameTheoreticPlanner(Extension):
             curv_x0[:, i] = state.curv_traj[:, i, next_plan_idx]
             cart_x0[:, i] = state.cart_traj[:, i, next_plan_idx]
         retval = GameTheoreticPlanner.plan_from_x0(
-            solver, cart_x0, curv_x0, track, config, state, main_state)
+            cart_x0, curv_x0, track, config, state, main_state)
         if retval is None:
             logger.debug('No valid output from planner')
             return
-        new_curv_traj, sol = retval
-        logger.info(f'{sol.elapsed_time=:.6f}, {sol.residual=:.6f}, {margin=}')
+        new_curv_traj, sol, side_summary = retval
+        logger.info('mixed_side_guess=%s, elapsed=%.6f, residual=%.6f, margin=%d',
+                    side_summary, sol.elapsed_time, sol.residual, margin)
         if sol.residual > config.residual_threshold:
             if margin > 0:
                 # Reject high residual solutions if existing plan has enough margin to future
@@ -303,66 +413,64 @@ class GameTheoreticPlanner(Extension):
         state.planner_ready.set()
 
     @staticmethod
-    def plan_from_x0(solver,
-                     cart_x0: np.ndarray,
+    def get_initial_guess_track_name(curv_state: np.ndarray):
+        """Pick left/right seed based on current offset from the center raceline."""
+        return 'left_raceline' if curv_state[1] >= 0 else 'right_raceline'
+
+    @staticmethod
+    def plan_from_x0(cart_x0: np.ndarray,
                      curv_x0: np.ndarray,
                      track: CurvilinearTrack,
                      config: GameTheoreticPlannerConfig,
                      state: GameTheoreticPlannerState,
                      main_state: MainState):
-        """ Call game solver to build a plan. 
-        Return:
-            curv_traj: (n,N,T) Planned trajectory. From rolling out control solution.
-            residual: 
-        """
+        """Build and solve one mixed left/right Stanley-seeded game."""
         default = CarRacingCasadiConfig
         n = default.n
         m = default.m
         N = config.car_count  # pylint: disable=invalid-name
         T = config.horizon  # pylint: disable=invalid-name
-        # Initial conditions for all cars
-        x0 = curv_x0
+
+        x0 = np.array(curv_x0, dtype=float, order='F', copy=True)
+        cart_x0 = np.array(cart_x0, dtype=float, order='F', copy=True)
         x0[3, :] = np.clip(x0[3, :], a_min=1.0, a_max=None)  # override speed
         cart_x0[3, :] = np.clip(cart_x0[3, :], a_min=1.0, a_max=None)  # override speed
         x_ref = np.zeros((n, N), order='F')
         for i in range(N):
             x_ref[3, i] = x0[3, i]  # target speed
 
+        solver = state.solver
         new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
         solver.game.config = new_config
         u_ref = np.zeros((m * N, T), order='F')
-
-        # Initial guess for control sequence from stanley controller
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
-        debug_stanley_states = []
+        side_names = []
         for i in range(N):
             x = CartesianState(*cart_x0[:, i])
-            debug_states = []
+            stanley_state = StanleyControllerState(config)
+            ref_name = GameTheoreticPlanner.get_initial_guess_track_name(curv_x0[:, i])
+            side_names.append(ref_name)
+            ref_track = state.initial_guess_tracks[ref_name]
             for k in range(T):
-                debug_states.append(x)
                 if config.use_stanley_control_guess:
                     u, _, _, _ = StanleyController.control(x,
                                                            state.car_params[i],
-                                                           track,
+                                                           ref_track,
                                                            config.stanley_config,
-                                                           state.stanley_state,
+                                                           stanley_state,
                                                            main_state, i)
                     # only use steering, keep throttle 0
-                    # print(f'{i=}, {k=}, {u=}')
                     u = Control(u.steering, 0)
                     u_ref_3d[:, i, k] = u.to_tuple()
                 else:
                     u = Control(0, 0)
-                # logger.debug(f'{x=}, {u=}')
                 x = KinematicBicycleModelCartesian.advance_dynamics(
                     x, u, state.car_params[i], config.dt, simple_throttle=True)
-                debug_states.append(x)
-            debug_stanley_states.append(debug_states)
 
         # Call solver
         assert not np.any(np.isnan(u_ref))
         assert not np.any(np.isnan(x0))
-        if config.use_cpp_solver:
+        if solver.cpp_solver is not None:
             sol: Solution = solver.solve_cpp_backend(u_ref)
         else:
             sol: Solution = solver.solve(u_ref)
@@ -375,7 +483,6 @@ class GameTheoreticPlanner(Extension):
         # Save inputs to solver when user press 'b' for triaging
         if np.isnan(sol.residual) or main_state.breakpoint.is_set():
             main_state.breakpoint.clear()
-            # main_state.exit_request.set()
             gc = copy.copy(solver.game.config)
             delattr(gc, '_int_param_sx')
             delattr(gc, '_int_param_np')
@@ -425,5 +532,8 @@ class GameTheoreticPlanner(Extension):
         else:
             x_ref = solver.cpp_solver.rollout(x0, u, *params_np)
 
-        curv_trajs = x_ref.reshape((n, N, T), order='F')
-        return curv_trajs, sol
+        curv_trajs = x_ref.reshape((gc.n, gc.N, gc.T), order='F')
+        left_count = sum(name == 'left_raceline' for name in side_names)
+        right_count = len(side_names) - left_count
+        side_summary = f'left={left_count},right={right_count}'
+        return curv_trajs, sol, side_summary
