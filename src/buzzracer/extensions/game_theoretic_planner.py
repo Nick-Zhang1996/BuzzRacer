@@ -169,6 +169,7 @@ class GameTheoreticPlannerState(ExtensionState):
         self.planner_ready: mp.synchronize.Event = mp.Event()
         self.solver = None
         self.initial_guess_tracks = None
+        self.traj_dt = config.dt
 
 
 @Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)

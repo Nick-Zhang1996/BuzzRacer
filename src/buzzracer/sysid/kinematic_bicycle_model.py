@@ -4,6 +4,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+import casadi as ca
 import numpy as np
 import torch
 
@@ -146,4 +147,36 @@ class KinematicBicycleModelFrenet(VehicleDynamics):
             v_forward=state.v_forward + d_v_forward_dt * dt,
             v_sideway=state.v_sideway + d_v_sideway_dt * dt,
             rel_omega=0
+        )
+
+    @staticmethod
+    def advance_dynamics_casadi(state,
+                                control,
+                                car_param: CarParam,
+                                dt: float,
+                                curvature):
+        """CasADi-compatible discrete-time Frenet kinematic model."""
+        beta = ca.atan(ca.tan(control[0]) * car_param.lr /
+                       (car_param.lf + car_param.lr))
+
+        dsdt = (state[3] * ca.cos(state[2]) - state[4] * ca.sin(state[2])) / (
+            1 - state[1] * curvature)
+        dndt = state[3] * ca.sin(state[2]) + state[4] * ca.cos(state[2])
+        rolling = ca.if_else(state[3] > 0, 1.0, 0.0)
+        acc_rw = 6.17 * (control[1] + (- state[3] / 15.2 - 0.333) * rolling)
+        acc_cg = acc_rw / ca.cos(beta)
+        d_v_forward_dt = acc_cg * ca.cos(beta)
+        d_v_sideway_dt = acc_cg * ca.sin(beta)
+
+        total_v = ca.sqrt(state[3] * state[3] + state[4] * state[4])
+        d_heading_dt = total_v / car_param.lr * ca.sin(beta)
+        d_rel_heading_dt = d_heading_dt - curvature * dsdt
+
+        return ca.vertcat(
+            state[0] + dsdt * dt,
+            state[1] + dndt * dt,
+            state[2] + d_rel_heading_dt * dt,
+            state[3] + d_v_forward_dt * dt,
+            state[4] + d_v_sideway_dt * dt,
+            0.0,
         )

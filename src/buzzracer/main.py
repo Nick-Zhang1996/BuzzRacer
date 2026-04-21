@@ -5,6 +5,9 @@ from time import time
 from xml.dom import minidom
 import multiprocessing as mp
 
+import buzzracer.cars  # noqa: F401
+import buzzracer.controllers  # noqa: F401
+import buzzracer.extensions  # noqa: F401
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, get_logger
 from buzzracer.types import Control, CartesianState
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -228,9 +231,13 @@ class Main(PrintObject, LogObject):
                 ) else self.state.car_control[i].throttle
             else:
                 # Call controller one by one
-                control, _, controller_state = car.controller.control(
+                result = car.controller.control(
                     car.state, car.param, self.track, car.controller.config,
                     car.controller.state, self.state, i)
+                if len(result) == 4:
+                    control, _, controller_state, _ = result
+                else:
+                    control, _, controller_state = result
                 car.controller.state = controller_state
                 car.steering = control.steering
 
