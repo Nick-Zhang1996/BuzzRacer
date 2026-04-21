@@ -1,7 +1,7 @@
 """Universal entry point for running simulation or experiments."""
 import os.path
 import os
-from time import time
+from time import time, perf_counter
 from xml.dom import minidom
 import multiprocessing as mp
 
@@ -113,7 +113,7 @@ class Main(PrintObject, LogObject):
         self.print_info(f' total cars: {len(self.cars)}')
         self.state = MainState(len(self.cars))
 
-        self.timer = ExecutionTimer(True)
+        self.timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
         ''' Timer for profiling code '''
         self.new_state_update = self.state.new_state_update
         ''' Event is set when a new state from simulator or Vicon is ready'''

@@ -2,8 +2,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from time import process_time
 
 from buzzracer.common import LogObject, set_config_attr, LoggingFilter
+from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.types import CartesianState, Control
 if TYPE_CHECKING:
     from buzzracer.main import MainState, MainConfig
@@ -137,19 +139,36 @@ class Controller(LogObject):
                     car_params: CarParam, track: Track, controller_cls,
                     controller_config, controller_state, planner_state=None):
         """ Entry point for multi process control. """
-        while not main_state.exit_request.is_set():
-            v_override = 0.0 if main_state.slowdown.is_set() else None
-            controller_state.v_override = v_override
-            new_state = main_state.car_states_event[car_index].wait(0.1)
-            if not new_state:
-                continue
-            main_state.car_states_event[car_index].clear()
+        timer = ExecutionTimer(enable=True, clock=process_time, clock_name='process_cpu')
+        try:
+            while not main_state.exit_request.is_set():
+                timer.s()
+                v_override = 0.0 if main_state.slowdown.is_set() else None
+                controller_state.v_override = v_override
 
-            control, valid, state, msg = controller_cls.control(
-                main_state.car_states[car_index], car_params, track,
-                controller_config, controller_state, main_state, car_index, planner_state)
-            if not valid:
-                logger.warning('Invalid control for %s, %s', car_params.name, msg)
-            controller_state = state
-            main_state.car_control[car_index] = control
-            main_state.car_control_event[car_index].set()
+                timer.s('wait for state')
+                new_state = main_state.car_states_event[car_index].wait(0.1)
+                timer.e('wait for state')
+                if not new_state:
+                    timer.e()
+                    continue
+                main_state.car_states_event[car_index].clear()
+
+                timer.s('control')
+                control, valid, state, msg = controller_cls.control(
+                    main_state.car_states[car_index], car_params, track,
+                    controller_config, controller_state, main_state, car_index, planner_state)
+                timer.e('control')
+
+                if not valid:
+                    logger.warning('Invalid control for %s, %s', car_params.name, msg)
+                controller_state = state
+
+                timer.s('publish control')
+                main_state.car_control[car_index] = control
+                main_state.car_control_event[car_index].set()
+                timer.e('publish control')
+                timer.e()
+        finally:
+            logger.info('Controller CPU-time summary for %s', car_params.name)
+            timer.summary()
