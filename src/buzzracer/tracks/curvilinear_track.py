@@ -166,7 +166,7 @@ class CurvilinearTrack(Track):
         curvature_vec = (dr[0]*ddr[1] - dr[1]*ddr[0]) / _norm(dr)**3
         assert not np.any(np.isnan(curvature_vec))
         curvature_s, _ = splprep(curvature_vec.reshape(1, -1), u=s_vec, s=0, per=1)
-        ss = np.linspace(0, raceline_len_m, n)
+        ss = np.linspace(0, raceline_len_m, n, endpoint=False)
         r_vec = np.array(splev(ss, raceline_s, der=0))
         dr_vec = np.array(splev(ss, raceline_s, der=1))
         phi_vec = np.arctan2(dr_vec[1, :], dr_vec[0, :])
@@ -214,7 +214,7 @@ class CurvilinearTrack(Track):
 
         return CurvilinearTrackData(
             r_vec=r_vec.T,
-            s_vec=np.array(s_vec),
+            s_vec=ss,
             phi_vec=phi_vec,
             curvature_vec=curvature_vec,
             left_width_vec=left_width,
@@ -296,12 +296,6 @@ class CurvilinearTrack(Track):
 
         # Interpolated ref pi
         precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
-        # FIXME Below is a fix, but hacky, we need to make sure ds > 0 by construction
-        # Probably off by an index somewhere
-        # This only occues when the car is in a specific position near the finishing line
-        # Not easy to replicate
-        # idx=np.int64(1023), cart=CartesianState(x=2.178, y=2.455, heading=-7.702, v_forward=0.767, v_sideway=-0.011, omega=-0.324)
-        # precise_rphi = fmap(ds, 0, 0.0111, rphi, rphi+phi_step)
         if s_step < 0.01:
             print(f'{idx=}, {cart=}')
         assert s_step > 0.01

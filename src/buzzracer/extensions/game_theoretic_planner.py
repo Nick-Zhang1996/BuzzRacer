@@ -126,7 +126,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Game horizon """
         self.car_count: int = 8
         """ Number of cars, N """
-        self.stitching_steps: int = 10
+        self.stitching_steps: int = 15
         """ Number of steps to keep in previous trajectory in next iteration """
         self.multiprocess: bool = True
         """ Run planner in a separate process, necessary for realtime operation"""
@@ -283,7 +283,8 @@ class GameTheoreticPlanner(Extension):
         """ Process function to run update_fun in a loop """
         try:
             state.solver = GameTheoreticPlanner.make_solver(config, track)
-            state.initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(track, config)
+            state.initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(
+                track, config)
             while not main_state.exit_request.is_set():
                 GameTheoreticPlanner.update_fun(state, main_state, track, config)
         finally:
@@ -481,20 +482,18 @@ class GameTheoreticPlanner(Extension):
         # Clip solution to reasonable number
         # clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
 
+        # DEBUG - Save bad solutions for triage
+        # if sol.residual > config.residual_threshold:
+        #     gc = copy.copy(solver.game.config)
+        #     save_game(gc, u_ref)
+        #     main_state.exit_request.set()
+
         # Save inputs to solver when user press 'b' for triaging
         if np.isnan(sol.residual) or main_state.breakpoint.is_set():
             main_state.breakpoint.clear()
             gc = copy.copy(solver.game.config)
-            delattr(gc, '_int_param_sx')
-            delattr(gc, '_int_param_np')
-            delattr(gc, '_double_param_sx')
-            delattr(gc, '_double_param_np')
-            delattr(gc, '_param_dict')
-            save = {'x0': x0, 'target_x_ref': x_ref, 'u_ref': u_ref, 'gc': gc}
-            filename = os.path.join(BASEDIR, 'outputs', 'input.p')
-            with open(filename, 'wb') as f:
-                pickle.dump(save, f)
-            logger.info('Saved to %s', filename)
+            save_game(gc, u_ref)
+
             # sol: Solution = solver.solve(u_ref)
             # DEBUG
             # solver_traj = solver._rollout_full_x(sol.u.reshape((m, N, T), order='F'))
@@ -538,3 +537,17 @@ class GameTheoreticPlanner(Extension):
         right_count = len(side_names) - left_count
         side_summary = f'left={left_count},right={right_count}'
         return curv_trajs, sol, side_summary
+
+
+def save_game(gc, u_ref):
+    """ Save a game for debugging offline"""
+    delattr(gc, '_int_param_sx')
+    delattr(gc, '_int_param_np')
+    delattr(gc, '_double_param_sx')
+    delattr(gc, '_double_param_np')
+    delattr(gc, '_param_dict')
+    save = {'u_ref': u_ref, 'gc': gc}
+    filename = os.path.join(BASEDIR, 'outputs', 'input.p')
+    with open(filename, 'wb') as f:
+        pickle.dump(save, f)
+    logger.info('Saved to %s', filename)

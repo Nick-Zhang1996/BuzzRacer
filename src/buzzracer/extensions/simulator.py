@@ -31,7 +31,7 @@ class SimulatorConfig(ExtensionConfig):
         super().__init__(main_config)
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
-        self.real_sim_time_ratio: float = 2.0
+        self.real_sim_time_ratio: float = 1.0
         ''' Real time / sim time. If larger than 1.0, simulation is slowed down. '''
         self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
         ''' Dynamics model to use for simulation, must be overridden in config
