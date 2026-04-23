@@ -4,10 +4,8 @@ import os
 from time import time, perf_counter
 from xml.dom import minidom
 import multiprocessing as mp
+import ctypes
 
-import buzzracer.cars  # noqa: F401
-import buzzracer.controllers  # noqa: F401
-import buzzracer.extensions  # noqa: F401
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, get_logger
 from buzzracer.types import Control, CartesianState
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -19,33 +17,8 @@ from buzzracer.controllers.controller import Controller
 logger = get_logger(__name__)
 
 
-class MainState:
-    """ Process safe state """
-
-    def __init__(self, car_count):
-        self.new_state_update = mp.Event()
-        ''' Event is set when a new state from simulator or Vicon is ready'''
-        self.exit_request = mp.Event()
-        ''' Flag to quit gracefully '''
-        self.slowdown = mp.Event()
-        ''' if set, continue to follow trajectory but set throttle to -0.1
-        so we don't leave car uncontrolled at max speed
-        currently this is ignored and pressing 'q' the first time will cut motor
-        second 'q' will exit program
-        '''
-        self.breakpoint = mp.Event()
-        """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
-        self.car_states = mp.Array(CartesianState, car_count, lock=False)
-        self.car_states_event = [mp.Event() for _ in range(car_count)]
-        self.car_states_first_available = mp.Event()
-        """ Car specific event for new state available, set by main"""
-        self.car_control = mp.Array(Control, car_count, lock=False)
-        self.car_control_event = [mp.Event() for _ in range(car_count)]
-        """ Car specific event for new control available, set by controller"""
-        self.car_target_v = mp.Array('d', car_count, lock=False)
-
-
 class MainConfig:
+    """ Config class for Main"""
 
     def __init__(self, config_filename):
         self.dt = 0.01
@@ -59,6 +32,7 @@ class MainConfig:
         for key, value_text in dom_settings.attributes.items():
             if not hasattr(self, key):
                 raise AttributeError(f'Unknown attribute {key}={value_text}')
+            # pylint: disable-next=eval-used
             setattr(self, key, eval(value_text))
             logger.info(f' {__name__}.{key}.{value_text}')
 
@@ -86,6 +60,54 @@ class MainConfig:
         self.experiment_type = get_experiment_type_from_config_settings(
             dom_settings)
         self.experiment_name = os.path.basename(config_filename).split('.')[0]
+        self.car_count = len(self.car_configs)
+
+
+class MainState:
+    """ Process safe state """
+
+    def __init__(self, main_config: MainConfig):
+        car_count = main_config.car_count
+        self.experiment_type = main_config.experiment_type
+        self.new_state_update = mp.Event()
+        ''' Event is set when a new state from simulator or Vicon is ready'''
+        self.exit_request = mp.Event()
+        ''' Flag to quit gracefully '''
+        self.slowdown = mp.Event()
+        ''' if set, continue to follow trajectory but set throttle to -0.1
+        so we don't leave car uncontrolled at max speed
+        currently this is ignored and pressing 'q' the first time will cut motor
+        second 'q' will exit program
+        '''
+        self.breakpoint = mp.Event()
+        """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
+        self.car_states = mp.Array(CartesianState, car_count, lock=False)
+        self.car_states_event = [mp.Event() for _ in range(car_count)]
+        self.car_states_first_available = mp.Event()
+        """ Car specific event for new state available, set by main"""
+        self.car_control = mp.Array(Control, car_count, lock=False)
+        self.car_control_event = [mp.Event() for _ in range(car_count)]
+        """ Car specific event for new control available, set by controller"""
+        self.car_target_v = mp.Array('d', car_count, lock=False)
+        self._time = mp.Value(ctypes.c_double, 0.0)
+        """ Shared timestamp for the latest published state snapshot. """
+
+    def publish_time(self, sim_t=None):
+        """Publish the time associated with the latest shared state snapshot."""
+        if self.experiment_type == ExperimentType.Simulation:
+            if sim_t is None:
+                raise ValueError('sim_t must be provided in simulation mode')
+            now = sim_t
+        else:
+            now = time()
+        with self._time.get_lock():
+            self._time.value = now
+
+    @property
+    def time(self):
+        """Timestamp associated with the latest shared state snapshot."""
+        with self._time.get_lock():
+            return self._time.value
 
 
 class Main(PrintObject, LogObject):
@@ -111,7 +133,9 @@ class Main(PrintObject, LogObject):
             Car.Factory(cfg) for cfg in self.config.car_configs
         ]
         self.print_info(f' total cars: {len(self.cars)}')
-        self.state = MainState(len(self.cars))
+        self.state = MainState(self.config)
+        self.state.publish_time(0.0 if self.config.experiment_type == ExperimentType.Simulation
+                                else None)
 
         self.timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
         ''' Timer for profiling code '''
@@ -171,7 +195,6 @@ class Main(PrintObject, LogObject):
             for p in self.child_processes:
                 p.join()
 
-        # TODO does this still work for multiprocess?
         for car in self.cars:
             car.controller.final()
         Extension.pre_final_all()
@@ -181,10 +204,7 @@ class Main(PrintObject, LogObject):
     @property
     def time(self):
         """Current time, either time() or simulated time if in simulation."""
-        if self.config.experiment_type == ExperimentType.Simulation:
-            return self.simulator.sim_t
-        else:
-            return time()
+        return self.state.time
 
     def update(self, ):
         """Run the control/visualization update.
@@ -212,8 +232,16 @@ class Main(PrintObject, LogObject):
         if self.config.multiprocess:
             for i, car in enumerate(self.cars):
                 self.state.car_states[i] = car.state
-                # logger.info(f'{i=}, {car.state=}')
+            self.state.publish_time(
+                self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
+                else None)
+            for i, _ in enumerate(self.cars):
                 self.state.car_states_event[i].set()
+                # logger.info(f'{i=}, {self.state.car_states[i]=}')
+        else:
+            self.state.publish_time(
+                self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
+                else None)
         self.state.car_states_first_available.set()
         t.e('wait new state update')
 
@@ -221,7 +249,7 @@ class Main(PrintObject, LogObject):
         # Call controllers
         for i, car in enumerate(self.cars):
             car = self.cars[i]
-            t.s(car.param.name)
+            # t.s(car.param.name)
             if self.config.multiprocess:
                 # Wait for controller process to complete
                 self.state.car_control_event[i].wait(0.1)
@@ -243,7 +271,7 @@ class Main(PrintObject, LogObject):
 
                 car.throttle = 0.0 if self.state.slowdown.is_set(
                 ) else control.throttle
-            t.e(car.param.name)
+            # t.e(car.param.name)
         t.e('control')
 
         # -- Extension update --

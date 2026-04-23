@@ -65,7 +65,8 @@ class ExecutionTimer:
             if self.current_subsession is not None:
                 logger.error(f' end() is called before end({self.current_subsession}),'
                              'missed call? check all logic paths')
-                self.end(self.current_subsession)
+                self.child_sections[self.current_subsession].drop_active_timing()
+                self.current_subsession = None
 
             return self.global_end()
 
@@ -88,6 +89,16 @@ class ExecutionTimer:
 
         self.total_duration += self.time() - self.start_ts
         self.total_count += 1
+        self.start_ts = None
+
+    def drop_active_timing(self):
+        if not self.enabled:
+            return
+
+        if self.current_subsession is not None:
+            self.child_sections[self.current_subsession].drop_active_timing()
+            self.current_subsession = None
+
         self.start_ts = None
 
     def track(self, name, var):

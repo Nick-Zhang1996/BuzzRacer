@@ -746,13 +746,22 @@ class QpSmooth:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'track_name', choices=TrackFactory.available_track_names())
+        'track_name', nargs='?', choices=TrackFactory.available_track_names())
+    parser.add_argument(
+        '--speed-only', action='store_true',
+        help='load the saved track and only rebuild track data')
     args = parser.parse_args()
 
-    # optimize and save
-    main = QpSmooth()
-    track = TrackFactory.build(args.track_name)
-    track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.15)
+    if args.speed_only:
+        track = TrackFactory.build('saved')
+    else:
+        if args.track_name is None:
+            parser.error('track_name is required unless --speed-only is set')
+        # optimize and save
+        main = QpSmooth()
+        track = TrackFactory.build(args.track_name)
+        track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.15)
+
     r_vec, left, right = track.process_rcp_raceline(track.rcp_raceline)
     track.data = track.build_track(r_vec, left, right)
     track.save()

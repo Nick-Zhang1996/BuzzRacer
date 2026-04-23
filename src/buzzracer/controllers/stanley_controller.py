@@ -29,7 +29,7 @@ class StanleyControllerConfig(ControllerConfig):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
-        self.use_trajectory_longitudinal_control = True
+        self.use_trajectory_longitudinal_control = False
         self.trajectory_progress_gain = 2.0
         self.trajectory_progress_max_correction = 2.0
         self.trajectory_index_search_window = 8
@@ -131,14 +131,13 @@ class StanleyController(Controller):
                 cart_traj[:, car_index, :], lookahead_point)
             trajectory_ref = StanleyController.trajectory_reference_from_traj(
                 cart_traj[:, car_index, :], car_state, controller_config, controller_state)
+
             track_retval = track.local_trajectory(lookahead_point)
             if retval is None:
                 # Fallback to stanley
                 retval = track_retval
                 name = car_params.name
-                logger.info(f"{name} fallback to stanley")
-            else:
-                retval = retval._replace(v_target=track_retval.v_target)
+                logger.warning("%s fallback to stanley", name)
         else:
             retval = track.local_trajectory(lookahead_point)
             trajectory_ref = None

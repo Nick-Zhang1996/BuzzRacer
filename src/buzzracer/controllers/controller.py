@@ -170,5 +170,6 @@ class Controller(LogObject):
                 timer.e('publish control')
                 timer.e()
         finally:
-            logger.info('Controller CPU-time summary for %s', car_params.name)
-            timer.summary()
+            if timer.enabled:
+                logger.info('Controller CPU-time summary for %s', car_params.name)
+                timer.summary()
