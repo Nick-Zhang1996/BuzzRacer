@@ -125,7 +125,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
 
     def __init__(self, main_config):
         super().__init__(main_config)
-        self.horizon: int = 20
+        self.horizon: int = 10
         """ Game horizon """
         self.car_count: int = 8
         """ Number of cars, N """
@@ -135,7 +135,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Run planner in a separate process, necessary for realtime operation"""
         if self.multiprocess:
             assert main_config.multiprocess, 'MainConfig.multiprocess must be also true'
-        self.dt: float = 0.06
+        self.dt: float = 0.05
         self.use_stanley_control_guess: bool = True
         self.stanley_config = StanleyControllerConfig(main_config, None)
         self.initial_guess_shift_margin: float = 0.04
@@ -380,45 +380,30 @@ class GameTheoreticPlanner(Extension):
             t.e()
             return
         new_curv_traj, sol, side_summary = retval
-        logger.info('mixed_side_guess=%s, elapsed=%.6f, residual=%.6f, margin=%d',
-                    side_summary, sol.elapsed_time, sol.residual, margin)
+        reject = False
+        msg = 'Accepted'
         if sol.residual > config.residual_threshold:
             if margin > 0:
                 # Reject high residual solutions if existing plan has enough margin to future
-                logger.warning('Rejected solution with residual %.4f, margin=%d',
-                               sol.residual, margin)
-                t.e()
-                return
+                # logger.warning('Rejected sol with residual %.4f, margin=%d', sol.residual, margin)
+                reject = True
+                msg = "[Rejected]"
             else:
-                logger.warning('Forced to accept solution with residual %.4f, '
-                               'because margin=%d', sol.residual, margin)
+                # logger.warning('Forced to accept sol with residual %.4f, because margin=%d', sol.residual, margin)
+                msg = "[Force Accept, low margin]"
+
+        logger.info('dt=%.3f s, res=%.3f, margin=%d, %s',
+                    sol.elapsed_time, sol.residual, margin, msg)
+
+        if reject:
+            t.e()
+            return
 
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
         for i in range(N):
             for k in range(T):
                 curv_state = CurvilinearState(*new_curv_traj[:, i, k])
                 new_cart_traj[:, i, k] = track.curv_to_cart(curv_state).to_tuple()
-
-        # DEBUG
-        if True:
-            cart_x = (CartesianState * N).from_buffer(main_state.car_states)
-            curv_x = np.empty((n, N), dtype=float, order='F')
-            for i in range(N):
-                curv_x[:, i] = track.cart_to_curv(cart_x[i]).to_tuple()[:5]
-            current_s = np.sort(curv_x[0, :])
-            current_s = np.hstack([current_s[-1]-curv_len, current_s])
-            gaps = np.diff(current_s) % curv_len
-            max_gap_s = current_s[np.argmax(gaps)+1]  # s with biggest gap BEFORE it
-            split_point = (max_gap_s - 0.1*curv_len) % curv_len
-            curv_x[0, :] = (curv_x[0, :] - split_point) % curv_len + split_point
-            new_realized_idx_car = np.fromiter(
-                (np.searchsorted(state.curv_traj[0, i, :], curv_x[0, i]) for i in range(N)),
-                dtype=np.intp,
-                count=N)
-            diff = new_realized_idx_car - realized_idx_car
-            logger.info(f"{realized_idx_car=}")
-            logger.info(f"{new_realized_idx_car=}")
-            logger.info(f"Index advance by cars: {diff}")
 
         # Remove realized traj
         # Stitch new plan onto state.curv_traj
@@ -428,7 +413,6 @@ class GameTheoreticPlanner(Extension):
                                  dtype=state.curv_traj.dtype, order='F')
         stitched_cart = np.empty((6, N, stitch_len+T),
                                  dtype=state.cart_traj.dtype, order='F')
-        logger.info(f"{stitch_start_idx_car=}")
         for i in range(N):
             next_plan_idx = next_plan_idx_car[i]
             stitch_start_idx = stitch_start_idx_car[i]
@@ -437,7 +421,6 @@ class GameTheoreticPlanner(Extension):
             stitched_curv[:, i, stitch_len:stitch_len+T] = new_curv_traj[:, i, :]
             stitched_cart[:, i, stitch_len:stitch_len+T] = new_cart_traj[:, i, :]
 
-        logger.info(f'Plan length {stitch_len+T}')
         state.curv_traj = stitched_curv
         state.cart_traj = stitched_cart
 
