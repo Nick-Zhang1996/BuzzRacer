@@ -129,7 +129,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         """ Game horizon """
         self.car_count: int = 8
         """ Number of cars, N """
-        self.stitching_steps: int = 15
+        self.stitching_steps: int = 10
         """ Number of steps to keep in previous trajectory in next iteration """
         self.multiprocess: bool = True
         """ Run planner in a separate process, necessary for realtime operation"""
@@ -385,7 +385,6 @@ class GameTheoreticPlanner(Extension):
         if sol.residual > config.residual_threshold:
             if margin > 0:
                 # Reject high residual solutions if existing plan has enough margin to future
-                # logger.warning('Rejected sol with residual %.4f, margin=%d', sol.residual, margin)
                 reject = True
                 msg = "[Rejected]"
             else:
@@ -528,10 +527,10 @@ class GameTheoreticPlanner(Extension):
         # clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
 
         # DEBUG - Save bad solutions for triage
-        # if sol.residual > config.residual_threshold:
-        #     gc = copy.copy(solver.game.config)
-        #     save_game(gc, u_ref)
-        #     main_state.exit_request.set()
+        if sol.residual > config.residual_threshold:
+            gc = copy.copy(solver.game.config)
+            filename = save_game(gc, u_ref, triage=True)
+            logger.warning('Saved triage state to %s', filename)
 
         # Save inputs to solver when user press 'b' for triaging
         if np.isnan(sol.residual) or main_state.breakpoint.is_set():
@@ -584,7 +583,7 @@ class GameTheoreticPlanner(Extension):
         return curv_trajs, sol, side_summary
 
 
-def save_game(gc, u_ref):
+def save_game(gc, u_ref, triage=False):
     """ Save a game for debugging offline"""
     delattr(gc, '_int_param_sx')
     delattr(gc, '_int_param_np')
@@ -592,7 +591,17 @@ def save_game(gc, u_ref):
     delattr(gc, '_double_param_np')
     delattr(gc, '_param_dict')
     save = {'u_ref': u_ref, 'gc': gc}
-    filename = os.path.join(BASEDIR, 'outputs', 'input.p')
+    output_dir = os.path.join(BASEDIR, 'outputs')
+    if triage:
+        triage_idx = 1
+        while True:
+            filename = os.path.join(output_dir, f'triage_{triage_idx}.p')
+            if not os.path.exists(filename):
+                break
+            triage_idx += 1
+    else:
+        filename = os.path.join(output_dir, 'input.p')
     with open(filename, 'wb') as f:
         pickle.dump(save, f)
     logger.info('Saved to %s', filename)
+    return filename
