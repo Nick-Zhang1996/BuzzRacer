@@ -122,11 +122,12 @@ class StanleyController(Controller):
         if controller_config.planner:
             if not planner_state.planner_ready.is_set():
                 return (ctrl, False, controller_state, 'Planner not ready')
-            shape = (6, planner_state.car_count, planner_state.cart_traj_len.value)
-            cart_traj = np.frombuffer(planner_state.cart_traj_sync.get_obj(),
-                                      dtype=np.float64,
-                                      count=shape[0]*shape[1]*shape[2]
-                                      ).reshape(shape, order='F').copy()
+            with planner_state.traj_sync_lock:
+                shape = (6, planner_state.car_count, planner_state.cart_traj_len.value)
+                cart_traj = np.frombuffer(planner_state.cart_traj_sync,
+                                          dtype=np.float64,
+                                          count=shape[0]*shape[1]*shape[2]
+                                          ).reshape(shape, order='F').copy()
             retval = StanleyController.local_trajectory_from_traj(
                 cart_traj[:, car_index, :], lookahead_point)
             trajectory_ref = StanleyController.trajectory_reference_from_traj(

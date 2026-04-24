@@ -2,12 +2,13 @@
 """ Game Theoretic Planner, responsible for generating ref traj for multiple cars """
 from __future__ import annotations
 from typing import TYPE_CHECKING
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import logging
 import multiprocessing as mp
 import os
-import copy
+import queue
 from time import perf_counter
+from types import SimpleNamespace
 
 import pickle
 import ctypes
@@ -120,6 +121,45 @@ class ShiftedRacelineTrack:
                                right_margin=right_margin)
 
 
+@dataclass(frozen=True)
+class PlannerWorkerSpec:
+    """Static worker configuration for one solver process."""
+
+    name: str
+    use_zero_guess: bool
+
+
+@dataclass(frozen=True)
+class PlannerSolveRequest:
+    """One planning request dispatched to a solver worker."""
+
+    job_id: int
+    cart_x0: np.ndarray
+    curv_x0: np.ndarray
+
+
+@dataclass
+class PlannerSolveCandidate:
+    """Serializable solve candidate returned by a worker."""
+
+    curv_trajs: np.ndarray
+    sol: Solution
+    side_summary: str
+    u_ref: np.ndarray
+    x0: np.ndarray
+    target_x_ref: np.ndarray
+
+
+@dataclass(frozen=True)
+class PlannerSolveResult:
+    """Result envelope passed back from a worker to the planner."""
+
+    job_id: int
+    worker_name: str
+    candidate: PlannerSolveCandidate | None = None
+    error: str | None = None
+
+
 class GameTheoreticPlannerConfig(ExtensionConfig):
     """ Read-only config """
 
@@ -160,7 +200,7 @@ class GameTheoreticPlannerState(ExtensionState):
         self.car_params: list[CarParam] = None
         self.traj_ts: np.ndarray = None
         """ (traj_len), time stamp from time() for traj points. Non-process safe"""
-        self.traj_ts_sync = mp.Array(ctypes.c_double, config.car_count)
+        self.traj_ts_sync = mp.Array(ctypes.c_double, config.car_count, lock=False)
         """ (traj_len), time stamp from time() for traj points. Process safe"""
         self.cart_traj: np.ndarray = None
         """ (n=6, N, traj_len) non-process safe Cartesian State Trajectory.
@@ -169,24 +209,37 @@ class GameTheoreticPlannerState(ExtensionState):
         """ (n=5, N, traj_len) non-process safe Curvilinear State Trajectory.
             state: (s, n, heading_err, vf, vs)"""
         self.curv_traj_sync: np.ndarray = mp.Array(
-            ctypes.c_double, 6*config.car_count*config.max_traj_len)
+            ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
         """ (n=5, N, traj_len) process safe Curvilinear State Trajectory.
             state: (s, n, heading_err, vf, vs)"""
         self.cart_traj_len: int = mp.Value(ctypes.c_int)
         """ cart_traj_sync.shape[2] Length of cart_traj """
-        self.cart_traj_sync = mp.Array(ctypes.c_double, 6*config.car_count*config.max_traj_len)
+        self.cart_traj_sync = mp.Array(
+            ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
         """ (n=6, N, cart_traj_len) Process safe Cartesian State Trajectory"""
+        self.traj_sync_lock: mp.synchronize.Lock = mp.Lock()
+        """ Keeps cart/curv trajectory buffers and their length consistent across processes. """
         # self.ctrl_traj: np.ndarray = None
         # """ (m*N, T) of ctrl trajectory """
         self.child_process: mp.Process = None
         self.planner_ready: mp.synchronize.Event = mp.Event()
         self.solver = None
         self.initial_guess_tracks = None
+        self.max_speeds: np.ndarray = None
+        self.worker_processes: dict[str, mp.Process] = {}
+        self.worker_request_queues: dict[str, mp.Queue] = {}
+        self.worker_result_queue: mp.Queue | None = None
+        self.next_solver_job_id: int = 0
 
 
 @Extension.register('planner', GameTheoreticPlannerConfig, GameTheoreticPlannerState)
 class GameTheoreticPlanner(Extension):
     """ Central planner that relies on a dynamic game solver. """
+
+    WORKER_SPECS = (
+        PlannerWorkerSpec(name='stanley_seeded', use_zero_guess=False),
+        PlannerWorkerSpec(name='zero_guess', use_zero_guess=True),
+    )
 
     def __init__(self, config, state):
         super().__init__(config, state)
@@ -197,6 +250,10 @@ class GameTheoreticPlanner(Extension):
         # Load game theoretic solver
         self.state.cars = Extension.main.cars
         self.state.car_params = [car.param for car in self.state.cars]
+        self.state.max_speeds = np.asarray(
+            [car.controller.config.max_speed for car in self.state.cars[:self.config.car_count]],
+            dtype=float,
+        )
         if self.config.multiprocess:
             p = mp.Process(target=GameTheoreticPlanner.process_fun,
                            args=(self.state, self.main.state,
@@ -220,16 +277,29 @@ class GameTheoreticPlanner(Extension):
         c = config
         N = c.car_count  # pylint: disable=invalid-name
         default = CarRacingCasadiConfig
+        x0 = np.zeros((default.n, N), dtype=float, order='F')
+        x_ref = np.zeros((default.n, N), dtype=float, order='F')
+        x_ref[3, :] = 1.0  # dummy target speed
+
+        game_config = GameTheoreticPlanner.make_game_config(config, x0, x_ref)
+        game = CarRacingCasadi(game_config, track)
+        solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
+        solver = RD3GCasadi(solver_config, game, cpp_only=config.use_cpp_solver)
+        if config.use_cpp_solver:
+            solver.init_cpp_backend()
+        return solver
+
+    @staticmethod
+    def make_game_config(config, x0: np.ndarray, x_ref: np.ndarray):
+        """Create a fresh game config for a given initial state and reference."""
+        c = config
+        N = c.car_count  # pylint: disable=invalid-name
+        default = CarRacingCasadiConfig
         J_Qr = np.diag([0, 5.0, 1.0, 1.0, 0.1])  # pylint: disable=invalid-name
         J_R = np.eye(default.m) * 1.0  # pylint: disable=invalid-name
-
-        x0 = np.zeros((default.n, N))
-        x_ref = np.zeros((default.n, N))
-        x_ref[3, :] = 1.0  # dummy target speed
         rows_per_collision = 4 if default.double_circle_h else 1
         n_h = (rows_per_collision * (N * (N - 1) // 2) + 2 * N) * c.horizon
-
-        game_config = CarRacingCasadiConfig(
+        return CarRacingCasadiConfig(
             T=c.horizon,
             dt=config.dt,
             N=N,
@@ -237,16 +307,10 @@ class GameTheoreticPlanner(Extension):
             m=default.m,
             n_h=n_h,
             collision_radius=default.collision_radius,
-            x0=x0.copy(order='F'),
-            target_x_ref=x_ref.copy(order='F'),
+            x0=np.array(x0, dtype=float, order='F', copy=True),
+            target_x_ref=np.array(x_ref, dtype=float, order='F', copy=True),
             J_Qr=J_Qr.copy(order='F'),
             J_R=J_R.copy(order='F'))
-        game = CarRacingCasadi(game_config, track)
-        solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
-        solver = RD3GCasadi(solver_config, game, cpp_only=config.use_cpp_solver)
-        if config.use_cpp_solver:
-            solver.init_cpp_backend()
-        return solver
 
     @staticmethod
     def make_initial_guess_tracks(track: CurvilinearTrack,
@@ -267,11 +331,12 @@ class GameTheoreticPlanner(Extension):
             state: planner state """
         # When the planner runs in a different process, state.cart_traj in
         # the main process is not updated, instead, new cart_traj are placed in cart_traj_sync
-        shape = (6, state.car_count, state.cart_traj_len.value)
-        cart_traj = np.frombuffer(state.cart_traj_sync.get_obj(),
-                                  dtype=np.float64,
-                                  count=shape[0]*shape[1]*shape[2]
-                                  ).reshape(shape, order='F').copy()
+        with state.traj_sync_lock:
+            shape = (6, state.car_count, state.cart_traj_len.value)
+            cart_traj = np.frombuffer(state.cart_traj_sync,
+                                      dtype=np.float64,
+                                      count=shape[0]*shape[1]*shape[2]
+                                      ).reshape(shape, order='F').copy()
         return cart_traj
 
     def update(self):
@@ -279,8 +344,9 @@ class GameTheoreticPlanner(Extension):
         if self.config.multiprocess:
             state.cart_traj = GameTheoreticPlanner.get_cart_traj_sync(state)
         else:
+            timer = ExecutionTimer(enable=False, clock=perf_counter, clock_name='planner')
             GameTheoreticPlanner.update_fun(self.state, self.main.state,
-                                            self.main.track, self.config)
+                                            self.main.track, self.config, timer)
         cart_traj = self.state.cart_traj
         if cart_traj.shape[2] > 0:
             for i in range(self.config.car_count):
@@ -293,23 +359,112 @@ class GameTheoreticPlanner(Extension):
                     track: CurvilinearTrack,
                     config: GameTheoreticPlannerConfig):
         """ Process function to run update_fun in a loop """
+        t = ExecutionTimer(enable=True, clock=perf_counter, clock_name='planner')
         try:
-            t = ExecutionTimer(enable=True, clock=perf_counter, clock_name='planner')
-            state.solver = GameTheoreticPlanner.make_solver(config, track)
-            state.initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(
-                track, config)
+            GameTheoreticPlanner.start_solver_workers(state, main_state, track, config)
             while not main_state.exit_request.is_set():
                 GameTheoreticPlanner.update_fun(state, main_state, track, config, t)
         finally:
             main_state.exit_request.set()
+            GameTheoreticPlanner.stop_solver_workers(state)
             t.summary()
+
+    @staticmethod
+    def start_solver_workers(state: GameTheoreticPlannerState,
+                             main_state: MainState,
+                             track: CurvilinearTrack,
+                             config: GameTheoreticPlannerConfig):
+        """Start persistent solver workers owned by the planner process."""
+        state.worker_result_queue = mp.Queue()
+        state.worker_request_queues = {}
+        state.worker_processes = {}
+        for spec in GameTheoreticPlanner.WORKER_SPECS:
+            request_queue = mp.Queue(maxsize=1)
+            proc = mp.Process(
+                target=GameTheoreticPlanner.solver_worker_fun,
+                args=(
+                    spec,
+                    request_queue,
+                    state.worker_result_queue,
+                    main_state.exit_request,
+                    track,
+                    config,
+                    state.car_params,
+                    state.max_speeds,
+                ),
+                name=f'planner_solver_{spec.name}',
+            )
+            proc.daemon = True
+            proc.start()
+            state.worker_request_queues[spec.name] = request_queue
+            state.worker_processes[spec.name] = proc
+
+    @staticmethod
+    def stop_solver_workers(state: GameTheoreticPlannerState):
+        """Stop solver workers and release their queues."""
+        for request_queue in state.worker_request_queues.values():
+            try:
+                request_queue.put_nowait(None)
+            except queue.Full:
+                pass
+            request_queue.close()
+        for proc in state.worker_processes.values():
+            proc.join(timeout=1.0)
+        if state.worker_result_queue is not None:
+            state.worker_result_queue.close()
+        state.worker_processes = {}
+        state.worker_request_queues = {}
+        state.worker_result_queue = None
+
+    @staticmethod
+    def solver_worker_fun(spec: PlannerWorkerSpec,
+                          request_queue: mp.Queue,
+                          result_queue: mp.Queue,
+                          exit_request: mp.synchronize.Event,
+                          track: CurvilinearTrack,
+                          config: GameTheoreticPlannerConfig,
+                          car_params,
+                          max_speeds: np.ndarray):
+        """Solve one stream of planning jobs with a dedicated seed strategy."""
+        solver = GameTheoreticPlanner.make_solver(config, track)
+        initial_guess_tracks = GameTheoreticPlanner.make_initial_guess_tracks(track, config)
+        while not exit_request.is_set():
+            try:
+                request = request_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            if request is None:
+                return
+            try:
+                candidate = GameTheoreticPlanner.solve_candidate_request(
+                    request,
+                    spec,
+                    solver,
+                    initial_guess_tracks,
+                    track,
+                    config,
+                    car_params,
+                    max_speeds,
+                )
+                result_queue.put(PlannerSolveResult(
+                    job_id=request.job_id,
+                    worker_name=spec.name,
+                    candidate=candidate,
+                ))
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.exception('Solver worker %s failed on job %d', spec.name, request.job_id)
+                result_queue.put(PlannerSolveResult(
+                    job_id=request.job_id,
+                    worker_name=spec.name,
+                    error=str(exc),
+                ))
 
     @staticmethod
     def update_fun(state: GameTheoreticPlannerState,
                    main_state: MainState,
                    track: CurvilinearTrack,
                    config: GameTheoreticPlannerConfig,
-                   t: ExecutionTimer):
+                   t: ExecutionTimer | None = None):
         """ Update planner with a new plan, stitch to current plan """
         default = CarRacingCasadiConfig
         n = default.n
@@ -321,7 +476,8 @@ class GameTheoreticPlanner(Extension):
             logger.debug('Waiting for main_state.car_states...')
             return
 
-        t.s()
+        if t is not None:
+            t.s()
         cart_x = (CartesianState * N).from_buffer(main_state.car_states)
         curv_x = np.empty((n, N), dtype=float, order='F')
         for i in range(N):
@@ -371,13 +527,16 @@ class GameTheoreticPlanner(Extension):
             next_plan_idx = next_plan_idx_car[i]
             curv_x0[:, i] = state.curv_traj[:, i, next_plan_idx]
             cart_x0[:, i] = state.cart_traj[:, i, next_plan_idx]
-        t.s('plan_from_x0')
+        if t is not None:
+            t.s('plan_from_x0')
         retval = GameTheoreticPlanner.plan_from_x0(
             cart_x0, curv_x0, track, config, state, main_state, t)
-        t.e('plan_from_x0')
+        if t is not None:
+            t.e('plan_from_x0')
         if retval is None:
             logger.debug('No valid output from planner')
-            t.e()
+            if t is not None:
+                t.e()
             return
         new_curv_traj, sol, side_summary = retval
         reject = False
@@ -391,11 +550,12 @@ class GameTheoreticPlanner(Extension):
                 # logger.warning('Forced to accept sol with residual %.4f, because margin=%d', sol.residual, margin)
                 msg = "[Force Accept, low margin]"
 
-        logger.info('dt=%.3f s, res=%.3f, margin=%d, %s',
-                    sol.elapsed_time, sol.residual, margin, msg)
+        logger.info('dt=%.3f s, res=%.3f, margin=%d, candidate=%s, %s',
+                    sol.elapsed_time, sol.residual, margin, side_summary, msg)
 
         if reject:
-            t.e()
+            if t is not None:
+                t.e()
             return
 
         new_cart_traj = np.empty((6, N, T), dtype=float, order='F')
@@ -431,20 +591,17 @@ class GameTheoreticPlanner(Extension):
                            f'{traj_len=}, {config.max_traj_len=}'
                            'Consider increasing buffer or reducing stitching steps')
 
-        # TODO instead of using 2 separate locks, use one lock for cart_traj_sync, traj_ts_sync, and curv_traj_sync since we always set/read them together. Update usage elsewhere
         flat_cart_traj = state.cart_traj[:, :, :traj_len].flatten(order='F')
         flat_cart_traj_len = len(flat_cart_traj)
-        with state.cart_traj_sync.get_lock():
-            state.cart_traj_sync[:flat_cart_traj_len] = flat_cart_traj
-
         flat_curv_traj = state.curv_traj[:, :, :traj_len].flatten(order='F')
         flat_curv_traj_len = len(flat_curv_traj)
-        with state.curv_traj_sync.get_lock():
+        with state.traj_sync_lock:
+            state.cart_traj_sync[:flat_cart_traj_len] = flat_cart_traj
             state.curv_traj_sync[:flat_curv_traj_len] = flat_curv_traj
-
-        state.cart_traj_len.value = traj_len
+            state.cart_traj_len.value = traj_len
         state.planner_ready.set()
-        t.e()
+        if t is not None:
+            t.e()
 
     @staticmethod
     def get_initial_guess_track_name(curv_state: np.ndarray):
@@ -458,9 +615,173 @@ class GameTheoreticPlanner(Extension):
                      config: GameTheoreticPlannerConfig,
                      state: GameTheoreticPlannerState,
                      main_state: MainState,
-                     t: ExecutionTimer):
-        """Build and solve one mixed left/right Stanley-seeded game."""
-        t.s('prep')
+                     t: ExecutionTimer | None):
+        """Solve the same planning problem from two seeds and pick the best candidate."""
+        if state.worker_processes:
+            results = GameTheoreticPlanner.collect_worker_candidates(
+                state, cart_x0, curv_x0, main_state)
+        else:
+            results = GameTheoreticPlanner.solve_candidates_locally(
+                cart_x0, curv_x0, track, config, state, t)
+
+        best = GameTheoreticPlanner.select_best_candidate(results)
+        if best is None:
+            return None
+
+        worker_name, candidate = best
+        GameTheoreticPlanner.maybe_save_solver_inputs(candidate, config, main_state)
+        return candidate.curv_trajs, candidate.sol, f'{worker_name}:{candidate.side_summary}'
+
+    @staticmethod
+    def solve_candidate_request(request: PlannerSolveRequest,
+                                spec: PlannerWorkerSpec,
+                                solver: RD3GCasadi,
+                                initial_guess_tracks,
+                                track: CurvilinearTrack,
+                                config: GameTheoreticPlannerConfig,
+                                car_params,
+                                max_speeds: np.ndarray):
+        """Solve one queued worker request."""
+        x0, x_ref, u_ref, side_summary = GameTheoreticPlanner.build_candidate_inputs(
+            request.cart_x0,
+            request.curv_x0,
+            track,
+            config,
+            car_params,
+            max_speeds,
+            initial_guess_tracks,
+            spec.use_zero_guess,
+        )
+        return GameTheoreticPlanner.solve_candidate(
+            solver,
+            x0,
+            x_ref,
+            u_ref,
+            side_summary,
+        )
+
+    @staticmethod
+    def solve_candidates_locally(cart_x0: np.ndarray,
+                                 curv_x0: np.ndarray,
+                                 track: CurvilinearTrack,
+                                 config: GameTheoreticPlannerConfig,
+                                 state: GameTheoreticPlannerState,
+                                 t: ExecutionTimer | None):
+        """Fallback path when the planner itself is not running in a separate process."""
+        results = []
+        for spec in GameTheoreticPlanner.WORKER_SPECS:
+            if t is not None:
+                t.s(f'prep_{spec.name}')
+            x0, x_ref, u_ref, side_summary = GameTheoreticPlanner.build_candidate_inputs(
+                cart_x0,
+                curv_x0,
+                track,
+                config,
+                state.car_params,
+                state.max_speeds,
+                state.initial_guess_tracks,
+                spec.use_zero_guess,
+            )
+            if t is not None:
+                t.e(f'prep_{spec.name}')
+                t.s(f'solve_{spec.name}')
+            candidate = GameTheoreticPlanner.solve_candidate(
+                state.solver,
+                x0,
+                x_ref,
+                u_ref,
+                side_summary,
+            )
+            if t is not None:
+                t.e(f'solve_{spec.name}')
+            results.append(PlannerSolveResult(
+                job_id=-1,
+                worker_name=spec.name,
+                candidate=candidate,
+            ))
+        return results
+
+    @staticmethod
+    def collect_worker_candidates(state: GameTheoreticPlannerState,
+                                  cart_x0: np.ndarray,
+                                  curv_x0: np.ndarray,
+                                  main_state: MainState):
+        """Dispatch the current planning problem to all worker processes."""
+        state.next_solver_job_id += 1
+        job_id = state.next_solver_job_id
+        request = PlannerSolveRequest(
+            job_id=job_id,
+            cart_x0=np.array(cart_x0, dtype=float, order='F', copy=True),
+            curv_x0=np.array(curv_x0, dtype=float, order='F', copy=True),
+        )
+        expected_workers = set()
+        for spec in GameTheoreticPlanner.WORKER_SPECS:
+            request_queue = state.worker_request_queues.get(spec.name)
+            if request_queue is None:
+                logger.warning('Solver worker %s is unavailable', spec.name)
+                continue
+            try:
+                request_queue.put(request, timeout=0.1)
+            except queue.Full:
+                proc = state.worker_processes.get(spec.name)
+                if proc is None or not proc.is_alive():
+                    logger.error('Solver worker %s is no longer alive', spec.name)
+                else:
+                    logger.error('Solver worker %s queue is unexpectedly full', spec.name)
+                continue
+            expected_workers.add(spec.name)
+
+        results = []
+        while expected_workers and not main_state.exit_request.is_set():
+            try:
+                result = state.worker_result_queue.get(timeout=0.1)
+            except queue.Empty:
+                dead_workers = {
+                    name for name in expected_workers
+                    if not state.worker_processes[name].is_alive()
+                }
+                if dead_workers:
+                    logger.error('Solver workers died while planning: %s',
+                                 ', '.join(sorted(dead_workers)))
+                    break
+                continue
+            if result.job_id != job_id:
+                logger.debug('Ignoring stale solver result for job %d from %s',
+                             result.job_id, result.worker_name)
+                continue
+            if result.worker_name not in expected_workers:
+                logger.debug('Ignoring duplicate solver result from %s', result.worker_name)
+                continue
+            results.append(result)
+            expected_workers.remove(result.worker_name)
+        return results
+
+    @staticmethod
+    def select_best_candidate(results: list[PlannerSolveResult]):
+        """Pick the lowest-residual candidate among successful worker results."""
+        best = None
+        for result in results:
+            if result.error is not None:
+                logger.warning('Solver candidate %s failed: %s',
+                               result.worker_name, result.error)
+                continue
+            candidate = result.candidate
+            if candidate is None or not np.isfinite(candidate.sol.residual):
+                continue
+            if best is None or candidate.sol.residual < best[1].sol.residual:
+                best = (result.worker_name, candidate)
+        return best
+
+    @staticmethod
+    def build_candidate_inputs(cart_x0: np.ndarray,
+                               curv_x0: np.ndarray,
+                               track: CurvilinearTrack,
+                               config: GameTheoreticPlannerConfig,
+                               car_params,
+                               max_speeds: np.ndarray,
+                               initial_guess_tracks,
+                               use_zero_guess: bool):
+        """Build the solver initial condition, target state, and control seed."""
         default = CarRacingCasadiConfig
         n = default.n
         m = default.m
@@ -469,118 +790,96 @@ class GameTheoreticPlanner(Extension):
 
         x0 = np.array(curv_x0, dtype=float, order='F', copy=True)
         cart_x0 = np.array(cart_x0, dtype=float, order='F', copy=True)
-        x0[3, :] = np.clip(x0[3, :], a_min=0.5, a_max=None)  # override speed
-        cart_x0[3, :] = np.clip(cart_x0[3, :], a_min=0.5, a_max=None)  # override speed
+        x0[3, :] = np.clip(x0[3, :], a_min=0.5, a_max=None)
+        cart_x0[3, :] = np.clip(cart_x0[3, :], a_min=0.5, a_max=None)
 
-        x_ref = np.zeros((n, N), order='F')
+        x_ref = np.zeros((n, N), dtype=float, order='F')
         progress_mod = np.mod(x0[0, :], track.data.raceline_len_m)
         target_speed = np.asarray(splev(progress_mod, track.data.speed_s), dtype=float)
-        max_speeds = np.asarray(
-            [car.controller.config.max_speed for car in state.cars[:N]],
-            dtype=float,
-        )
-        clipped_target_speed = np.clip(target_speed, a_min=0.2, a_max=max_speeds)
-        x_ref[3, :] = clipped_target_speed
+        x_ref[3, :] = np.clip(target_speed, a_min=0.2, a_max=max_speeds)
 
-        solver = state.solver
-        new_config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
-        solver.game.config = new_config
-        u_ref = np.zeros((m * N, T), order='F')
+        u_ref = np.zeros((m * N, T), dtype=float, order='F')
+        if use_zero_guess:
+            return x0, x_ref, u_ref, 'zero_ref'
+
         u_ref_3d = u_ref.reshape((m, N, T), order='F')
         side_names = []
+        dummy_main_state = SimpleNamespace(car_target_v=np.zeros(N, dtype=float))
         for i in range(N):
             x = CartesianState(*cart_x0[:, i])
             stanley_state = StanleyControllerState(config)
             ref_name = GameTheoreticPlanner.get_initial_guess_track_name(curv_x0[:, i])
             side_names.append(ref_name)
-            ref_track = state.initial_guess_tracks[ref_name]
+            ref_track = initial_guess_tracks[ref_name]
             for k in range(T):
                 if config.use_stanley_control_guess:
                     u, _, _, _ = StanleyController.control(x,
-                                                           state.car_params[i],
+                                                           car_params[i],
                                                            ref_track,
                                                            config.stanley_config,
                                                            stanley_state,
-                                                           main_state, i)
-                    # only use steering, keep throttle 0
+                                                           dummy_main_state, i)
                     u = Control(u.steering, 0)
                     u_ref_3d[:, i, k] = u.to_tuple()
                 else:
                     u = Control(0, 0)
                 x = KinematicBicycleModelCartesian.advance_dynamics(
-                    x, u, state.car_params[i], config.dt, simple_throttle=True)
+                    x, u, car_params[i], config.dt, simple_throttle=True)
 
-        # Call solver
+        return x0, x_ref, u_ref, f'stanley_ref'
+
+    @staticmethod
+    def solve_candidate(solver: RD3GCasadi,
+                        x0: np.ndarray,
+                        x_ref: np.ndarray,
+                        u_ref: np.ndarray,
+                        side_summary: str):
+        """Run one solve and package its trajectory and debug data."""
         assert not np.any(np.isnan(u_ref))
         assert not np.any(np.isnan(x0))
-        t.e('prep')
-        t.s('solve')
+        solver.game.config = replace(solver.game.config, x0=x0, target_x_ref=x_ref)
         if solver.cpp_solver is not None:
             sol: Solution = solver.solve_cpp_backend(u_ref)
         else:
             sol: Solution = solver.solve(u_ref)
-        t.e('solve')
         if np.isnan(sol.residual):
             return None
 
-        # Clip solution to reasonable number
-        # clip_u = np.clip(sol.u, -radians(27), radians(27), order='F')
-
-        # DEBUG - Save bad solutions for triage
-        if sol.residual > config.residual_threshold:
-            gc = copy.copy(solver.game.config)
-            filename = save_game(gc, u_ref, triage=True)
-            logger.warning('Saved triage state to %s', filename)
-
-        # Save inputs to solver when user press 'b' for triaging
-        if np.isnan(sol.residual) or main_state.breakpoint.is_set():
-            main_state.breakpoint.clear()
-            gc = copy.copy(solver.game.config)
-            save_game(gc, u_ref)
-
-            # sol: Solution = solver.solve(u_ref)
-            # DEBUG
-            # solver_traj = solver._rollout_full_x(sol.u.reshape((m, N, T), order='F'))
-            # ax = solver.visualize(u_ref, show=False)
-            # py_sol = solver.solve(u_ref)
-            # py_solver_traj = solver._rollout_full_x(py_sol.u.reshape((m, N, T), order='F'))
-            # for i in range(N):
-            #     # kinbike_traj = np.array([(v.x, v.y) for v in debug_stanley_states[i]])
-            #     solver_curv_state = [CurvilinearState(*solver_traj[:, i, k]) for k in range(T)]
-            #     solver_cart_traj = np.asarray(
-            #         [track.curv_to_cart(val).to_tuple()[:2] for val in solver_curv_state])
-            #     py_solver_curv_state = [CurvilinearState(
-            #         *py_solver_traj[:, i, k]) for k in range(T)]
-            #     py_solver_cart_traj = np.asarray(
-            #         [track.curv_to_cart(val).to_tuple()[:2] for val in py_solver_curv_state])
-
-            #     # print(f'{i=}, {kinbike_traj.shape=}, {solver_traj.shape=}')
-            #     # print(u_ref.reshape((m, N, T), order='F')[0, i, :])
-            #     # print(f'{kinbike_traj=}')
-            #     # print(f'{solver_cart_traj=}')
-            #     # fig, ax = plt.subplots()
-            #     # ax.plot(kinbike_traj[:, 0], kinbike_traj[:, 1], 'o-', label='kin')
-            #     ax.plot(solver_cart_traj[:, 0], solver_cart_traj[:, 1], '--', label='cpp')
-            #     ax.plot(py_solver_cart_traj[:, 0], py_solver_cart_traj[:, 1], 'o', label='py')
-            # ax.legend()
-            # plt.show()
-
-        #  Visualize planned trajectory for all agents
-        # NOTE use solution or re-do rollout (n*N,T)
-        # x_ref = sol.x
         gc = solver.game.config
         params_np = [gc.get_int_param_np(), gc.get_double_param_np()]
-        u = sol.u.reshape((gc.m*gc.N, gc.T), order='F')
+        u = sol.u.reshape((gc.m * gc.N, gc.T), order='F')
         if solver.cpp_solver is None:
-            x_ref = solver.rollout_casadi(x0, u, *params_np).full()
+            rollout = solver.rollout_casadi(x0, u, *params_np).full()
         else:
-            x_ref = solver.cpp_solver.rollout(x0, u, *params_np)
+            rollout = solver.cpp_solver.rollout(x0, u, *params_np)
+        curv_trajs = rollout.reshape((gc.n, gc.N, gc.T), order='F')
+        return PlannerSolveCandidate(
+            curv_trajs=curv_trajs,
+            sol=sol,
+            side_summary=side_summary,
+            u_ref=u_ref.copy(order='F'),
+            x0=x0.copy(order='F'),
+            target_x_ref=x_ref.copy(order='F'),
+        )
 
-        curv_trajs = x_ref.reshape((gc.n, gc.N, gc.T), order='F')
-        left_count = sum(name == 'left_raceline' for name in side_names)
-        right_count = len(side_names) - left_count
-        side_summary = f'left={left_count},right={right_count}'
-        return curv_trajs, sol, side_summary
+    @staticmethod
+    def maybe_save_solver_inputs(candidate: PlannerSolveCandidate,
+                                 config: GameTheoreticPlannerConfig,
+                                 main_state: MainState):
+        """Keep the existing triage/debug input dump behavior for the selected candidate."""
+        game_config = None
+        if candidate.sol.residual > config.residual_threshold:
+            game_config = GameTheoreticPlanner.make_game_config(
+                config, candidate.x0, candidate.target_x_ref)
+            filename = save_game(game_config, candidate.u_ref, triage=True)
+            logger.warning('Saved triage state to %s', filename)
+
+        if main_state.breakpoint.is_set():
+            main_state.breakpoint.clear()
+            if game_config is None:
+                game_config = GameTheoreticPlanner.make_game_config(
+                    config, candidate.x0, candidate.target_x_ref)
+            save_game(game_config, candidate.u_ref)
 
 
 def save_game(gc, u_ref, triage=False):

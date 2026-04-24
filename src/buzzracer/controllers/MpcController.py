@@ -493,13 +493,14 @@ class MpcController(Controller):
 
     @staticmethod
     def _get_planner_cart_traj(planner_state, car_index: int) -> np.ndarray:
-        shape = (6, planner_state.car_count, planner_state.cart_traj_len.value)
-        if shape[2] == 0:
-            return np.zeros((6, 0), dtype=float)
-        return np.frombuffer(planner_state.cart_traj_sync.get_obj(),
-                             dtype=np.float64,
-                             count=shape[0] * shape[1] * shape[2]
-                             ).reshape(shape, order='F')[:, car_index, :].copy()
+        with planner_state.traj_sync_lock:
+            shape = (6, planner_state.car_count, planner_state.cart_traj_len.value)
+            if shape[2] == 0:
+                return np.zeros((6, 0), dtype=float)
+            return np.frombuffer(planner_state.cart_traj_sync,
+                                 dtype=np.float64,
+                                 count=shape[0] * shape[1] * shape[2]
+                                 ).reshape(shape, order='F')[:, car_index, :].copy()
 
     @staticmethod
     def _planner_reference(track: CurvilinearTrack,
