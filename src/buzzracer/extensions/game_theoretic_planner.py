@@ -200,25 +200,26 @@ class GameTheoreticPlannerState(ExtensionState):
         self.car_params: list[CarParam] = None
         self.traj_ts: np.ndarray = None
         """ (traj_len), time stamp from time() for traj points. Non-process safe"""
-        self.traj_ts_sync = mp.Array(ctypes.c_double, config.car_count, lock=False)
-        """ (traj_len), time stamp from time() for traj points. Process safe"""
         self.cart_traj: np.ndarray = None
         """ (n=6, N, traj_len) non-process safe Cartesian State Trajectory.
             state: (x,y,heading,vf,vs,omega) """
         self.curv_traj: np.ndarray = None
         """ (n=5, N, traj_len) non-process safe Curvilinear State Trajectory.
             state: (s, n, heading_err, vf, vs)"""
+
+        self.traj_sync_lock: mp.synchronize.Lock = mp.Lock()
+        """ Keeps cart/curv trajectory buffers and their length consistent across processes. """
+        self.cart_traj_len: int = mp.Value(ctypes.c_int)
+        """ cart_traj_sync.shape[2] Length of cart_traj """
+        self.traj_ts_sync = mp.Array(ctypes.c_double, config.max_traj_len, lock=False)
+        """ (traj_len), time stamp from time() for traj points. Process safe"""
+        self.cart_traj_sync = mp.Array(
+            ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
+        """ (n=6, N, cart_traj_len) Process safe Cartesian State Trajectory"""
         self.curv_traj_sync: np.ndarray = mp.Array(
             ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
         """ (n=5, N, traj_len) process safe Curvilinear State Trajectory.
             state: (s, n, heading_err, vf, vs)"""
-        self.cart_traj_len: int = mp.Value(ctypes.c_int)
-        """ cart_traj_sync.shape[2] Length of cart_traj """
-        self.cart_traj_sync = mp.Array(
-            ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
-        """ (n=6, N, cart_traj_len) Process safe Cartesian State Trajectory"""
-        self.traj_sync_lock: mp.synchronize.Lock = mp.Lock()
-        """ Keeps cart/curv trajectory buffers and their length consistent across processes. """
         # self.ctrl_traj: np.ndarray = None
         # """ (m*N, T) of ctrl trajectory """
         self.child_process: mp.Process = None
@@ -500,7 +501,7 @@ class GameTheoreticPlanner(Extension):
             # Initialize curv_traj
             state.curv_traj = curv_x.reshape((n, N, 1), order='F')  # s, n, heading_err, vf, vs
             state.cart_traj = cart_x.reshape((6, N, 1), order='F')  # x,y,heading,vf,vs,omega
-            state.traj_ts = np.array(main_state.time)
+            state.traj_ts = np.array(main_state.time)  # Dummy, will overwrite
 
         state.curv_traj[0, :, :] = (state.curv_traj[0, :, :] - split_point) % curv_len + split_point
         if not np.all(np.diff(state.curv_traj[0, :, :]) > 0):
@@ -591,6 +592,14 @@ class GameTheoreticPlanner(Extension):
                            f'{traj_len=}, {config.max_traj_len=}'
                            'Consider increasing buffer or reducing stitching steps')
 
+        if not state.planner_ready.is_set():
+            # If first plan, re-align time
+            ts = main_state.time
+        else:
+            ts = state.traj_ts[stitch_start_idx]
+        end_ts = ts + traj_len * config.dt
+        state.traj_ts = np.linspace(ts, end_ts, end_ts+1, endpoint=False).flatten(order='F')
+
         flat_cart_traj = state.cart_traj[:, :, :traj_len].flatten(order='F')
         flat_cart_traj_len = len(flat_cart_traj)
         flat_curv_traj = state.curv_traj[:, :, :traj_len].flatten(order='F')
@@ -598,6 +607,7 @@ class GameTheoreticPlanner(Extension):
         with state.traj_sync_lock:
             state.cart_traj_sync[:flat_cart_traj_len] = flat_cart_traj
             state.curv_traj_sync[:flat_curv_traj_len] = flat_curv_traj
+            state.traj_ts_sync[:traj_len] = state.traj_ts
             state.cart_traj_len.value = traj_len
         state.planner_ready.set()
         if t is not None:
