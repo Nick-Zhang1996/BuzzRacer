@@ -2,12 +2,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
-
-import numpy as np
+from dataclasses import replace
 from math import pi, sin, cos
 
+import numpy as np
+
 from buzzracer.common import LoggingFilter
-from buzzracer.types import CartesianState, Control
+from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.controllers.controller import Controller, ControllerConfig, ControllerState
 from buzzracer.controllers.pid_controller import PidController
 from buzzracer.tracks.track import LocalTrajOutput
@@ -29,12 +30,8 @@ class StanleyControllerConfig(ControllerConfig):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
-        self.use_trajectory_longitudinal_control = False
         self.trajectory_progress_gain = 2.0
         self.trajectory_progress_max_correction = 2.0
-        self.trajectory_index_search_window = 8
-        self.trajectory_index_reset_dist = 0.3
-        self.trajectory_reference_lookahead_steps = 1
 
         p1 = (1.0, 2.0)
         p2 = (4.0, 0.5)
@@ -118,30 +115,58 @@ class StanleyController(Controller):
             v_forward=car_state.v_forward,
             v_sideway=car_state.v_sideway,
             omega=car_state.omega)
+        name = car_params.name if car_params.name == 'mclaren_22' else None
 
         if controller_config.planner:
             if not planner_state.planner_ready.is_set():
                 return (ctrl, False, controller_state, 'Planner not ready')
+            curv_len = track.data.raceline_len_m
+            curv_state = track.cart_to_curv(lookahead_point)
             with planner_state.traj_sync_lock:
-                shape = (6, planner_state.car_count, planner_state.cart_traj_len.value)
+                split_point = planner_state.split_point_sync.value
+                wrap_s = (curv_state.progress - split_point) % curv_len + split_point
+                curv_state.progress = wrap_s
+
+                traj_len = planner_state.cart_traj_len.value
+                cart_shape = (6, planner_state.car_count, traj_len)
                 cart_traj = np.frombuffer(planner_state.cart_traj_sync,
                                           dtype=np.float64,
-                                          count=shape[0]*shape[1]*shape[2]
-                                          ).reshape(shape, order='F').copy()
+                                          count=cart_shape[0]*cart_shape[1]*cart_shape[2]
+                                          ).reshape(cart_shape, order='F').copy()
+                curv_shape = (5, planner_state.car_count, traj_len)
+                curv_traj = np.frombuffer(planner_state.curv_traj_sync,
+                                          dtype=np.float64,
+                                          count=curv_shape[0]*curv_shape[1]*curv_shape[2]
+                                          ).reshape(curv_shape, order='F').copy()
+                traj_ts = np.frombuffer(planner_state.traj_ts_sync,
+                                        dtype=np.float64,
+                                        count=traj_len,
+                                        ).reshape(traj_len, order='F').copy()
             retval = StanleyController.local_trajectory_from_traj(
                 cart_traj[:, car_index, :], lookahead_point)
-            trajectory_ref = StanleyController.trajectory_reference_from_traj(
-                cart_traj[:, car_index, :], car_state, controller_config, controller_state)
-
-            track_retval = track.local_trajectory(lookahead_point)
             if retval is None:
                 # Fallback to stanley
-                retval = track_retval
-                name = car_params.name
+                # TODO maybe something more intelligent? stay at current offset e.g.
+                retval = track.local_trajectory(lookahead_point)
                 logger.warning("%s fallback to stanley", name)
-        else:
+            else:
+                progress_err = StanleyController.get_progress_err(main_state.time,
+                                                                  traj_ts,
+                                                                  curv_traj[:, car_index, :],
+                                                                  curv_state,
+                                                                  name)
+                old_target_v = retval.v_target
+                target_v = StanleyController.adjust_speed_target_with_progress(retval.v_target,
+                                                                               progress_err,
+                                                                               controller_config)
+
+                dv = target_v - retval.v_target
+                retval = retval._replace(v_target=target_v)
+                if name is not None:
+                    logger.debug(f'{name} {progress_err=} {old_target_v=}, {dv=}')
+
+        else:  # No planner available
             retval = track.local_trajectory(lookahead_point)
-            trajectory_ref = None
         if retval is None:
             return (ctrl, False, controller_state, 'local_traj returned None')
 
@@ -165,34 +190,10 @@ class StanleyController(Controller):
         # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
         # handle edge case, unwrap ( -355 deg turn -> +5 turn)
         steering = (steering + pi) % (2 * pi) - pi
-        throttle_v_target = v_target
-        if (trajectory_ref is not None and controller_config.use_trajectory_longitudinal_control
-                and controller_state.v_override is None):
-            throttle_v_target = StanleyController.adjust_speed_target_with_progress(
-                trajectory_ref['v_ref'],
-                trajectory_ref['progress_error'],
-                controller_config)
-            throttle = StanleyController.calc_throttle(
-                car_state,
-                throttle_v_target,
-                car_params,
-                controller_state.throttle_pid,
-                ss_v_target=trajectory_ref['v_ref'])
-        else:
-            throttle_v_target = (throttle_v_target if controller_state.v_override is None
-                                 else controller_state.v_override)
-            throttle = StanleyController.calc_throttle(
-                car_state, throttle_v_target, car_params, controller_state.throttle_pid)
-        main_state.car_target_v[car_index] = throttle_v_target
-        controller_state.debug_dict = {
-            'v_target': float(v_target),
-            'throttle_v_target': float(throttle_v_target),
-            'trajectory_progress_error': None if trajectory_ref is None else float(
-                trajectory_ref['progress_error']),
-            'trajectory_target_index': None if trajectory_ref is None else int(
-                trajectory_ref['index']),
-        }
-
+        v_target = (v_target if controller_state.v_override is None else controller_state.v_override)
+        throttle = StanleyController.calc_throttle(
+            car_state, v_target, car_params, controller_state.throttle_pid)
+        main_state.car_target_v[car_index] = v_target
         ctrl = Control(steering=steering, throttle=throttle)
         return (ctrl, True, controller_state, 'Controller OK')
 
@@ -220,58 +221,21 @@ class StanleyController(Controller):
             controller_config.trajectory_progress_gain * progress_error,
             -controller_config.trajectory_progress_max_correction,
             controller_config.trajectory_progress_max_correction)
-        return np.clip(v_ref + correction, a_min=0.0, a_max=controller_config.max_speed)
+        return np.clip(v_ref + correction, 0.0, None)
 
     @staticmethod
-    def trajectory_reference_from_traj(cart_traj: np.ndarray,
-                                       state: CartesianState,
-                                       controller_config: StanleyControllerConfig,
-                                       controller_state: StanleyControllerState):
-        if cart_traj.shape[1] < 2:
-            controller_state.trajectory_target_index = None
-            return None
+    def get_progress_err(ts: float,
+                         traj_ts: np.ndarray,
+                         curv_traj: np.ndarray,
+                         state: CurvilinearState,
+                         name=None):
+        """ Return err_s = ref progress - actual progress, using ts in traj_ts """
 
-        point_count = cart_traj.shape[1]
-        max_index = point_count - 2
-        prev_index = controller_state.trajectory_target_index
-        if prev_index is None:
-            base_index = 0
-        else:
-            base_index = min(max(prev_index + 1, 0), max_index)
-
-        window = max(int(controller_config.trajectory_index_search_window), 0)
-        start = max(base_index - window, 0)
-        end = min(base_index + window + 1, max_index + 1)
-        local_idx = StanleyController.closest_traj_index(cart_traj, state, start, end)
-        index = local_idx
-
-        dx = state.x - cart_traj[0, index]
-        dy = state.y - cart_traj[1, index]
-        dist_sq = dx * dx + dy * dy
-        reset_dist_sq = controller_config.trajectory_index_reset_dist ** 2
-        if dist_sq > reset_dist_sq:
-            global_idx = StanleyController.closest_traj_index(cart_traj, state, 0, max_index + 1)
-            if global_idx is not None:
-                index = global_idx
-
-        lookahead_steps = max(int(controller_config.trajectory_reference_lookahead_steps), 0)
-        index = min(index + lookahead_steps, max_index)
-        controller_state.trajectory_target_index = index
-
-        ref_xy = cart_traj[:2, index]
-        next_xy = cart_traj[:2, index + 1]
-        tangent = next_xy - ref_xy
-        tangent_norm = np.linalg.norm(tangent)
-        if tangent_norm < 1e-9:
-            tangent_hat = np.array([cos(state.heading), sin(state.heading)])
-        else:
-            tangent_hat = tangent / tangent_norm
-        progress_error = np.dot(ref_xy - np.array([state.x, state.y]), tangent_hat)
-        return {
-            'index': index,
-            'progress_error': progress_error,
-            'v_ref': cart_traj[3, index],
-        }
+        idx = np.searchsorted(traj_ts[1:-1], ts)
+        fraction = (ts - traj_ts[idx]) / (traj_ts[idx+1] - traj_ts[idx])
+        ref_s = curv_traj[0, idx] + fraction * (curv_traj[0, idx+1] - curv_traj[0, idx])
+        err_s = ref_s - state.progress
+        return err_s
 
     @staticmethod
     def closest_traj_index(cart_traj: np.ndarray,
@@ -313,7 +277,7 @@ class StanleyController(Controller):
                                lateral_err=offset,
                                raceline_dir=phi,
                                curvature=None,
-                               v_target=cart_traj[3, i],
+                               v_target=cart_traj[3, i]*0.5,  # FIXME
                                progress=None,
                                left_margin=None,
                                right_margin=None)

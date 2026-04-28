@@ -18,7 +18,7 @@ from scipy.interpolate import splev
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
 from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig, Solution
 
-from buzzracer.common import BASEDIR
+from buzzracer.common import BASEDIR, LoggingFilter
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logger.addFilter(LoggingFilter(interval=1.0))
 
 
 class ShiftedRacelineTrack:
@@ -220,6 +221,8 @@ class GameTheoreticPlannerState(ExtensionState):
             ctypes.c_double, 6*config.car_count*config.max_traj_len, lock=False)
         """ (n=5, N, traj_len) process safe Curvilinear State Trajectory.
             state: (s, n, heading_err, vf, vs)"""
+        self.split_point_sync = mp.Value(ctypes.c_double)
+        """ Split point for breaking track progress so the discontinuity is away from planned traj"""
         # self.ctrl_traj: np.ndarray = None
         # """ (m*N, T) of ctrl trajectory """
         self.child_process: mp.Process = None
@@ -598,7 +601,7 @@ class GameTheoreticPlanner(Extension):
         else:
             ts = state.traj_ts[stitch_start_idx]
         end_ts = ts + traj_len * config.dt
-        state.traj_ts = np.linspace(ts, end_ts, end_ts+1, endpoint=False).flatten(order='F')
+        state.traj_ts = np.linspace(ts, end_ts, traj_len, endpoint=False).flatten(order='F')
 
         flat_cart_traj = state.cart_traj[:, :, :traj_len].flatten(order='F')
         flat_cart_traj_len = len(flat_cart_traj)
@@ -609,6 +612,7 @@ class GameTheoreticPlanner(Extension):
             state.curv_traj_sync[:flat_curv_traj_len] = flat_curv_traj
             state.traj_ts_sync[:traj_len] = state.traj_ts
             state.cart_traj_len.value = traj_len
+            state.split_point_sync.value = split_point
         state.planner_ready.set()
         if t is not None:
             t.e()
@@ -639,7 +643,7 @@ class GameTheoreticPlanner(Extension):
             return None
 
         worker_name, candidate = best
-        GameTheoreticPlanner.maybe_save_solver_inputs(candidate, config, main_state)
+        # GameTheoreticPlanner.maybe_save_solver_inputs(candidate, config, main_state)
         return candidate.curv_trajs, candidate.sol, f'{worker_name}:{candidate.side_summary}'
 
     @staticmethod
