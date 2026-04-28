@@ -7,6 +7,7 @@ import os.path
 import argparse
 from time import time
 from deprecated import deprecated
+import logging
 
 import numpy as np
 import cv2
@@ -20,6 +21,8 @@ from buzzracer.tracks.rcp_track import RCPTrackRaceline, RCPTrack
 from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.tracks.track import Track
+
+logging.basicConfig(level=logging.INFO)
 
 
 class BezierSpline:

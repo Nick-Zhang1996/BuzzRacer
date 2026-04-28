@@ -30,8 +30,8 @@ class StanleyControllerConfig(ControllerConfig):
         self.max_offset = 0.4
         self.max_speed = 4.0
         self.rear_end_gap = 0.2
-        self.trajectory_progress_gain = 2.0
-        self.trajectory_progress_max_correction = 2.0
+        self.trajectory_progress_gain = 4.0
+        self.trajectory_progress_max_correction = 1.0
 
         p1 = (1.0, 2.0)
         p2 = (4.0, 0.5)
@@ -160,10 +160,17 @@ class StanleyController(Controller):
                                                                                progress_err,
                                                                                controller_config)
 
-                dv = target_v - retval.v_target
+                # dv = target_v - retval.v_target
                 retval = retval._replace(v_target=target_v)
-                if name is not None:
-                    logger.debug(f'{name} {progress_err=} {old_target_v=}, {dv=}')
+                # DEBUG
+                # if name is not None:
+                #     # NOTE dv > 0, yet progress_err is not reducing
+                #     curv_v_actual = np.diff(curv_traj[0, car_index, :]) / 0.05
+                #     cart_v_actual = np.hypot(np.diff(cart_traj[0, car_index, :]),
+                #                              np.diff(cart_traj[1, car_index, :])) / 0.05
+                #     v_ref = curv_traj[3, car_index, :]
+                #     # logger.debug(f'{curv_v_actual=}, {cart_v_actual=}, {v_ref=}')
+                #     logger.debug(f'{name} {progress_err=:.2f} {old_target_v=:.2f}, {dv=:.2f}')
 
         else:  # No planner available
             retval = track.local_trajectory(lookahead_point)
@@ -277,7 +284,7 @@ class StanleyController(Controller):
                                lateral_err=offset,
                                raceline_dir=phi,
                                curvature=None,
-                               v_target=cart_traj[3, i]*0.5,  # FIXME
+                               v_target=cart_traj[3, i],
                                progress=None,
                                left_margin=None,
                                right_margin=None)

@@ -2,6 +2,7 @@
 # pylint: disable=unbalanced-tuple-unpacking
 from dataclasses import dataclass
 from math import sin, cos
+import logging
 
 import numpy as np
 from deprecated import deprecated
@@ -12,6 +13,9 @@ from scipy.spatial import KDTree
 from buzzracer.common import wrap
 from buzzracer.types import CurvilinearState, CartesianState
 from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def fmap(val, x, y, a, b):
@@ -203,11 +207,14 @@ class CurvilinearTrack(Track):
         start_dir = phi_vec[0]
         spd_profile = Track.generate_speed_profile(raceline_s,
                                                    raceline_len_m,
-                                                   mu=0.8,
-                                                   acc_max_fun=lambda x: 5.0,
-                                                   dec_max_fun=lambda x: 3.3)
+                                                   mu=0.05,  # 0.8
+                                                   acc_max_fun=lambda v: 2.0*(0.8-v)/0.8,  # 5.0
+                                                   dec_max_fun=lambda v: 2.0)  # 3.3
 
         speed_vec = np.array(splev(ss, spd_profile.speed_tck, der=0)).flatten()
+        min_speed = np.min(speed_vec)
+        max_speed = np.max(speed_vec)
+        logger.info(f'{min_speed=}, {max_speed=}')
 
         # KD tree for finding closest point on raceline
         kd_tree = KDTree(r_vec.T)

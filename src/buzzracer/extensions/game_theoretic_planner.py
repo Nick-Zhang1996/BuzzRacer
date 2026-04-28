@@ -149,6 +149,7 @@ class PlannerSolveCandidate:
     u_ref: np.ndarray
     x0: np.ndarray
     target_x_ref: np.ndarray
+    debug_dict: dict
 
 
 @dataclass(frozen=True)
@@ -258,6 +259,8 @@ class GameTheoreticPlanner(Extension):
             [car.controller.config.max_speed for car in self.state.cars[:self.config.car_count]],
             dtype=float,
         )
+        # DEBUG
+        # self.state.solver = GameTheoreticPlanner.make_solver(self.config, self.main.track)
         if self.config.multiprocess:
             p = mp.Process(target=GameTheoreticPlanner.process_fun,
                            args=(self.state, self.main.state,
@@ -542,7 +545,7 @@ class GameTheoreticPlanner(Extension):
             if t is not None:
                 t.e()
             return
-        new_curv_traj, sol, side_summary = retval
+        new_curv_traj, sol, side_summary, debug_dict = retval
         reject = False
         msg = 'Accepted'
         if sol.residual > config.residual_threshold:
@@ -579,13 +582,30 @@ class GameTheoreticPlanner(Extension):
         for i in range(N):
             next_plan_idx = next_plan_idx_car[i]
             stitch_start_idx = stitch_start_idx_car[i]
-            stitched_curv[:, i, :stitch_len] = state.curv_traj[:, i, stitch_start_idx:next_plan_idx]
-            stitched_cart[:, i, :stitch_len] = state.cart_traj[:, i, stitch_start_idx:next_plan_idx]
-            stitched_curv[:, i, stitch_len:stitch_len+T] = new_curv_traj[:, i, :]
-            stitched_cart[:, i, stitch_len:stitch_len+T] = new_cart_traj[:, i, :]
+            if stitch_len > 0:
+                stitched_curv[:, i, :stitch_len+1] = state.curv_traj[:,
+                                                                     i, stitch_start_idx:next_plan_idx+1]
+                stitched_cart[:, i, :stitch_len+1] = state.cart_traj[:,
+                                                                     i, stitch_start_idx:next_plan_idx+1]
+                stitched_curv[:, i, stitch_len+1:stitch_len+T] = new_curv_traj[:, i, :T-1]
+                stitched_cart[:, i, stitch_len+1:stitch_len+T] = new_cart_traj[:, i, :T-1]
+            else:
+                stitched_curv[:, i, stitch_len:stitch_len+T] = new_curv_traj[:, i, :]
+                stitched_cart[:, i, stitch_len:stitch_len+T] = new_cart_traj[:, i, :]
 
         state.curv_traj = stitched_curv
         state.cart_traj = stitched_cart
+
+        # DEBUG: Check speed against finite difference on s (s, v, n)
+        # state: (s, n, heading_err, vf, vs)
+        """
+        dsdt = np.diff(stitched_curv[0, 0, :])/config.dt
+        v = stitched_curv[3, 0, :]
+        gc = state.solver.game.config
+        context = np.asarray(debug_dict.get("full_context")).reshape(gc.n_c, gc.N, gc.T)
+        curvature = context[0, 0, :]
+        print(f'{dsdt=}, {v=}, {curvature=}')
+        """
 
         # Clip traj when created trajectory is too long
         traj_len = state.cart_traj.shape[2]
@@ -644,7 +664,12 @@ class GameTheoreticPlanner(Extension):
 
         worker_name, candidate = best
         # GameTheoreticPlanner.maybe_save_solver_inputs(candidate, config, main_state)
-        return candidate.curv_trajs, candidate.sol, f'{worker_name}:{candidate.side_summary}'
+        return (
+            candidate.curv_trajs,
+            candidate.sol,
+            f'{worker_name}:{candidate.side_summary}',
+            candidate.debug_dict,
+        )
 
     @staticmethod
     def solve_candidate_request(request: PlannerSolveRequest,
@@ -867,6 +892,14 @@ class GameTheoreticPlanner(Extension):
         else:
             rollout = solver.cpp_solver.rollout(x0, u, *params_np)
         curv_trajs = rollout.reshape((gc.n, gc.N, gc.T), order='F')
+        debug_dict = {}
+        if hasattr(solver.cpp_solver, 'get_full_context'):
+            debug_dict['full_context'] = np.array(
+                solver.cpp_solver.get_full_context(rollout),
+                dtype=float,
+                order='F',
+                copy=True,
+            )
         return PlannerSolveCandidate(
             curv_trajs=curv_trajs,
             sol=sol,
@@ -874,6 +907,7 @@ class GameTheoreticPlanner(Extension):
             u_ref=u_ref.copy(order='F'),
             x0=x0.copy(order='F'),
             target_x_ref=x_ref.copy(order='F'),
+            debug_dict=debug_dict,
         )
 
     @staticmethod
