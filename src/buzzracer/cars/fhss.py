@@ -40,7 +40,7 @@ class FHSS(Car):
             serial_port = '/dev/ttyUSB0'
             try:
                 FHSS.serial_port = serial.Serial(
-                    serial_port, 115200, timeout=0.001, writeTimeout=0)
+                    serial_port, 2000000, timeout=0.001, writeTimeout=0)
             except (FileNotFoundError, serial.serialutil.SerialException):
                 logger.error('Interface %s not found', (serial_port))
                 raise
@@ -51,7 +51,8 @@ class FHSS(Car):
 
     def actuate(self):
         # Car.actuate(self)
-        steering_pwm = int(self.mapdata(self.steering,
+        steering = (self.steering + self.param.steer_offset) * self.param.steer_ratio
+        steering_pwm = int(self.mapdata(steering,
                                         self.param.max_steer_left,
                                         -self.param.max_steer_right,
                                         self.param.max_steer_pwm_left,
