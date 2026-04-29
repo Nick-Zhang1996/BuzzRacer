@@ -21,6 +21,7 @@
 import socket
 import struct
 from threading import Thread, Event
+from time import perf_counter
 
 from buzzracer.common import *
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -65,6 +66,7 @@ class NatNetClient:
 
         # NatNet stream version. This will be updated to the actual version the server is using during initialization.
         self.__natNetStreamVersion = (3, 0, 0, 0)
+        self.packet_wall_ts = 0.0
 
     # Client/server message ids
     NAT_PING = 0
@@ -487,11 +489,11 @@ class NatNetClient:
             try:
                 data, addr = sock.recvfrom(32768)  # 32k byte buffer size
                 if (len(data) > 0):
-                    self.__processMessage(data)
+                    self.__processMessage(data, perf_counter())
             except socket.timeout:
                 continue
 
-    def __processMessage(self, data):
+    def __processMessage(self, data, packet_wall_ts=None):
         trace('Begin Packet\n------------\n')
 
         messageID = int.from_bytes(data[0:2], byteorder='little')
@@ -502,6 +504,8 @@ class NatNetClient:
 
         offset = 4
         if (messageID == self.NAT_FRAMEOFDATA):
+            if packet_wall_ts is not None:
+                self.packet_wall_ts = packet_wall_ts
             self.__unpackMocapData(data[offset:])
         elif (messageID == self.NAT_MODELDEF):
             self.__unpackDataDescriptions(data[offset:])

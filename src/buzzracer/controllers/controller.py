@@ -2,11 +2,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
-from time import process_time
+from time import process_time, perf_counter
 
 from buzzracer.common import LogObject, set_config_attr, LoggingFilter
 from buzzracer.utilities.execution_timer import ExecutionTimer
-from buzzracer.types import CartesianState, Control
+from buzzracer.types import CartesianState, Control, ControlTiming
 if TYPE_CHECKING:
     from buzzracer.main import MainState, MainConfig
     from buzzracer.cars.car_param import CarParam
@@ -155,9 +155,18 @@ class Controller(LogObject):
                 main_state.car_states_event[car_index].clear()
 
                 timer.s('control')
+                while True:
+                    state_timing = main_state.car_state_timing[car_index]
+                    controller_read_ts = perf_counter()
+                    car_state = main_state.car_states[car_index]
+                    state_timing_check = main_state.car_state_timing[car_index]
+                    if state_timing.seq == state_timing_check.seq:
+                        state_timing = state_timing_check
+                        break
                 control, valid, state, msg = controller_cls.control(
-                    main_state.car_states[car_index], car_params, track,
+                    car_state, car_params, track,
                     controller_config, controller_state, main_state, car_index, planner_state)
+                controller_done_ts = perf_counter()
                 timer.e('control')
 
                 if not valid:
@@ -166,6 +175,12 @@ class Controller(LogObject):
 
                 timer.s('publish control')
                 main_state.car_control[car_index] = control
+                main_state.car_control_timing[car_index] = ControlTiming(
+                    state_timing.seq,
+                    state_timing.udp_rx_ts,
+                    state_timing.car_state_ts,
+                    controller_read_ts,
+                    controller_done_ts)
                 main_state.car_control_event[car_index].set()
                 timer.e('publish control')
                 timer.e()

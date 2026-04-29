@@ -3,7 +3,7 @@
 # pylint: disable=redefined-outer-name
 from math import pi, degrees, atan2, sin, cos
 from threading import Event, Lock
-from time import sleep
+from time import sleep, perf_counter
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -36,7 +36,7 @@ class Optitrack(Extension):
                 f'Optitrack ID: {car.param.optitrack_id},'
                 f'Internal ID: {car.internal_id}')
 
-    def update_car_states(self):
+    def update_car_states(self, udp_rx_ts=0.0):
         """Copy internal Optitrack state into each car's public state."""
         for car in self.main.cars:
             # update for eachj car
@@ -51,6 +51,9 @@ class Optitrack(Extension):
             y += car.param.lr * sin(theta)
             car.state = CartesianState(
                 x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
+            car._latency_state_seq += 1
+            car._latency_udp_rx_ts = udp_rx_ts
+            car._latency_state_set_ts = perf_counter()
         self.main.new_state_update.set()
 
     def final(self):
@@ -232,7 +235,7 @@ class _Optitrack(PrintObject):
         self.state_lock.release()
         # Update when all objects' states are received, synced at the last obj
         if internal_id == self.obj_count - 1 and self.base is not None:
-            self.base.update_car_states()
+            self.base.update_car_states(self.streaming_client.packet_wall_ts)
         # print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         # print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
         # print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))

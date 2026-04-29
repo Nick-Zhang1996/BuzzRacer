@@ -40,6 +40,13 @@ class Car(PrintObject, LogObject):
         self.min_throttle = -1.0
         self.debug_dict = {}
 
+        # Wall-clock timing metadata for tracing state-to-command latency.
+        self._latency_state_seq = 0
+        self._latency_udp_rx_ts = 0.0
+        self._latency_state_set_ts = 0.0
+        self._pending_control_latency = None
+        self._last_latency_sent_seq = 0
+
     @staticmethod
     def register(cls):
         """Decorator to add a car class to the registry."""

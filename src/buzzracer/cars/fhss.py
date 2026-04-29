@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import logging
 import struct
 from threading import Thread
-from time import sleep
+from time import sleep, perf_counter
 
 import serial
 
@@ -81,11 +81,55 @@ class FHSS(Car):
             frame.append(crc)
 
             count = FHSS.serial_port.write(frame)
+            if count == 27:
+                cls.record_command_latency(perf_counter())
             return count == 27
 
         except serial.SerialException as e:
             print(f"Serial write error: {e}")
             return False
+
+    @classmethod
+    def record_command_latency(cls, serial_send_ts):
+        """Record wall-clock latency for commands that reached the serial link."""
+        timer = getattr(Car.main, 'latency_timer', None)
+        if timer is None or not timer.enabled:
+            return
+
+        for car in cls.cars:
+            timing = car._pending_control_latency
+            if timing is None or timing['seq'] <= car._last_latency_sent_seq:
+                continue
+            if timing['seq'] == 0 or timing['udp_rx_ts'] <= 0.0:
+                continue
+
+            seq = timing['seq']
+            car_name = car.param.name
+            timer.track_duration(f'{car_name} rx->state ms',
+                                 timing['udp_rx_ts'],
+                                 timing['car_state_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} state->ctrl ms',
+                                 timing['car_state_ts'],
+                                 timing['controller_read_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} ctrl->steer ms',
+                                 timing['controller_read_ts'],
+                                 timing['steering_set_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} steer->serial ms',
+                                 timing['steering_set_ts'],
+                                 serial_send_ts,
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} ctrl compute ms',
+                                 timing['controller_read_ts'],
+                                 timing['controller_done_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} total rx->serial ms',
+                                 timing['udp_rx_ts'],
+                                 serial_send_ts,
+                                 scale=1e3)
+            car._last_latency_sent_seq = seq
 
     def mapdata(self, x, a, b, c, d):
         y = (x-a)/(b-a)*(d-c)+c

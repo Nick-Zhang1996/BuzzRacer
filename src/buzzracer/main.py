@@ -7,7 +7,7 @@ import multiprocessing as mp
 import ctypes
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, get_logger
-from buzzracer.types import Control, CartesianState
+from buzzracer.types import Control, CartesianState, StateTiming, ControlTiming
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.cars.car import Car
@@ -85,9 +85,11 @@ class MainState:
         self.car_states_event = [mp.Event() for _ in range(car_count)]
         self.car_states_first_available = mp.Event()
         """ Car specific event for new state available, set by main"""
+        self.car_state_timing = mp.Array(StateTiming, car_count, lock=False)
         self.car_control = mp.Array(Control, car_count, lock=False)
         self.car_control_event = [mp.Event() for _ in range(car_count)]
         """ Car specific event for new control available, set by controller"""
+        self.car_control_timing = mp.Array(ControlTiming, car_count, lock=False)
         self.car_target_v = mp.Array('d', car_count, lock=False)
         self._time = mp.Value(ctypes.c_double, 0.0)
         """ Shared timestamp for the latest published state snapshot. """
@@ -139,6 +141,8 @@ class Main(PrintObject, LogObject):
 
         self.timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
         ''' Timer for profiling code '''
+        self.latency_timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
+        """Timer for inter-process state-to-command latency in milliseconds."""
         self.new_state_update = self.state.new_state_update
         ''' Event is set when a new state from simulator or Vicon is ready'''
         self.exit_request = self.state.exit_request
@@ -200,6 +204,9 @@ class Main(PrintObject, LogObject):
         Extension.pre_final_all()
         Extension.final_all()
         Extension.post_final_all()
+        if len(self.latency_timer.tracked) > 0:
+            logger.info('State-to-command latency summary [ms]')
+            self.latency_timer.summary()
 
     @property
     def time(self):
@@ -232,6 +239,10 @@ class Main(PrintObject, LogObject):
         if self.config.multiprocess:
             for i, car in enumerate(self.cars):
                 self.state.car_states[i] = car.state
+                self.state.car_state_timing[i] = StateTiming(
+                    car._latency_state_seq,
+                    car._latency_udp_rx_ts,
+                    car._latency_state_set_ts)
             self.state.publish_time(
                 self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
                 else None)
@@ -254,9 +265,19 @@ class Main(PrintObject, LogObject):
                 # Wait for controller process to complete
                 self.state.car_control_event[i].wait(0.1)
                 self.state.car_control_event[i].clear()
+                control_timing = self.state.car_control_timing[i]
                 car.steering = self.state.car_control[i].steering
+                steering_set_ts = perf_counter()
                 car.throttle = 0.0 if self.state.slowdown.is_set(
                 ) else self.state.car_control[i].throttle
+                car._pending_control_latency = {
+                    'seq': control_timing.seq,
+                    'udp_rx_ts': control_timing.udp_rx_ts,
+                    'car_state_ts': control_timing.car_state_ts,
+                    'controller_read_ts': control_timing.controller_read_ts,
+                    'controller_done_ts': control_timing.controller_done_ts,
+                    'steering_set_ts': steering_set_ts,
+                }
             else:
                 # Call controller one by one
                 result = car.controller.control(

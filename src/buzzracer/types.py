@@ -40,6 +40,28 @@ class Control(ctypes.Structure):
         return f"Control(steering={self.steering:.3f}, throttle={self.throttle:.3f})"
 
 
+class StateTiming(ctypes.Structure):
+    """Timing metadata associated with a published state sample."""
+
+    _fields_ = [
+        ('seq', ctypes.c_ulonglong),
+        ('udp_rx_ts', ctypes.c_double),
+        ('car_state_ts', ctypes.c_double)
+    ]
+
+
+class ControlTiming(ctypes.Structure):
+    """Timing metadata associated with a published control sample."""
+
+    _fields_ = [
+        ('seq', ctypes.c_ulonglong),
+        ('udp_rx_ts', ctypes.c_double),
+        ('car_state_ts', ctypes.c_double),
+        ('controller_read_ts', ctypes.c_double),
+        ('controller_done_ts', ctypes.c_double)
+    ]
+
+
 class CartesianState(ctypes.Structure):
     x: float
     ''' X coordinate in global frame, unit: m'''

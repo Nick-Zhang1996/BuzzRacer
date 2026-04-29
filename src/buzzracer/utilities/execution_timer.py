@@ -109,6 +109,16 @@ class ExecutionTimer:
         self.tracked_count[name] += 1
         self.tracked[name] = self.tracked[name] / self.tracked_count[name]
 
+    def track_duration(self, name, start_ts, end_ts=None, scale=1.0):
+        """Track an externally measured duration, optionally applying a scale."""
+        if not self.enabled or start_ts is None:
+            return
+        if end_ts is None:
+            end_ts = self.time()
+        if end_ts < start_ts:
+            return
+        self.track(name, (end_ts - start_ts) * scale)
+
     def s(self, n=None):
         return self.start(n)
 
@@ -127,7 +137,7 @@ class ExecutionTimer:
         """
         if not self.enabled:
             return
-        if len(self.child_sections) == 0 and prefix == '':
+        if len(self.child_sections) == 0 and len(self.tracked) == 0 and prefix == '':
             logger.info('No timed block defined')
             return
 
@@ -140,7 +150,7 @@ class ExecutionTimer:
             for key, value in self.tracked.items():
                 logger.info(f'{key:<{fw}}{value:>5.2f}')
 
-        if prefix == '':
+        if prefix == '' and len(self.child_sections) > 0:
             text = f'Time ({self.clock_name})'
             logger.info(f'{text:-^{fw}}')
         total_accounted_time = 0.0
@@ -155,7 +165,7 @@ class ExecutionTimer:
             logger.info(
                 f'{prefix+"Unaccounted":<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
 
-        if prefix == '':
+        if prefix == '' and (len(self.child_sections) > 0 or self.total_duration > 0):
             if self.total_duration > 0:
                 logger.info(
                     f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
