@@ -1,9 +1,12 @@
+""" Parameter settings for specific car chassis"""
+# pylint: disable=invalid-name
 from math import radians
 from enum import Enum
 from typing import NamedTuple
 
 
 class CarParam(NamedTuple):
+    """ Parameters for a specific chassis, including necessary tuning params"""
     name: str = ''
     # Physical properties
     # default values are for the MR03 chassis with Porsche 911 GT3 RS body
@@ -15,6 +18,8 @@ class CarParam(NamedTuple):
     ''' CG to rear axle'''
     width: float = 0.0461
     ''' Track width '''
+    lookahead: float = 3e-2
+    """ Lookahead for stanley """
 
     # Iz = 417757e-9
     m: float = 0.1667
@@ -68,7 +73,6 @@ class CarParam(NamedTuple):
 
 
 class CarConfig(Enum):
-    # TODO render audi
     audi_11 = CarParam(
         name='audi_11',
         m=172e-3,
@@ -132,6 +136,10 @@ class CarConfig(Enum):
         wheelbase=98e-3,
         lr=47e-3,
         lf=98e-3-47e-3,
+        max_throttle=0.5,
+        steer_offset=0.0,
+        steer_ratio=1.2,
+        lookahead=51e-3,
         max_steer_right=radians(29.77),
         max_steer_left=radians(23.21),
         optitrack_id=17,

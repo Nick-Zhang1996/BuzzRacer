@@ -8,7 +8,7 @@
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
-      <extension handle='logger'>Logger</extension>
+      <!--<extension handle='logger'>Logger</extension>-->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization'>VisualizationGL</extension>
       <extension handle='vi'>Optitrack</extension>
@@ -18,8 +18,8 @@
     <car>
       <name>MyCar</name>
       <hardware>FHSS</hardware>
-      <config_name>mclaren_22</config_name>
-      <controller max_speed='1.0'>
+      <config_name>corvette_17</config_name>
+      <controller max_speed='0.8'>
         <type>StanleyController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>

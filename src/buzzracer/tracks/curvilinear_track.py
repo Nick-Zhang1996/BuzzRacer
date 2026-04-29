@@ -205,11 +205,16 @@ class CurvilinearTrack(Track):
             [r_vec, phi_vec, left_width, right_width]).T
         start_pos = tuple(r_vec[:, 0])
         start_dir = phi_vec[0]
+        # spd_profile = Track.generate_speed_profile(raceline_s,
+        #                                            raceline_len_m,
+        #                                            mu=0.05,  # 0.8
+        #                                            acc_max_fun=lambda v: 2.0*(0.8-v)/0.8,  # 5.0
+        #                                            dec_max_fun=lambda v: 2.0)  # 3.3
         spd_profile = Track.generate_speed_profile(raceline_s,
                                                    raceline_len_m,
-                                                   mu=0.05,  # 0.8
-                                                   acc_max_fun=lambda v: 2.0*(0.8-v)/0.8,  # 5.0
-                                                   dec_max_fun=lambda v: 2.0)  # 3.3
+                                                   mu=0.8,
+                                                   acc_max_fun=lambda v: 5.0,
+                                                   dec_max_fun=lambda v: 3.3)
 
         speed_vec = np.array(splev(ss, spd_profile.speed_tck, der=0)).flatten()
         min_speed = np.min(speed_vec)

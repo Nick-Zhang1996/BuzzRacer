@@ -32,15 +32,17 @@ class StanleyControllerConfig(ControllerConfig):
         self.rear_end_gap = 0.2
         self.trajectory_progress_gain = 4.0
         self.trajectory_progress_max_correction = 1.0
+        self.yaw_damping = 0.0
+        self.yaw_rate_lpf_cutoff_freq = 10.0
 
-        p1 = (1.0, 2.0)
-        p2 = (4.0, 0.5)
+        # General parameter
+        # p1 = (1.0, 2.0)
+        # p2 = (4.0, 0.5)
+        # corvette 17
+        p1 = (1.0, 1.0)
+        p2 = (4.0, 0.375)
         self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
         self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
-        # p1 = (1.0, 4.0)
-        # p2 = (4.0, 1.0)
-        # self.Pfun_slope = (p2[1] - p1[1]) / (p2[0] - p1[0])
-        # self.Pfun_offset = p1[1] - p1[0] * self.Pfun_slope
 
         self.dt = main_config.dt
 
@@ -66,6 +68,10 @@ class StanleyControllerState(ControllerState):
         self.debug_dict = {}
         self.predicted_traj = []
         self.trajectory_target_index = None
+        cutoff_freq = config.yaw_rate_lpf_cutoff_freq
+        self.yaw_rate_lpf_alpha = (2 * pi * config.dt * cutoff_freq) / (
+            2 * pi * config.dt * cutoff_freq + 1.0)
+        self.filtered_omega = None
 
 
 @Controller.register(StanleyControllerConfig, StanleyControllerState)
@@ -103,7 +109,7 @@ class StanleyController(Controller):
         heading = car_state.heading
 
         # add in a slight lookahead distance
-        lookahead = 3e-2 + car_params.lf
+        lookahead = car_params.lookahead
 
         ctrl = Control(steering=0, throttle=0)
 
@@ -192,8 +198,16 @@ class StanleyController(Controller):
         # control logic
         # steering = (orientation-heading) - (offset * self.car.P)
         # - (omega-curvature*vf)*self.car.D
-        steering = (orientation - heading) - (
-            offset * controller_config.Pfun(abs(car_state.v_forward)))
+        filtered_omega = controller_state.filtered_omega
+        if filtered_omega is None:
+            filtered_omega = car_state.omega
+        else:
+            alpha = controller_state.yaw_rate_lpf_alpha
+            filtered_omega = (1.0 - alpha) * filtered_omega + alpha * car_state.omega
+        controller_state.filtered_omega = filtered_omega
+        steering = (orientation - heading) \
+            - (offset * controller_config.Pfun(abs(car_state.v_forward))) \
+            - (filtered_omega - retval.curvature*car_state.v_forward) * controller_config.yaw_damping
         # print("D/P = "+str(abs((omega-curvature*vf)*D/(offset*P))))
         # handle edge case, unwrap ( -355 deg turn -> +5 turn)
         steering = (steering + pi) % (2 * pi) - pi
