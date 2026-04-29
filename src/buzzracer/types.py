@@ -46,6 +46,7 @@ class StateTiming(ctypes.Structure):
     _fields_ = [
         ('seq', ctypes.c_ulonglong),
         ('udp_rx_ts', ctypes.c_double),
+        ('rigid_body_ts', ctypes.c_double),
         ('car_state_ts', ctypes.c_double)
     ]
 
@@ -56,6 +57,7 @@ class ControlTiming(ctypes.Structure):
     _fields_ = [
         ('seq', ctypes.c_ulonglong),
         ('udp_rx_ts', ctypes.c_double),
+        ('rigid_body_ts', ctypes.c_double),
         ('car_state_ts', ctypes.c_double),
         ('controller_read_ts', ctypes.c_double),
         ('controller_done_ts', ctypes.c_double)

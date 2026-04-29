@@ -536,6 +536,9 @@ class NatNetClient:
             trace('ERROR: Unrecognized packet type')
 
         trace('End Packet\n----------\n')
+        # DEBUG
+        dt = perf_counter() - packet_wall_ts
+        print(f'__processMessage {dt=}')
 
     def send_command(self, command, commandStr, socket, address):
         # Compose the message in our known message format

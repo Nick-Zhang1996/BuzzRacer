@@ -237,18 +237,20 @@ class Main(PrintObject, LogObject):
         self.new_state_update.wait()
         self.new_state_update.clear()
         if self.config.multiprocess:
-            for i, car in enumerate(self.cars):
-                self.state.car_states[i] = car.state
-                self.state.car_state_timing[i] = StateTiming(
-                    car._latency_state_seq,
-                    car._latency_udp_rx_ts,
-                    car._latency_state_set_ts)
-            self.state.publish_time(
-                self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
-                else None)
-            for i, _ in enumerate(self.cars):
-                self.state.car_states_event[i].set()
-                # logger.info(f'{i=}, {self.state.car_states[i]=}')
+            if not getattr(self, 'shared_state_published_immediately', False):
+                for i, car in enumerate(self.cars):
+                    self.state.car_states[i] = car.state
+                    self.state.car_state_timing[i] = StateTiming(
+                        car._latency_state_seq,
+                        car._latency_udp_rx_ts,
+                        car._latency_rigid_body_ts,
+                        car._latency_state_set_ts)
+                self.state.publish_time(
+                    self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
+                    else None)
+                for i, _ in enumerate(self.cars):
+                    self.state.car_states_event[i].set()
+                    # logger.info(f'{i=}, {self.state.car_states[i]=}')
         else:
             self.state.publish_time(
                 self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
@@ -273,6 +275,7 @@ class Main(PrintObject, LogObject):
                 car._pending_control_latency = {
                     'seq': control_timing.seq,
                     'udp_rx_ts': control_timing.udp_rx_ts,
+                    'rigid_body_ts': control_timing.rigid_body_ts,
                     'car_state_ts': control_timing.car_state_ts,
                     'controller_read_ts': control_timing.controller_read_ts,
                     'controller_done_ts': control_timing.controller_done_ts,

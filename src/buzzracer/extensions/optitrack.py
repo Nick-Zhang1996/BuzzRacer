@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation
 from buzzracer.common import ExperimentType, PrintObject
 from buzzracer.utilities.kalman_filter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, StateTiming
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 
 
@@ -30,11 +30,47 @@ class Optitrack(Extension):
     def init(self):
         """Create the Optitrack client and map configured cars to rigid bodies."""
         self.vi = _Optitrack(self)
+        self.main.shared_state_published_immediately = True
+        self.car_by_internal_id = {}
         for car in self.main.cars:
             car.internal_id = self.vi.get_internal_id(car.param.optitrack_id)
+            self.car_by_internal_id[car.internal_id] = car
             self.print_ok(
                 f'Optitrack ID: {car.param.optitrack_id},'
                 f'Internal ID: {car.internal_id}')
+
+    def publish_shared_state(self, internal_id, udp_rx_ts=0.0, rigid_body_ts=0.0):
+        """Publish one car state into shared memory as soon as OptiTrack updates it."""
+        if not self.main.config.multiprocess:
+            return
+
+        car = self.car_by_internal_id.get(internal_id)
+        if car is None:
+            return
+
+        self.vi.state_lock.acquire(timeout=0.01)
+        try:
+            x, y, v, theta, omega = self.vi.kf_state_list[internal_id]
+        finally:
+            self.vi.state_lock.release()
+
+        x += car.param.lr * cos(theta)
+        y += car.param.lr * sin(theta)
+        state = CartesianState(
+            x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
+        seq = car._latency_state_seq + 1
+
+        self.main.state.car_states[car.id] = state
+        self.main.state.publish_time(None)
+        state_set_ts = perf_counter()
+        self.main.state.car_state_timing[car.id] = StateTiming(
+            seq, udp_rx_ts, rigid_body_ts, state_set_ts)
+        self.main.state.car_states_event[car.id].set()
+        self.main.state.car_states_first_available.set()
+        car._latency_state_seq = seq
+        car._latency_udp_rx_ts = udp_rx_ts
+        car._latency_rigid_body_ts = rigid_body_ts
+        car._latency_state_set_ts = state_set_ts
 
     def update_car_states(self, udp_rx_ts=0.0):
         """Copy internal Optitrack state into each car's public state."""
@@ -53,6 +89,7 @@ class Optitrack(Extension):
                 x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
             car._latency_state_seq += 1
             car._latency_udp_rx_ts = udp_rx_ts
+            car._latency_rigid_body_ts = udp_rx_ts
             car._latency_state_set_ts = perf_counter()
         self.main.new_state_update.set()
 
@@ -204,6 +241,7 @@ class _Optitrack(PrintObject):
     def receive_rigid_body_frame(self, optitrack_id, position, rotation):
         """Update the cached state for a tracked rigid body."""
         # print( "Received frame for rigid body", id )
+        rigid_body_ts = perf_counter()
         internal_id = self.get_internal_id(optitrack_id)
         x, y, z = position
         qx, qy, qz, qw = rotation
@@ -212,7 +250,7 @@ class _Optitrack(PrintObject):
 
         # get body pose in track frame
         # x,y,z in track frame
-        x_local, y_local, _ = self.rotation_world_to_track.apply([x, y, z])
+        x_local, y_local, _ = self.rotation_world_to_track.apply([x, y, z])  # 0.02ms
         # x in car frame is forward direction, get that in world frame
         heading_world = rotation_quat.apply([1, 0, 0])
         # now convert that to track frame
@@ -233,6 +271,11 @@ class _Optitrack(PrintObject):
             # kf.get_state() := (x,y,v,theta,omega)
             self.kf_state_list[internal_id] = self.kf[internal_id].get_state()
         self.state_lock.release()
+        if self.base is not None:
+            self.base.publish_shared_state(
+                internal_id,
+                self.streaming_client.packet_wall_ts,
+                rigid_body_ts)
         # Update when all objects' states are received, synced at the last obj
         if internal_id == self.obj_count - 1 and self.base is not None:
             self.base.update_car_states(self.streaming_client.packet_wall_ts)
@@ -243,6 +286,9 @@ class _Optitrack(PrintObject):
         # print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         # print("\n")
         self.callback(optitrack_id, position, rotation)
+        # DEBUG
+        dt = perf_counter() - rigid_body_ts
+        print(f'receive_rigid_body_frame {dt=}')
         return
 
     # get state by internal id

@@ -105,6 +105,14 @@ class FHSS(Car):
 
             seq = timing['seq']
             car_name = car.param.name
+            timer.track_duration(f'{car_name} rx->rb cb ms',
+                                 timing['udp_rx_ts'],
+                                 timing['rigid_body_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} rb cb->state ms',
+                                 timing['rigid_body_ts'],
+                                 timing['car_state_ts'],
+                                 scale=1e3)
             timer.track_duration(f'{car_name} rx->state ms',
                                  timing['udp_rx_ts'],
                                  timing['car_state_ts'],

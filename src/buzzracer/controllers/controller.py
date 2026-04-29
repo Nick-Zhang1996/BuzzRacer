@@ -178,6 +178,7 @@ class Controller(LogObject):
                 main_state.car_control_timing[car_index] = ControlTiming(
                     state_timing.seq,
                     state_timing.udp_rx_ts,
+                    state_timing.rigid_body_ts,
                     state_timing.car_state_ts,
                     controller_read_ts,
                     controller_done_ts)
