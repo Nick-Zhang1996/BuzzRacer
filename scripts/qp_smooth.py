@@ -6,6 +6,7 @@ from math import pi, radians, tan
 import os.path
 import argparse
 from time import time
+from dataclasses import replace
 from deprecated import deprecated
 import logging
 
@@ -15,6 +16,7 @@ import cvxopt
 from scipy.interpolate import splev, splprep, interp1d
 from PIL import Image
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button
 
 from buzzracer.common import print_ok, print_info, print_error, BASEDIR
 from buzzracer.tracks.rcp_track import RCPTrackRaceline, RCPTrack
@@ -746,27 +748,238 @@ class QpSmooth:
                                 start_dir=raceline.start_dir)
 
 
+def _apply_safety_margin(left, right, safety_margin):
+    left = np.clip(left - safety_margin, 0.0, None)
+    right = np.clip(right - safety_margin, 0.0, None)
+    return left, right
+
+
+def _rebuild_boundary_only(track: RCPTrack, safety_margin: float):
+    data = track.data
+    bdry = track.create_boundary(data.r_vec, data.phi_vec)
+    left = bdry[:, 0]
+    right = bdry[:, 1]
+
+    for i in range(left.shape[0] - 1):
+        if np.abs(left[i] - left[i + 1]) > 0.5:
+            left[i + 1] = left[i]
+        if np.abs(right[i] - right[i + 1]) > 0.5:
+            right[i + 1] = right[i]
+
+    left, right = _apply_safety_margin(left, right, safety_margin)
+    _update_track_boundary_widths(track, left, right)
+
+
+def _update_track_boundary_widths(track: RCPTrack, left: np.ndarray, right: np.ndarray):
+    data = track.data
+    lateral = np.column_stack([np.cos(data.phi_vec + np.pi / 2),
+                               np.sin(data.phi_vec + np.pi / 2)])
+    left_boundary_vec = data.r_vec + lateral * left[:, np.newaxis]
+    right_boundary_vec = data.r_vec - lateral * right[:, np.newaxis]
+    discretized_raceline = data.discretized_raceline.copy()
+    discretized_raceline[:, 3] = left
+    discretized_raceline[:, 4] = right
+
+    track.data = replace(data,
+                         left_width_vec=left,
+                         right_width_vec=right,
+                         discretized_raceline=discretized_raceline,
+                         left_boundary_vec=left_boundary_vec,
+                         right_boundary_vec=right_boundary_vec)
+
+
+def _render_loaded_track_image(track: RCPTrack, selected_idx: int | None = None):
+    img = track.draw_track()
+    rl = track.rcp_raceline
+    img = track.draw_raceline(rl.raceline_s, rl.raceline_len_m, img=img)
+    data = track.data
+    img = track.draw_polyline(data.left_boundary_vec, img=img)
+    img = track.draw_polyline(data.right_boundary_vec, img=img)
+    if selected_idx is not None:
+        center = track.m2canvas(data.r_vec[selected_idx])
+        left_pt = track.m2canvas(data.left_boundary_vec[selected_idx])
+        right_pt = track.m2canvas(data.right_boundary_vec[selected_idx])
+        img = cv2.line(img, left_pt, right_pt, (0, 255, 255), 4)
+        img = cv2.circle(img, left_pt, 6, (0, 140, 255), -1)
+        img = cv2.circle(img, right_pt, 6, (0, 140, 255), -1)
+        img = cv2.circle(img, center, 7, (0, 200, 0), -1)
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def _show_loaded_track(track: RCPTrack):
+    fig, ax = plt.subplots()
+    ax.imshow(_render_loaded_track_image(track))
+    ax.set_title('Loaded track verification')
+    ax.axis('off')
+    plt.show()
+
+
+def _launch_boundary_margin_editor(track: RCPTrack):
+    data = track.data
+    left = data.left_width_vec.copy()
+    right = data.right_width_vec.copy()
+    saved = {'left': left.copy(), 'right': right.copy()}
+    step_m = float(np.median(np.diff(data.s_vec)))
+    sigma_m = max(step_m * 6.0, 0.05)
+    radius_m = sigma_m * 3.0
+    width_max = float(max(np.max(left), np.max(right), track.config.scale) + 0.15)
+    state = {'selected_idx': 0, 'syncing': False, 'dirty': False, 'action': None}
+
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(bottom=0.32)
+    image_artist = ax.imshow(_render_loaded_track_image(track, selected_idx=0))
+    ax.axis('off')
+
+    save_ax = fig.add_axes([0.15, 0.24, 0.12, 0.045])
+    discard_ax = fig.add_axes([0.30, 0.24, 0.12, 0.045])
+    progress_ax = fig.add_axes([0.15, 0.16, 0.75, 0.03])
+    left_ax = fig.add_axes([0.15, 0.10, 0.75, 0.03])
+    right_ax = fig.add_axes([0.15, 0.04, 0.75, 0.03])
+
+    save_button = Button(save_ax, 'save')
+    discard_button = Button(discard_ax, 'discard')
+    progress_slider = Slider(progress_ax, 'progress [m]',
+                             0.0, float(data.raceline_len_m), valinit=0.0)
+    left_slider = Slider(left_ax, 'left [m]', 0.0, width_max, valinit=float(left[0]))
+    right_slider = Slider(right_ax, 'right [m]', 0.0, width_max, valinit=float(right[0]))
+
+    s_vec = data.s_vec.copy()
+    total_len = float(data.raceline_len_m)
+
+    def _update_title():
+        selected_progress = s_vec[state['selected_idx']]
+        status = 'unsaved' if state['dirty'] else 'saved'
+        ax.set_title(
+            f'Boundary margin editor [{status}]  progress={selected_progress:.3f} m'
+            f'  sigma={sigma_m:.3f} m')
+
+    def _sync_margin_sliders(idx: int):
+        state['syncing'] = True
+        left_slider.set_val(float(left[idx]))
+        right_slider.set_val(float(right[idx]))
+        state['syncing'] = False
+
+    def _redraw():
+        _update_title()
+        image_artist.set_data(_render_loaded_track_image(track, state['selected_idx']))
+        fig.canvas.draw_idle()
+
+    def _selected_idx_from_progress(progress_m: float):
+        wrapped_progress = progress_m % total_len
+        idx = int(np.argmin(np.abs(s_vec - wrapped_progress)))
+        return idx
+
+    def _gaussian_weights(center_idx: int):
+        dist = np.abs(s_vec - s_vec[center_idx])
+        dist = np.minimum(dist, total_len - dist)
+        weights = np.zeros_like(dist)
+        mask = dist <= radius_m
+        weights[mask] = np.exp(-0.5 * (dist[mask] / sigma_m) ** 2)
+        return weights
+
+    def _apply_delta(target: np.ndarray, center_idx: int, new_value: float):
+        delta = new_value - target[center_idx]
+        if np.isclose(delta, 0.0):
+            return target
+        updated = np.clip(target + delta * _gaussian_weights(center_idx), 0.0, None)
+        return updated
+
+    def _on_progress_change(progress_m):
+        idx = _selected_idx_from_progress(progress_m)
+        state['selected_idx'] = idx
+        _sync_margin_sliders(idx)
+        _redraw()
+
+    def _on_left_change(new_value):
+        if state['syncing']:
+            return
+        idx = state['selected_idx']
+        left[:] = _apply_delta(left, idx, float(new_value))
+        _update_track_boundary_widths(track, left, right)
+        state['dirty'] = True
+        _redraw()
+
+    def _on_right_change(new_value):
+        if state['syncing']:
+            return
+        idx = state['selected_idx']
+        right[:] = _apply_delta(right, idx, float(new_value))
+        _update_track_boundary_widths(track, left, right)
+        state['dirty'] = True
+        _redraw()
+
+    def _on_save(_event):
+        state['action'] = 'save'
+        state['dirty'] = False
+        plt.close(fig)
+
+    def _on_discard(_event):
+        left[:] = saved['left']
+        right[:] = saved['right']
+        _update_track_boundary_widths(track, left, right)
+        state['action'] = 'discard'
+        state['dirty'] = False
+        _sync_margin_sliders(state['selected_idx'])
+        plt.close(fig)
+
+    def _on_close(_event):
+        if state['action'] == 'save':
+            print_info('fine-tuned boundary margins accepted')
+            return
+        if state['action'] == 'discard':
+            print_info('boundary edits discarded')
+            return
+        if state['dirty']:
+            left[:] = saved['left']
+            right[:] = saved['right']
+            _update_track_boundary_widths(track, left, right)
+            print_info('closing editor without saving; unsaved boundary edits discarded')
+        state['action'] = 'discard'
+
+    progress_slider.on_changed(_on_progress_change)
+    left_slider.on_changed(_on_left_change)
+    right_slider.on_changed(_on_right_change)
+    save_button.on_clicked(_on_save)
+    discard_button.on_clicked(_on_discard)
+    fig.canvas.mpl_connect('close_event', _on_close)
+    _sync_margin_sliders(0)
+    _update_title()
+    plt.show()
+    return state['action'] == 'save'
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'track_name', nargs='?', choices=TrackFactory.available_track_names())
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         '--speed-only', action='store_true',
-        help='load the saved track and only rebuild track data')
+        help='load the saved track and rebuild the full track data')
+    mode_group.add_argument(
+        '--boundary-only', action='store_true',
+        help='load the saved track and edit only boundary-related track data')
     args = parser.parse_args()
 
-    if args.speed_only:
+    if args.speed_only or args.boundary_only:
         track = TrackFactory.build('saved')
     else:
         if args.track_name is None:
-            parser.error('track_name is required unless --speed-only is set')
+            parser.error('track_name is required unless --speed-only or --boundary-only is set')
         # optimize and save
         main = QpSmooth()
         track = TrackFactory.build(args.track_name)
         track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.15)
 
-    r_vec, left, right = track.process_rcp_raceline(track.rcp_raceline)
-    track.data = track.build_track(r_vec, left, right)
+    safety_margin = 0.08
+    if args.boundary_only:
+        pass
+    else:
+        r_vec, left, right = track.process_rcp_raceline(track.rcp_raceline)
+        left, right = _apply_safety_margin(left, right, safety_margin)
+        track.data = track.build_track(r_vec, left, right)
+
+    _launch_boundary_margin_editor(track)
     track.save()
 
     # verify results: load and show
@@ -774,12 +987,4 @@ if __name__ == '__main__':
     print('-----------------')
     print_info('testing loading')
     load_track.load()
-    img = load_track.draw_track()
-    rl = load_track.rcp_raceline
-    img = load_track.draw_raceline(rl.raceline_s, rl.raceline_len_m, img=img)
-    data = load_track.data
-    img = load_track.draw_polyline(data.left_boundary_vec, img=img)
-    img = load_track.draw_polyline(data.right_boundary_vec, img=img)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    plt.imshow(img)
-    plt.show()
+    _show_loaded_track(load_track)
