@@ -83,7 +83,7 @@ class VisualizationGL(Extension):
         self.moderngl_thread = Thread(
             target=self._moderngl_thread_function, daemon=True)
         self.moderngl_thread.start()
-        sleep(2)
+        sleep(1)
 
     def post_update(self):
         self.polylines = self.new_polylines

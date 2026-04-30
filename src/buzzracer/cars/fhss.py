@@ -114,10 +114,6 @@ class FHSS(Car):
                                  timing['rigid_body_ts'],
                                  timing['car_state_ts'],
                                  scale=1e3)
-            timer.track_duration(f'{car_name} rx->state ms',
-                                 timing['udp_rx_ts'],
-                                 timing['car_state_ts'],
-                                 scale=1e3)
             timer.track_duration(f'{car_name} state->ctrl ms',
                                  timing['car_state_ts'],
                                  timing['controller_read_ts'],

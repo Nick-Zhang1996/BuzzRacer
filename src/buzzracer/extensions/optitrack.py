@@ -13,6 +13,7 @@ from buzzracer.utilities.kalman_filter import KalmanFilter
 from buzzracer.third_party.NatNetClient import NatNetClient
 from buzzracer.types import CartesianState, StateTiming
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
+from buzzracer.utilities.execution_timer import ExecutionTimer
 
 
 @Extension.register('vi', ExtensionConfig, ExtensionState)
@@ -26,12 +27,13 @@ class Optitrack(Extension):
             self.print_error(
                 'Experiment type is not Realworld but Optitrack is loaded')
         self.vi = None
+        self.car_by_internal_id = {}
+        self.timer = ExecutionTimer(enable=True, clock=perf_counter, clock_name='optitrack')
 
     def init(self):
         """Create the Optitrack client and map configured cars to rigid bodies."""
         self.vi = _Optitrack(self)
         self.main.shared_state_published_immediately = True
-        self.car_by_internal_id = {}
         for car in self.main.cars:
             car.internal_id = self.vi.get_internal_id(car.param.optitrack_id)
             self.car_by_internal_id[car.internal_id] = car
@@ -96,6 +98,7 @@ class Optitrack(Extension):
     def final(self):
         """Stop the underlying Optitrack client."""
         self.vi.quit()
+        self.timer.summary()
 
 
 class _Optitrack(PrintObject):
@@ -241,10 +244,13 @@ class _Optitrack(PrintObject):
     def receive_rigid_body_frame(self, optitrack_id, position, rotation):
         """Update the cached state for a tracked rigid body."""
         # print( "Received frame for rigid body", id )
+        t = self.base.timer
+        t.s()
         rigid_body_ts = perf_counter()
         internal_id = self.get_internal_id(optitrack_id)
         x, y, z = position
         qx, qy, qz, qw = rotation
+        t.s('to_local')
         rotation_quat = Rotation.from_quat([qx, qy, qz, qw])
         rz, ry, rx = rotation_quat.as_euler('ZYX', degrees=False)
 
@@ -257,12 +263,16 @@ class _Optitrack(PrintObject):
         heading_track = self.rotation_world_to_track.apply(heading_world)
         # heading in 2d world is the Z component
         theta_local = atan2(heading_track[1], heading_track[0])
+        t.e('to_local')
 
+        t.s('kalman filter')
         if self.enable_kf_event.is_set():
             self.kf[internal_id].predict(self.action)
             observation = np.matrix([[x_local, y_local, theta_local]]).T
             self.kf[internal_id].update(observation)
+        t.e('kalman filter')
 
+        t.s('publish')
         self.state_lock.acquire(timeout=0.01)
         self.state_list[internal_id] = (x, y, z, rx, ry, rz)
         self.state_2d_list[internal_id] = (x_local, y_local, theta_local)
@@ -279,17 +289,20 @@ class _Optitrack(PrintObject):
         # Update when all objects' states are received, synced at the last obj
         if internal_id == self.obj_count - 1 and self.base is not None:
             self.base.update_car_states(self.streaming_client.packet_wall_ts)
+        t.e('publish')
         # print("Internal ID: %d \n Optitrack ID: %d"%(i,op_id))
         # print("World coordinate: %0.2f,%0.2f,%0.2f"%(x,y,z))
         # print("local state: %0.2f,%0.2f, heading= %0.2f"%(x_local,y_local,theta_local))
         # (kf_x,kf_y,kf_v,kf_theta,kf_omega) = self.get_k_fstate(i)
         # print("kf 2d state: %0.2f,%0.2f, heading= %0.2f"%(kf_x,kf_y,kf_theta))
         # print("\n")
+        t.s('callback')
         self.callback(optitrack_id, position, rotation)
+        t.e('callback')
+        t.e()
         # DEBUG
-        dt = perf_counter() - rigid_body_ts
-        print(f'receive_rigid_body_frame {dt=}')
-        return
+        # dt = perf_counter() - rigid_body_ts
+        # print(f'receive_rigid_body_frame {dt=}')
 
     # get state by internal id
 
