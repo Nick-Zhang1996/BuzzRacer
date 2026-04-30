@@ -2,16 +2,17 @@
 # requires python3
 import numpy as np
 from time import time
-import random
-from math import sin, cos, radians, degrees, tan, pi
-import matplotlib.pyplot as plt
+from math import sin, cos, radians, tan, pi
 import warnings
+
+TWO_PI = 2 * pi
 
 
 class KalmanFilter():
     def __init__(self, wheelbase):
         # wheelbase in meter
         self.wheelbase = wheelbase
+        self.inv_wheelbase = 1.0 / wheelbase
         # maximum allowable steering angle
         self.max_steering = radians(35.0)
 
@@ -49,10 +50,14 @@ class KalmanFilter():
 
         self.R = np.diag([self.var_xy, self.var_xy, self.var_theta])
         self.R = np.matrix(self.R)
+        self.H_T = self.H.T
         # process noise
         # x,y, v, heading, omega
         # NOTE for 100Hz update
         self.Q = np.diag([0.005, 0.005, 6, 0.00005, 0.01])
+        self.F = np.matrix(np.zeros([self.state_count, self.state_count]))
+        self.B = np.zeros([self.state_count, self.action_count])
+        self.identity = np.identity(self.state_count)
 
         self.last_steering = 0
         return
@@ -106,39 +111,46 @@ class KalmanFilter():
             warnings.warn('Extreme steering value, %f' % steering)
             steering = np.clip(steering, -self.max_steering, self.max_steering)
 
+        cos_heading = cos(heading)
+        sin_heading = sin(heading)
+        cos_steering = cos(steering)
+        cos_steering_sq = cos_steering ** 2
+        steering_sec_sq = 1.0 / cos_steering_sq
+        tan_steering = tan(steering)
+        steering_delta = steering - self.last_steering
+        position_step = v * dt
+        omega_delta = acc_long * self.inv_wheelbase * tan_steering * dt + \
+            v * self.inv_wheelbase * steering_sec_sq * steering_delta
+
         # update state matrix
         # x' = F(x,u) + B(u)(noise)
-        self.F = np.zeros([self.state_count, self.state_count])
+        self.F.fill(0)
 
         # x' means x at next step
         self.F[0, 0] = 1
-        self.F[0, 2] = cos(heading)*dt
-        self.F[0, 3] = -v*sin(heading)*dt
+        self.F[0, 2] = cos_heading * dt
+        self.F[0, 3] = -v * sin_heading * dt
         self.F[1, 1] = 1
-        self.F[1, 2] = sin(heading)*dt
-        self.F[1, 3] = v*cos(heading)*dt
+        self.F[1, 2] = sin_heading * dt
+        self.F[1, 3] = v * cos_heading * dt
         self.F[2, 2] = 1
         self.F[3, 3] = 1
         self.F[3, 4] = dt
-        self.F[4, 2] = 1.0/self.wheelbase / \
-            cos(steering)**2*(steering-self.last_steering)
+        self.F[4, 2] = self.inv_wheelbase * steering_sec_sq * steering_delta
         self.F[4, 4] = 1
-        self.F = np.matrix(self.F)
 
-        self.B = np.zeros([self.state_count, self.action_count])
+        self.B.fill(0)
         self.B[2, 1] = dt
         # NOTE ignored small items
-        self.B[4, 0] = acc_long/self.wheelbase/cos(steering)**2*dt
-        self.B[4, 1] = dt/self.wheelbase*tan(steering)
+        self.B[4, 0] = acc_long * self.inv_wheelbase * steering_sec_sq * dt
+        self.B[4, 1] = dt * self.inv_wheelbase * tan_steering
 
         # predict
-        self.X[0, 0] += v*cos(heading)*dt
-        self.X[1, 0] += v*sin(heading)*dt
-        self.X[2, 0] += acc_long*dt
-        self.X[3, 0] += omega*dt
-        self.X[4, 0] += acc_long/self.wheelbase * \
-            tan(steering)*dt + v/self.wheelbase / \
-            cos(steering)**2*(steering-self.last_steering)
+        self.X[0, 0] += position_step * cos_heading
+        self.X[1, 0] += position_step * sin_heading
+        self.X[2, 0] += acc_long * dt
+        self.X[3, 0] += omega * dt
+        self.X[4, 0] += omega_delta
 
         self.last_steering = steering
 
@@ -152,14 +164,14 @@ class KalmanFilter():
         return self.X
 
     def wrap(self, val):
-        return (val + pi) % (2*pi) - pi
+        return (val + pi) % TWO_PI - pi
 
     # update given z(observation) and associated timestamp
     # z should be a column vector consisting [x(m),y,theta(rad)].T
     def update(self, z, timestamp=None):
-        z_diff = self.last_z - z
+        last_z = self.last_z
         # detect optitrack frame loss
-        if (self.last_z[0, 0]-z[0, 0] == 0.0 and self.last_z[1, 0]-z[1, 0] == 0.0):
+        if (last_z[0, 0]-z[0, 0] == 0.0 and last_z[1, 0]-z[1, 0] == 0.0):
             # print("frame loss")
             return
         self.last_z = z
@@ -171,14 +183,14 @@ class KalmanFilter():
         z[2, 0] = self.X[3, 0]+heading_diff
 
         y = z - self.H @ self.X
-        S = self.H @ self.P @ self.H.T + self.R
+        S = self.H @ self.P @ self.H_T + self.R
 
-        self.K = self.P @ self.H.T @ np.linalg.inv(S)
+        self.K = self.P @ self.H_T @ np.linalg.inv(S)
 
         self.X = self.X + self.K @ y
         # wrap again for numerical stability
         self.X[3, 0] = self.wrap(self.X[3, 0])
-        self.P = (np.identity(self.state_count) - self.K @ self.H) @ self.P
+        self.P = (self.identity - self.K @ self.H) @ self.P
 
         if timestamp is None:
             timestamp = time()
