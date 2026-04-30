@@ -1,6 +1,7 @@
 ''' Defines the interface for working with physical and simulated cars'''
 from __future__ import annotations
 import logging
+from importlib import import_module
 
 # pylint: disable-next=unused-import
 from math import degrees, radians
@@ -12,12 +13,20 @@ from buzzracer.cars.car_param import CarParam, CarConfig
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
 
+_CAR_MODULES = {
+    'Offboard': 'buzzracer.cars.offboard',
+    'OldOffboard': 'buzzracer.cars.old_offboard',
+    'FHSS': 'buzzracer.cars.fhss',
+}
+
 
 class Car(PrintObject, LogObject):
     ''' Base class for various types of cars,
     Subclasses should implement communication details to interact with different
     types of physical car.'''
     car_count = 0
+    consumes_multiprocess_control = False
+    """True when hardware threads consume shared controller output directly."""
     ''' Total number of cars'''
     cars = []
     """ All cars, this include cars of different subclass.
@@ -122,7 +131,16 @@ class Car(PrintObject, LogObject):
         from buzzracer.controllers.controller import Controller
         try:
             car_cls_text = cm.getElementsByTagName('hardware')[0].firstChild.nodeValue
-            car_cls = Car.registry[car_cls_text]
+            car_cls = Car.registry.get(car_cls_text)
+            if car_cls is None:
+                module_name = _CAR_MODULES.get(car_cls_text)
+                if module_name is not None:
+                    module = import_module(module_name)
+                    car_cls = Car.registry.get(car_cls_text, getattr(module, car_cls_text, None))
+                    if car_cls is not None:
+                        Car.registry[car_cls_text] = car_cls
+            if car_cls is None:
+                raise KeyError(car_cls_text)
         except IndexError:
             _logger.warning('No hardware specified')
 

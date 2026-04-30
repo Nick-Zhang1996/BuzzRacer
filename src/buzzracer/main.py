@@ -81,6 +81,9 @@ class MainState:
         '''
         self.breakpoint = mp.Event()
         """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
+        self.use_optitrack_observations = mp.Event()
+        """ Set when controllers should consume raw OptiTrack observations. """
+        self.car_observations = mp.Array(CartesianState, car_count, lock=False)
         self.car_states = mp.Array(CartesianState, car_count, lock=False)
         self.car_states_event = [mp.Event() for _ in range(car_count)]
         self.car_states_first_available = mp.Event()
@@ -255,7 +258,8 @@ class Main(PrintObject, LogObject):
             self.state.publish_time(
                 self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
                 else None)
-        self.state.car_states_first_available.set()
+        if not (self.config.multiprocess and self.state.use_optitrack_observations.is_set()):
+            self.state.car_states_first_available.set()
         t.e('wait new state update')
 
         t.s('control')
@@ -264,23 +268,14 @@ class Main(PrintObject, LogObject):
             car = self.cars[i]
             # t.s(car.param.name)
             if self.config.multiprocess:
-                # Wait for controller process to complete
-                self.state.car_control_event[i].wait(0.1)
-                self.state.car_control_event[i].clear()
-                control_timing = self.state.car_control_timing[i]
-                car.steering = self.state.car_control[i].steering
-                steering_set_ts = perf_counter()
-                car.throttle = 0.0 if self.state.slowdown.is_set(
-                ) else self.state.car_control[i].throttle
-                car._pending_control_latency = {
-                    'seq': control_timing.seq,
-                    'udp_rx_ts': control_timing.udp_rx_ts,
-                    'rigid_body_ts': control_timing.rigid_body_ts,
-                    'car_state_ts': control_timing.car_state_ts,
-                    'controller_read_ts': control_timing.controller_read_ts,
-                    'controller_done_ts': control_timing.controller_done_ts,
-                    'steering_set_ts': steering_set_ts,
-                }
+                hardware_consumes_control = (
+                    car.consumes_multiprocess_control
+                    and self.config.experiment_type == ExperimentType.Realworld
+                )
+                if not hardware_consumes_control:
+                    self.state.car_control_event[i].wait(0.1)
+                    self.state.car_control_event[i].clear()
+                    Controller.apply_multiprocess_control(car, self.state, i)
             else:
                 # Call controller one by one
                 result = car.controller.control(

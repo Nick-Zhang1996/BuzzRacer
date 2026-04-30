@@ -18,7 +18,7 @@ class CarParam(NamedTuple):
     ''' CG to rear axle'''
     width: float = 0.0461
     ''' Track width '''
-    lookahead: float = 3e-2
+    lookahead: float = 7e-2
     """ Lookahead for stanley """
 
     # Iz = 417757e-9
@@ -136,10 +136,7 @@ class CarConfig(Enum):
         wheelbase=98e-3,
         lr=47e-3,
         lf=98e-3-47e-3,
-        max_throttle=0.5,
-        steer_offset=0.0,
-        steer_ratio=1.2,
-        lookahead=51e-3,
+        lookahead=70e-3,
         max_steer_right=radians(29.77),
         max_steer_left=radians(23.21),
         optitrack_id=17,

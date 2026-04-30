@@ -18,8 +18,8 @@
     <car>
       <name>MyCar</name>
       <hardware>FHSS</hardware>
-      <config_name>corvette_17</config_name>
-      <controller max_speed='0.8'>
+      <config_name>mclaren_21</config_name>
+      <controller max_speed='2.5'>
         <type>StanleyController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>

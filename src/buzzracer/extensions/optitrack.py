@@ -32,8 +32,10 @@ class Optitrack(Extension):
 
     def init(self):
         """Create the Optitrack client and map configured cars to rigid bodies."""
-        self.vi = _Optitrack(self)
+        self.vi = _Optitrack(self, enable_kf=not self.main.config.multiprocess)
         self.main.shared_state_published_immediately = True
+        if self.main.config.multiprocess:
+            self.main.state.use_optitrack_observations.set()
         for car in self.main.cars:
             car.internal_id = self.vi.get_internal_id(car.param.optitrack_id)
             self.car_by_internal_id[car.internal_id] = car
@@ -41,8 +43,9 @@ class Optitrack(Extension):
                 f'Optitrack ID: {car.param.optitrack_id},'
                 f'Internal ID: {car.internal_id}')
 
-    def publish_shared_state(self, internal_id, udp_rx_ts=0.0, rigid_body_ts=0.0):
-        """Publish one car state into shared memory as soon as OptiTrack updates it."""
+    def publish_shared_observation(self, internal_id, x, y, theta,
+                                   udp_rx_ts=0.0, rigid_body_ts=0.0):
+        """Publish one raw OptiTrack observation into shared memory."""
         if not self.main.config.multiprocess:
             return
 
@@ -50,36 +53,40 @@ class Optitrack(Extension):
         if car is None:
             return
 
-        self.vi.state_lock.acquire(timeout=0.01)
-        try:
-            x, y, v, theta, omega = self.vi.kf_state_list[internal_id]
-        finally:
-            self.vi.state_lock.release()
-
-        x += car.param.lr * cos(theta)
-        y += car.param.lr * sin(theta)
-        state = CartesianState(
-            x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
         seq = car._latency_state_seq + 1
+        observation = CartesianState(
+            x=x, y=y, heading=theta, v_forward=0, v_sideway=0, omega=0)
+        observation_set_ts = perf_counter()
 
-        self.main.state.car_states[car.id] = state
-        self.main.state.publish_time(None)
-        state_set_ts = perf_counter()
+        self.main.state.car_observations[car.id] = observation
         self.main.state.car_state_timing[car.id] = StateTiming(
-            seq, udp_rx_ts, rigid_body_ts, state_set_ts)
+            seq, udp_rx_ts, rigid_body_ts, observation_set_ts)
         self.main.state.car_states_event[car.id].set()
-        self.main.state.car_states_first_available.set()
         car._latency_state_seq = seq
         car._latency_udp_rx_ts = udp_rx_ts
         car._latency_rigid_body_ts = rigid_body_ts
-        car._latency_state_set_ts = state_set_ts
+        car._latency_state_set_ts = observation_set_ts
 
     def update_car_states(self, udp_rx_ts=0.0):
         """Copy internal Optitrack state into each car's public state."""
+        if self.main.config.multiprocess:
+            for car in self.main.cars:
+                internal_id = car.internal_id
+                x, y, v, theta, omega = self.vi.get_k_fstate(internal_id)
+                # Optitrack origin is at center of rear axle.
+                x += car.param.lr * cos(theta)
+                y += car.param.lr * sin(theta)
+                self.main.state.car_states[car.id] = CartesianState(
+                    x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
+            self.main.state.car_states_first_available.set()
+            self.main.state.publish_time(None)
+            self.main.new_state_update.set()
+            return
+
         for car in self.main.cars:
             # update for eachj car
             # not using kf state for now
-            internal_id = self.vi.get_internal_id(car.param.optitrack_id)
+            internal_id = car.internal_id
             (x, y, v, theta, omega) = self.vi.get_k_fstate(internal_id)
             # (x,y,theta) = self.vi.get_state2d(self.car.internal_id)
             # (x,y,theta,vforward,vsideway=0,omega)
@@ -108,10 +115,10 @@ class _Optitrack(PrintObject):
         """Initialize the NatNet client and Optitrack state caches."""
         self.base = base
         self.enable_kf_event = Event()
+        self.kf = []
         self.callback = self.empty_callback
         if enable_kf:
             self.action = (0, 0)
-            self.kf = []
             self.enable_kf_event.set()
 
         # to be used in Kalman filter update
@@ -145,18 +152,18 @@ class _Optitrack(PrintObject):
         # a mapping from internal id to optitrack id
         # self.optitrack_id_lookup[internal_id] = optitrack_id
         self.optitrack_id_lookup = []
+        self.internal_id_lookup = {}
 
         self.obj_count = 0
 
-        if self.enable_kf_event.is_set():
-            # set callback for rigid body state update,
-            # this will create a new KF instance for each object
-            # and set up self.optitrack_id_lookup table
-            self.streaming_client.rigidBodyListener = self.receive_rigid_body_frame_init
-            # wait for all objects to be detected
-            sleep(0.1)
-            # switch to regular callback now that everything is initialized
-            self.streaming_client.rigidBodyListener = self.receive_rigid_body_frame
+        # set callback for rigid body state update,
+        # this will create a new KF instance for each object when enabled
+        # and set up self.optitrack_id_lookup table
+        self.streaming_client.rigidBodyListener = self.receive_rigid_body_frame_init
+        # wait for all objects to be detected
+        sleep(0.1)
+        # switch to regular callback now that everything is initialized
+        self.streaming_client.rigidBodyListener = self.receive_rigid_body_frame
 
     def __del__(self):
         """Request the NatNet client to stop when the object is collected."""
@@ -190,8 +197,8 @@ class _Optitrack(PrintObject):
     def get_internal_id(self, optitrack_id):
         """Return the internal object index for an Optitrack rigid-body ID."""
         try:
-            return self.optitrack_id_lookup.index(optitrack_id)
-        except ValueError:
+            return self.internal_id_lookup[optitrack_id]
+        except KeyError:
             self.print_error(f"can't find optitrack ID {optitrack_id}")
             return None
 
@@ -203,6 +210,7 @@ class _Optitrack(PrintObject):
     def receive_rigid_body_frame_init(self, optitrack_id, position, rotation):
         """Discover new rigid bodies and initialize their cached state."""
         if optitrack_id not in self.optitrack_id_lookup:
+            self.internal_id_lookup[optitrack_id] = self.obj_count
             self.obj_count += 1
             self.optitrack_id_lookup.append(optitrack_id)
 
@@ -240,7 +248,6 @@ class _Optitrack(PrintObject):
                     (x_local, y_local, 0, theta_local, 0))
             self.state_lock.release()
 
-    # regular callback for state update
     def receive_rigid_body_frame(self, optitrack_id, position, rotation):
         """Update the cached state for a tracked rigid body."""
         # print( "Received frame for rigid body", id )
@@ -248,6 +255,9 @@ class _Optitrack(PrintObject):
         t.s()
         rigid_body_ts = perf_counter()
         internal_id = self.get_internal_id(optitrack_id)
+        if internal_id is None:
+            t.e()
+            return
         x, y, z = position
         qx, qy, qz, qw = rotation
         t.s('to_local')
@@ -282,8 +292,8 @@ class _Optitrack(PrintObject):
             self.kf_state_list[internal_id] = self.kf[internal_id].get_state()
         self.state_lock.release()
         if self.base is not None:
-            self.base.publish_shared_state(
-                internal_id,
+            self.base.publish_shared_observation(
+                internal_id, x_local, y_local, theta_local,
                 self.streaming_client.packet_wall_ts,
                 rigid_body_ts)
         # Update when all objects' states are received, synced at the last obj
@@ -300,12 +310,8 @@ class _Optitrack(PrintObject):
         self.callback(optitrack_id, position, rotation)
         t.e('callback')
         t.e()
-        # DEBUG
-        # dt = perf_counter() - rigid_body_ts
-        # print(f'receive_rigid_body_frame {dt=}')
 
     # get state by internal id
-
     def get_state(self, internal_id):
         """Return the 3D state tuple for an internal object index."""
         if internal_id >= self.obj_count:
@@ -338,6 +344,9 @@ class _Optitrack(PrintObject):
     # get KF state by internal id
     def get_k_fstate(self, internal_id):
         """Return the filtered planar state for an internal object index."""
+        if not self.enable_kf_event.is_set():
+            x, y, theta = self.get_state2d(internal_id)
+            return (x, y, 0, theta, 0)
         self.kf[internal_id].predict(self.action)
         # (x,y,v,theta,omega)
         return self.kf[internal_id].get_state()

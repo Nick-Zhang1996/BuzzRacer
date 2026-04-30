@@ -846,7 +846,7 @@ class GameTheoreticPlanner(Extension):
         dummy_main_state = SimpleNamespace(car_target_v=np.zeros(N, dtype=float))
         for i in range(N):
             x = CartesianState(*cart_x0[:, i])
-            stanley_state = StanleyControllerState(config)
+            stanley_state = StanleyControllerState(config.stanley_config)
             ref_name = GameTheoreticPlanner.get_initial_guess_track_name(curv_x0[:, i])
             side_names.append(ref_name)
             ref_track = initial_guess_tracks[ref_name]

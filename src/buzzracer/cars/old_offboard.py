@@ -5,14 +5,15 @@ from buzzracer.cars.car import Car
 from buzzracer.cars.car_param import CarParam
 
 
+@Car.register
 class OldOffboard(Car):
     car_count = 0
     cars = []
     # states
 
-    def __init__(self, main):
+    def __init__(self):
         self.car_interface = None
-        Car.__init__(self, main)
+        Car.__init__(self)
         self.param: CarParam | None = None
 
     def init_hardware(self):

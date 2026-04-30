@@ -12,6 +12,7 @@ from threading import Thread, Event
 from buzzracer.common import PrintObject
 from buzzracer.cars.car import Car
 from buzzracer.cars.car_param import CarParam
+from buzzracer.controllers.controller import Controller
 
 # NOTE ideas to try for performance
 # different sockets for incoming/outgoing messages
@@ -111,6 +112,7 @@ class OffboardPacket(PrintObject):
 class Offboard(Car):
     ''' Subclass of Car to handle communication with Offboard Cars'''
     available_local_port = 58998
+    consumes_multiprocess_control = True
 
     def __init__(self):
         Car.__init__(self)
@@ -145,7 +147,8 @@ class Offboard(Car):
         self.init_socket()
 
         # Create a separate thread for handling data packets
-        comm_thread = Thread(target=self.__comm_thread_function, daemon=True)
+        comm_thread = Thread(target=self.__comm_thread_function,
+                             args=(self.main.state,), daemon=True)
         comm_thread.start()
         self.child_threads.append(comm_thread)
         self.setup()
@@ -177,9 +180,14 @@ class Offboard(Car):
         # new firmware
         # self.car.set_param(1.5,0,0.05)
 
-    def __comm_thread_function(self):
+    def __comm_thread_function(self, main_state):
         self.print_debug('comm trhead started')
         while not self.flag_quit.is_set():
+            if self.main.config.multiprocess:
+                updated = main_state.car_control_event[self.id].wait(0.01)
+                if updated:
+                    main_state.car_control_event[self.id].clear()
+                    Controller.apply_multiprocess_control(self, main_state, self.id)
             # send control command
             steering_cmd = self.steering * self.param.steer_ratio + self.param.steer_offset
             packet = self.prepare_command_packet(self.throttle, steering_cmd)
