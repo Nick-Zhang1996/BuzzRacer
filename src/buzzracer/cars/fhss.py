@@ -45,7 +45,8 @@ class FHSS(Car):
                 logger.error('Interface %s not found', (serial_port))
                 raise
             # Create a separate thread for handling data packets
-            comm_thread = Thread(target=self.__comm_thread_function, daemon=True)
+            comm_thread = Thread(target=self.__comm_thread_function,
+                                 args=(self.main.state,), daemon=True)
             comm_thread.start()
             FHSS.child_threads.append(comm_thread)
 
@@ -181,10 +182,11 @@ class FHSS(Car):
             except serial.SerialException as e:
                 logger.info("\n[Serial Read Error]: %s" % {e})
 
-    def __comm_thread_function(self):
+    def __comm_thread_function(self, main_state):
         while not Car.main.state.exit_request.is_set():
-            for car in FHSS.cars:
+            for i, car in enumerate(FHSS.cars):
+                main_state.car_control_event[i].wait(0.01)
+                main_state.car_control_event[i].clear()
                 car.actuate()
             FHSS.send_pwm_array()
-            sleep(0.01)
             FHSS.read_serial_monitor()
