@@ -169,7 +169,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         super().__init__(main_config)
         self.horizon: int = 10
         """ Game horizon """
-        self.car_count: int = 8
+        self.car_count: int = 6
         """ Number of cars, N """
         self.stitching_steps: int = 10
         """ Number of steps to keep in previous trajectory in next iteration """

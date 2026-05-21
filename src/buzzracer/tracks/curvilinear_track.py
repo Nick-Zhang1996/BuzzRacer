@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from math import sin, cos
 import logging
+import os
+import pickle
 
 import numpy as np
 from deprecated import deprecated
@@ -10,7 +12,7 @@ from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize
 from scipy.spatial import KDTree
 
-from buzzracer.common import wrap
+from buzzracer.common import BASEDIR, wrap
 from buzzracer.types import CurvilinearState, CartesianState
 from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
 
@@ -85,6 +87,49 @@ class CurvilinearTrack(Track):
         # e.g.
         # self.data = self.build_track(r, left_width, right_width)
         return
+
+    @staticmethod
+    def _resolve_track_filename(filename):
+        if filename is None:
+            filename = 'curvilinear_track.p'
+        if os.path.isabs(filename):
+            return filename
+        return os.path.join(BASEDIR, 'assets', filename)
+
+    def save(self, filename=None):
+        """Save this curvilinear track as centerline and left/right margins."""
+        full_filename = self._resolve_track_filename(filename)
+        os.makedirs(os.path.dirname(full_filename), exist_ok=True)
+
+        payload = {
+            'centerline': self.data.r_vec.tolist(),
+            'left_margin': self.data.left_width_vec.tolist(),
+            'right_margin': self.data.right_width_vec.tolist(),
+        }
+        with open(full_filename, 'wb') as file_obj:
+            pickle.dump(payload, file_obj)
+        logger.info('CurvilinearTrack saved at %s', full_filename)
+
+    def load(self, filename=None):
+        """Load centerline and left/right margins from a saved curvilinear track file."""
+        full_filename = self._resolve_track_filename(filename)
+        with open(full_filename, 'rb') as file_obj:
+            payload = pickle.load(file_obj)
+
+        centerline = np.asarray(payload['centerline'], dtype=float)
+        left_margin = np.asarray(payload['left_margin'], dtype=float)
+        right_margin = np.asarray(payload['right_margin'], dtype=float)
+
+        if centerline.ndim != 2 or centerline.shape[1] != 2:
+            raise ValueError('saved centerline must have shape (N, 2)')
+        point_count = centerline.shape[0]
+        if left_margin.shape != (point_count,) or right_margin.shape != (point_count,):
+            raise ValueError('saved margins must match centerline length')
+
+        self.data = self.build_track(centerline, left_margin, right_margin)
+        self.config.x_limit = self.data.x_max - self.data.x_min
+        self.config.y_limit = self.data.y_max - self.data.y_min
+        logger.info('CurvilinearTrack loaded from %s', full_filename)
 
     def local_trajectory(self, state: CartesianState):
         """ Given the state of the car, provide geometry information of the raceline.
@@ -270,9 +315,9 @@ class CurvilinearTrack(Track):
 
         # height, width
         img = 255*np.ones([y_pix, x_pix, 3], dtype=np.uint8)
-        img = data.draw_polyline(
+        img = self.draw_polyline(
             data.left_boundary_vec, img, lineColor=(0, 0, 0), thickness=2)
-        img = data.draw_polyline(
+        img = self.draw_polyline(
             data.right_boundary_vec, img, lineColor=(0, 0, 0), thickness=2)
         return img
 
@@ -307,10 +352,10 @@ class CurvilinearTrack(Track):
         phi_step = wrap(data.phi_vec[(idx+1) % N] - rphi)
 
         # Interpolated ref pi
-        precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
-        if s_step < 0.01:
-            print(f'{idx=}, {cart=}')
-        assert s_step > 0.01
+        if np.isclose(s_step, 0.0):
+            precise_rphi = rphi
+        else:
+            precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
         phi = wrap(cart.heading - precise_rphi)
 
         # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway

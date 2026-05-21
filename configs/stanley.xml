@@ -3,7 +3,7 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track>saved</track>
+  <track>survey_track</track>
 
   <extensions>
       <extension>Laptimer</extension>

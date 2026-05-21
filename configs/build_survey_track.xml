@@ -1,0 +1,14 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>RealWorld</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+      <extension handle='vi'>Optitrack</extension>
+      <extension handle='builder'>SurveyTrackBuilder</extension>
+  </extensions>
+  <cars>
+  </cars>
+</config>

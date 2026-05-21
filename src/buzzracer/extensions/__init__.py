@@ -9,8 +9,6 @@ from .laptimer import Laptimer
 from .visualization_gl import VisualizationGL
 from .game_theoretic_planner import GameTheoreticPlanner
 
-# FIXME update these also
-
 from .watchdog import Watchdog
 from .gif_saver import Gifsaver
 from .logger import Logger
@@ -19,6 +17,7 @@ from .step_counter import StepCounter
 from .lap_counter import LapCounter
 from .optitrack import Optitrack
 from .visualization import Visualization
+from .survey_track_builder import SurveyTrackBuilder
 
 # Uncommonly used extensions. commented for faster loading time
 # from .config_logger import ConfigLogger
