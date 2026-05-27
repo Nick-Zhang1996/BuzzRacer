@@ -1,5 +1,6 @@
 ''' Import all classes to buzzracer.extension namespace '''
 from .simulators.dynamic_bicycle_cartesian_simulator import DynamicBicycleCartesianSimulator
+from .simulators.drift_simulator import DriftSimulator
 # from .simulators.kinematic_bicycle_cartesian_simulator import KinematicBicycleCartesianSimulator
 # from .simulators.dynamic_bicycle_curvilinear_simulator import DynamicBicycleCurvilinearSimulator
 # from .simulators.kinematic_bicycle_curvilinear_simulator import KinematicBicycleCurvilinearSimulator
@@ -18,12 +19,12 @@ from .lap_counter import LapCounter
 from .optitrack import Optitrack
 from .visualization import Visualization
 from .survey_track_builder import SurveyTrackBuilder
+from .boundary_checker import BoundaryChecker
 
 # Uncommonly used extensions. commented for faster loading time
 # from .config_logger import ConfigLogger
 # from .performance_tracker import PerformanceTracker
 # from .crosstrack_error_tracker import CrosstrackErrorTracker
-# from .boundary_checker import BoundaryChecker
 # from .speed_tracker import SpeedTracker
 # from .collision_checker import CollisionChecker
 # from .steering_tracker import SteeringTracker

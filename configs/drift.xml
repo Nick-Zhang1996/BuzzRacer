@@ -3,23 +3,25 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track>saved</track>
+  <track>full</track>
 
   <extensions>
       <extension>Laptimer</extension>
       <extension>VisualizationGL</extension>
       <extension reset_pos='True'>BoundaryChecker</extension>
-      <extension match_time='True'>DynamicBicycleCartesianSimulator</extension>
+      <extension match_time='True'>DriftSimulator</extension>
+      <!-- uncommon next line to enable gif saving-->
+      <!-- <extension>Gifsaver</extension> -->
   </extensions>
 
   <cars>
     <car>
-      <name>Car</name>
+      <name>Drift RX7</name>
       <hardware>FHSS</hardware>
-      <config_name>corvette_17</config_name>
-      <controller max_speed='1.0'>
+      <config_name>drift_rx7_30</config_name>
+      <controller>
         <type>JoystickController</type>
-        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 1.0)</init_states>
+        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 0.5)</init_states>
       </controller>
     </car>
 

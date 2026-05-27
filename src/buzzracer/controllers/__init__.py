@@ -1,5 +1,6 @@
 from .controller import Controller
 from .empty_controller import EmptyController
+from .joystick_controller import JoystickController
 from .stanley_controller import StanleyController
 
 # TODO refactor

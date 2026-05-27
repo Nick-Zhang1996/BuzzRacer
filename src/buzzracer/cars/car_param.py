@@ -63,6 +63,21 @@ class CarParam(NamedTuple):
     steer_offset: float = 0.0
     ''' command = desired_angle * ratio + offset (unit:rad)'''
 
+    drift_wheel_radius: float = 12e-3
+    """ Wheel radius used by the simplified drift model, in meters. """
+    drift_motor_torque_coeff: float = 11-3
+    """ Effective motor torque coefficient in the drift drivetrain model. """
+    drift_motor_back_emf: float = 4e-3
+    """ Effective back-EMF coefficient for the quasi-steady wheel-speed solve. """
+    drift_front_tire_A: float = 0.85
+    """ Front combined-slip tire force scale in Newtons for the drift model. """
+    drift_front_tire_B: float = 8.0
+    """ Front combined-slip tire shape coefficient for the drift model. """
+    drift_rear_tire_A: float = 1.00
+    """ Rear combined-slip tire force scale in Newtons for the drift model. """
+    drift_rear_tire_B: float = 6.0
+    """ Rear combined-slip tire shape coefficient for the drift model. """
+
     serial_port: str = '/dev/ttyUSB0'
     car_ip: str = '0.0.0.0'
     optitrack_id: int = -1
@@ -204,5 +219,21 @@ class CarConfig(Enum):
         max_steer_left=radians(22.69),
         optitrack_id=22,
         fhss_modem_id=5,
+        rendering='car_imgs/mclaren_22.png'
+    )
+
+    drift_rx7_30 = CarParam(
+        name='drift_rx7_30',
+        m=169e-3,
+        wheelbase=98e-3,
+        lr=46e-3,
+        lf=98e-3-46e-3,
+        max_steer_right=radians(30.0),
+        max_steer_left=radians(30.0),
+        max_throttle=1.0,
+        min_throttle=-1.0,
+        optitrack_id=30,
+        fhss_modem_id=6,
+        car_ip='192.168.10.30',
         rendering='car_imgs/mclaren_22.png'
     )
