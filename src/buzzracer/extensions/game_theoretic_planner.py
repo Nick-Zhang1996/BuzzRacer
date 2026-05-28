@@ -7,6 +7,7 @@ import logging
 import multiprocessing as mp
 import os
 import queue
+import sys
 from time import perf_counter
 from types import SimpleNamespace
 
@@ -15,8 +16,10 @@ import ctypes
 import numpy as np
 from scipy.interpolate import splev
 
+import rd3g
 from rd3g.games.car_racing_casadi import CarRacingCasadiConfig, CarRacingCasadi
-from rd3g.solvers.rd3g_casadi import RD3GCasadi, RD3GCasadiConfig, Solution
+from rd3g.core.base_solver import Solution
+from rd3g.solvers.interior_point_game import InteriorPointGame, InteriorPointGameConfig
 
 from buzzracer.common import BASEDIR, LoggingFilter
 from buzzracer.utilities.execution_timer import ExecutionTimer
@@ -153,12 +156,23 @@ class PlannerSolveCandidate:
 
 
 @dataclass(frozen=True)
+class PlannerSolveInputs:
+    """Serializable inputs needed to replay or triage one solve."""
+
+    side_summary: str
+    u_ref: np.ndarray
+    x0: np.ndarray
+    target_x_ref: np.ndarray
+
+
+@dataclass(frozen=True)
 class PlannerSolveResult:
     """Result envelope passed back from a worker to the planner."""
 
     job_id: int
     worker_name: str
     candidate: PlannerSolveCandidate | None = None
+    solver_inputs: PlannerSolveInputs | None = None
     error: str | None = None
 
 
@@ -169,7 +183,7 @@ class GameTheoreticPlannerConfig(ExtensionConfig):
         super().__init__(main_config)
         self.horizon: int = 10
         """ Game horizon """
-        self.car_count: int = 6
+        self.car_count: int = 4
         """ Number of cars, N """
         self.stitching_steps: int = 10
         """ Number of steps to keep in previous trajectory in next iteration """
@@ -254,6 +268,9 @@ class GameTheoreticPlanner(Extension):
     def init(self):
         # Load game theoretic solver
         self.state.cars = Extension.main.cars
+        if len(self.state.cars) != self.config.car_count:
+            logger.error(f"Cars in xml config != car_count in GameTheoreticPlannerConfig")
+            raise RuntimeError
         self.state.car_params = [car.param for car in self.state.cars]
         self.state.max_speeds = np.asarray(
             [car.controller.config.max_speed for car in self.state.cars[:self.config.car_count]],
@@ -290,11 +307,23 @@ class GameTheoreticPlanner(Extension):
 
         game_config = GameTheoreticPlanner.make_game_config(config, x0, x_ref)
         game = CarRacingCasadi(game_config, track)
-        solver_config = RD3GCasadiConfig(inertia_correction=False, iterations=20)
-        solver = RD3GCasadi(solver_config, game, cpp_only=config.use_cpp_solver)
+        solver_config = InteriorPointGameConfig(
+            inertia_correction=False,
+            iterations=20,
+            variational_gne=game_config.variational_gne,
+        )
+        solver = InteriorPointGame(solver_config, game, cpp_only=config.use_cpp_solver)
         if config.use_cpp_solver:
+            GameTheoreticPlanner.ensure_rd3g_repo_on_pythonpath()
             solver.init_cpp_backend()
         return solver
+
+    @staticmethod
+    def ensure_rd3g_repo_on_pythonpath():
+        """Make rd3g's top-level build package importable in solver workers."""
+        rd3g_repo = os.path.dirname(os.path.dirname(os.path.abspath(rd3g.__file__)))
+        if rd3g_repo not in sys.path:
+            sys.path.insert(0, rd3g_repo)
 
     @staticmethod
     def make_game_config(config, x0: np.ndarray, x_ref: np.ndarray):
@@ -443,7 +472,7 @@ class GameTheoreticPlanner(Extension):
             if request is None:
                 return
             try:
-                candidate = GameTheoreticPlanner.solve_candidate_request(
+                candidate, solver_inputs = GameTheoreticPlanner.solve_candidate_request(
                     request,
                     spec,
                     solver,
@@ -457,6 +486,7 @@ class GameTheoreticPlanner(Extension):
                     job_id=request.job_id,
                     worker_name=spec.name,
                     candidate=candidate,
+                    solver_inputs=solver_inputs,
                 ))
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.exception('Solver worker %s failed on job %d', spec.name, request.job_id)
@@ -658,23 +688,25 @@ class GameTheoreticPlanner(Extension):
             results = GameTheoreticPlanner.solve_candidates_locally(
                 cart_x0, curv_x0, track, config, state, t)
 
-        best = GameTheoreticPlanner.select_best_candidate(results)
-        if best is None:
+        best_result = GameTheoreticPlanner.select_best_candidate(results)
+
+        if best_result is None:
+            GameTheoreticPlanner.maybe_save_solver_inputs(results, config, main_state)
             return None
 
-        worker_name, candidate = best
-        # GameTheoreticPlanner.maybe_save_solver_inputs(candidate, config, main_state)
+        candidate = best_result.candidate
+        assert candidate is not None
         return (
             candidate.curv_trajs,
             candidate.sol,
-            f'{worker_name}:{candidate.side_summary}',
+            f'{best_result.worker_name}:{candidate.side_summary}',
             candidate.debug_dict,
         )
 
     @staticmethod
     def solve_candidate_request(request: PlannerSolveRequest,
                                 spec: PlannerWorkerSpec,
-                                solver: RD3GCasadi,
+                                solver: InteriorPointGame,
                                 initial_guess_tracks,
                                 track: CurvilinearTrack,
                                 config: GameTheoreticPlannerConfig,
@@ -691,13 +723,19 @@ class GameTheoreticPlanner(Extension):
             initial_guess_tracks,
             spec.use_zero_guess,
         )
+        solver_inputs = PlannerSolveInputs(
+            side_summary=side_summary,
+            u_ref=u_ref,
+            x0=x0,
+            target_x_ref=x_ref,
+        )
         return GameTheoreticPlanner.solve_candidate(
             solver,
             x0,
             x_ref,
             u_ref,
             side_summary,
-        )
+        ), solver_inputs
 
     @staticmethod
     def solve_candidates_locally(cart_x0: np.ndarray,
@@ -731,12 +769,19 @@ class GameTheoreticPlanner(Extension):
                 u_ref,
                 side_summary,
             )
+            solver_inputs = PlannerSolveInputs(
+                side_summary=side_summary,
+                u_ref=u_ref,
+                x0=x0,
+                target_x_ref=x_ref,
+            )
             if t is not None:
                 t.e(f'solve_{spec.name}')
             results.append(PlannerSolveResult(
                 job_id=-1,
                 worker_name=spec.name,
                 candidate=candidate,
+                solver_inputs=solver_inputs,
             ))
         return results
 
@@ -807,8 +852,9 @@ class GameTheoreticPlanner(Extension):
             candidate = result.candidate
             if candidate is None or not np.isfinite(candidate.sol.residual):
                 continue
-            if best is None or candidate.sol.residual < best[1].sol.residual:
-                best = (result.worker_name, candidate)
+            best_candidate = best.candidate if best is not None else None
+            if best_candidate is None or candidate.sol.residual < best_candidate.sol.residual:
+                best = result
         return best
 
     @staticmethod
@@ -868,7 +914,7 @@ class GameTheoreticPlanner(Extension):
         return x0, x_ref, u_ref, f'stanley_ref'
 
     @staticmethod
-    def solve_candidate(solver: RD3GCasadi,
+    def solve_candidate(solver: InteriorPointGame,
                         x0: np.ndarray,
                         x_ref: np.ndarray,
                         u_ref: np.ndarray,
@@ -911,26 +957,25 @@ class GameTheoreticPlanner(Extension):
         )
 
     @staticmethod
-    def maybe_save_solver_inputs(candidate: PlannerSolveCandidate,
+    def maybe_save_solver_inputs(results: list[PlannerSolveResult],
                                  config: GameTheoreticPlannerConfig,
                                  main_state: MainState):
-        """Keep the existing triage/debug input dump behavior for the selected candidate."""
-        game_config = None
-        if candidate.sol.residual > config.residual_threshold:
-            game_config = GameTheoreticPlanner.make_game_config(
-                config, candidate.x0, candidate.target_x_ref)
-            filename = save_game(game_config, candidate.u_ref, triage=True)
-            logger.warning('Saved triage state to %s', filename)
+        """Keep the existing triage/debug input dump behavior."""
 
         if main_state.breakpoint.is_set():
             main_state.breakpoint.clear()
-            if game_config is None:
-                game_config = GameTheoreticPlanner.make_game_config(
-                    config, candidate.x0, candidate.target_x_ref)
-            save_game(game_config, candidate.u_ref)
+            if not results or results[0].solver_inputs is None:
+                logger.warning('Unable to save triage state: no solver inputs available')
+                return
+
+            solver_inputs = results[0].solver_inputs
+            game_config = GameTheoreticPlanner.make_game_config(
+                config, solver_inputs.x0, solver_inputs.target_x_ref)
+            filename = save_game(game_config, solver_inputs.u_ref)
+            logger.warning('Saved triage state to %s', filename)
 
 
-def save_game(gc, u_ref, triage=False):
+def save_game(gc, u_ref):
     """ Save a game for debugging offline"""
     delattr(gc, '_int_param_sx')
     delattr(gc, '_int_param_np')
@@ -939,15 +984,12 @@ def save_game(gc, u_ref, triage=False):
     delattr(gc, '_param_dict')
     save = {'u_ref': u_ref, 'gc': gc}
     output_dir = os.path.join(BASEDIR, 'outputs')
-    if triage:
-        triage_idx = 1
-        while True:
-            filename = os.path.join(output_dir, f'triage_{triage_idx}.p')
-            if not os.path.exists(filename):
-                break
-            triage_idx += 1
-    else:
-        filename = os.path.join(output_dir, 'input.p')
+    triage_idx = 1
+    while True:
+        filename = os.path.join(output_dir, f'triage_{triage_idx}.p')
+        if not os.path.exists(filename):
+            break
+        triage_idx += 1
     with open(filename, 'wb') as f:
         pickle.dump(save, f)
     logger.info('Saved to %s', filename)

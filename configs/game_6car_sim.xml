@@ -34,7 +34,7 @@
             <config_name>porsche_18</config_name>
             <controller max_speed='0.7' planner='True'>
                 <type>StanleyController</type>
-                <init_states>curv(1.0, -0.15, -0.3, 0.2)</init_states>
+                <init_states>curv(1.0, -0.05, -0.3, 0.2)</init_states>
             </controller>
         </car>
 
@@ -54,10 +54,11 @@
             <config_name>audi_20</config_name>
             <controller max_speed='0.6' planner='True'>
                 <type>StanleyController</type>
-                <init_states>curv(1.4, -0.15, -0.3, 0.2)</init_states>
+                <init_states>curv(1.4, -0.05, -0.3, 0.2)</init_states>
             </controller>
         </car>
 
+        <!--
         <car>
             <name>mclaren_21</name>
             <hardware>FHSS</hardware>
@@ -77,6 +78,7 @@
                 <init_states>curv(1.6, -0.15, -0.3, 0.2)</init_states>
             </controller>
         </car>
+        -->
 
     </cars>
 </config>
