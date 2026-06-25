@@ -31,7 +31,7 @@ class DriftModel(VehicleDynamics):
         if slip_mag < DriftModel._EPS:
             return (0.0, 0.0)
 
-        force_mag = peak_force * atan(shape * slip_mag)
+        force_mag = peak_force * atan(shape * slip_mag)/np.pi*2
         scale = force_mag / slip_mag
         return (slip_x * scale, slip_y * scale)
 

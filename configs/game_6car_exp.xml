@@ -1,19 +1,18 @@
 <config>
     <settings dt='0.01' multiprocess='True'>
         <!-- Not checked, determined by if simulator or optitrack is initiated -->
-        <experiment_type>Simulation</experiment_type>
+        <experiment_type>RealWorld</experiment_type>
     </settings>
 
     <track>survey_track</track>
 
     <extensions>
         <extension handle='laptimer'>Laptimer</extension>
-        <!--<extension handle='logger'>Logger</extension>-->
+        <extension handle='logger'>Logger</extension>
         <extension handle='planner'>GameTheoreticPlanner</extension>
-        <!--<extension handle='vi'>Optitrack</extension>-->
+        <extension handle='vi'>Optitrack</extension>
         <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
         <!-- <extension handle='step_counter' total_count='1000'>StepCounter</extension>-->
-        <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
         <!-- <extension>Gifsaver</extension> -->
     </extensions>
 
@@ -22,7 +21,7 @@
             <name>corvette_17</name>
             <hardware>FHSS</hardware>
             <config_name>corvette_17</config_name>
-            <controller max_speed='0.7' planner='True'>
+            <controller max_speed='1.0' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(0.9, 0.05, -0.1, 0.2)</init_states>
             </controller>
@@ -32,7 +31,7 @@
             <name>porsche_18</name>
             <hardware>FHSS</hardware>
             <config_name>porsche_18</config_name>
-            <controller max_speed='0.7' planner='True'>
+            <controller max_speed='0.9' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(1.0, -0.05, -0.3, 0.2)</init_states>
             </controller>
@@ -42,7 +41,7 @@
             <name>porsche_19</name>
             <hardware>FHSS</hardware>
             <config_name>porsche_19</config_name>
-            <controller max_speed='0.6' planner='True'>
+            <controller max_speed='0.7' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(1.3, 0.15, -0.1, 0.2)</init_states>
             </controller>
@@ -52,7 +51,7 @@
             <name>audi_20</name>
             <hardware>FHSS</hardware>
             <config_name>audi_20</config_name>
-            <controller max_speed='0.6' planner='True'>
+            <controller max_speed='0.8' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(1.4, -0.05, -0.3, 0.2)</init_states>
             </controller>
@@ -62,7 +61,7 @@
             <name>mclaren_21</name>
             <hardware>FHSS</hardware>
             <config_name>mclaren_21</config_name>
-            <controller max_speed='0.8' planner='True'>
+            <controller max_speed='1.3' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(1.5, 0.05, -0.1, 0.2)</init_states>
             </controller>
@@ -72,7 +71,7 @@
             <name>mclaren_22</name>
             <hardware>FHSS</hardware>
             <config_name>mclaren_22</config_name>
-            <controller max_speed='0.8' planner='True'>
+            <controller max_speed='1.2' planner='True'>
                 <type>StanleyController</type>
                 <init_states>curv(1.6, -0.15, -0.3, 0.2)</init_states>
             </controller>

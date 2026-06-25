@@ -48,6 +48,7 @@ class CarParam(NamedTuple):
 
     max_throttle: float = 0.8
     min_throttle: float = -1.0
+    """  Flip throttle command sent to car, AWD cars have flipped throttle """
     max_steer_left: float = radians(27)
     """ Max steering angle in radians, left, positive"""
     max_steer_right: float = radians(27)
@@ -63,7 +64,7 @@ class CarParam(NamedTuple):
     steer_offset: float = 0.0
     ''' command = desired_angle * ratio + offset (unit:rad)'''
 
-    drift_wheel_radius: float = 12e-3
+    drift_wheel_radius: float = 123e-3
     """ Wheel radius used by the simplified drift model, in meters. """
     drift_motor_torque_coeff: float = 11-3
     """ Effective motor torque coefficient in the drift drivetrain model. """
@@ -224,10 +225,10 @@ class CarConfig(Enum):
 
     drift_rx7_30 = CarParam(
         name='drift_rx7_30',
-        m=169e-3,
-        wheelbase=98e-3,
-        lr=46e-3,
-        lf=98e-3-46e-3,
+        m=180e-3,
+        wheelbase=90e-3,
+        lr=45e-3,
+        lf=90e-3-45e-3,
         max_steer_right=radians(30.0),
         max_steer_left=radians(30.0),
         max_throttle=1.0,
@@ -237,3 +238,8 @@ class CarConfig(Enum):
         car_ip='192.168.10.30',
         rendering='car_imgs/mclaren_22.png'
     )
+
+    def awd_back_emf(wheelspeed_rad):
+        """ no-load wheelspeed (rad) -> back EMF"""
+        throttle = 0.00039773 * wheel_speed_rad ** 2 + 0.00841599 * wheel_speed_rad + 0.16436744
+        return throttle
