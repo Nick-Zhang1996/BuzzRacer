@@ -20,7 +20,6 @@ from matplotlib.widgets import Slider, Button
 
 from buzzracer.common import print_ok, print_info, print_error, BASEDIR
 from buzzracer.tracks.rcp_track import RCPTrackRaceline, RCPTrack
-from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.tracks.track import Track
 
@@ -754,24 +753,6 @@ def _apply_safety_margin(left, right, safety_margin):
     return left, right
 
 
-def _process_curvilinear_raceline(track: CurvilinearTrack, raceline):
-    process_raceline = getattr(track, 'process_raceline', None)
-    if process_raceline is not None:
-        return process_raceline(raceline)
-
-    process_rcp_raceline = getattr(track, 'process_rcp_raceline', None)
-    if process_rcp_raceline is not None:
-        return process_rcp_raceline(raceline)
-
-    n_points = track.config.discretized_raceline_len
-    ss = np.linspace(0.0, raceline.raceline_len_m, n_points, endpoint=False)
-    r_vec = np.array(splev(ss, raceline.raceline_s, der=0)).T
-    dr_vec = np.array(splev(ss, raceline.raceline_s, der=1))
-    heading_vec = np.arctan2(dr_vec[1], dr_vec[0])
-    boundary = track.create_boundary(r_vec, heading_vec)
-    return r_vec, boundary[:, 0], boundary[:, 1]
-
-
 def _rebuild_boundary_only(track: RCPTrack, safety_margin: float):
     data = track.data
     bdry = track.create_boundary(data.r_vec, data.phi_vec)
@@ -806,11 +787,12 @@ def _update_track_boundary_widths(track: RCPTrack, left: np.ndarray, right: np.n
                          right_boundary_vec=right_boundary_vec)
 
 
-def _render_loaded_track_image(track: RCPTrack, selected_idx: int | None = None):
+def _render_loaded_track_image(track, selected_idx: int | None = None):
     img = track.draw_track()
-    rl = track.rcp_raceline
-    img = track.draw_raceline(rl.raceline_s, rl.raceline_len_m, img=img)
     data = track.data
+    ss = np.linspace(0.0, data.raceline_len_m, 1000, endpoint=False)
+    raceline_points = np.array(splev(ss, data.raceline_s, der=0)).T
+    img = track.draw_polyline(raceline_points, img=img)
     img = track.draw_polyline(data.left_boundary_vec, img=img)
     img = track.draw_polyline(data.right_boundary_vec, img=img)
     if selected_idx is not None:
@@ -824,7 +806,7 @@ def _render_loaded_track_image(track: RCPTrack, selected_idx: int | None = None)
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def _show_loaded_track(track: RCPTrack):
+def _show_loaded_track(track):
     fig, ax = plt.subplots()
     ax.imshow(_render_loaded_track_image(track))
     ax.set_title('Loaded track verification')
@@ -840,7 +822,7 @@ def _launch_boundary_margin_editor(track: RCPTrack):
     step_m = float(np.median(np.diff(data.s_vec)))
     sigma_m = max(step_m * 6.0, 0.05)
     radius_m = sigma_m * 3.0
-    width_max = float(max(np.max(left), np.max(right), track.config.scale) + 0.15)
+    width_max = float(max(np.max(left), np.max(right), getattr(track.config, 'scale', 0.0)) + 0.15)
     state = {'selected_idx': 0, 'syncing': False, 'dirty': False, 'action': None}
 
     fig, ax = plt.subplots()
@@ -994,16 +976,16 @@ if __name__ == '__main__':
     if args.boundary_only:
         pass
     else:
-        r_vec, left, right = _process_curvilinear_raceline(track, raceline)
+        r_vec, left, right = track.process_raceline(raceline)
         left, right = _apply_safety_margin(left, right, safety_margin)
         track.data = track.build_track(r_vec, left, right)
+        if isinstance(track, RCPTrack) and isinstance(raceline, RCPTrackRaceline):
+            track.rcp_raceline = raceline
 
     _launch_boundary_margin_editor(track)
     track.save()
 
-    # verify results: load and show
-    load_track: RCPTrack = TrackFactory.build('saved')
+    # verify results
     print('-----------------')
-    print_info('testing loading')
-    load_track.load()
-    _show_loaded_track(load_track)
+    print_info('showing saved track')
+    _show_loaded_track(track)

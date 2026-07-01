@@ -327,6 +327,15 @@ class CurvilinearTrack(Track):
         retval = self.local_trajectory(state)
         return (retval.left_margin, retval.right_margin)
 
+    def process_raceline(self, raceline):
+        n_points = self.config.discretized_raceline_len
+        ss = np.linspace(0.0, raceline.raceline_len_m, n_points, endpoint=False)
+        r_vec = np.array(splev(ss, raceline.raceline_s, der=0)).T
+        dr_vec = np.array(splev(ss, raceline.raceline_s, der=1))
+        heading_vec = np.arctan2(dr_vec[1], dr_vec[0])
+        boundary = self.create_boundary(r_vec, heading_vec)
+        return r_vec, boundary[:, 0], boundary[:, 1]
+
     def cart_to_curv(self, cart: CartesianState) -> CurvilinearState:
         """Transform cartesian states to curvilinear states, relies on
         self.raceline_s.

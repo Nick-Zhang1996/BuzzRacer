@@ -117,7 +117,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((3, 3), 'd', offset=None)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -142,7 +142,7 @@ class TrackFactory:
         adjustment[9] = 0
         adjustment[10] = -0.5
         rcp_raceline = track.build_raceline((2, 2), 'd', offset=adjustment)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -154,7 +154,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((2, 0), 'l')
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -166,7 +166,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((3, 3), 'd')
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -178,7 +178,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((0, 2), 'u', offset=None)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
