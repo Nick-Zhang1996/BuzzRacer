@@ -754,6 +754,24 @@ def _apply_safety_margin(left, right, safety_margin):
     return left, right
 
 
+def _process_curvilinear_raceline(track: CurvilinearTrack, raceline):
+    process_raceline = getattr(track, 'process_raceline', None)
+    if process_raceline is not None:
+        return process_raceline(raceline)
+
+    process_rcp_raceline = getattr(track, 'process_rcp_raceline', None)
+    if process_rcp_raceline is not None:
+        return process_rcp_raceline(raceline)
+
+    n_points = track.config.discretized_raceline_len
+    ss = np.linspace(0.0, raceline.raceline_len_m, n_points, endpoint=False)
+    r_vec = np.array(splev(ss, raceline.raceline_s, der=0)).T
+    dr_vec = np.array(splev(ss, raceline.raceline_s, der=1))
+    heading_vec = np.arctan2(dr_vec[1], dr_vec[0])
+    boundary = track.create_boundary(r_vec, heading_vec)
+    return r_vec, boundary[:, 0], boundary[:, 1]
+
+
 def _rebuild_boundary_only(track: RCPTrack, safety_margin: float):
     data = track.data
     bdry = track.create_boundary(data.r_vec, data.phi_vec)
@@ -951,7 +969,7 @@ def _launch_boundary_margin_editor(track: RCPTrack):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'track_name', nargs='?', choices=TrackFactory.available_track_names())
+        'track_name', nargs='?')
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         '--speed-only', action='store_true',
@@ -963,19 +981,20 @@ if __name__ == '__main__':
 
     if args.speed_only or args.boundary_only:
         track = TrackFactory.build('saved')
+        raceline = track.data
     else:
         if args.track_name is None:
             parser.error('track_name is required unless --speed-only or --boundary-only is set')
         # optimize and save
         main = QpSmooth()
         track = TrackFactory.build(args.track_name)
-        track.rcp_raceline = main.optimize_raceline(track.rcp_raceline, track=track, offset=0.15)
+        raceline = main.optimize_raceline(track.data, track=track, offset=0.15)
 
     safety_margin = 0.08
     if args.boundary_only:
         pass
     else:
-        r_vec, left, right = track.process_rcp_raceline(track.rcp_raceline)
+        r_vec, left, right = _process_curvilinear_raceline(track, raceline)
         left, right = _apply_safety_margin(left, right, safety_margin)
         track.data = track.build_track(r_vec, left, right)
 
