@@ -5,6 +5,7 @@ from math import atan, cos, hypot, sin
 from typing import TYPE_CHECKING
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, Control
@@ -18,8 +19,7 @@ class DriftModel(VehicleDynamics):
 
     state_type = CartesianState
     _EPS = 1e-9
-    _ROOT_SAMPLES = 17
-    _ROOT_ITERS = 16
+    _ROOT_ITERS = 10
 
     @staticmethod
     def _combined_slip_force(slip_x: float,
@@ -76,6 +76,7 @@ class DriftModel(VehicleDynamics):
             else:
                 lower = mid
                 lower_residual = mid_residual
+        # print(f'resolution: {upper-lower}')  # 1e-3
         return 0.5 * (lower + upper)
 
     @staticmethod
@@ -89,45 +90,24 @@ class DriftModel(VehicleDynamics):
         free_speed = throttle / back_emf
         road_speed = vx / wheel_radius
         span = max(abs(free_speed), abs(road_speed), 1.0)
-        lower = min(free_speed, road_speed) - 2.0 * span - 10.0
-        upper = max(free_speed, road_speed) + 2.0 * span + 10.0
+        lower = min(free_speed, road_speed) - span
+        upper = max(free_speed, road_speed) + span
 
-        prev_speed = lower
-        prev_residual = DriftModel._rear_force_balance_residual(
-            prev_speed, throttle, vx, rear_lateral_velocity, car_param)
-        best_speed = prev_speed
-        best_error = abs(prev_residual)
-        if best_error < DriftModel._EPS:
-            return best_speed
-
-        for idx in range(1, DriftModel._ROOT_SAMPLES):
-            alpha = idx / (DriftModel._ROOT_SAMPLES - 1)
-            wheel_speed = lower + (upper - lower) * alpha
-            residual = DriftModel._rear_force_balance_residual(
-                wheel_speed, throttle, vx, rear_lateral_velocity, car_param)
-
-            error = abs(residual)
-            if error < best_error:
-                best_speed = wheel_speed
-                best_error = error
-                if error < DriftModel._EPS:
-                    return best_speed
-
-            if prev_residual * residual < 0.0:
-                return DriftModel._bisect_wheel_speed(
-                    prev_speed,
-                    wheel_speed,
-                    prev_residual,
-                    throttle,
-                    vx,
-                    rear_lateral_velocity,
-                    car_param,
-                )
-
-            prev_speed = wheel_speed
-            prev_residual = residual
-
-        return best_speed
+        lower_residual = DriftModel._rear_force_balance_residual(
+            lower, throttle, vx, rear_lateral_velocity, car_param)
+        upper_residual = DriftModel._rear_force_balance_residual(
+            upper, throttle, vx, rear_lateral_velocity, car_param)
+        assert (lower_residual*upper_residual) < 0.0
+        print(f'initial range {upper-lower}')
+        return DriftModel._bisect_wheel_speed(
+            lower,
+            upper,
+            lower_residual,
+            throttle,
+            vx,
+            rear_lateral_velocity,
+            car_param,
+        )
 
     @staticmethod
     def advance_dynamics(state: CartesianState,
@@ -171,8 +151,6 @@ class DriftModel(VehicleDynamics):
         front_slip_y = -front_lateral_velocity + wheel_linear_speed * sin(steering)
         rear_slip_x = -vx + wheel_linear_speed
         rear_slip_y = -rear_lateral_velocity
-
-        print(f'{rear_slip_x=}')
 
         Ffx, Ffy = DriftModel._combined_slip_force(
             front_slip_x,
