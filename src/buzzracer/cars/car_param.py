@@ -64,19 +64,19 @@ class CarParam(NamedTuple):
     steer_offset: float = 0.0
     ''' command = desired_angle * ratio + offset (unit:rad)'''
 
-    drift_wheel_radius: float = 123e-3
+    drift_wheel_radius: float = 12.3e-3
     """ Wheel radius used by the simplified drift model, in meters. """
-    drift_motor_torque_coeff: float = 11-3
+    drift_motor_torque_coeff: float = 0.02
     """ Effective motor torque coefficient in the drift drivetrain model. """
-    drift_motor_back_emf: float = 4e-3
+    drift_motor_back_emf: float = 0.02667564
     """ Effective back-EMF coefficient for the quasi-steady wheel-speed solve. """
-    drift_front_tire_A: float = 0.85
+    drift_front_tire_A: float = 0.21
     """ Front combined-slip tire force scale in Newtons for the drift model. """
-    drift_front_tire_B: float = 8.0
+    drift_front_tire_B: float = 20
     """ Front combined-slip tire shape coefficient for the drift model. """
-    drift_rear_tire_A: float = 1.00
+    drift_rear_tire_A: float = 0.21
     """ Rear combined-slip tire force scale in Newtons for the drift model. """
-    drift_rear_tire_B: float = 6.0
+    drift_rear_tire_B: float = 20
     """ Rear combined-slip tire shape coefficient for the drift model. """
 
     serial_port: str = '/dev/ttyUSB0'
@@ -239,7 +239,10 @@ class CarConfig(Enum):
         rendering='car_imgs/mclaren_22.png'
     )
 
-    def awd_back_emf(wheelspeed_rad):
+    @staticmethod
+    def awd_back_emf(wheel_speed_rad):
         """ no-load wheelspeed (rad) -> back EMF"""
+        # Using only positive wheelspeed data, does not pass through origin
         throttle = 0.00039773 * wheel_speed_rad ** 2 + 0.00841599 * wheel_speed_rad + 0.16436744
+        # throttle = -0.00000779 * wheel_speed_rad ** 2 + 0.02667564 * wheel_speed_rad + -0.00527668
         return throttle

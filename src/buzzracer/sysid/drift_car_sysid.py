@@ -21,12 +21,14 @@ data = [-0.2, -40,
         1.0, 345]
 data = np.asarray(data).reshape(-1, 2)
 positive_data = data[data[:, 0] > 0]
+positive_data = data
 wheel_speed_rad = positive_data[:, 1] * (2.0 * np.pi / 60.0)
 throttle = positive_data[:, 0]
 
 quadratic_fit = np.polyfit(wheel_speed_rad, throttle, 2)
 wheel_speed_fit = np.linspace(wheel_speed_rad.min(), wheel_speed_rad.max(), 200)
-throttle_fit = np.polyval(quadratic_fit, wheel_speed_fit)
+# throttle_fit = np.polyval(quadratic_fit, wheel_speed_fit)
+throttle_fit = wheel_speed_fit * 0.02667
 
 print(
     'throttle = '

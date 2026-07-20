@@ -3,12 +3,12 @@
     <experiment_type>Simulation</experiment_type>
   </settings>
 
-  <track>full</track>
+  <track>skidpad</track>
 
   <extensions>
       <extension>Laptimer</extension>
       <extension>VisualizationGL</extension>
-      <extension reset_pos='True'>BoundaryChecker</extension>
+      <!--<extension reset_pos='True'>BoundaryChecker</extension>-->
       <extension match_time='True'>DriftSimulator</extension>
       <!-- uncommon next line to enable gif saving-->
       <!-- <extension>Gifsaver</extension> -->
@@ -21,7 +21,8 @@
       <config_name>drift_rx7_30</config_name>
       <controller>
         <type>JoystickController</type>
-        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 0.5)</init_states>
+        <!--<init_states>(3.2*0.6,2.1*0.6, radians(-90), 0.5)</init_states>-->
+        <init_states>(2.0, 0.0, radians(-90), 0.5)</init_states>
       </controller>
     </car>
 
