@@ -8,7 +8,7 @@ from buzzracer.cars.car_param import CarConfig
 from buzzracer.sysid.drift_model import DriftModel
 
 
-def bisect_root(residual, lower=0.0, upper=100.0):
+def bisect_root(residual, lower=0.0, upper=4000/60*2*np.pi):
     """Return the positive wheel-speed root of a force-balance residual."""
     lower_residual = residual(lower)
     upper_residual = residual(upper)
@@ -64,13 +64,13 @@ if __name__ == '__main__':
     car_param = CarConfig.drift_rx7_30.value
     wheel_radius = car_param.drift_wheel_radius
 
-    # Full throttle, no load.  The existing calibration measured 345 RPM.
+    # Full throttle, no load.  The existing calibration measured 3450 RPM.
     no_load_wheel_speed = bisect_root(
         lambda speed: DriftModel.get_motor_fx(car_param, 1.0, speed)
     )
     print('full throttle, no load:')
     print(f'  model:      {rpm(no_load_wheel_speed):.1f} RPM')
-    print(f'  experiment: 345.0 RPM')
+    print(f'  experiment: 3450.0 RPM')
 
     # Constrain vx to zero and compare the wheel speed and forward thrust.
     for throttle in (0.25, 0.3, 0.4, 0.5, 0.7, 1.0):
@@ -78,6 +78,11 @@ if __name__ == '__main__':
         print(f'vx=0, throttle={throttle:.2f}:')
         print(f'  wheel speed: {rpm(wheel_speed):.1f} RPM')
         print(f'  forward thrust: {thrust:.3f} N')
+
+    # At straight-line steady state, zero tire force means no longitudinal slip.
+    full_throttle_vx = no_load_wheel_speed * wheel_radius
+    print('full throttle, steady-state vehicle speed:')
+    print(f'  model: {full_throttle_vx:.3f} m/s')
 
     plot_tire_forces(car_param)
     plt.show()

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Note: the tachometer we use to measure measures in 10rpm, the actual value is 10x the recorded value
 data = [-0.2, -40,
         -0.3, -90,
         -0.4, -145,

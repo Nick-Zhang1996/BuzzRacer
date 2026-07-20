@@ -68,15 +68,15 @@ class CarParam(NamedTuple):
     """ Wheel radius used by the simplified drift model, in meters. """
     drift_motor_torque_coeff: float = 0.02
     """ Effective motor torque coefficient in the drift drivetrain model. """
-    drift_motor_back_emf: float = 0.02667564
+    drift_motor_back_emf: float = 0.02667564/10
     """ Effective back-EMF coefficient for the quasi-steady wheel-speed solve. """
-    drift_front_tire_A: float = 0.21
+    drift_front_tire_A: float = 0.2
     """ Front combined-slip tire force scale in Newtons for the drift model. """
-    drift_front_tire_B: float = 20
+    drift_front_tire_B: float = 10
     """ Front combined-slip tire shape coefficient for the drift model. """
-    drift_rear_tire_A: float = 0.21
+    drift_rear_tire_A: float = 0.2
     """ Rear combined-slip tire force scale in Newtons for the drift model. """
-    drift_rear_tire_B: float = 20
+    drift_rear_tire_B: float = 10
     """ Rear combined-slip tire shape coefficient for the drift model. """
 
     serial_port: str = '/dev/ttyUSB0'

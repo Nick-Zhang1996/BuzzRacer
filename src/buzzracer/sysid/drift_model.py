@@ -145,7 +145,7 @@ class DriftModel(VehicleDynamics):
         """Solve the common front/rear wheel speed from drivetrain balance."""
         wheel_radius = max(car_param.drift_wheel_radius, DriftModel._EPS)
         road_speed = vx / wheel_radius
-        span = max(abs(road_speed), 100.0)
+        span = max(abs(road_speed), 4000/60*2*np.pi)
         lower = road_speed - span
         upper = road_speed + span
 
