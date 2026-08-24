@@ -1,6 +1,7 @@
 ''' Project-wide Common functions and classes'''
 import os
 import logging
+import time
 
 from enum import Enum, auto
 
@@ -225,3 +226,25 @@ def set_config_attr(config_minidom, config):
             value = value_text
         setattr(config, key, value)
     return config
+
+class LoggingFilter(logging.Filter):
+    """ Filter to throttle identical logs to [interveal]
+    Usage:
+        logger = logging.getLogger()
+        logger.addFilter(LoggingFilter(interval=1.0))
+    """
+    def __init__(self, interval):
+        super().__init__()
+        self.interval = interval
+        self.last_time = {}
+
+    def filter(self, record):
+        key = record.getMessage()
+        now = time.time()
+        last = self.last_time.get(key, 0)
+
+        if now - last > self.interval:
+            self.last_time[key] = now
+            return True
+        return False
+

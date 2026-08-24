@@ -1,0 +1,24 @@
+<config>
+  <settings dt='0.01' multiprocess='False'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+      <extension handle='simulator'>DynamicBicycleCartesianSimulator</extension>
+      <extension handle='step_counter' total_steps='3'>StepCounter</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>audi_11</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_11</config_name>
+      <controller planner='False' horizon='10' max_speed='0.8'>
+        <type>MpcController</type>
+        <init_states>curv(0.25, 0.02, -0.05, 0.30)</init_states>
+      </controller>
+    </car>
+  </cars>
+</config>

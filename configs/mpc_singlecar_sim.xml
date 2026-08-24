@@ -1,0 +1,35 @@
+<config>
+  <settings dt='0.01' multiprocess='True'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>saved</track>
+
+  <extensions>
+      <extension handle='laptimer'>Laptimer</extension>
+      <extension handle='visualization' show_car_info='False'>VisualizationGL</extension>
+      <extension handle='simulator' match_time='True'>DynamicBicycleCartesianSimulator</extension>
+  </extensions>
+
+  <cars>
+    <car>
+      <name>audi_11</name>
+      <hardware>Offboard</hardware>
+      <config_name>audi_11</config_name>
+      <controller
+        planner='False'
+        horizon='20'
+        max_speed='1.0'
+        progress_weight='6.0'
+        lateral_weight='70.0'
+        heading_weight='25.0'
+        speed_weight='6.0'
+        steering_rate_weight='2.0'
+        throttle_rate_weight='0.2'
+        >
+        <type>MpcController</type>
+        <init_states>curv(0.25, 0.02, -0.05, 0.30)</init_states>
+      </controller>
+    </car>
+  </cars>
+</config>

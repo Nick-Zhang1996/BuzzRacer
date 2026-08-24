@@ -32,7 +32,6 @@ class Visualization(Extension):
         self.frame_dt = 0.0
         self.count = 0
         self.track = self.main.track
-        self.main.breakpoint = Event()
         self.visualization_ts: float = 0.0
         ''' clock time of last visualization update'''
 
@@ -131,7 +130,7 @@ class Visualization(Extension):
             # p for pause
             elif k == ord('b'):
                 self.print_info('breakpoint')
-                self.main.breakpoint.set()
+                self.main.state.breakpoint.set()
             # s for snapshot
             elif k == ord('s'):
                 self.print_info('Requesting snapshot')

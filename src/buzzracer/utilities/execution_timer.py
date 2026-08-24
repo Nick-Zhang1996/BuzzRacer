@@ -1,7 +1,8 @@
 # for quick and dirty code profiling
 import logging
+import multiprocessing as mp
 
-from time import time, thread_time
+from time import perf_counter
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -9,10 +10,13 @@ logger.setLevel(logging.INFO)
 
 
 class ExecutionTimer:
-    """ Wall-clock runtime profiler"""
+    """Clock-agnostic runtime profiler."""
+    print_lock = mp.Lock()
 
-    def __init__(self, enable=True):
+    def __init__(self, enable=True, clock=None, clock_name='wall'):
         self.enabled = enable
+        self.clock = perf_counter if clock is None else clock
+        self.clock_name = clock_name
 
         self.start_ts = None
         self.end_ts = None
@@ -29,8 +33,7 @@ class ExecutionTimer:
         self.current_subsession = None
 
     def time(self):
-        return time()
-        # return thread_time()
+        return self.clock()
 
     def global_start(self):
         if not self.enabled:
@@ -46,7 +49,10 @@ class ExecutionTimer:
         if self.current_subsession is None:
             self.current_subsession = name
             if not name in self.child_sections:
-                self.child_sections[name] = ExecutionTimer(enable=True)
+                self.child_sections[name] = ExecutionTimer(
+                    enable=True,
+                    clock=self.clock,
+                    clock_name=self.clock_name)
             self.child_sections[name].s()
 
         else:
@@ -59,7 +65,8 @@ class ExecutionTimer:
             if self.current_subsession is not None:
                 logger.error(f' end() is called before end({self.current_subsession}),'
                              'missed call? check all logic paths')
-                self.end(self.current_subsession)
+                self.child_sections[self.current_subsession].drop_active_timing()
+                self.current_subsession = None
 
             return self.global_end()
 
@@ -84,6 +91,16 @@ class ExecutionTimer:
         self.total_count += 1
         self.start_ts = None
 
+    def drop_active_timing(self):
+        if not self.enabled:
+            return
+
+        if self.current_subsession is not None:
+            self.child_sections[self.current_subsession].drop_active_timing()
+            self.current_subsession = None
+
+        self.start_ts = None
+
     def track(self, name, var):
         if not self.enabled:
             return
@@ -92,6 +109,16 @@ class ExecutionTimer:
         self.tracked_count[name] += 1
         self.tracked[name] = self.tracked[name] / self.tracked_count[name]
 
+    def track_duration(self, name, start_ts, end_ts=None, scale=1.0):
+        """Track an externally measured duration, optionally applying a scale."""
+        if not self.enabled or start_ts is None:
+            return
+        if end_ts is None:
+            end_ts = self.time()
+        if end_ts < start_ts:
+            return
+        self.track(name, (end_ts - start_ts) * scale)
+
     def s(self, n=None):
         return self.start(n)
 
@@ -99,6 +126,10 @@ class ExecutionTimer:
         return self.end(n)
 
     def summary(self, prefix='', multiplier=1.0):
+        with self.print_lock:
+            self._summary(prefix=prefix, multiplier=multiplier)
+
+    def _summary(self, prefix='', multiplier=1.0):
         """ Print a formatted summary of execution time, with prefix leading
         Args:
             prefix: text-prefix for controlling subsection indentation
@@ -106,7 +137,7 @@ class ExecutionTimer:
         """
         if not self.enabled:
             return
-        if len(self.child_sections) == 0 and prefix == '':
+        if len(self.child_sections) == 0 and len(self.tracked) == 0 and prefix == '':
             logger.info('No timed block defined')
             return
 
@@ -119,24 +150,27 @@ class ExecutionTimer:
             for key, value in self.tracked.items():
                 logger.info(f'{key:<{fw}}{value:>5.2f}')
 
-        if prefix == '':
-            text = 'Time'
+        if prefix == '' and len(self.child_sections) > 0:
+            text = f'Time ({self.clock_name})'
             logger.info(f'{text:-^{fw}}')
         total_accounted_time = 0.0
         for key, value in self.child_sections.items():
             total_accounted_time += value.total_duration
-            frac = value.total_duration / self.total_duration
+            frac = value.total_duration / self.total_duration if self.total_duration > 0 else 0.0
             logger.info(
                 f'{prefix+key:<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
-            value.summary(prefix=prefix+'| ', multiplier=multiplier*frac)
+            value._summary(prefix=prefix+'| ', multiplier=multiplier*frac)
         if len(self.child_sections) > 0:
-            frac = 1-total_accounted_time/self.total_duration
+            frac = 1-total_accounted_time/self.total_duration if self.total_duration > 0 else 0.0
             logger.info(
                 f'{prefix+"Unaccounted":<{fw}}{prefix}{multiplier*frac*100:3.2f}%')
 
-        if prefix == '':
-            logger.info(
-                f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
+        if prefix == '' and (len(self.child_sections) > 0 or self.total_duration > 0):
+            if self.total_duration > 0:
+                logger.info(
+                    f'Avg freq = {self.total_count/self.total_duration:.3f}Hz')
+            else:
+                logger.info('Avg freq = n/a')
         return
 
 

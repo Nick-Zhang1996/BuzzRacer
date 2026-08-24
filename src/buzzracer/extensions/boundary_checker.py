@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import numpy as np
 
+from buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.common import get_logger
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
@@ -11,15 +12,23 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+class BoundaryCheckerConfig(ExtensionConfig):
+    def __init__(self, main_config):
+        super().__init__(main_config)
+        self.reset_pos = False
+        """If True, snap cars back to their last in-boundary pose with zero velocity."""
+
+
 class BoundaryCheckerState(ExtensionState):
     def __init__(self, config):
         super().__init__(config)
         self.discretized_raceline: np.ndarray
         self.collision_count: dict[Car, int]
         self.car_is_in_collision: dict[Car, bool]
+        self.last_in_boundary_state: dict[Car, CartesianState]
 
 
-@Extension.register('boundary_checker', ExtensionConfig, ExtensionState)
+@Extension.register('boundary_checker', BoundaryCheckerConfig, BoundaryCheckerState)
 class BoundaryChecker(Extension):
     ''' Extension to check boundary violations.
     Count number of times car is in collision with boundary.
@@ -40,18 +49,28 @@ class BoundaryChecker(Extension):
             for car in self.main.cars
         }
         ''' Dict to indicate if a car is in collision'''
+        self.state.last_in_boundary_state = {
+            car: CartesianState(*car.state)
+            for car in self.main.cars
+        }
+        for car in self.main.cars:
+            car.in_collision = False
 
     def update(self):
         for car in self.main.cars:
             if self.is_out_of_boundary(car):
+                self.state.car_is_in_collision[car] = True
                 if not car.in_collision:
                     car.in_collision = True
                     self.state.collision_count[car] += 1
-                    self.print_ok(
-                        self.prefix(), 'car %d collision = %d' %
-                        (car.id, self.state.collision_count[car]))
+                    self.print_ok('car %s collision = %d' %
+                                  (car.param.name, self.state.collision_count[car]))
+                if self.config.reset_pos:
+                    self._reset_car_to_last_in_boundary_state(car)
             else:
-                self.state.car_is_in_collision = False
+                car.in_collision = False
+                self.state.car_is_in_collision[car] = False
+                self.state.last_in_boundary_state[car] = CartesianState(*car.state)
 
     def final(self):
         for car in self.main.cars:
@@ -59,12 +78,31 @@ class BoundaryChecker(Extension):
                         (car.id, self.state.collision_count[car]))
             car.total_boundary_collision = self.state.collision_count[car]
 
+    def _reset_car_to_last_in_boundary_state(self, car):
+        last_state = self.state.last_in_boundary_state.get(car)
+        if last_state is None:
+            return
+
+        reset_state = CartesianState(
+            x=last_state.x,
+            y=last_state.y,
+            heading=last_state.heading,
+            v_forward=0.0,
+            v_sideway=0.0,
+            omega=0.0,
+        )
+        car.state = reset_state
+        self.main.state.car_states[car.id] = reset_state
+
+        if hasattr(car, 'sim_state'):
+            if isinstance(car.sim_state, CurvilinearState):
+                car.sim_state = self.main.track.cart_to_curv(reset_state)
+            else:
+                car.sim_state = CartesianState(*reset_state)
+
     def is_out_of_boundary(self, car):
         car_coord = car.state[0:2]
-        car_heading = car.state[2]
-        left, right = self.main.track.precise_track_boundary(car_coord, car_heading)
-        out = left < 0 or right < 0
-        return out
+        return self.main.track.is_outside(car_coord)
 
     def is_out_of_boundary_discrete(self, car):
         # x, y, heading, vf, vs, omega = car.state

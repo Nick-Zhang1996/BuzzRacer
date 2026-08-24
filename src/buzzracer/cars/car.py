@@ -1,16 +1,23 @@
 ''' Defines the interface for working with physical and simulated cars'''
 from __future__ import annotations
 import logging
+from importlib import import_module
 
 # pylint: disable-next=unused-import
 from math import degrees, radians
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType
-from buzzracer.types import CartesianState
+from buzzracer.types import CartesianState, CurvilinearState
 from buzzracer.cars.car_param import CarParam, CarConfig
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(logging.INFO)
+
+_CAR_MODULES = {
+    'Offboard': 'buzzracer.cars.offboard',
+    'OldOffboard': 'buzzracer.cars.old_offboard',
+    'FHSS': 'buzzracer.cars.fhss',
+}
 
 
 class Car(PrintObject, LogObject):
@@ -18,6 +25,8 @@ class Car(PrintObject, LogObject):
     Subclasses should implement communication details to interact with different
     types of physical car.'''
     car_count = 0
+    consumes_multiprocess_control = False
+    """True when hardware threads consume shared controller output directly."""
     ''' Total number of cars'''
     cars = []
     """ All cars, this include cars of different subclass.
@@ -39,6 +48,14 @@ class Car(PrintObject, LogObject):
         self.max_throttle = 1.0
         self.min_throttle = -1.0
         self.debug_dict = {}
+
+        # Wall-clock timing metadata for tracing state-to-command latency.
+        self._latency_state_seq = 0
+        self._latency_udp_rx_ts = 0.0
+        self._latency_rigid_body_ts = 0.0
+        self._latency_state_set_ts = 0.0
+        self._pending_control_latency = None
+        self._last_latency_sent_seq = 0
 
     @staticmethod
     def register(cls):
@@ -110,29 +127,39 @@ class Car(PrintObject, LogObject):
 
     @classmethod
     def Factory(cls, config_minidom):
+        cm = config_minidom
         from buzzracer.controllers.controller import Controller
         try:
-            car_cls_text = config_minidom.getElementsByTagName(
-                'hardware')[0].firstChild.nodeValue
-            car_cls = Car.registry[car_cls_text]
+            car_cls_text = cm.getElementsByTagName('hardware')[0].firstChild.nodeValue
+            car_cls = Car.registry.get(car_cls_text)
+            if car_cls is None:
+                module_name = _CAR_MODULES.get(car_cls_text)
+                if module_name is not None:
+                    module = import_module(module_name)
+                    car_cls = Car.registry.get(car_cls_text, getattr(module, car_cls_text, None))
+                    if car_cls is not None:
+                        Car.registry[car_cls_text] = car_cls
+            if car_cls is None:
+                raise KeyError(car_cls_text)
         except IndexError:
             _logger.warning('No hardware specified')
 
-        config_controller = config_minidom.getElementsByTagName(
-            'controller')[0]
-        controller_class_text = config_controller.getElementsByTagName(
-            'type')[0].firstChild.nodeValue
+        config_ctrl = cm.getElementsByTagName('controller')[0]
+        controller_class_text = config_ctrl.getElementsByTagName('type')[0].firstChild.nodeValue
 
+        # pylint: disable-next=unused-variable
+        def curv(s, n, phi, v):
+            curv = CurvilinearState(s, n, phi, v)
+            cart = Car.main.track.curv_to_cart(curv)
+            return cart.to_tuple()[:4]
         try:
-            init_states_text = config_minidom.getElementsByTagName(
-                'init_states')[0].firstChild.nodeValue
+            init_states_text = cm.getElementsByTagName('init_states')[0].firstChild.nodeValue
             init_states = eval(init_states_text)
         except IndexError:
             _logger.warning('Car: no initial state specified, using track default')
             init_states = (*Car.main.track.data.start_pos, Car.main.track.data.start_dir, 0.1)
 
-        config_name = config_minidom.getElementsByTagName(
-            'config_name')[0].firstChild.nodeValue
+        config_name = cm.getElementsByTagName('config_name')[0].firstChild.nodeValue
 
         car = car_cls()
         # (x,y,theta,vforward,vsideway=0,omega)
@@ -148,7 +175,7 @@ class Car(PrintObject, LogObject):
 
         controller, controller_config, controller_state = Controller.factory(
             controller_class_text, Car.main.config, car.param,
-            config_controller)
+            config_ctrl)
 
         if not controller is None:
             car.controller = controller

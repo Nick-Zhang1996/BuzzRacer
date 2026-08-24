@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from time import time, sleep
 from enum import Enum, unique
 from abc import ABC, abstractmethod
+import logging
 
 import numpy as np
 from scipy.interpolate import splev
@@ -14,6 +15,9 @@ from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.types import CartesianState, CurvilinearState, Control
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car, CarParam
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @unique
@@ -28,6 +32,8 @@ class SimulatorConfig(ExtensionConfig):
         super().__init__(main_config)
         self.match_time: bool = False
         ''' If True, attempt to match simulation with clock time. Pauses at each step.'''
+        self.real_sim_time_ratio: float = 1.0
+        ''' Real time / sim time. If larger than 1.0, simulation is slowed down. '''
         self.dynamics_model: type[VehicleDynamics] = VehicleDynamics
         ''' Dynamics model to use for simulation, must be overridden in config
         possible values: KinematicBicycleModelFrenet, DynamicBicycleModelCartesian, etc.'''
@@ -59,12 +65,11 @@ class Simulator(Extension, ABC):
         ''' List of all cars using this simulator. This may be a subset of main.cars'''
 
         self.t0 = None
-        self.real_sim_time_ratio = 1.0
+        self.real_sim_time_ratio = self.config.real_sim_time_ratio
         ''' Real time / sim time. If larger than 1.0, simulation will be slowed down.
             This allow easier human interpretation of fast simulations.
             Only useful if match_time = True '''
-        self.print_info('real/sim time ratio = %.1f ' %
-                        (self.real_sim_time_ratio))
+        self.print_info('real/sim time ratio = %.1f ' % (self.real_sim_time_ratio))
 
         self.sim_t = 0
         ''' Elapsed time in simulation'''
@@ -113,6 +118,7 @@ class Simulator(Extension, ABC):
         for car in self.cars:
             if self.state_type == CartesianState:
                 # NOTE cartesian state is passed directly as a tuple for now
+                logger.debug(f'{car.steering=}, {car.throttle=}')
                 car.state = self.advance_dynamics(
                     car.state, (car.steering, car.throttle), car.param, self.main.config.dt)
             elif self.state_type == CurvilinearState:

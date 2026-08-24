@@ -2,6 +2,9 @@
 # pylint: disable=unbalanced-tuple-unpacking
 from dataclasses import dataclass
 from math import sin, cos
+import logging
+import os
+import pickle
 
 import numpy as np
 from deprecated import deprecated
@@ -9,12 +12,15 @@ from scipy.interpolate import splprep, splev
 from scipy.optimize import minimize
 from scipy.spatial import KDTree
 
-from buzzracer.common import wrap
+from buzzracer.common import BASEDIR, wrap
 from buzzracer.types import CurvilinearState, CartesianState
 from buzzracer.tracks.track import Track, LocalTrajOutput, Tck
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-def map(val, x, y, a, b):
+
+def fmap(val, x, y, a, b):
     """ Map val from [x,y] to [a,b]"""
     return (val-x) / (y-x) * (b-a) + a
 
@@ -81,6 +87,49 @@ class CurvilinearTrack(Track):
         # e.g.
         # self.data = self.build_track(r, left_width, right_width)
         return
+
+    @staticmethod
+    def _resolve_track_filename(filename):
+        if filename is None:
+            filename = 'curvilinear_track.p'
+        if os.path.isabs(filename):
+            return filename
+        return os.path.join(BASEDIR, 'assets', filename)
+
+    def save(self, filename=None):
+        """Save this curvilinear track as centerline and left/right margins."""
+        full_filename = self._resolve_track_filename(filename)
+        os.makedirs(os.path.dirname(full_filename), exist_ok=True)
+
+        payload = {
+            'centerline': self.data.r_vec.tolist(),
+            'left_margin': self.data.left_width_vec.tolist(),
+            'right_margin': self.data.right_width_vec.tolist(),
+        }
+        with open(full_filename, 'wb') as file_obj:
+            pickle.dump(payload, file_obj)
+        logger.info('CurvilinearTrack saved at %s', full_filename)
+
+    def load(self, filename=None):
+        """Load centerline and left/right margins from a saved curvilinear track file."""
+        full_filename = self._resolve_track_filename(filename)
+        with open(full_filename, 'rb') as file_obj:
+            payload = pickle.load(file_obj)
+
+        centerline = np.asarray(payload['centerline'], dtype=float)
+        left_margin = np.asarray(payload['left_margin'], dtype=float)
+        right_margin = np.asarray(payload['right_margin'], dtype=float)
+
+        if centerline.ndim != 2 or centerline.shape[1] != 2:
+            raise ValueError('saved centerline must have shape (N, 2)')
+        point_count = centerline.shape[0]
+        if left_margin.shape != (point_count,) or right_margin.shape != (point_count,):
+            raise ValueError('saved margins must match centerline length')
+
+        self.data = self.build_track(centerline, left_margin, right_margin)
+        self.config.x_limit = self.data.x_max - self.data.x_min
+        self.config.y_limit = self.data.y_max - self.data.y_min
+        logger.info('CurvilinearTrack loaded from %s', full_filename)
 
     def local_trajectory(self, state: CartesianState):
         """ Given the state of the car, provide geometry information of the raceline.
@@ -162,13 +211,11 @@ class CurvilinearTrack(Track):
 
         def _norm(x):
             return np.linalg.norm(x, axis=0)
-        # radius of curvature can be calculated as R = |y'|^3/sqrt(|y'|^2*|y''|^2-(y'*y'')^2)
-        nominator = _norm(dr)**2*_norm(ddr) ** 2 - np.sum(dr*ddr, axis=0)**2
-        nominator = np.clip(nominator, a_min=0, a_max=None)**0.5
-        curvature_vec = nominator / _norm(dr)**3
+        # (dx*ddy - dy*ddx)
+        curvature_vec = (dr[0]*ddr[1] - dr[1]*ddr[0]) / _norm(dr)**3
         assert not np.any(np.isnan(curvature_vec))
         curvature_s, _ = splprep(curvature_vec.reshape(1, -1), u=s_vec, s=0, per=1)
-        ss = np.linspace(0, raceline_len_m, n)
+        ss = np.linspace(0, raceline_len_m, n, endpoint=False)
         r_vec = np.array(splev(ss, raceline_s, der=0))
         dr_vec = np.array(splev(ss, raceline_s, der=1))
         phi_vec = np.arctan2(dr_vec[1, :], dr_vec[0, :])
@@ -203,20 +250,28 @@ class CurvilinearTrack(Track):
             [r_vec, phi_vec, left_width, right_width]).T
         start_pos = tuple(r_vec[:, 0])
         start_dir = phi_vec[0]
+        # spd_profile = Track.generate_speed_profile(raceline_s,
+        #                                            raceline_len_m,
+        #                                            mu=0.05,  # 0.8
+        #                                            acc_max_fun=lambda v: 2.0*(0.8-v)/0.8,  # 5.0
+        #                                            dec_max_fun=lambda v: 2.0)  # 3.3
         spd_profile = Track.generate_speed_profile(raceline_s,
                                                    raceline_len_m,
                                                    mu=0.8,
-                                                   acc_max_fun=lambda x: 5.0,
-                                                   dec_max_fun=lambda x: 3.3)
+                                                   acc_max_fun=lambda v: 5.0,
+                                                   dec_max_fun=lambda v: 3.3)
 
         speed_vec = np.array(splev(ss, spd_profile.speed_tck, der=0)).flatten()
+        min_speed = np.min(speed_vec)
+        max_speed = np.max(speed_vec)
+        logger.info(f'{min_speed=}, {max_speed=}')
 
         # KD tree for finding closest point on raceline
         kd_tree = KDTree(r_vec.T)
 
         return CurvilinearTrackData(
             r_vec=r_vec.T,
-            s_vec=np.array(s_vec),
+            s_vec=ss,
             phi_vec=phi_vec,
             curvature_vec=curvature_vec,
             left_width_vec=left_width,
@@ -260,9 +315,9 @@ class CurvilinearTrack(Track):
 
         # height, width
         img = 255*np.ones([y_pix, x_pix, 3], dtype=np.uint8)
-        img = data.draw_polyline(
+        img = self.draw_polyline(
             data.left_boundary_vec, img, lineColor=(0, 0, 0), thickness=2)
-        img = data.draw_polyline(
+        img = self.draw_polyline(
             data.right_boundary_vec, img, lineColor=(0, 0, 0), thickness=2)
         return img
 
@@ -271,6 +326,15 @@ class CurvilinearTrack(Track):
         state = CartesianState(coord[0], coord[1])
         retval = self.local_trajectory(state)
         return (retval.left_margin, retval.right_margin)
+
+    def process_raceline(self, raceline):
+        n_points = self.config.discretized_raceline_len
+        ss = np.linspace(0.0, raceline.raceline_len_m, n_points, endpoint=False)
+        r_vec = np.array(splev(ss, raceline.raceline_s, der=0)).T
+        dr_vec = np.array(splev(ss, raceline.raceline_s, der=1))
+        heading_vec = np.arctan2(dr_vec[1], dr_vec[0])
+        boundary = self.create_boundary(r_vec, heading_vec)
+        return r_vec, boundary[:, 0], boundary[:, 1]
 
     def cart_to_curv(self, cart: CartesianState) -> CurvilinearState:
         """Transform cartesian states to curvilinear states, relies on
@@ -297,7 +361,10 @@ class CurvilinearTrack(Track):
         phi_step = wrap(data.phi_vec[(idx+1) % N] - rphi)
 
         # Interpolated ref pi
-        precise_rphi = map(ds, 0, s_step, rphi, rphi+phi_step)
+        if np.isclose(s_step, 0.0):
+            precise_rphi = rphi
+        else:
+            precise_rphi = fmap(ds, 0, s_step, rphi, rphi+phi_step)
         phi = wrap(cart.heading - precise_rphi)
 
         # NOTE cartesian v_sideway is not exactly the same as curvilinear v_sideway
@@ -369,10 +436,8 @@ class CurvilinearTrack(Track):
 
         """
         data = self.data
-        r = np.array(splev(curv.progress % data.raceline_len_m,
-                     data.raceline_s, der=0))
-        dr = np.array(splev(curv.progress % data.raceline_len_m,
-                      data.raceline_s, der=1))
+        r = np.array(splev(curv.progress % data.raceline_len_m, data.raceline_s, der=0))
+        dr = np.array(splev(curv.progress % data.raceline_len_m, data.raceline_s, der=1))
         dr = dr/np.linalg.norm(dr)
 
         # ccw 90 deg

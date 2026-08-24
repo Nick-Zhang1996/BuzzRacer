@@ -1,4 +1,6 @@
-from buzzracer.common import get_logger, set_config_attr
+import os
+
+from buzzracer.common import BASEDIR, get_logger, set_config_attr
 from buzzracer.tracks.track import TrackConfig
 from buzzracer.tracks.curvilinear_track import CurvilinearTrack
 from buzzracer.tracks.rcp_track import RCPTrack, GridSize
@@ -46,8 +48,53 @@ class TrackFactory:
                 name = config.firstChild.nodeValue
         if (name in mapping):
             return mapping[name](config)
+
+        track = TrackFactory.prepare_pickled_curvilinear_track(name, config)
+        if track is not None:
+            return track
+
+        logger.error('unknown track name, use one in %s or save assets/%s.p',
+                     mapping.keys(), name)
+        return None
+
+    @staticmethod
+    def _pickled_track_candidates(name):
+        candidates = []
+        if os.path.isabs(name):
+            candidates.append(name)
         else:
-            logger.error('unknown track name, use one in %s', mapping.keys())
+            candidates.append(os.path.join(BASEDIR, 'assets', name))
+            candidates.append(os.path.join(BASEDIR, 'assets', f'{name}.p'))
+            candidates.append(os.path.join(BASEDIR, 'assets', f'{name}.pickle'))
+
+        # Preserve order while removing duplicates.
+        unique_candidates = []
+        for candidate in candidates:
+            if candidate not in unique_candidates:
+                unique_candidates.append(candidate)
+        return unique_candidates
+
+    @staticmethod
+    def prepare_pickled_curvilinear_track(name, config_dom=None):
+        '''Load a previously saved CurvilinearTrack from assets/.
+
+        This is used as a fallback when the requested track name is not one of
+        the built-in mapping keys. The file is expected to contain a pickled
+        dictionary with centerline, left_margin, and right_margin so the full
+        curvilinear-track data can be rebuilt by CurvilinearTrack.load().
+        '''
+        for filename in TrackFactory._pickled_track_candidates(name):
+            if not os.path.isfile(filename):
+                continue
+
+            config = TrackConfig()
+            set_config_attr(config_dom, config)
+            track = CurvilinearTrack(config)
+            track.load(filename)
+            logger.info('Loaded curvilinear track from %s', filename)
+            return track
+
+        return None
 
     @staticmethod
     def prepare_saved_track(config_dom):
@@ -70,7 +117,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((3, 3), 'd', offset=None)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -95,7 +142,7 @@ class TrackFactory:
         adjustment[9] = 0
         adjustment[10] = -0.5
         rcp_raceline = track.build_raceline((2, 2), 'd', offset=adjustment)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -107,7 +154,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((2, 0), 'l')
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -119,7 +166,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((3, 3), 'd')
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -131,7 +178,7 @@ class TrackFactory:
         set_config_attr(config_dom, config)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((0, 2), 'u', offset=None)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data

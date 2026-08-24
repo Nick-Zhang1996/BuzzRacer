@@ -143,7 +143,7 @@ class RCPTrack(CurvilinearTrack):
         config = RCPTrack.build_config('uuurrullurrrdddddluulddl', track_size)
         track = RCPTrack(config)
         rcp_raceline = track.build_raceline((3, 3), 'd', offset=None)
-        r_vec, left, right = track.process_rcp_raceline(rcp_raceline)
+        r_vec, left, right = track.process_raceline(rcp_raceline)
         data = track.build_track(r_vec, left, right)
         track.rcp_raceline = rcp_raceline
         track.data = data
@@ -523,13 +523,13 @@ class RCPTrack(CurvilinearTrack):
 
         return ((al, a, ar), (bl, b, br))
 
-    def coord_is_in_track(self, coord):
-        ''' Check if a point is inside track boudnary
+    def is_outside(self, coord):
+        ''' Check if a point is outside the track boundary
 
         Args:
             coord: (x,y)
         Returns:
-            val: min distance to left/right boundary
+            bool: True when coord is outside the track boundary
         '''
         # figure out which grid the coord is in
         # grid coordinate, (col, row), col starts from left and row starts from bottom,
@@ -576,7 +576,7 @@ class RCPTrack(CurvilinearTrack):
             radius = ((x_local - apex[0])**2 + (y_local - apex[1])**2)**0.5
             wl = 1-deadzone-radius
             wr = radius - deadzone
-        return min(wl, wr)
+        return min(wl, wr) < 0
 
     def precise_track_boundary(self, coord, heading):
         ''' Given coordinate and heading, calculate precise boundary to left and right
@@ -591,7 +591,7 @@ class RCPTrack(CurvilinearTrack):
         while flag_in_limit:
             left_point = (coord[0] + left * cos(heading+np.pi/2),
                           coord[1] + left * sin(heading+np.pi/2))
-            flag_in_limit = self.coord_is_in_track(left_point) > 0
+            flag_in_limit = not self.is_outside(left_point)
             left += step_size
 
         # find right boundary
@@ -600,7 +600,7 @@ class RCPTrack(CurvilinearTrack):
         while flag_in_limit:
             right_point = (coord[0] + right * cos(heading-np.pi/2),
                            coord[1] + right * sin(heading-np.pi/2))
-            flag_in_limit = self.coord_is_in_track(right_point) > 0
+            flag_in_limit = not self.is_outside(right_point)
             right += step_size
 
         # convert metric unit to dimensionless unit
@@ -663,7 +663,7 @@ class RCPTrack(CurvilinearTrack):
             while flag_in_limit:
                 left_point = (coord[0] + left * cos(heading+np.pi/2),
                               coord[1] + left * sin(heading+np.pi/2))
-                flag_in_limit = self.coord_is_in_track(left_point) > 0
+                flag_in_limit = not self.is_outside(left_point)
                 left += step_size
 
             # find right boundary
@@ -672,7 +672,7 @@ class RCPTrack(CurvilinearTrack):
             while flag_in_limit:
                 right_point = (coord[0] + right * cos(heading-np.pi/2),
                                coord[1] + right * sin(heading-np.pi/2))
-                flag_in_limit = self.coord_is_in_track(right_point) > 0
+                flag_in_limit = not self.is_outside(right_point)
                 right += step_size
 
             # convert metric unit to dimensionless unit
@@ -771,7 +771,7 @@ class RCPTrack(CurvilinearTrack):
             img = cv2.circle(img, src, 3, color, -1)
         return img
 
-    def process_rcp_raceline(self, raceline: RCPTrackRaceline):
+    def process_raceline(self, raceline: RCPTrackRaceline):
         """ Given an RCPTrackRaceline object.
         Sample reference points, and distance to left/right boundary with create_boundary().
         Args:

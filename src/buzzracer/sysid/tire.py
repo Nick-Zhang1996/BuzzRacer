@@ -1,5 +1,6 @@
-''' Pacejka tire models with parameters from system identification experiments'''
+"""Pacejka tire models with parameters from system identification experiments."""
 
+import casadi as ca
 import torch
 import numpy as np
 
@@ -20,3 +21,11 @@ def tire_curve(slip, use_torch=False):
     else:
         retval = D * np.sin(C * np.arctan(B * slip))
     return retval
+
+
+def tire_curve_casadi(slip):
+    """CasADi-compatible tire curve."""
+    C = 1.6
+    B = 2.3
+    D = 1.1
+    return D * ca.sin(C * ca.atan(B * slip))

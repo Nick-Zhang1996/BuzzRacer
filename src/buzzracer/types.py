@@ -1,6 +1,7 @@
 
 ''' Define types used througout the project'''
 import ctypes
+from math import isnan
 
 
 class Control(ctypes.Structure):
@@ -16,12 +17,51 @@ class Control(ctypes.Structure):
         ('throttle', ctypes.c_double)
     ]
 
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
+
     def to_tuple(self) -> tuple:
         """Returns the control as a standard Python tuple."""
         return (self.steering, self.throttle)
 
     def __repr__(self):
         return f"Control(steering={self.steering:.3f}, throttle={self.throttle:.3f})"
+
+
+class StateTiming(ctypes.Structure):
+    """Timing metadata associated with a published state sample."""
+
+    _fields_ = [
+        ('seq', ctypes.c_ulonglong),
+        ('udp_rx_ts', ctypes.c_double),
+        ('rigid_body_ts', ctypes.c_double),
+        ('car_state_ts', ctypes.c_double)
+    ]
+
+
+class ControlTiming(ctypes.Structure):
+    """Timing metadata associated with a published control sample."""
+
+    _fields_ = [
+        ('seq', ctypes.c_ulonglong),
+        ('udp_rx_ts', ctypes.c_double),
+        ('rigid_body_ts', ctypes.c_double),
+        ('car_state_ts', ctypes.c_double),
+        ('controller_read_ts', ctypes.c_double),
+        ('controller_done_ts', ctypes.c_double)
+    ]
 
 
 class CartesianState(ctypes.Structure):
@@ -45,6 +85,21 @@ class CartesianState(ctypes.Structure):
         ('v_sideway', ctypes.c_double),
         ('omega', ctypes.c_double)
     ]
+
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
 
     def to_tuple(self) -> tuple:
         """Returns the state as a standard Python tuple."""
@@ -96,6 +151,21 @@ class CurvilinearState(ctypes.Structure):
         ('v_sideway', ctypes.c_double),
         ('rel_omega', ctypes.c_double)
     ]
+
+    def __init__(self, *args, **kwargs):
+        # 1. Let ctypes handle standard field initialization first
+        super().__init__(*args, **kwargs)
+
+        # 2. Run the validation check (acting as a post-init)
+        self._check_for_nans()
+
+    def _check_for_nans(self):
+        """Iterates through defined fields and raises ValueError if any are NaN."""
+        for field_name, _ in self._fields_:
+            # getattr retrieves the Python float value from the c_double field
+            val = getattr(self, field_name)
+            if isnan(val):
+                raise ValueError(f"Invalid initialization: Attribute '{field_name}' cannot be NaN.")
 
     def to_tuple(self) -> tuple:
         """Returns the curvilinear state as a standard Python tuple."""

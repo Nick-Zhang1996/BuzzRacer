@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from math import sin, cos
 
+import casadi as ca
 import numpy as np
 import torch
 
@@ -12,7 +13,7 @@ from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.vehicle_dynamics import VehicleDynamics
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelCartesian
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
-from buzzracer.sysid.tire import tire_curve
+from buzzracer.sysid.tire import tire_curve, tire_curve_casadi
 
 if TYPE_CHECKING:
     from buzzracer.cars.car import CarParam
@@ -69,7 +70,7 @@ class DynamicBicycleModelCartesian(VehicleDynamics):
         Fry = 1.15 * tire_curve(slip_r, use_torch) * m * 9.8 * lf / (lr + lf)
 
         # Dynamics
-        d_vx = 6.17 * (control.throttle - vx / 15.2 - 0.333) * (vx > 0)
+        d_vx = 6.17 * (control.throttle + (-vx / 15.2 - 0.333)*(vx > 0))
         # d_vy is measured in body-attached frame
         d_vy = 1.0 / m * (Fry + Ffy - m * vx * omega)
         d_omega = 1.0 / Iz * (Ffy * lf - Fry * lr)
@@ -159,8 +160,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
 
             # in body frame
             d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
-            d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0) + \
-                omega * state.v_sideway
+            d_vx_body = 6.17 * (control.throttle + (-state.v_forward / 15.2 - 0.333)
+                                * (state.v_forward > 0)) + omega * state.v_sideway
             d_rel_heading_dt = state.rel_omega
 
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
@@ -190,8 +191,8 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
 
             # in body frame
             d_vy_body = 1.0 / m * (Fry + Ffy - m * state.v_forward * omega)
-            d_vx_body = 6.17 * (control.throttle - state.v_forward / 15.2 - 0.333) * (state.v_forward > 0) + \
-                omega * state.v_sideway
+            d_vx_body = 6.17 * (control.throttle + (- state.v_forward / 15.2 - 0.333)
+                                * (state.v_forward > 0)) + omega * state.v_sideway
             d_rel_heading_dt = state.rel_omega
 
             # NOTE ignoring d_omega_ref_dt, i.e. curvature time rate
@@ -205,3 +206,48 @@ class DynamicBicycleModelFrenet(VehicleDynamics):
             v_sideway=state.v_sideway + d_vy_body * dt,
             rel_omega=state.rel_omega + d_rel_omega * dt
         )
+
+    @staticmethod
+    def advance_dynamics_casadi(state,
+                                control,
+                                car_param: CarParam,
+                                dt: float,
+                                curvature):
+        """CasADi-compatible discrete-time Frenet dynamic bicycle model."""
+        kin_next = KinematicBicycleModelFrenet.advance_dynamics_casadi(
+            state, control, car_param, dt, curvature)
+
+        lf = car_param.lf
+        lr = car_param.lr
+        Iz = car_param.Iz
+        m = car_param.m
+
+        denom = 1 - state[1] * curvature
+        dsdt = (state[3] * ca.cos(state[2]) - state[4] * ca.sin(state[2])) / denom
+        dndt = state[3] * ca.sin(state[2]) + state[4] * ca.cos(state[2])
+
+        omega_ref = dsdt * curvature
+        omega = omega_ref + state[5]
+        vx_safe = ca.fmax(state[3], 1e-3)
+
+        slip_f = -ca.atan((omega * lf + state[4]) / vx_safe) + control[0]
+        slip_r = ca.atan((omega * lr - state[4]) / vx_safe)
+
+        Ffy = tire_curve_casadi(slip_f) * m * 9.8 * lr / (lr + lf)
+        Fry = 1.15 * tire_curve_casadi(slip_r) * m * 9.8 * lf / (lr + lf)
+
+        rolling = ca.if_else(state[3] > 0, 1.0, 0.0)
+        d_vx_body = 6.17 * (control[1] + (- state[3] / 15.2 - 0.333) * rolling) + omega * state[4]
+        d_vy_body = (Fry + Ffy - m * state[3] * omega) / m
+        d_rel_heading_dt = state[5]
+        d_rel_omega = (Ffy * lf - Fry * lr) / Iz
+
+        dyn_next = ca.vertcat(
+            state[0] + dsdt * dt,
+            state[1] + dndt * dt,
+            state[2] + d_rel_heading_dt * dt,
+            state[3] + d_vx_body * dt,
+            state[4] + d_vy_body * dt,
+            state[5] + d_rel_omega * dt,
+        )
+        return ca.if_else(state[3] < 0.1, kin_next, dyn_next)

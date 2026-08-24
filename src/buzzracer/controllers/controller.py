@@ -2,10 +2,15 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
-from time import time
+from math import cos, sin
+from time import process_time, perf_counter
 
-from buzzracer.common import LogObject, set_config_attr
-from buzzracer.types import CartesianState, Control
+import numpy as np
+
+from buzzracer.common import LogObject, set_config_attr, LoggingFilter
+from buzzracer.utilities.kalman_filter import KalmanFilter
+from buzzracer.utilities.execution_timer import ExecutionTimer
+from buzzracer.types import CartesianState, Control, StateTiming, ControlTiming
 if TYPE_CHECKING:
     from buzzracer.main import MainState, MainConfig
     from buzzracer.cars.car_param import CarParam
@@ -13,6 +18,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+logger.addFilter(LoggingFilter(interval=1.0))
 
 
 class ControllerConfig:
@@ -25,8 +31,10 @@ class ControllerConfig:
     Car Controller subclasses should subclass and add new configs. 
     """
 
+    # pylint:disable-next=unused-argument
     def __init__(self, main_config: MainConfig, car_param: CarParam):
-        pass
+        """ Use planner instead of main.track """
+        self.planner = False
 
 
 class ControllerState:
@@ -111,14 +119,13 @@ class Controller(LogObject):
                 controller_state,
                 main_state,
                 car_index,
-                reverse=False):
+                planner_state=None):
         ''' Given state of the vehicle and an instance of track,
         provide throttle and steering output
         Args:
           state: CartesianState (x,y,heading,v_forward,v_sideway,omega)
           car_params: CarParams, parameters of the car
           track: track object, can be RCPTrack or skidpad
-          reverse: true if running in opposite direction of raceline init direction
 
         Outputs:
           control: Control(steering, throttle)
@@ -126,28 +133,133 @@ class Controller(LogObject):
                     If this is false, then throttle will also be set to 0
           state: updated controller state
         '''
-        del car_state, car_params, track, controller_config, reverse, main_state
+        del car_state, car_params, track, controller_config, main_state, car_index, planner_state
         ctrl = Control(steering=0, throttle=0)
         valid = False
         return (ctrl, valid, controller_state)
 
     @staticmethod
+    def pre_control(car_state: CartesianState,
+                    car_params,
+                    controller_state,
+                    main_state: MainState,
+                    car_index: int,
+                    state_timing: StateTiming | None = None):
+        """Update shared state from OptiTrack observations before control."""
+        if not main_state.use_optitrack_observations.is_set():
+            return car_state, controller_state, state_timing
+
+        observation = main_state.car_observations[car_index]
+        kf = getattr(controller_state, '_optitrack_kf', None)
+        if kf is None:
+            kf = KalmanFilter(wheelbase=102e-3)
+            kf.init(observation.x, observation.y, observation.heading)
+            controller_state._optitrack_kf = kf
+        else:
+            kf.predict((0.0, 0.0))
+            kf.update(np.matrix([
+                [observation.x],
+                [observation.y],
+                [observation.heading],
+            ]))
+
+        x, y, v, theta, omega = kf.get_state()
+        x += car_params.lr * cos(theta)
+        y += car_params.lr * sin(theta)
+        car_state = CartesianState(
+            x=x, y=y, heading=theta, v_forward=v, v_sideway=0, omega=omega)
+
+        state_set_ts = perf_counter()
+        main_state.car_states[car_index] = car_state
+        if state_timing is not None:
+            state_timing = StateTiming(
+                state_timing.seq,
+                state_timing.udp_rx_ts,
+                state_timing.rigid_body_ts,
+                state_set_ts)
+            main_state.car_state_timing[car_index] = state_timing
+        return car_state, controller_state, state_timing
+
+    @staticmethod
+    def apply_multiprocess_control(car, main_state: MainState, car_index: int):
+        """Copy controller output from shared state to a local car instance."""
+        control_timing = main_state.car_control_timing[car_index]
+        state_timing = main_state.car_state_timing[car_index]
+
+        car.state = main_state.car_states[car_index]
+        car._latency_state_seq = state_timing.seq
+        car._latency_udp_rx_ts = state_timing.udp_rx_ts
+        car._latency_rigid_body_ts = state_timing.rigid_body_ts
+        car._latency_state_set_ts = state_timing.car_state_ts
+
+        car.steering = main_state.car_control[car_index].steering
+        car.throttle = 0.0 if main_state.slowdown.is_set(
+        ) else main_state.car_control[car_index].throttle
+        car._pending_control_latency = {
+            'seq': control_timing.seq,
+            'udp_rx_ts': control_timing.udp_rx_ts,
+            'rigid_body_ts': control_timing.rigid_body_ts,
+            'car_state_ts': control_timing.car_state_ts,
+            'controller_read_ts': control_timing.controller_read_ts,
+            'controller_done_ts': control_timing.controller_done_ts,
+            'steering_set_ts': perf_counter(),
+        }
+
+    @staticmethod
     def process_fun(main_state: MainState, car_index: int,
                     car_params: CarParam, track: Track, controller_cls,
-                    controller_config, controller_state):
-        while not main_state.exit_request.is_set():
-            v_override = 0.0 if main_state.slowdown.is_set() else None
-            controller_state.v_override = v_override
-            new_state = main_state.car_states_event[car_index].wait(0.1)
-            if not new_state:
-                continue
-            main_state.car_states_event[car_index].clear()
+                    controller_config, controller_state, planner_state=None):
+        """ Entry point for multi process control. """
+        timer = ExecutionTimer(enable=False, clock=process_time, clock_name='process_cpu')
+        try:
+            while not main_state.exit_request.is_set():
+                timer.s()
+                v_override = 0.0 if main_state.slowdown.is_set() else None
+                controller_state.v_override = v_override
 
-            control, valid, state = controller_cls.control(
-                main_state.car_states[car_index], car_params, track,
-                controller_config, controller_state, main_state, car_index)
-            if not valid:
-                logger.warning('Invalid control for %s' % {car_params.name})
-            controller_state = state
-            main_state.car_control[car_index] = control
-            main_state.car_control_event[car_index].set()
+                timer.s('wait for state')
+                new_state = main_state.car_states_event[car_index].wait(0.1)
+                timer.e('wait for state')
+                if not new_state:
+                    timer.e()
+                    continue
+                main_state.car_states_event[car_index].clear()
+
+                timer.s('control')
+                while True:
+                    state_timing = main_state.car_state_timing[car_index]
+                    controller_read_ts = perf_counter()
+                    car_state = main_state.car_states[car_index]
+                    state_timing_check = main_state.car_state_timing[car_index]
+                    if state_timing.seq == state_timing_check.seq:
+                        state_timing = state_timing_check
+                        break
+                car_state, controller_state, state_timing = controller_cls.pre_control(
+                    car_state, car_params, controller_state, main_state,
+                    car_index, state_timing)
+                control, valid, state, msg = controller_cls.control(
+                    car_state, car_params, track,
+                    controller_config, controller_state, main_state, car_index, planner_state)
+                controller_done_ts = perf_counter()
+                timer.e('control')
+
+                if not valid:
+                    logger.warning('Invalid control for %s, %s', car_params.name, msg)
+                controller_state = state
+
+                timer.s('publish control')
+                main_state.car_control[car_index] = control
+                main_state.car_control_timing[car_index] = ControlTiming(
+                    state_timing.seq,
+                    state_timing.udp_rx_ts,
+                    state_timing.rigid_body_ts,
+                    state_timing.car_state_ts,
+                    controller_read_ts,
+                    controller_done_ts)
+                main_state.car_control_event[car_index].set()
+                timer.e('publish control')
+                timer.e()
+        finally:
+            if timer.enabled:
+                logger.info('Controller CPU-time summary for %s', car_params.name)
+                timer.summary()

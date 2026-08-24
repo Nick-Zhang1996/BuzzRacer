@@ -4,23 +4,22 @@
       <experiment_type>RealWorld</experiment_type>
   </settings>
 
-  <track>saved</track>
+  <track>survey_track</track>
 
   <extensions>
       <extension handle='laptimer'>Laptimer</extension>
-      <extension handle='logger'>Logger</extension>
+      <!--<extension handle='logger'>Logger</extension>-->
         <!-- <extension handle='snapshot'>SnapshotSaver</extension> -->
       <extension handle='visualization'>VisualizationGL</extension>
       <extension handle='vi'>Optitrack</extension>
-      <extension >SpeedTracker</extension>
   </extensions>
 
   <cars>
     <car>
-      <name>Audi_12</name>
-      <hardware>Offboard</hardware>
-      <config_name>audi_12</config_name>
-      <controller max_speed='2.5'>
+      <name>MyCar</name>
+      <hardware>FHSS</hardware>
+      <config_name>mclaren_21</config_name>
+      <controller max_speed='2.2'>
         <type>StanleyController</type>
         <init_states>(3.7*0.6,3.3*0.6, radians(-90), 1.0)</init_states>
       </controller>

@@ -7,7 +7,8 @@ from buzzracer.extensions.extension import Extension, ExtensionState
 from buzzracer.types import CartesianState, CurvilinearState, Control
 from buzzracer.sysid.kinematic_bicycle_model import KinematicBicycleModelFrenet
 if TYPE_CHECKING:
-    from buzzracer.cars.car import CarParam
+    from buzzracer.cars.car import Car
+    from buzzracer.cars.car_param import CarParam
 
 
 @Extension.register('simulator', SimulatorConfig, ExtensionState)
@@ -16,10 +17,6 @@ class KinematicBicycleCurvilinearSimulator(Simulator):
         with Kinematic Bicycle Model
     '''
     state_type = CurvilinearState
-
-    def __init__(self, config, state):
-        super().__init__(config, state)
-        self.track = self.main.track
 
     def init(self):
         super().init()

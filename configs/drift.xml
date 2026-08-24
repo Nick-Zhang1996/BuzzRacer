@@ -1,0 +1,29 @@
+<config>
+  <settings dt='0.01'>
+    <experiment_type>Simulation</experiment_type>
+  </settings>
+
+  <track>full</track>
+
+  <extensions>
+      <extension>Laptimer</extension>
+      <extension>VisualizationGL</extension>
+      <extension reset_pos='True'>BoundaryChecker</extension>
+      <extension match_time='True'>DriftSimulator</extension>
+      <!-- uncommon next line to enable gif saving-->
+      <!-- <extension>Gifsaver</extension> -->
+  </extensions>
+
+  <cars>
+    <car>
+      <name>Drift RX7</name>
+      <hardware>FHSS</hardware>
+      <config_name>drift_rx7_30</config_name>
+      <controller>
+        <type>JoystickController</type>
+        <init_states>(3.2*0.6,2.1*0.6, radians(-90), 0.5)</init_states>
+      </controller>
+    </car>
+
+  </cars>
+</config>

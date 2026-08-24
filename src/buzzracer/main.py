@@ -1,12 +1,13 @@
 """Universal entry point for running simulation or experiments."""
 import os.path
 import os
-from time import time
+from time import time, perf_counter
 from xml.dom import minidom
 import multiprocessing as mp
+import ctypes
 
 from buzzracer.common import PrintObject, LogObject, ExperimentType, Config, get_logger
-from buzzracer.types import Control, CartesianState
+from buzzracer.types import Control, CartesianState, StateTiming, ControlTiming
 from buzzracer.utilities.execution_timer import ExecutionTimer
 from buzzracer.tracks.track_factory import TrackFactory
 from buzzracer.cars.car import Car
@@ -16,34 +17,12 @@ from buzzracer.controllers.controller import Controller
 logger = get_logger(__name__)
 
 
-class MainState:
-    """ Process safe state """
-
-    def __init__(self, car_count):
-        self.new_state_update = mp.Event()
-        ''' Event is set when a new state from simulator or Vicon is ready'''
-        self.exit_request = mp.Event()
-        ''' Flag to quit gracefully '''
-        self.slowdown = mp.Event()
-        ''' if set, continue to follow trajectory but set throttle to -0.1
-        so we don't leave car uncontrolled at max speed
-        currently this is ignored and pressing 'q' the first time will cut motor
-        second 'q' will exit program
-        '''
-        self.car_states = mp.Array(CartesianState, car_count, lock=False)
-        self.car_states_event = [mp.Event() for _ in range(car_count)]
-        """ Car specific event for new state available, set by main"""
-        self.car_control = mp.Array(Control, car_count, lock=False)
-        self.car_control_event = [mp.Event() for _ in range(car_count)]
-        """ Car specific event for new control available, set by controller"""
-        self.car_target_v = mp.Array('d', car_count, lock=False)
-
-
 class MainConfig:
+    """ Config class for Main"""
 
     def __init__(self, config_filename):
         self.dt = 0.01
-        self.multiprocess = False
+        self.multiprocess = True
         self.config_filename = config_filename
 
         dom = minidom.parse(config_filename)
@@ -53,6 +32,7 @@ class MainConfig:
         for key, value_text in dom_settings.attributes.items():
             if not hasattr(self, key):
                 raise AttributeError(f'Unknown attribute {key}={value_text}')
+            # pylint: disable-next=eval-used
             setattr(self, key, eval(value_text))
             logger.info(f' {__name__}.{key}.{value_text}')
 
@@ -80,6 +60,59 @@ class MainConfig:
         self.experiment_type = get_experiment_type_from_config_settings(
             dom_settings)
         self.experiment_name = os.path.basename(config_filename).split('.')[0]
+        self.car_count = len(self.car_configs)
+
+
+class MainState:
+    """ Process safe state """
+
+    def __init__(self, main_config: MainConfig):
+        car_count = main_config.car_count
+        self.experiment_type = main_config.experiment_type
+        self.new_state_update = mp.Event()
+        ''' Event is set when a new state from simulator or Vicon is ready'''
+        self.exit_request = mp.Event()
+        ''' Flag to quit gracefully '''
+        self.slowdown = mp.Event()
+        ''' if set, continue to follow trajectory but set throttle to -0.1
+        so we don't leave car uncontrolled at max speed
+        currently this is ignored and pressing 'q' the first time will cut motor
+        second 'q' will exit program
+        '''
+        self.breakpoint = mp.Event()
+        """ Set by visualization listing on key stroke 'b'. Can be cleared for debugging """
+        self.use_optitrack_observations = mp.Event()
+        """ Set when controllers should consume raw OptiTrack observations. """
+        self.car_observations = mp.Array(CartesianState, car_count, lock=False)
+        self.car_states = mp.Array(CartesianState, car_count, lock=False)
+        self.car_states_event = [mp.Event() for _ in range(car_count)]
+        self.car_states_first_available = mp.Event()
+        """ Car specific event for new state available, set by main"""
+        self.car_state_timing = mp.Array(StateTiming, car_count, lock=False)
+        self.car_control = mp.Array(Control, car_count, lock=False)
+        self.car_control_event = [mp.Event() for _ in range(car_count)]
+        """ Car specific event for new control available, set by controller"""
+        self.car_control_timing = mp.Array(ControlTiming, car_count, lock=False)
+        self.car_target_v = mp.Array('d', car_count, lock=False)
+        self._time = mp.Value(ctypes.c_double, 0.0)
+        """ Shared timestamp for the latest published state snapshot. """
+
+    def publish_time(self, sim_t=None):
+        """Publish the time associated with the latest shared state snapshot."""
+        if self.experiment_type == ExperimentType.Simulation:
+            if sim_t is None:
+                raise ValueError('sim_t must be provided in simulation mode')
+            now = sim_t
+        else:
+            now = time()
+        with self._time.get_lock():
+            self._time.value = now
+
+    @property
+    def time(self):
+        """Timestamp associated with the latest shared state snapshot."""
+        with self._time.get_lock():
+            return self._time.value
 
 
 class Main(PrintObject, LogObject):
@@ -105,10 +138,14 @@ class Main(PrintObject, LogObject):
             Car.Factory(cfg) for cfg in self.config.car_configs
         ]
         self.print_info(f' total cars: {len(self.cars)}')
-        self.state = MainState(len(self.cars))
+        self.state = MainState(self.config)
+        self.state.publish_time(0.0 if self.config.experiment_type == ExperimentType.Simulation
+                                else None)
 
-        self.timer = ExecutionTimer(True)
+        self.timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
         ''' Timer for profiling code '''
+        self.latency_timer = ExecutionTimer(True, clock=perf_counter, clock_name='wall')
+        """Timer for inter-process state-to-command latency in milliseconds."""
         self.new_state_update = self.state.new_state_update
         ''' Event is set when a new state from simulator or Vicon is ready'''
         self.exit_request = self.state.exit_request
@@ -136,6 +173,9 @@ class Main(PrintObject, LogObject):
         for car in self.cars:
             car.post_init()
 
+        if not hasattr(self, 'planner'):
+            self.planner = None
+
         if self.config.multiprocess:
             self.child_processes = []
             for car in self.cars:
@@ -143,7 +183,9 @@ class Main(PrintObject, LogObject):
                                args=(self.state, car.id, car.param, self.track,
                                      car.controller.__class__,
                                      car.controller.config,
-                                     car.controller.state))
+                                     car.controller.state,
+                                     None if self.planner is None else self.planner.state)
+                               )
                 p.start()
                 self.child_processes.append(p)
             logger.info("Multiprocess enabled")
@@ -160,20 +202,19 @@ class Main(PrintObject, LogObject):
             for p in self.child_processes:
                 p.join()
 
-        # TODO does this still work for multiprocess?
         for car in self.cars:
             car.controller.final()
         Extension.pre_final_all()
         Extension.final_all()
         Extension.post_final_all()
+        if len(self.latency_timer.tracked) > 0:
+            logger.info('State-to-command latency summary [ms]')
+            self.latency_timer.summary()
 
     @property
     def time(self):
         """Current time, either time() or simulated time if in simulation."""
-        if self.config.experiment_type == ExperimentType.Simulation:
-            return self.simulator.sim_t
-        else:
-            return time()
+        return self.state.time
 
     def update(self, ):
         """Run the control/visualization update.
@@ -199,34 +240,57 @@ class Main(PrintObject, LogObject):
         self.new_state_update.wait()
         self.new_state_update.clear()
         if self.config.multiprocess:
-            for i, car in enumerate(self.cars):
-                self.state.car_states[i] = car.state
-                self.state.car_states_event[i].set()
+            if not getattr(self, 'shared_state_published_immediately', False):
+                for i, car in enumerate(self.cars):
+                    self.state.car_states[i] = car.state
+                    self.state.car_state_timing[i] = StateTiming(
+                        car._latency_state_seq,
+                        car._latency_udp_rx_ts,
+                        car._latency_rigid_body_ts,
+                        car._latency_state_set_ts)
+                self.state.publish_time(
+                    self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
+                    else None)
+                for i, _ in enumerate(self.cars):
+                    self.state.car_states_event[i].set()
+                    # logger.info(f'{i=}, {self.state.car_states[i]=}')
+        else:
+            self.state.publish_time(
+                self.simulator.sim_t if self.config.experiment_type == ExperimentType.Simulation
+                else None)
+        if not (self.config.multiprocess and self.state.use_optitrack_observations.is_set()):
+            self.state.car_states_first_available.set()
         t.e('wait new state update')
 
         t.s('control')
         # Call controllers
         for i, car in enumerate(self.cars):
             car = self.cars[i]
-            t.s(car.param.name)
+            # t.s(car.param.name)
             if self.config.multiprocess:
-                # Wait for controller process to complete
-                self.state.car_control_event[i].wait(0.1)
-                self.state.car_control_event[i].clear()
-                car.steering = self.state.car_control[i].steering
-                car.throttle = 0.0 if self.state.slowdown.is_set(
-                ) else self.state.car_control[i].throttle
+                hardware_consumes_control = (
+                    car.consumes_multiprocess_control
+                    and self.config.experiment_type == ExperimentType.Realworld
+                )
+                if not hardware_consumes_control:
+                    self.state.car_control_event[i].wait(0.1)
+                    self.state.car_control_event[i].clear()
+                    Controller.apply_multiprocess_control(car, self.state, i)
             else:
                 # Call controller one by one
-                control, _, controller_state = car.controller.control(
+                result = car.controller.control(
                     car.state, car.param, self.track, car.controller.config,
                     car.controller.state, self.state, i)
+                if len(result) == 4:
+                    control, _, controller_state, _ = result
+                else:
+                    control, _, controller_state = result
                 car.controller.state = controller_state
                 car.steering = control.steering
 
                 car.throttle = 0.0 if self.state.slowdown.is_set(
                 ) else control.throttle
-            t.e(car.param.name)
+            # t.e(car.param.name)
         t.e('control')
 
         # -- Extension update --

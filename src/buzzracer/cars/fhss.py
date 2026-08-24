@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING
 import logging
 import struct
 from threading import Thread
-from time import sleep
+from time import sleep, perf_counter
 
 import serial
 
 from buzzracer.cars.car import Car
 from buzzracer.common import ExperimentType
+from buzzracer.controllers.controller import Controller
 if TYPE_CHECKING:
     from buzzracer.scripts.run import MainState
 
@@ -23,6 +24,7 @@ logger.setLevel(logging.INFO)
 class FHSS(Car):
     car_count = 0
     cars: FHSS = []
+    consumes_multiprocess_control = True
     serial_port = None
     pwm_values = [1500] * 12  # 6 cars, 2 val each (steering, throttle)
     frame_header = bytes([0xAA, 0x55])
@@ -37,21 +39,26 @@ class FHSS(Car):
     def init(self):
         # All FHSS cars share a hardware interface, calling init() once suffices
         if Car.main.config.experiment_type == ExperimentType.Realworld and FHSS.serial_port is None:
-            serial_port = '/dev/ttyUSB0'
-            try:
-                FHSS.serial_port = serial.Serial(
-                    serial_port, 115200, timeout=0.001, writeTimeout=0)
-            except (FileNotFoundError, serial.serialutil.SerialException):
-                logger.error('Interface %s not found', (serial_port))
-                raise
+            for serial_port in ('/dev/ttyUSB0', '/dev/ttyUSB1'):
+                try:
+                    FHSS.serial_port = serial.Serial(
+                        serial_port, 2000000, timeout=0.001, writeTimeout=0)
+                    break
+                except (FileNotFoundError, serial.serialutil.SerialException):
+                    logger.warning('Interface %s not found', serial_port)
+            if FHSS.serial_port is None:
+                logger.error('No FHSS interface found on /dev/ttyUSB0 or /dev/ttyUSB1')
+                raise FileNotFoundError('No FHSS interface found')
             # Create a separate thread for handling data packets
-            comm_thread = Thread(target=self.__comm_thread_function, daemon=True)
+            comm_thread = Thread(target=self.__comm_thread_function,
+                                 args=(self.main.state,), daemon=True)
             comm_thread.start()
             FHSS.child_threads.append(comm_thread)
 
     def actuate(self):
         # Car.actuate(self)
-        steering_pwm = int(self.mapdata(self.steering,
+        steering = (self.steering + self.param.steer_offset) * self.param.steer_ratio
+        steering_pwm = int(self.mapdata(steering,
                                         self.param.max_steer_left,
                                         -self.param.max_steer_right,
                                         self.param.max_steer_pwm_left,
@@ -80,11 +87,59 @@ class FHSS(Car):
             frame.append(crc)
 
             count = FHSS.serial_port.write(frame)
+            if count == 27:
+                cls.record_command_latency(perf_counter())
             return count == 27
 
         except serial.SerialException as e:
             print(f"Serial write error: {e}")
             return False
+
+    @classmethod
+    def record_command_latency(cls, serial_send_ts):
+        """Record wall-clock latency for commands that reached the serial link."""
+        timer = getattr(Car.main, 'latency_timer', None)
+        if timer is None or not timer.enabled:
+            return
+
+        for car in cls.cars:
+            timing = car._pending_control_latency
+            if timing is None or timing['seq'] <= car._last_latency_sent_seq:
+                continue
+            if timing['seq'] == 0 or timing['udp_rx_ts'] <= 0.0:
+                continue
+
+            seq = timing['seq']
+            car_name = car.param.name
+            timer.track_duration(f'{car_name} rx->rb cb ms',
+                                 timing['udp_rx_ts'],
+                                 timing['rigid_body_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} rb cb->state ms',
+                                 timing['rigid_body_ts'],
+                                 timing['car_state_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} state->ctrl ms',
+                                 timing['car_state_ts'],
+                                 timing['controller_read_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} ctrl->steer ms',
+                                 timing['controller_read_ts'],
+                                 timing['steering_set_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} steer->serial ms',
+                                 timing['steering_set_ts'],
+                                 serial_send_ts,
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} ctrl compute ms',
+                                 timing['controller_read_ts'],
+                                 timing['controller_done_ts'],
+                                 scale=1e3)
+            timer.track_duration(f'{car_name} total rx->serial ms',
+                                 timing['udp_rx_ts'],
+                                 serial_send_ts,
+                                 scale=1e3)
+            car._last_latency_sent_seq = seq
 
     def mapdata(self, x, a, b, c, d):
         y = (x-a)/(b-a)*(d-c)+c
@@ -128,9 +183,18 @@ class FHSS(Car):
             except serial.SerialException as e:
                 logger.info("\n[Serial Read Error]: %s" % {e})
 
-    def __comm_thread_function(self):
+    def __comm_thread_function(self, main_state):
         while not Car.main.state.exit_request.is_set():
             for car in FHSS.cars:
+                car_id = car.id
+                if Car.main.config.multiprocess:
+                    updated = main_state.car_control_event[car_id].wait(0.01)
+                    if updated:
+                        main_state.car_control_event[car_id].clear()
+                        Controller.apply_multiprocess_control(car, main_state, car_id)
+                else:
+                    main_state.car_control_event[car_id].wait(0.01)
+                    main_state.car_control_event[car_id].clear()
                 car.actuate()
             FHSS.send_pwm_array()
             sleep(0.01)

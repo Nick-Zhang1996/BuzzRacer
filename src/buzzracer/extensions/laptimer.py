@@ -1,6 +1,7 @@
 ''' Track laptimes of cars'''
 from __future__ import annotations
 from typing import TYPE_CHECKING
+import logging
 
 import os
 from time import time
@@ -15,6 +16,9 @@ from buzzracer.common import BASEDIR
 from buzzracer.extensions.extension import Extension, ExtensionConfig, ExtensionState
 if TYPE_CHECKING:
     from buzzracer.cars.car import Car
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @Extension.register('laptimer', ExtensionConfig, ExtensionState)
@@ -48,9 +52,11 @@ class Laptimer(Extension):
             if is_new_lap:
                 # Audio announcement with text-to-voice
                 # car.laptimer.announce()
-                self.print_info('car%d, Lap %d laptime: %.4f s' %
-                                (car.id, len(self.laptime_vec_by_car[car]),
-                                 self.laptimer_by_car[car].last_laptime))
+                logger.info(
+                    'car%d, Lap %d laptime: %.4f s',
+                    car.id,
+                    len(self.laptime_vec_by_car[car]),
+                    self.laptimer_by_car[car].last_laptime)
                 self.laptime_vec_by_car[car].append(
                     self.laptimer_by_car[car].last_laptime)
 
@@ -69,15 +75,16 @@ class Laptimer(Extension):
             dirname = os.path.join(BASEDIR, 'outputs', 'logs')
             os.makedirs(dirname, exist_ok=True)
             logname = os.path.join(dirname, 'laptime_latest.p')
-            self.print_warning(
-                f"Logger extension wasn't enabled, saving to {logname}")
+            logger.warning(
+                "Logger extension wasn't enabled, saving to %s",
+                logname)
         with open(logname, 'wb') as f:
             laptime_vec_by_car_id = {
                 car.id: self.laptime_vec_by_car[car]
                 for car in self.main.cars
             }
             pickle.dump(laptime_vec_by_car_id, f)
-            self.print_ok('Saved laptime vec to ' + logname)
+            logger.info('Saved laptime vec to %s', logname)
 
     def show_stats(self):
         for car in self.main.cars:
@@ -86,13 +93,16 @@ class Laptimer(Extension):
                 mean = np.mean(self.laptime_vec_by_car[car][1:])
                 stddev = np.std(self.laptime_vec_by_car[car][1:])
                 laps = len(self.laptime_vec_by_car[car][1:])
-                self.print_info(
-                    'car%d, %d laps, mean %.4f, stddev %.4f (sec)' %
-                    (car.id, laps, mean, stddev))
+                logger.info(
+                    'car%d, %d laps, mean %.4f, stddev %.4f (sec)',
+                    car.id,
+                    laps,
+                    mean,
+                    stddev)
             else:
                 mean = -1
                 stddev = -1
-                self.print_warning(f'car{car.id} has no laps')
+                logger.warning('car%d has no laps', car.id)
             self.laptime_mean_by_car[car] = mean
             self.laptime_stddev_by_car[car] = stddev
 
