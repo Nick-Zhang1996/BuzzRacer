@@ -787,12 +787,10 @@ def _update_track_boundary_widths(track: RCPTrack, left: np.ndarray, right: np.n
                          right_boundary_vec=right_boundary_vec)
 
 
-def _render_loaded_track_image(track, selected_idx: int | None = None):
+def _render_loaded_track_image(track: RCPTrack, selected_idx: int | None = None):
     img = track.draw_track()
     data = track.data
-    ss = np.linspace(0.0, data.raceline_len_m, 1000, endpoint=False)
-    raceline_points = np.array(splev(ss, data.raceline_s, der=0)).T
-    img = track.draw_polyline(raceline_points, img=img)
+    img = track.draw_raceline(data.raceline_s, data.raceline_len_m, img=img)
     img = track.draw_polyline(data.left_boundary_vec, img=img)
     img = track.draw_polyline(data.right_boundary_vec, img=img)
     if selected_idx is not None:
@@ -806,7 +804,7 @@ def _render_loaded_track_image(track, selected_idx: int | None = None):
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def _show_loaded_track(track):
+def _show_loaded_track(track: RCPTrack):
     fig, ax = plt.subplots()
     ax.imshow(_render_loaded_track_image(track))
     ax.set_title('Loaded track verification')
@@ -985,7 +983,9 @@ if __name__ == '__main__':
     _launch_boundary_margin_editor(track)
     track.save()
 
-    # verify results
+    # verify results: load and show
+    load_track = TrackFactory.build('saved')
     print('-----------------')
-    print_info('showing saved track')
-    _show_loaded_track(track)
+    print_info('testing loading')
+    load_track.load()
+    _show_loaded_track(load_track)
