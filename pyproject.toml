@@ -22,7 +22,7 @@ dependencies = [
     "numpy==2.2.6",
     "opencv-python~=4.12.0.88",
     "pandas==2.3.2",
-    "pillow==11.3.0",
+    "pillow==12.3.0",
     "progressbar33==2.4",
     "pygame==2.6.1",
     "pyserial==3.5",
