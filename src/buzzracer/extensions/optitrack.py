@@ -114,6 +114,12 @@ class _Optitrack(PrintObject):
     def __init__(self, base, enable_kf=True):
         """Initialize the NatNet client and Optitrack state caches."""
         self.base = base
+        # ``_Optitrack`` is also usable as a standalone diagnostic tool from
+        # this module's ``__main__`` block, where there is no extension base.
+        # Keep callback profiling optional so that mode still receives frames.
+        self.timer = (base.timer if base is not None else
+                      ExecutionTimer(enable=False, clock=perf_counter,
+                                     clock_name='optitrack'))
         self.enable_kf_event = Event()
         self.kf = []
         self.callback = self.empty_callback
@@ -251,7 +257,7 @@ class _Optitrack(PrintObject):
     def receive_rigid_body_frame(self, optitrack_id, position, rotation):
         """Update the cached state for a tracked rigid body."""
         # print( "Received frame for rigid body", id )
-        t = self.base.timer
+        t = self.timer
         t.s()
         rigid_body_ts = perf_counter()
         internal_id = self.get_internal_id(optitrack_id)
